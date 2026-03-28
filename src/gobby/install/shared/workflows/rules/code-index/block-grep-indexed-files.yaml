@@ -8,8 +8,6 @@ rules:
     priority: 50
     when: >
       event.data.get('tool_name', '').lower() in ('grep_search', 'grep')
-    conditions:
-      - "variables.get('code_index_available', False)"
     effects:
       - type: mcp_call
         server: gobby-code
@@ -18,4 +16,8 @@ rules:
           query: "{{ tool_input.get('pattern', tool_input.get('query', '')) }}"
           file_path: "{{ tool_input.get('path', '') }}"
         inject_result: true
-        block_on_success: true
+      - type: block
+        message: >
+          Grep is blocked — this project has a code index.
+          Use gobby-code tools instead: search_content (text search),
+          search_symbols (symbol search), get_file_outline, get_file_tree.

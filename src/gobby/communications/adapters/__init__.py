@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -21,3 +22,21 @@ def get_adapter_class(channel_type: str) -> type[BaseChannelAdapter] | None:
 def list_adapter_types() -> list[str]:
     """List all registered adapter types."""
     return sorted(_ADAPTER_REGISTRY.keys())
+
+
+# Import adapters to register them
+
+with contextlib.suppress(ImportError):
+    import gobby.communications.adapters.slack  # noqa: F401
+with contextlib.suppress(ImportError):
+    import gobby.communications.adapters.telegram  # noqa: F401
+with contextlib.suppress(ImportError):
+    import gobby.communications.adapters.discord  # noqa: F401
+with contextlib.suppress(ImportError):
+    import gobby.communications.adapters.teams  # noqa: F401
+with contextlib.suppress(ImportError):
+    import gobby.communications.adapters.email  # noqa: F401
+with contextlib.suppress(ImportError):
+    import gobby.communications.adapters.sms  # noqa: F401
+with contextlib.suppress(ImportError):
+    import gobby.communications.adapters.web_chat  # noqa: F401

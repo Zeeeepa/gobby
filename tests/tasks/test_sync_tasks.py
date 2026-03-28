@@ -671,7 +671,7 @@ class TestImportFromGitHubIssues:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_import_github_url_with_git_suffix(self, sync_manager):
+    async def test_import_github_url_with_git_suffix(self, sync_manager, sample_project):
         """Test import handles .git suffix in URL."""
         with patch("subprocess.run") as mock_run:
             # Mock gh --version check
@@ -681,7 +681,8 @@ class TestImportFromGitHubIssues:
             ]
 
             result = await sync_manager.import_from_github_issues(
-                "https://github.com/owner/repo.git"
+                "https://github.com/owner/repo.git",
+                project_id=sample_project["id"],
             )
 
             assert result["success"] is True
@@ -689,19 +690,22 @@ class TestImportFromGitHubIssues:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_import_gh_not_installed(self, sync_manager):
+    async def test_import_gh_not_installed(self, sync_manager, sample_project):
         """Test import when gh CLI is not installed."""
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = FileNotFoundError()
 
-            result = await sync_manager.import_from_github_issues("https://github.com/owner/repo")
+            result = await sync_manager.import_from_github_issues(
+                "https://github.com/owner/repo",
+                project_id=sample_project["id"],
+            )
 
             assert result["success"] is False
             assert "gh CLI not found" in result["error"]
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_import_gh_command_fails(self, sync_manager):
+    async def test_import_gh_command_fails(self, sync_manager, sample_project):
         """Test import when gh command fails."""
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = [
@@ -709,14 +713,17 @@ class TestImportFromGitHubIssues:
                 MagicMock(returncode=1, stderr="auth required"),  # gh issue list
             ]
 
-            result = await sync_manager.import_from_github_issues("https://github.com/owner/repo")
+            result = await sync_manager.import_from_github_issues(
+                "https://github.com/owner/repo",
+                project_id=sample_project["id"],
+            )
 
             assert result["success"] is False
             assert "gh command failed" in result["error"]
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_import_no_open_issues(self, sync_manager):
+    async def test_import_no_open_issues(self, sync_manager, sample_project):
         """Test import when there are no open issues."""
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = [
@@ -724,7 +731,10 @@ class TestImportFromGitHubIssues:
                 MagicMock(returncode=0, stdout="[]"),  # gh issue list
             ]
 
-            result = await sync_manager.import_from_github_issues("https://github.com/owner/repo")
+            result = await sync_manager.import_from_github_issues(
+                "https://github.com/owner/repo",
+                project_id=sample_project["id"],
+            )
 
             assert result["success"] is True
             assert result["count"] == 0
@@ -889,7 +899,7 @@ class TestImportFromGitHubIssues:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_import_issues_json_decode_error(self, sync_manager):
+    async def test_import_issues_json_decode_error(self, sync_manager, sample_project):
         """Test import handles invalid JSON from gh."""
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = [
@@ -897,7 +907,10 @@ class TestImportFromGitHubIssues:
                 MagicMock(returncode=0, stdout="not valid json"),
             ]
 
-            result = await sync_manager.import_from_github_issues("https://github.com/owner/repo")
+            result = await sync_manager.import_from_github_issues(
+                "https://github.com/owner/repo",
+                project_id=sample_project["id"],
+            )
 
         assert result["success"] is False
         assert "Failed to parse GitHub response" in result["error"]
@@ -934,7 +947,7 @@ class TestImportFromGitHubIssues:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_import_issues_general_exception(self, sync_manager):
+    async def test_import_issues_general_exception(self, sync_manager, sample_project):
         """Test import handles general exceptions."""
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = [
@@ -942,7 +955,10 @@ class TestImportFromGitHubIssues:
                 Exception("Unexpected error"),
             ]
 
-            result = await sync_manager.import_from_github_issues("https://github.com/owner/repo")
+            result = await sync_manager.import_from_github_issues(
+                "https://github.com/owner/repo",
+                project_id=sample_project["id"],
+            )
 
         assert result["success"] is False
         assert "Unexpected error" in result["error"]

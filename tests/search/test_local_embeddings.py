@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from gobby.search.local_embeddings import (
-    LocalEmbeddingModel,
     _MODEL_REGISTRY,
+    LocalEmbeddingModel,
     download_model,
     generate_embedding_local,
     generate_embeddings_local,

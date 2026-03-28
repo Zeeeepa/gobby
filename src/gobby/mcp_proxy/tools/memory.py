@@ -653,7 +653,8 @@ def create_memory_registry(
         if not memory_sync_manager:
             return {"success": False, "error": "Memory sync manager not available"}
         try:
-            result = await memory_sync_export(memory_sync_manager)
+            project_id = get_current_project_id()
+            result = await memory_sync_export(memory_sync_manager, project_id=project_id)
             if "error" in result:
                 return {"success": False, "error": result["error"]}
             return {"success": True, "exported": result["exported"]["memories"]}

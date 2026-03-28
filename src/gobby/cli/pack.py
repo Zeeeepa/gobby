@@ -17,6 +17,7 @@ from pathlib import Path
 
 import click
 
+from gobby.cli.installers.git_hooks import install_git_hooks
 from gobby.cli.utils import stop_daemon
 
 GOBBY_HOME = Path.home() / ".gobby"
@@ -526,6 +527,15 @@ def unpack(archive: str, no_docker: bool, dry_run: bool, force: bool) -> None:
                                     f"    Warning: Failed to import {vol_name}",
                                     err=True,
                                 )
+
+    # Reinstall git hooks from templates (ensures they match current version)
+    if (Path.cwd() / ".git").exists():
+        click.echo("  Installing git hooks...")
+        hook_result = install_git_hooks(Path.cwd(), force=True, setup_precommit=False)
+        if hook_result["success"]:
+            click.echo(f"    Installed: {', '.join(hook_result['installed'])}")
+        else:
+            click.echo(f"    Warning: {hook_result['error']}", err=True)
 
     # Restart services
     if neo4j_was_running or (not no_docker and docker_archives):

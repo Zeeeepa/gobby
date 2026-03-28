@@ -15,8 +15,8 @@ import { useArtifactContext } from './artifacts/ArtifactContext'
 
 interface ToolCallCardProps {
   toolCalls: ToolCall[]
-  onRespond?: (toolCallId: string, answers: Record<string, string>) => void
-  onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void
+  onRespond?: (toolCallId: string, answers: Record<string, string>) => boolean | void
+  onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => boolean | void
   canvasSurfaces?: Map<string, A2UISurfaceState>
   onCanvasInteraction?: (canvasId: string, action: UserAction) => void
 }
@@ -678,7 +678,7 @@ function ToolResultContent({ call }: { call: ToolCall }) {
   )
 }
 
-const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToApproval, canvasSurfaces, onCanvasInteraction, nested = false }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void; onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void; canvasSurfaces?: Map<string, A2UISurfaceState>; onCanvasInteraction?: (canvasId: string, action: UserAction) => void; nested?: boolean }) {
+const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToApproval, canvasSurfaces, onCanvasInteraction, nested = false }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => boolean | void; onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => boolean | void; canvasSurfaces?: Map<string, A2UISurfaceState>; onCanvasInteraction?: (canvasId: string, action: UserAction) => void; nested?: boolean }) {
   const isActive = call.status === 'calling' || call.status === 'pending_approval'
   const [expanded, setExpanded] = useState(isActive)
   const displayName = formatToolName(call.tool_name)
@@ -779,11 +779,39 @@ const ToolCallItem = memo(function ToolCallItem({ call, onRespond, onRespondToAp
   )
 })
 
-function ToolApprovalCard({ call, onRespondToApproval }: { call: ToolCall; onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void }) {
+function ToolApprovalCard({ call, onRespondToApproval }: { call: ToolCall; onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => boolean | void }) {
   const displayName = formatToolName(call.tool_name)
+  const isLive = onRespondToApproval && call.status === 'pending_approval'
+  const [sendError, setSendError] = useState<string | null>(null)
 
   const handleDecision = (decision: 'approve' | 'reject' | 'approve_always') => {
-    onRespondToApproval?.(call.id, decision)
+    const sent = onRespondToApproval?.(call.id, decision)
+    if (sent === false) {
+      setSendError('Disconnected — reconnecting...')
+    } else {
+      setSendError(null)
+    }
+  }
+
+  // Read-only: show what happened
+  if (!isLive) {
+    const wasApproved = call.status === 'completed'
+    const wasError = call.status === 'error'
+    return (
+      <div className="rounded-lg border border-border/30 bg-muted/5 overflow-hidden my-1.5 opacity-75">
+        <div className="flex items-center gap-2 px-3 py-2 text-sm">
+          <span className="font-mono text-foreground">{displayName}</span>
+          {wasApproved && <Badge variant="success">Approved</Badge>}
+          {wasError && <Badge variant="error">Rejected</Badge>}
+          {!wasApproved && !wasError && <Badge variant="warning">Pending</Badge>}
+        </div>
+        {call.arguments && Object.keys(call.arguments).length > 0 && (
+          <div className="px-3 pb-2 text-xs">
+            <ToolArgumentsContent args={call.arguments} />
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -813,20 +841,86 @@ function ToolApprovalCard({ call, onRespondToApproval }: { call: ToolCall; onRes
           Reject
         </Button>
       </div>
+      {sendError && (
+        <div className="px-3 pb-2 text-xs text-warning-foreground">{sendError}</div>
+      )}
     </div>
   )
 }
 
-function AskUserQuestionCard({ call, onRespond }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => void }) {
+/** Parse answered values from AskUserQuestion result content. */
+function parseAnsweredValues(result: ToolResult | undefined): Record<string, string> | null {
+  if (!result?.content) return null
+  try {
+    const text = typeof result.content === 'string' ? result.content : JSON.stringify(result.content)
+    // The result is JSON with {answers: {question: answer}} or just {question: answer}
+    const parsed = JSON.parse(text)
+    if (parsed && typeof parsed === 'object') {
+      return parsed.answers ?? parsed
+    }
+  } catch {
+    // Fall back to treating content as a plain string
+    if (typeof result.content === 'string' && result.content.trim()) {
+      return { _raw: result.content }
+    }
+  }
+  return null
+}
+
+function AskUserQuestionCard({ call, onRespond }: { call: ToolCall; onRespond?: (toolCallId: string, answers: Record<string, string>) => boolean | void }) {
   const args = call.arguments as { questions?: AskUserQuestionItem[] } | undefined
   const questions = args?.questions
   const [selectedOptions, setSelectedOptions] = useState<Record<number, string[]>>({})
   const [otherTexts, setOtherTexts] = useState<Record<number, string>>({})
   const [submitted, setSubmitted] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
 
   if (!questions || !Array.isArray(questions)) return null
 
-  const isWaiting = call.status === 'calling'
+  const isLive = onRespond && call.status === 'calling'
+
+  // Read-only mode: show what was answered
+  if (!isLive) {
+    const answered = parseAnsweredValues(call.result)
+    return (
+      <div className="rounded-lg border border-border/30 bg-muted/5 overflow-hidden my-1.5 p-3 opacity-75">
+        {questions.map((q, qi) => {
+          const answer = answered?.[q.question]
+          const answerLabels = answer ? answer.split(', ') : []
+          return (
+            <div key={qi} className="mb-3 last:mb-0">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Badge variant="info">{q.header}</Badge>
+                {answer ? <Badge variant="success">Answered</Badge> : <Badge variant="default">No response</Badge>}
+              </div>
+              <div className="text-sm text-foreground mb-2">{q.question}</div>
+              <div className="flex flex-wrap gap-1.5">
+                {q.options.map((opt, oi) => {
+                  const wasSelected = answerLabels.includes(opt.label)
+                  return (
+                    <div
+                      key={oi}
+                      className={cn(
+                        'rounded-md border px-3 py-1.5 text-sm text-left',
+                        wasSelected
+                          ? 'border-accent bg-accent/20 text-foreground'
+                          : 'border-border/50 text-muted-foreground/50'
+                      )}
+                    >
+                      <div className="font-medium">{opt.label}</div>
+                    </div>
+                  )
+                })}
+              </div>
+              {answer && !q.options.some((o) => answerLabels.includes(o.label)) && (
+                <div className="mt-1.5 text-sm text-foreground italic">&ldquo;{answer}&rdquo;</div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
 
   const handleOptionClick = (qi: number, label: string, multiSelect: boolean) => {
     if (submitted) return
@@ -853,8 +947,13 @@ function AskUserQuestionCard({ call, onRespond }: { call: ToolCall; onRespond?: 
       if (selected.includes('__other__')) answers[q.question] = otherTexts[qi] || ''
       else if (selected.length > 0) answers[q.question] = selected.join(', ')
     })
-    onRespond(call.id, answers)
-    setSubmitted(true)
+    const sent = onRespond(call.id, answers)
+    if (sent === false) {
+      setSendError('Disconnected — reconnecting...')
+    } else {
+      setSendError(null)
+      setSubmitted(true)
+    }
   }
 
   const hasSelection = Object.values(selectedOptions).some((s) => s.length > 0)
@@ -915,10 +1014,13 @@ function AskUserQuestionCard({ call, onRespond }: { call: ToolCall; onRespond?: 
           )}
         </div>
       ))}
-      {isWaiting && !submitted && hasSelection && (
+      {!submitted && hasSelection && (
         <Button size="sm" variant="primary" onClick={handleSubmit} className="mt-2">
           Submit
         </Button>
+      )}
+      {sendError && (
+        <div className="mt-1.5 text-xs text-warning-foreground">{sendError}</div>
       )}
     </div>
   )
@@ -1032,8 +1134,8 @@ function ToolCallGroupHeader({ group, expanded, onToggle, onRespond, onRespondTo
   group: ToolCallGroup
   expanded: boolean
   onToggle: () => void
-  onRespond?: (toolCallId: string, answers: Record<string, string>) => void
-  onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void
+  onRespond?: (toolCallId: string, answers: Record<string, string>) => boolean | void
+  onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => boolean | void
   canvasSurfaces?: Map<string, A2UISurfaceState>
   onCanvasInteraction?: (canvasId: string, action: UserAction) => void
 }) {
@@ -1090,8 +1192,8 @@ export function buildChainSummary(toolCalls: ToolCall[]): string {
 
 interface ToolChainGroupProps {
   toolCalls: ToolCall[]
-  onRespond?: (toolCallId: string, answers: Record<string, string>) => void
-  onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => void
+  onRespond?: (toolCallId: string, answers: Record<string, string>) => boolean | void
+  onRespondToApproval?: (toolCallId: string, decision: 'approve' | 'reject' | 'approve_always') => boolean | void
   canvasSurfaces?: Map<string, A2UISurfaceState>
   onCanvasInteraction?: (canvasId: string, action: UserAction) => void
 }

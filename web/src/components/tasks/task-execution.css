@@ -521,15 +521,19 @@
 }
 
 .task-overview-card--progress .task-overview-count {
-  color: #f59e0b;
+  color: #fb923c;
 }
 
 .task-overview-card--review .task-overview-count {
-  color: #a855f7;
+  color: #c084fc;
+}
+
+.task-overview-card--approved .task-overview-count {
+  color: #2dd4bf;
 }
 
 .task-overview-card--escalated .task-overview-count {
-  color: #ef4444;
+  color: #f87171;
 }
 
 .task-overview-card--recent .task-overview-count {

@@ -4,8 +4,6 @@ Gobby Daemon Tools MCP Server.
 
 import json
 import logging
-import sqlite3
-from pathlib import Path
 from typing import Annotated, Any
 
 from mcp.server.fastmcp import FastMCP
@@ -122,47 +120,18 @@ class GobbyDaemonTools:
 
     def _resolve_and_set_project_context(self, session_id: str) -> Any:
         """Look up session's project_id and set context var for this call."""
-        from gobby.utils.project_context import set_project_context
+        from gobby.utils.project_context import set_project_context_from_session
 
         if not self._session_manager:
             return None
 
-        session = self._session_manager.get(session_id)
-        if not session or not session.project_id:
-            return None
-
-        # Try to enrich with full project data from DB
         try:
-            from gobby.storage.projects import LocalProjectManager
-
-            pm = LocalProjectManager(self._session_manager.db)
-            project = pm.get(session.project_id)
-            if project:
-                ctx: dict[str, Any] = {
-                    "id": project.id,
-                    "name": project.name,
-                    "project_path": project.repo_path,
-                }
-                # Enrich with project.json data if available
-                if project.repo_path:
-                    project_file = Path(project.repo_path) / ".gobby" / "project.json"
-                    if project_file.exists():
-                        try:
-                            data = json.loads(project_file.read_text())
-                            fs_id = data.get("id")
-                            if fs_id and fs_id != project.id:
-                                logger.warning(
-                                    f"Project ID mismatch: session='{project.id}', filesystem='{fs_id}' at {project.repo_path}. Using filesystem.",
-                                )
-                            data["project_path"] = project.repo_path
-                            return set_project_context(data)
-                        except (json.JSONDecodeError, OSError) as e:
-                            logger.debug(f"Failed to read project.json at {project_file}: {e}")
-                return set_project_context(ctx)
-        except (ImportError, OSError, sqlite3.Error) as e:
-            logger.debug(f"Failed to enrich project context for session {session_id}: {e}")
-
-        return set_project_context({"id": session.project_id})
+            return set_project_context_from_session(
+                session_id, self._session_manager, self._session_manager.db
+            )
+        except Exception as e:
+            logger.debug(f"Failed to set project context for session {session_id}: {e}")
+            return None
 
     async def call_tool(
         self,

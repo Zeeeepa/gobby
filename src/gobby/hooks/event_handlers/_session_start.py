@@ -856,6 +856,21 @@ class SessionStartMixin(EventHandlersBase):
 
         sv_mgr = SessionVariableManager(self._session_storage.db)
 
+        # Compute variables_count BEFORE the persistence filter so it reflects
+        # the true number of user-facing variables for the agent, not the
+        # persistence delta (which is artificially small because get_variables()
+        # merges definition defaults, making 'existing' truthy even on fresh sessions).
+        internal_keys = {
+            "_agent_type",
+            "_active_rule_names",
+            "_active_skill_names",
+            "_skill_format",
+            "_agent_blocked_tools",
+            "_agent_blocked_mcp_tools",
+            "is_spawned_agent",
+        }
+        variables_count = len([k for k in changes if k not in internal_keys])
+
         # Don't overwrite existing session variables with defaults on compact/restart.
         # Internal keys reflect current agent config and are always re-applied.
         # User-facing variables (pre_existing_errors_triaged, stop_attempts, etc.)
@@ -890,14 +905,6 @@ class SessionStartMixin(EventHandlersBase):
         )
         if formatted:
             context_parts.append(formatted)
-
-        internal_keys = {
-            "_agent_type",
-            "_active_rule_names",
-            "_active_skill_names",
-            "_skill_format",
-        }
-        variables_count = len([k for k in changes if k not in internal_keys])
 
         def _ms(a: float, b: float) -> int:
             return int((b - a) * 1000)

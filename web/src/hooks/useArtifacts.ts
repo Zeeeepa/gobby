@@ -74,6 +74,12 @@ export function useArtifacts() {
     setActiveArtifactId(null)
   }, [])
 
+  const clearArtifacts = useCallback(() => {
+    setArtifacts(new Map())
+    setActiveArtifactId(null)
+    setIsPanelOpen(false)
+  }, [])
+
   const setVersion = useCallback((id: string, index: number) => {
     setArtifacts((prev) => {
       const existing = prev.get(id)
@@ -101,6 +107,7 @@ export function useArtifacts() {
     updateArtifact,
     openArtifact,
     closePanel,
+    clearArtifacts,
     setVersion,
     setPanelWidth: handlePanelWidthChange,
   }

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Issue } from '../../hooks/useSourceControl'
+import type { Issue, IssueDetail } from '../../hooks/useSourceControl'
 import { StatusBadge } from './StatusBadge'
 import { GitHubUnavailable } from './GitHubUnavailable'
 
@@ -7,7 +7,7 @@ interface Props {
   issues: Issue[]
   githubAvailable: boolean
   fetchIssues: (state?: string) => Promise<void>
-  fetchIssueDetail: (number: number) => Promise<Record<string, unknown> | null>
+  fetchIssueDetail: (number: number) => Promise<IssueDetail | null>
 }
 
 type IssueFilter = 'open' | 'closed' | 'all'
@@ -15,7 +15,8 @@ type IssueFilter = 'open' | 'closed' | 'all'
 export function IssuesView({ issues, githubAvailable, fetchIssues, fetchIssueDetail }: Props) {
   const [filter, setFilter] = useState<IssueFilter>('open')
   const [selectedIssue, setSelectedIssue] = useState<number | null>(null)
-  const [issueDetail, setIssueDetail] = useState<Record<string, unknown> | null>(null)
+  const [issueDetail, setIssueDetail] = useState<IssueDetail | null>(null)
+  const [issueDetailLoading, setIssueDetailLoading] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [filterLoading, setFilterLoading] = useState(false)
 
@@ -44,8 +45,16 @@ export function IssuesView({ issues, githubAvailable, fetchIssues, fetchIssueDet
     }
     setSelectedIssue(number)
     setIssueDetail(null)
-    const detail = await fetchIssueDetail(number)
-    setIssueDetail(detail)
+    setIssueDetailLoading(true)
+    try {
+      const detail = await fetchIssueDetail(number)
+      setIssueDetail(detail)
+    } catch (e) {
+      setFetchError(e instanceof Error ? e.message : 'Failed to fetch issue detail')
+      setIssueDetail(null)
+    } finally {
+      setIssueDetailLoading(false)
+    }
   }
 
   return (
@@ -123,15 +132,20 @@ export function IssuesView({ issues, githubAvailable, fetchIssues, fetchIssueDet
         )}
       </div>
 
+      {selectedIssue !== null && issueDetailLoading && (
+        <div className="sc-issues__detail">
+          <p className="sc-text-muted" style={{ padding: '16px' }}>Loading issue details...</p>
+        </div>
+      )}
       {selectedIssue !== null && issueDetail && (
         <div className="sc-issues__detail">
           <div className="sc-issues__detail-header">
-            <h3>#{selectedIssue}: {(issueDetail as Record<string, unknown>).title as string || ''}</h3>
+            <h3>#{selectedIssue}: {issueDetail.title || ''}</h3>
             <button className="sc-issues__detail-close" onClick={() => { setSelectedIssue(null); setIssueDetail(null) }}>Close</button>
           </div>
           <div className="sc-issues__detail-body">
-            {(issueDetail as Record<string, unknown>).body ? (
-              <pre className="sc-issues__detail-text">{(issueDetail as Record<string, unknown>).body as string}</pre>
+            {issueDetail.body ? (
+              <pre className="sc-issues__detail-text">{issueDetail.body}</pre>
             ) : (
               <p className="sc-text-muted">No description provided.</p>
             )}

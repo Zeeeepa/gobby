@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
+from gobby.mcp_proxy.tools.task_github import create_github_registry
 from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 from gobby.mcp_proxy.tools.task_validation import create_validation_registry
@@ -121,5 +122,8 @@ def create_task_registry(
             session_manager=ctx.session_manager,
         )
     )
+
+    # Merge GitHub integration tools
+    registry.merge_from(create_github_registry(task_manager=task_manager))
 
     return registry

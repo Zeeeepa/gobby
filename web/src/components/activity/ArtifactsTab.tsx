@@ -15,6 +15,7 @@ interface ArtifactsTabProps {
   planPendingApproval?: boolean
   onApprovePlan?: () => void
   onRequestPlanChanges?: (feedback: string) => void
+  onClearAll?: () => void
 }
 
 export const ArtifactsTab = memo(function ArtifactsTab({
@@ -30,6 +31,7 @@ export const ArtifactsTab = memo(function ArtifactsTab({
   planPendingApproval,
   onApprovePlan,
   onRequestPlanChanges,
+  onClearAll,
 }: ArtifactsTabProps) {
   const artifactList = Array.from(artifacts.values()).reverse()
 
@@ -49,7 +51,18 @@ export const ArtifactsTab = memo(function ArtifactsTab({
       <div className={`flex flex-col h-full bg-background ${isMini ? 'border-r border-border w-64' : ''}`}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/20">
           <h2 className="text-sm font-semibold truncate">{isMini ? 'History' : 'Artifact History'}</h2>
-          {!isMini && <span className="text-xs text-muted-foreground shrink-0">{artifactList.length} items</span>}
+          <div className="flex items-center gap-2 shrink-0">
+            {!isMini && <span className="text-xs text-muted-foreground">{artifactList.length} items</span>}
+            {onClearAll && artifactList.length > 0 && (
+              <button
+                onClick={onClearAll}
+                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                title="Clear all artifacts"
+              >
+                <TrashIcon />
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto">
           {artifactList.map((a) => (
@@ -129,6 +142,15 @@ export const ArtifactsTab = memo(function ArtifactsTab({
     />
   )
 })
+
+function TrashIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  )
+}
 
 function ChevronRightIcon() {
   return (

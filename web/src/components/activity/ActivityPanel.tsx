@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, type ReactNode } from "react";
+import { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
 import {
   TooltipProvider,
   Tooltip,
@@ -127,6 +127,9 @@ interface ActivityPanelProps {
   // Canvas tab props
   canvasState: CanvasPanelState | null;
   onCloseCanvas: () => void;
+  // Clear callbacks
+  onClearArtifacts?: () => void;
+  onClearCanvas?: () => void;
   // Tasks tab
   projectId?: string | null;
   // Files tab
@@ -156,6 +159,8 @@ export function ActivityPanel({
   onRequestPlanChanges,
   canvasState,
   onCloseCanvas,
+  onClearArtifacts,
+  onClearCanvas,
   projectId,
   onAddFileToChat,
   onKillAgent,
@@ -185,6 +190,7 @@ export function ActivityPanel({
             onKillAgent={onKillAgent}
             onExpireSession={onExpireSession}
             chatSessionId={chatSessionId ?? undefined}
+            isMobile={useOverlay}
           />
         );
       case "pipelines":
@@ -208,10 +214,11 @@ export function ActivityPanel({
             planPendingApproval={planPendingApproval}
             onApprovePlan={onApprovePlan}
             onRequestPlanChanges={onRequestPlanChanges}
+            onClearAll={onClearArtifacts}
           />
         );
       case "canvas":
-        return <CanvasTab state={canvasState} onClose={onCloseCanvas} />;
+        return <CanvasTab state={canvasState} onClose={onCloseCanvas} onClearAll={onClearCanvas} />;
       default:
         return null;
     }
@@ -245,6 +252,11 @@ export function ActivityPanel({
                   title={tab.label}
                 >
                   <span className="activity-panel-tab-icon">{tab.icon}</span>
+                  {activeTab === tab.id && (
+                    <span className="activity-panel-tab-label">
+                      {tab.label}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -292,6 +304,11 @@ export function ActivityPanel({
                       <span className="activity-panel-tab-icon">
                         {tab.icon}
                       </span>
+                      {activeTab === tab.id && (
+                        <span className="activity-panel-tab-label">
+                          {tab.label}
+                        </span>
+                      )}
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">{tab.label}</TooltipContent>
@@ -316,7 +333,7 @@ export function ActivityPanel({
 }
 
 // Hooks for persisting panel state
-export function useActivityPanel(_isMobile = false) {
+export function useActivityPanel() {
   const [isPinned, setIsPinned] = useState(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_PINNED);
@@ -381,16 +398,38 @@ export function useActivityPanel(_isMobile = false) {
   // No auto-collapse on narrow viewport — the panel switches to overlay
   // mode when the viewport is too narrow for side-by-side layout.
 
+  // Track whether the panel was opened programmatically (via showTab)
+  // vs manually by the user, so we can auto-close it when the artifact
+  // or canvas that triggered the open is dismissed.
+  const autoOpenedRef = useRef(false);
+
   const showTab = useCallback(
     (tab: ActivityTab) => {
       setActiveTab(tab);
-      if (!isPinned) setIsPinned(true);
+      if (!isPinned) {
+        setIsPinned(true);
+        autoOpenedRef.current = true;
+      }
     },
     [isPinned],
   );
 
+  const closeIfAutoOpened = useCallback(() => {
+    if (autoOpenedRef.current) {
+      setIsPinned(false);
+      autoOpenedRef.current = false;
+    }
+  }, []);
+
   const togglePanel = useCallback(() => {
+    autoOpenedRef.current = false;
     setIsPinned((prev) => !prev);
+  }, []);
+
+  // Clear auto-opened flag when user manually changes tab
+  const handleTabChange = useCallback((tab: ActivityTab) => {
+    autoOpenedRef.current = false;
+    setActiveTab(tab);
   }, []);
 
   return {
@@ -399,8 +438,9 @@ export function useActivityPanel(_isMobile = false) {
     panelWidth,
     setPanelWidth,
     activeTab,
-    setActiveTab,
+    setActiveTab: handleTabChange,
     showTab,
+    closeIfAutoOpened,
     togglePanel,
   };
 }

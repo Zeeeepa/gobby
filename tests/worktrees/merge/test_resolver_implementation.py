@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from gobby.worktrees.merge.resolver import MergeResolver
+from gobby.worktrees.merge.resolver import MergeResolver, auto_resolve_trivial_conflicts
 
 pytestmark = pytest.mark.unit
 
@@ -33,7 +33,7 @@ async def test_git_merge_success(resolver):
         mock_process.communicate.return_value = (b"", b"")
         mock_exec.return_value = mock_process
 
-        result = await resolver._git_merge("/tmp/repo", "feature", "main")
+        result = await resolver._git_merge("/tmp/test-repo", "feature", "test-target")
 
         assert result["success"] is True
         assert result["conflicts"] == []
@@ -44,8 +44,8 @@ async def test_git_merge_success(resolver):
             "merge",
             "--no-commit",
             "--no-ff",
-            "feature",
-            cwd="/tmp/repo",
+            "origin/test-target",
+            cwd="/tmp/test-repo",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -77,7 +77,7 @@ async def test_git_merge_conflict(resolver):
             "read_text",
             return_value="<<<<<<< HEAD\nA\n=======\nB\n>>>>>>> feature\n",
         ):
-            result = await resolver._git_merge("/tmp/repo", "feature", "main")
+            result = await resolver._git_merge("/tmp/test-repo", "feature", "test-target")
 
             assert result["success"] is False
             assert len(result["conflicts"]) == 1
@@ -137,3 +137,61 @@ async def test_resolve_full_file(resolver, mock_llm_service):
         assert result["success"] is True
         assert len(result["resolutions"]) == 1
         assert result["resolutions"][0]["content"] == "FIXED CONTENT"
+
+
+# --- auto_resolve_trivial_conflicts tests ---
+
+
+@pytest.mark.asyncio
+async def test_auto_resolve_trivial_only_jsonl():
+    """All conflicts are trivial .gobby/*.jsonl — returns empty list."""
+    files = [".gobby/tasks.jsonl", ".gobby/memories.jsonl"]
+
+    with patch("asyncio.create_subprocess_exec") as mock_exec:
+        mock_proc = AsyncMock()
+        mock_proc.returncode = 0
+        mock_proc.communicate.return_value = (b"", b"")
+        mock_exec.return_value = mock_proc
+
+        remaining = await auto_resolve_trivial_conflicts(files, "/tmp/wt")
+
+    assert remaining == []
+    # 2 files x 2 calls each (checkout --theirs + add)
+    assert mock_exec.call_count == 4
+
+
+@pytest.mark.asyncio
+async def test_auto_resolve_trivial_mixed():
+    """Mix of trivial and real conflicts — returns only real ones."""
+    files = [".gobby/tasks.jsonl", "src/gobby/communications/manager.py", ".gobby/memories.jsonl"]
+
+    with patch("asyncio.create_subprocess_exec") as mock_exec:
+        mock_proc = AsyncMock()
+        mock_proc.returncode = 0
+        mock_proc.communicate.return_value = (b"", b"")
+        mock_exec.return_value = mock_proc
+
+        remaining = await auto_resolve_trivial_conflicts(files, "/tmp/wt")
+
+    assert remaining == ["src/gobby/communications/manager.py"]
+    # 2 trivial files x 2 calls each
+    assert mock_exec.call_count == 4
+
+
+@pytest.mark.asyncio
+async def test_auto_resolve_trivial_none():
+    """No trivial conflicts — returns all files unchanged."""
+    files = ["src/main.py", "src/utils.py"]
+
+    with patch("asyncio.create_subprocess_exec") as mock_exec:
+        remaining = await auto_resolve_trivial_conflicts(files, "/tmp/wt")
+
+    assert remaining == files
+    mock_exec.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_auto_resolve_trivial_empty():
+    """Empty conflict list — returns empty."""
+    remaining = await auto_resolve_trivial_conflicts([], "/tmp/wt")
+    assert remaining == []

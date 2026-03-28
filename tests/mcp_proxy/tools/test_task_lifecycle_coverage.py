@@ -156,6 +156,32 @@ class TestCloseTask:
         assert "open" in result["message"].lower()
 
     @pytest.mark.asyncio
+    async def test_close_epic_no_children_no_commit_succeeds(
+        self, mock_task_manager, mock_sync_manager
+    ):
+        """Closing an epic with no children succeeds without commits or changes_summary."""
+        epic = _make_task(task_type="epic", commits=None)
+        mock_task_manager.get_task.return_value = epic
+        mock_task_manager.list_tasks.return_value = []  # no children
+        mock_task_manager.close_task.return_value = epic
+
+        registry = _create_registry(mock_task_manager, mock_sync_manager)
+
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._lifecycle_close.validate_commit_requirements"
+        ) as mock_vcr:
+            result = await registry.call(
+                "close_task",
+                {"task_id": epic.id},
+            )
+            # commit check should NOT have been called — epics skip leaf validation
+            mock_vcr.assert_not_called()
+
+        assert "error" not in result
+        assert result.get("success", True) is not False
+        mock_task_manager.close_task.assert_called_once()
+
+    @pytest.mark.asyncio
     async def test_close_commit_requirements_fail(self, mock_task_manager, mock_sync_manager):
         """Returns error when commit requirements fail."""
         task = _make_task()
@@ -185,6 +211,103 @@ class TestCloseTask:
             )
         assert result["success"] is False
         assert result["error"] == "missing_commits"
+
+    @pytest.mark.asyncio
+    async def test_close_task_invalid_commit_sha_returns_error(
+        self, mock_task_manager, mock_sync_manager
+    ):
+        """Returns error when commit_sha cannot be resolved (nonexistent or non-commit)."""
+        task = _make_task()
+        mock_task_manager.get_task.return_value = task
+        mock_task_manager.link_commit.side_effect = ValueError(
+            "Invalid or unresolved commit SHA: deadbeef"
+        )
+
+        registry = _create_registry(mock_task_manager, mock_sync_manager)
+        result = await registry.call(
+            "close_task",
+            {"task_id": task.id, "changes_summary": "done", "commit_sha": "deadbeef"},
+        )
+
+        assert "error" in result
+        assert "Invalid or unresolved" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_close_task_passes_cwd_to_link_commit(self, mock_task_manager, mock_sync_manager):
+        """Verifies link_commit receives the project repo_path as cwd."""
+        task = _make_task(commits=["abc1234"])
+        mock_task_manager.get_task.return_value = task
+        mock_task_manager.link_commit.return_value = task
+        mock_task_manager.list_tasks.return_value = []
+        mock_task_manager.close_task.return_value = task
+
+        registry = _create_registry(mock_task_manager, mock_sync_manager)
+
+        with patch(
+            "gobby.mcp_proxy.tools.tasks._lifecycle_close.validate_commit_requirements"
+        ) as mock_vcr:
+            mock_vcr.return_value = MagicMock(can_close=True)
+            await registry.call(
+                "close_task",
+                {"task_id": task.id, "changes_summary": "done", "commit_sha": "abc1234"},
+            )
+
+        # link_commit should have been called with cwd keyword arg
+        call_kwargs = mock_task_manager.link_commit.call_args
+        assert call_kwargs is not None
+        assert "cwd" in call_kwargs.kwargs
+
+
+# ---------------------------------------------------------------------------
+# validate_commit_requirements stale SHA tests
+# ---------------------------------------------------------------------------
+
+
+class TestValidateCommitRequirementsStale:
+    """Tests for stale SHA detection in validate_commit_requirements."""
+
+    def test_stale_commits_detected(self) -> None:
+        """Returns stale_commits error when linked SHAs don't exist in repo."""
+        from gobby.mcp_proxy.tools.tasks._lifecycle_validation import (
+            validate_commit_requirements,
+        )
+
+        task = _make_task(commits=["abc1234", "def5678"])
+
+        with patch("gobby.utils.git.normalize_commit_sha") as mock_norm:
+            # First SHA resolves, second doesn't
+            mock_norm.side_effect = ["abc1234", None]
+            result = validate_commit_requirements(task, reason="completed", repo_path="/repo")
+
+        assert not result.can_close
+        assert result.error_type == "stale_commits"
+        assert result.extra is not None
+        assert "def5678" in result.extra["stale_shas"]
+
+    def test_all_commits_valid(self) -> None:
+        """Passes when all linked SHAs exist in repo."""
+        from gobby.mcp_proxy.tools.tasks._lifecycle_validation import (
+            validate_commit_requirements,
+        )
+
+        task = _make_task(commits=["abc1234"])
+
+        with patch("gobby.utils.git.normalize_commit_sha") as mock_norm:
+            mock_norm.return_value = "abc1234"
+            result = validate_commit_requirements(task, reason="completed", repo_path="/repo")
+
+        assert result.can_close
+
+    def test_skips_verification_without_repo_path(self) -> None:
+        """Degrades gracefully when no repo_path is available."""
+        from gobby.mcp_proxy.tools.tasks._lifecycle_validation import (
+            validate_commit_requirements,
+        )
+
+        task = _make_task(commits=["abc1234"])
+        result = validate_commit_requirements(task, reason="completed", repo_path=None)
+
+        assert result.can_close
 
 
 # ---------------------------------------------------------------------------
@@ -318,7 +441,9 @@ class TestDeleteTask:
         mock_task_manager.get_task.return_value = task
         from gobby.storage.tasks._models import TaskHasChildrenError
 
-        mock_task_manager.delete_task.side_effect = TaskHasChildrenError("Cannot delete: has children")
+        mock_task_manager.delete_task.side_effect = TaskHasChildrenError(
+            "Cannot delete: has children"
+        )
         registry = _create_registry(mock_task_manager, mock_sync_manager)
 
         result = await registry.call("delete_task", {"task_id": task.id, "cascade": False})

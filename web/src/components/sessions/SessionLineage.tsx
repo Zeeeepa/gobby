@@ -21,13 +21,13 @@ interface TreeNode {
 function findRoot(sessionId: string, lookup: Map<string, GobbySession>): GobbySession | null {
   let current = lookup.get(sessionId)
   if (!current) return null
-  
+
   // Guard against cycles with a visited set
   const visited = new Set<string>()
   while (current.parent_session_id) {
     if (visited.has(current.id)) break
     visited.add(current.id)
-    
+
     const parent = lookup.get(current.parent_session_id)
     if (!parent) break
     current = parent

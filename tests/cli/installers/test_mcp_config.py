@@ -42,7 +42,8 @@ class TestConfigureMCPServerJSON:
         assert result["backup_path"] is None  # no backup for new file
         data = json.loads(settings.read_text())
         assert "gobby" in data["mcpServers"]
-        assert data["mcpServers"]["gobby"]["command"] == "uv"
+        assert data["mcpServers"]["gobby"]["command"].endswith("gobby")
+        assert data["mcpServers"]["gobby"]["args"] == ["mcp-server"]
 
     def test_adds_to_existing_file(self, tmp_path: Path) -> None:
         settings = tmp_path / "settings.json"

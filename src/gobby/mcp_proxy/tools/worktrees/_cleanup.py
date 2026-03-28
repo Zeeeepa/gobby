@@ -130,12 +130,16 @@ def create_cleanup_registry(ctx: RegistryContext) -> InternalToolRegistry:
             dry_run=dry_run,
         )
 
+        # Also include expired merged worktrees (past cleanup_after window)
+        expired = ctx.worktree_storage.find_expired(project_id=resolved_project_id)
+
         results = []
         for wt in stale:
             result: dict[str, Any] = {
                 "id": wt.id,
                 "branch_name": wt.branch_name,
                 "worktree_path": wt.worktree_path,
+                "reason": "stale",
                 "marked_abandoned": not dry_run,
                 "git_deleted": False,
             }
@@ -150,6 +154,34 @@ def create_cleanup_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 )
                 result["git_deleted"] = git_result.success
                 if not git_result.success:
+                    result["git_error"] = git_result.error or "Unknown error"
+
+            results.append(result)
+
+        # Expired merged worktrees: always delete git (work is in target branch)
+        for wt in expired:
+            result = {
+                "id": wt.id,
+                "branch_name": wt.branch_name,
+                "worktree_path": wt.worktree_path,
+                "reason": "expired",
+                "cleanup_after": wt.cleanup_after,
+                "marked_abandoned": False,
+                "git_deleted": False,
+            }
+
+            if not dry_run and resolved_git_manager:
+                git_result = await asyncio.to_thread(
+                    resolved_git_manager.delete_worktree,
+                    wt.worktree_path,
+                    force=True,
+                    delete_branch=True,
+                    branch_name=wt.branch_name,
+                )
+                result["git_deleted"] = git_result.success
+                if git_result.success:
+                    ctx.worktree_storage.delete(wt.id)
+                else:
                     result["git_error"] = git_result.error or "Unknown error"
 
             results.append(result)

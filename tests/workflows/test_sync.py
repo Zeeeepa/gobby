@@ -367,7 +367,9 @@ class TestSyncBundledPipelines:
         pip_dir.mkdir()
         (pip_dir / "bad.yaml").write_text("- a list\n")
 
-        with patch("gobby.workflows.sync_pipelines.get_bundled_pipelines_path", return_value=pip_dir):
+        with patch(
+            "gobby.workflows.sync_pipelines.get_bundled_pipelines_path", return_value=pip_dir
+        ):
             result = sync_bundled_pipelines(db)
             assert result["synced"] == 0
 
@@ -378,7 +380,9 @@ class TestSyncBundledPipelines:
         pip_dir.mkdir()
         (pip_dir / "noname.yaml").write_text("description: no name field\ntype: pipeline\n")
 
-        with patch("gobby.workflows.sync_pipelines.get_bundled_pipelines_path", return_value=pip_dir):
+        with patch(
+            "gobby.workflows.sync_pipelines.get_bundled_pipelines_path", return_value=pip_dir
+        ):
             result = sync_bundled_pipelines(db)
             assert result["synced"] == 0
 
@@ -392,7 +396,9 @@ class TestSyncBundledPipelines:
             "name: invalid-pipeline\ntype: pipeline\nsteps: not-a-list\n"
         )
 
-        with patch("gobby.workflows.sync_pipelines.get_bundled_pipelines_path", return_value=pip_dir):
+        with patch(
+            "gobby.workflows.sync_pipelines.get_bundled_pipelines_path", return_value=pip_dir
+        ):
             result = sync_bundled_pipelines(db)
             assert result["synced"] == 0
 
@@ -412,7 +418,9 @@ steps:
 """
         )
 
-        with patch("gobby.workflows.sync_pipelines.get_bundled_pipelines_path", return_value=pip_dir):
+        with patch(
+            "gobby.workflows.sync_pipelines.get_bundled_pipelines_path", return_value=pip_dir
+        ):
             result = sync_bundled_pipelines(db)
             assert result["synced"] == 1
 

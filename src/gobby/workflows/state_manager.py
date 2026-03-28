@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from datetime import UTC, datetime
 from typing import Any
 
@@ -120,20 +121,68 @@ class WorkflowInstanceManager:
 
 
 class SessionVariableManager:
-    """Manages session-scoped shared variables (visible to all workflows)."""
+    """Manages session-scoped shared variables (visible to all workflows).
+
+    Variable resolution layers definition defaults under session overrides,
+    ensuring presets are always available even if never explicitly materialized
+    into the session row (e.g., ``gobby init`` run mid-session).
+    """
+
+    _DEFAULTS_CACHE_TTL = 10.0  # seconds
 
     def __init__(self, db: DatabaseProtocol):
         self.db = db
+        self._defaults_cache: dict[str, Any] | None = None
+        self._defaults_cache_time: float = 0.0
 
     def get_variables(self, session_id: str) -> dict[str, Any]:
-        """Get all session variables. Returns empty dict if no row exists."""
+        """Get all session variables with definition defaults applied.
+
+        Layers: variable definition defaults < session-stored overrides.
+        This ensures presets are always available even if they were never
+        explicitly materialized into the session row.
+        """
+        defaults = self._get_variable_defaults()
+
         row = self.db.fetchone(
             "SELECT variables FROM session_variables WHERE session_id = ?",
             (session_id,),
         )
-        if not row:
-            return {}
-        return json.loads(row["variables"]) if row["variables"] else {}
+        session_vars = json.loads(row["variables"]) if row and row["variables"] else {}
+
+        if not defaults:
+            return session_vars
+        return {**defaults, **session_vars}
+
+    def _get_variable_defaults(self) -> dict[str, Any]:
+        """Load default values from enabled, installed variable definitions.
+
+        Results are cached for ``_DEFAULTS_CACHE_TTL`` seconds to avoid
+        per-hook DB overhead.  The definition set only changes on
+        ``gobby sync`` / ``gobby init`` which are rare operations.
+        """
+        now = time.monotonic()
+        if (
+            self._defaults_cache is not None
+            and (now - self._defaults_cache_time) < self._DEFAULTS_CACHE_TTL
+        ):
+            return dict(self._defaults_cache)
+
+        rows = self.db.fetchall(
+            "SELECT name, definition_json FROM workflow_definitions "
+            "WHERE workflow_type = 'variable' AND enabled = 1 AND source = 'installed'",
+        )
+        defaults: dict[str, Any] = {}
+        for row in rows:
+            try:
+                body = json.loads(row["definition_json"])
+                defaults[body.get("variable", row["name"])] = body.get("value")
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+        self._defaults_cache = defaults
+        self._defaults_cache_time = now
+        return defaults
 
     def set_variable(self, session_id: str, name: str, value: Any) -> None:
         """Set a single session variable (atomic read-modify-write)."""

@@ -55,14 +55,14 @@ class TestRecordEvent:
     def test_record_skill_search(self, event_store: MetricsEventStore) -> None:
         event_store.record_event(
             event_type="skill_search",
-            name="committing-changes",
+            name="source-control",
             session_id="sess-1",
             success=True,
             metadata={"query": "how to commit", "match_count": 3},
         )
         events = event_store.query_events(event_type="skill_search")
         assert len(events) == 1
-        assert events[0]["name"] == "committing-changes"
+        assert events[0]["name"] == "source-control"
         assert '"query"' in events[0]["metadata_json"]
 
     def test_record_failure(self, event_store: MetricsEventStore) -> None:

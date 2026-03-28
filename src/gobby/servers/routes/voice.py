@@ -52,12 +52,31 @@ def create_voice_router(server: HTTPServer) -> APIRouter:
             except ImportError:
                 stt_reason = "faster-whisper not installed (pip install faster-whisper)"
 
+        # Check TTS availability
+        tts_available = False
+        tts_reason = ""
+        if not voice_config.enabled:
+            tts_reason = "Voice not enabled in config"
+        elif not voice_config.tts_enabled:
+            tts_reason = "TTS disabled in config"
+        else:
+            try:
+                import kokoro_onnx  # noqa: F401
+
+                tts_available = True
+            except ImportError:
+                tts_reason = "kokoro-onnx not installed (pip install kokoro-onnx)"
+
         return {
             "enabled": voice_config.enabled,
             "stt_enabled": voice_config.stt_enabled,
             "stt_available": stt_available,
             "stt_reason": stt_reason,
             "whisper_model": voice_config.whisper_model_size,
+            "tts_enabled": voice_config.tts_enabled,
+            "tts_available": tts_available,
+            "tts_reason": tts_reason,
+            "tts_voice": voice_config.tts_voice,
         }
 
     @router.post("/transcribe")

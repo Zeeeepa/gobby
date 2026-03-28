@@ -90,6 +90,7 @@ class GobbyRunner:
     _metrics_cleanup_task: asyncio.Task[None] | None
     _vector_rebuild_task: asyncio.Task[None] | None
     _zombie_messages_task: asyncio.Task[None] | None
+    _comms_messages_task: asyncio.Task[None] | None
     _span_cleanup_task: asyncio.Task[None] | None
     _metrics_archive_task: asyncio.Task[None] | None
     _metric_snapshot_task: asyncio.Task[None] | None
@@ -97,6 +98,7 @@ class GobbyRunner:
     _code_index_shutdown: asyncio.Event | None
     _savings_rollup_task: asyncio.Task[None] | None
     _approval_timeout_task: asyncio.Task[None] | None
+    _expired_isolation_task: asyncio.Task[None] | None
     database: LocalDatabase
     secret_store: SecretStore
     config_store: ConfigStore

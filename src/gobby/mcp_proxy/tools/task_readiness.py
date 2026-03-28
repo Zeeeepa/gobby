@@ -718,6 +718,7 @@ def create_readiness_registry(
         selected: list[dict[str, Any]] = []
         selected_files: set[str] = set()
         conflicts_avoided = 0
+        skipped_refs: list[str] = []
 
         for task, _score, _is_leaf, _proximity_boost in scored:
             if len(selected) >= max_count:
@@ -730,6 +731,8 @@ def create_readiness_registry(
                 # Check for overlap with occupied or already-selected files
                 if task_file_paths & occupied_files or task_file_paths & selected_files:
                     conflicts_avoided += 1
+                    brief = task.to_brief()
+                    skipped_refs.append(brief.get("ref", brief.get("id", str(task.id))))
                     continue
                 # No conflicts — add files to selected set
                 selected_files.update(task_file_paths)
@@ -740,7 +743,9 @@ def create_readiness_registry(
         return {
             "suggestions": selected,
             "total_ready": len(ready_tasks),
+            "max_count": max_count,
             "conflicts_avoided": conflicts_avoided,
+            "skipped_refs": skipped_refs[:10],
         }
 
     registry.register(

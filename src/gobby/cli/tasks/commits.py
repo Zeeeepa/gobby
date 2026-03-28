@@ -2,6 +2,8 @@
 CLI commands for commit linking.
 """
 
+from pathlib import Path
+
 import click
 
 from gobby.cli.tasks._utils import get_task_manager, resolve_task_id
@@ -101,7 +103,7 @@ def auto_link(task_id: str | None, since: str | None) -> None:
     manager = get_task_manager()
 
     # Get project repo path
-    ctx = get_project_context()
+    ctx = get_project_context(cwd=Path.cwd())
     cwd = ctx.get("project_path") if ctx else None
 
     result = auto_link_commits(
@@ -141,7 +143,7 @@ def diff_cmd(task_id: str, uncommitted: bool, stats: bool) -> None:
         raise SystemExit(1)
 
     # Get project repo path
-    ctx = get_project_context()
+    ctx = get_project_context(cwd=Path.cwd())
     cwd = ctx.get("project_path") if ctx else None
 
     result = get_task_diff(

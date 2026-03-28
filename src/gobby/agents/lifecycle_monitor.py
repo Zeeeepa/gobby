@@ -532,26 +532,65 @@ class AgentLifecycleMonitor:
         return stalled
 
     async def _handle_idle_check(self, run: AgentRun) -> int:
-        """Handle idle check for a single agent. Returns 1 if action taken, 0 otherwise."""
+        """Handle idle check for a single agent. Returns 1 if action taken, 0 otherwise.
+
+        Uses session updated_at as the primary idle signal.  If the session
+        was recently active (within idle_timeout_seconds), the agent is
+        considered active regardless of what the tmux pane shows.
+
+        When the session is stale, the agent is considered idle.  Pane
+        pattern matching is only used to detect specific actionable
+        conditions (context_full) that require immediate failure rather
+        than the standard reprompt flow.
+        """
         tmux_name = run.tmux_session_name
         assert tmux_name is not None
 
+        # --- Primary signal: session updated_at ---
+        session_stale = False
+        session_id = run.child_session_id or run.parent_session_id
+        if session_id and self._session_manager:
+            session = await asyncio.to_thread(self._session_manager.get, session_id)
+            if session and session.updated_at:
+                from datetime import UTC, datetime
+
+                try:
+                    last_update = datetime.fromisoformat(session.updated_at)
+                    elapsed = (datetime.now(UTC) - last_update).total_seconds()
+                    if elapsed < self._tmux_config.idle_timeout_seconds:
+                        # Session has recent activity — agent is working
+                        self._idle_detector.reset_idle(run.id)
+                        return 0
+                    else:
+                        session_stale = True
+                except (ValueError, TypeError):
+                    pass  # Fall through to pane-based detection
+
+        # --- Secondary: pane patterns for specific actionable signals ---
         pane_output = await self._tmux.capture_pane(tmux_name, lines=15)
         if pane_output is None:
-            return 0
+            if session_stale:
+                # Session is stale but can't read pane — treat as idle
+                pass
+            else:
+                return 0
 
-        status = self._idle_detector.detect(pane_output)
+        if pane_output is not None:
+            status = self._idle_detector.detect(pane_output)
 
-        if status == "active":
-            self._idle_detector.reset_idle(run.id)
-            return 0
+            if status == "context_full":
+                logger.info(f"Agent {run.id} hit context window limit - failing")
+                await self._fail_idle_agent(run, reason="context window exhausted")
+                return 1
 
-        if status == "context_full":
-            logger.info(f"Agent {run.id} hit context window limit - failing")
-            await self._fail_idle_agent(run, reason="context window exhausted")
-            return 1
+            # If session_stale is set, the agent is idle regardless of pane content.
+            # Pane "active" does NOT override a stale session — the session timestamp
+            # is the authoritative signal.
+            if not session_stale and status == "active":
+                self._idle_detector.reset_idle(run.id)
+                return 0
 
-        # status == "idle"
+        # Agent is idle (session stale, or pane shows idle/stalled prompt)
         if self._idle_detector.should_fail(run.id, self._tmux_config.max_reprompt_attempts):
             logger.info(
                 f"Agent {run.id} still idle after "

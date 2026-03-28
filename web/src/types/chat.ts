@@ -33,19 +33,19 @@ export const CHAT_MODES: ChatModeInfo[] = [
 
 export interface ToolResult {
   content: unknown;
-  content_type: string;  // 'text' | 'json' | 'image' | 'error'
+  content_type: string; // 'text' | 'json' | 'image' | 'error'
   truncated: boolean;
-  metadata?: Record<string, unknown>;  // exit_code, line_count, etc.
+  metadata?: Record<string, unknown>; // exit_code, line_count, etc.
 }
 
 export interface ToolCall {
   id: string;
   tool_name: string;
   server_name: string;
-  tool_type: string;    // NEW: 'bash', 'read', 'edit', 'mcp', etc.
+  tool_type: string; // NEW: 'bash', 'read', 'edit', 'mcp', etc.
   status: "calling" | "completed" | "error" | "pending" | "pending_approval";
   arguments?: Record<string, unknown>;
-  result?: ToolResult;  // NEW: typed result instead of unknown
+  result?: ToolResult; // NEW: typed result instead of unknown
   error?: string;
 }
 
@@ -60,7 +60,8 @@ export function classifyTool(toolName: string | null | undefined): string {
   // Built-in tools
   if (["bash", "sh", "terminal", "shell"].includes(name)) return "bash";
   if (["read", "read_file", "cat"].includes(name)) return "read";
-  if (["edit", "write", "multiedit", "patch", "sed"].includes(name)) return "edit";
+  if (["edit", "write", "multiedit", "patch", "sed"].includes(name))
+    return "edit";
   if (["grep", "rg", "search"].includes(name)) return "grep";
   if (["glob", "ls", "list_files", "find"].includes(name)) return "glob";
 
@@ -75,10 +76,18 @@ export type ContentBlock =
   | { type: "thinking"; content: string }
   | { type: "tool_chain"; tool_calls: ToolCall[] }
   | { type: "tool_reference"; tool_name: string; server_name: string }
-  | { type: "image"; source: { media_type: string; data: string; [key: string]: unknown } }
+  | {
+      type: "image";
+      source: { media_type: string; data: string; [key: string]: unknown };
+    }
   | { type: "document"; source: { name?: string } & Record<string, unknown> }
   | { type: "web_search_result"; content: Record<string, unknown> }
-  | { type: "unknown"; block_type: string; raw: Record<string, unknown>; source_line?: number };
+  | {
+      type: "unknown";
+      block_type: string;
+      raw: Record<string, unknown>;
+      source_line?: number;
+    };
 
 export interface TokenUsage {
   input_tokens: number;
@@ -154,6 +163,7 @@ export interface ChatState {
   isThinking: boolean;
   isLoadingMessages?: boolean;
   isConnected: boolean;
+  isReconnecting: boolean;
   contextUsage?: ContextUsage;
   onSend: (content: string, files?: QueuedFile[]) => void;
   onStop: () => void;
@@ -180,8 +190,16 @@ export interface ChatState {
   onApprovePlan: () => void;
   onRequestPlanChanges: (feedback: string) => void;
   setOnPlanReady?: (fn: (content: string | null) => void) => void;
-  setOnArtifactEvent?: (fn: (type: string, content: string, language?: string, title?: string) => void) => void;
+  setOnArtifactEvent?: (
+    fn: (
+      type: string,
+      content: string,
+      language?: string,
+      title?: string,
+    ) => void,
+  ) => void;
   dbSessionId?: string | null;
+  conversationSwitchKey?: number;
   viewingSessionId?: string | null;
   viewingSessionMeta?: SessionObservationMeta | null;
   attachedSessionId?: string | null;

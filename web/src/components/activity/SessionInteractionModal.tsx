@@ -5,6 +5,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "../chat/ui/Dialog";
+import { useMcp, type McpToolSchema } from "../../hooks/useMcp";
+import { ToolArgumentForm } from "../command-browser/ToolArgumentForm";
 
 interface SessionEntry {
   id: string;
@@ -37,8 +39,8 @@ const MODE_CONFIG: Record<
   },
   command: {
     title: "Send Command",
-    description: "Send a command the agent must execute before proceeding.",
-    placeholder: "Enter command text...",
+    description: "Execute an MCP tool against this session's server.",
+    placeholder: "",
   },
   keys: {
     title: "Send Keys",
@@ -81,7 +83,18 @@ async function callTool(
     }),
   });
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    let detail = response.statusText;
+    try {
+      const body = await response.json();
+      detail = body.error || body.message || body.detail || JSON.stringify(body);
+    } catch {
+      try {
+        detail = await response.text();
+      } catch {
+        // keep statusText
+      }
+    }
+    throw new Error(`HTTP ${response.status}: ${detail}`);
   }
   return response.json();
 }
@@ -101,6 +114,26 @@ export function SessionInteractionModal({
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // MCP tool selector state (command mode)
+  const {
+    servers,
+    toolsByServer,
+    fetchServers,
+    fetchTools,
+    fetchToolSchema,
+    callTool: mcpCallTool,
+  } = useMcp();
+  const [selectedServer, setSelectedServer] = useState<string>("");
+  const [selectedTool, setSelectedTool] = useState<string>("");
+  const [toolSchema, setToolSchema] = useState<McpToolSchema | null>(null);
+  const [schemaLoading, setSchemaLoading] = useState(false);
+  const [formValues, setFormValues] = useState<Record<string, unknown>>({});
+  const [toolResult, setToolResult] = useState<{
+    success: boolean;
+    data?: unknown;
+    error?: string;
+  } | null>(null);
+
   // Reset state when modal opens
   useEffect(() => {
     if (open) {
@@ -109,18 +142,75 @@ export function SessionInteractionModal({
       setError(null);
       setPaneOutput(null);
       setSending(false);
+      setSelectedServer("");
+      setSelectedTool("");
+      setToolSchema(null);
+      setFormValues({});
+      setToolResult(null);
       if (mode === "pane") {
         fetchPane();
+      }
+      if (mode === "command") {
+        fetchServers();
+        fetchTools();
       }
     }
   }, [open, mode]);
 
   // Focus input when modal opens
   useEffect(() => {
-    if (open && mode !== "pane") {
+    if (open && mode !== "pane" && mode !== "command") {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [open, mode]);
+
+  // Fetch schema when tool is selected
+  const handleToolSelect = useCallback(
+    async (toolName: string) => {
+      setSelectedTool(toolName);
+      setFormValues({});
+      setToolResult(null);
+      setToolSchema(null);
+      if (!toolName || !selectedServer) return;
+      setSchemaLoading(true);
+      const fetched = await fetchToolSchema(selectedServer, toolName);
+      setToolSchema(fetched);
+      setSchemaLoading(false);
+    },
+    [selectedServer, fetchToolSchema],
+  );
+
+  // Handle server change — reset tool + schema
+  const handleServerSelect = useCallback((serverName: string) => {
+    setSelectedServer(serverName);
+    setSelectedTool("");
+    setToolSchema(null);
+    setFormValues({});
+    setToolResult(null);
+  }, []);
+
+  // Execute selected MCP tool
+  const handleExecuteTool = useCallback(async () => {
+    if (!selectedServer || !selectedTool) return;
+    setSending(true);
+    setError(null);
+    setToolResult(null);
+    try {
+      const res = await mcpCallTool(selectedServer, selectedTool, formValues);
+      setToolResult({
+        success: res.success,
+        data: res.result,
+        error: res.error,
+      });
+    } catch (err) {
+      setToolResult({
+        success: false,
+        error: err instanceof Error ? err.message : "Tool execution failed",
+      });
+    } finally {
+      setSending(false);
+    }
+  }, [selectedServer, selectedTool, formValues, mcpCallTool]);
 
   const fetchPane = useCallback(async () => {
     setPaneLoading(true);
@@ -155,12 +245,6 @@ export function SessionInteractionModal({
           from_session: fromSessionId ?? "",
           to_session: entry.id,
           content: text,
-        });
-      } else if (mode === "command") {
-        result = await callTool("gobby-agents", "send_command", {
-          from_session: fromSessionId ?? "",
-          to_session: entry.id,
-          command_text: text,
         });
       } else if (mode === "keys") {
         // In literal mode, append \n so the backend sends Enter after the text.
@@ -218,7 +302,7 @@ export function SessionInteractionModal({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className={mode === "command" ? "max-w-lg" : "max-w-md md:max-w-2xl"}>
         <DialogTitle>{config.title}</DialogTitle>
         <DialogDescription>
           {config.description}
@@ -249,6 +333,105 @@ export function SessionInteractionModal({
               </button>
               <button className="session-modal-btn" onClick={onClose}>
                 Close
+              </button>
+            </div>
+          </div>
+        ) : mode === "command" ? (
+          <div className="mt-3 flex flex-col gap-3">
+            {/* Server dropdown */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">
+                Server
+              </label>
+              <select
+                className="flex h-9 w-full rounded-md border border-border bg-transparent px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                value={selectedServer}
+                onChange={(e) => handleServerSelect(e.target.value)}
+              >
+                <option value="">-- select server --</option>
+                {servers
+                  .filter((s) => s.state === "connected")
+                  .map((s) => (
+                    <option key={s.name} value={s.name}>
+                      {s.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            {/* Tool dropdown */}
+            {selectedServer && (
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Tool
+                </label>
+                <select
+                  className="flex h-9 w-full rounded-md border border-border bg-transparent px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  value={selectedTool}
+                  onChange={(e) => handleToolSelect(e.target.value)}
+                >
+                  <option value="">-- select tool --</option>
+                  {(toolsByServer[selectedServer] || []).map((t) => (
+                    <option key={t.name} value={t.name}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Schema loading */}
+            {schemaLoading && (
+              <p className="text-xs text-muted-foreground">
+                Loading schema...
+              </p>
+            )}
+
+            {/* Dynamic args form */}
+            {toolSchema && !schemaLoading && (
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  Arguments
+                </label>
+                <ToolArgumentForm
+                  schema={toolSchema.inputSchema}
+                  values={formValues}
+                  onChange={setFormValues}
+                  disabled={sending}
+                />
+              </div>
+            )}
+
+            {/* Result display */}
+            {toolResult && (
+              <div
+                className={`rounded-md border p-3 text-sm font-mono whitespace-pre-wrap overflow-x-auto max-h-[20vh] overflow-y-auto ${
+                  toolResult.success
+                    ? "border-success/50 bg-success/5 text-foreground"
+                    : "border-destructive-foreground/50 bg-destructive/5 text-destructive-foreground"
+                }`}
+              >
+                {toolResult.error
+                  ? `Error: ${toolResult.error}`
+                  : JSON.stringify(toolResult.data, null, 2)}
+              </div>
+            )}
+
+            {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
+
+            <div className="flex justify-end gap-2 mt-1">
+              <button
+                className="session-modal-btn session-modal-btn--secondary"
+                onClick={onClose}
+              >
+                Cancel
+              </button>
+              <button
+                className="session-modal-btn"
+                onClick={handleExecuteTool}
+                disabled={sending || !selectedServer || !selectedTool}
+              >
+                {sending ? "Executing..." : "Execute"}
               </button>
             </div>
           </div>

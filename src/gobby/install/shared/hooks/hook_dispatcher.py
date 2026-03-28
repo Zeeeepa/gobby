@@ -658,6 +658,16 @@ async def main() -> int:
         print(json.dumps({}))
         return config.json_error_exit_code
 
+    # Build project context headers so the daemon resolves the correct project.
+    # The hook dispatcher runs in the CLI's project directory, so project_config
+    # (from .gobby/project.json) is correct. The daemon's CWD is NOT.
+    _context_headers: dict[str, str] = {}
+    if project_config and project_config.get("id"):
+        _context_headers["X-Gobby-Project-Id"] = str(project_config["id"])
+    _hook_session_id = input_data.get("session_id") if isinstance(input_data, dict) else None
+    if _hook_session_id:
+        _context_headers["X-Gobby-Session-Id"] = str(_hook_session_id)
+
     if hook_type in _FIRE_AND_FORGET_HOOKS:
         import subprocess
 
@@ -669,6 +679,10 @@ async def main() -> int:
                 "source": _detect_source(config),
             }
         )
+        # Build curl header args for project context
+        _curl_header_args: list[str] = []
+        for hdr_name, hdr_val in _context_headers.items():
+            _curl_header_args.extend(["-H", f"{hdr_name}: {hdr_val}"])
         try:
             logger.debug(
                 f"Fire-and-forget hook {hook_type} → {daemon_url} ({len(payload)} bytes)",
@@ -682,6 +696,7 @@ async def main() -> int:
                     f"{daemon_url}/api/hooks/execute",
                     "-H",
                     "Content-Type: application/json",
+                    *_curl_header_args,
                     "-d",
                     "@-",
                     "--max-time",
@@ -712,6 +727,7 @@ async def main() -> int:
                     "input_data": input_data,
                     "source": _detect_source(config),
                 },
+                headers=_context_headers,
                 timeout=90.0,  # LLM-powered hooks (pre-compact summary) need more time
             )
 

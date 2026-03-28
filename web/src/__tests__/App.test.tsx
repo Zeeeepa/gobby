@@ -59,6 +59,7 @@ vi.mock('../hooks/useChat', () => ({
     attachedSessionMeta: null,
     wsRef: { current: null },
     handleVoiceMessageRef: { current: null },
+    handleBinaryMessageRef: { current: null },
     canvasSurfaces: new Map(),
     canvasPanel: null,
     onCanvasInteraction: vi.fn(),

@@ -191,7 +191,14 @@ class ChatLifecycleMixin:
                     if isinstance(tool_output, str) and tool_output:
                         from gobby.compression import OutputCompressor
 
+                        # Extract meaningful command hint from call_tool args
                         command_hint = (data or {}).get("tool_name", "")
+                        if command_hint in ("call_tool", "mcp__gobby__call_tool"):
+                            tool_input = (data or {}).get("tool_input") or {}
+                            server = tool_input.get("server_name", "")
+                            tool = tool_input.get("tool_name", "")
+                            if server and tool:
+                                command_hint = f"{server}:{tool}"
                         compressor = OutputCompressor(
                             max_lines=compression_cfg.get("max_lines") or 100,
                         )

@@ -80,6 +80,18 @@ async def handle_clear_chat(
             except Exception as e:
                 logger.warning(f"Failed to update session status on clear: {e}", exc_info=True)
 
+    # Delete persisted chat messages
+    session_manager = getattr(mixin, "session_manager", None)
+    if session_manager and session_manager.db:
+        try:
+            from gobby.storage import chat_messages
+
+            await asyncio.to_thread(
+                chat_messages.delete_messages, session_manager.db, conversation_id
+            )
+        except Exception as e:
+            logger.warning(f"Failed to delete chat messages on clear: {e}")
+
     # Fire SESSION_END before teardown
     await mixin._fire_session_end(conversation_id)
 

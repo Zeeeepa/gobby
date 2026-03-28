@@ -166,7 +166,7 @@ class RuleEngine(EffectsMixin, TemplatingMixin, EnforcementMixin):
                 if rule_event == RuleEvent.STOP:
                     variables["stop_attempts"] = variables.get("stop_attempts", 0) + 1
                     logger.debug(
-                        f"STOP gate diagnostics: session_id={session_id}, auto_task_ref={variables.get('auto_task_ref')!r}, stop_attempts={variables['stop_attempts']}, task_claimed={variables.get('task_claimed')}, claimed_tasks={variables.get('claimed_tasks')}, pre_existing_errors_triaged={variables.get('pre_existing_errors_triaged')}, error_triage_blocks={variables.get('error_triage_blocks', 0)}",
+                        f"STOP gate diagnostics: session_id={session_id}, auto_task_ref={variables.get('auto_task_ref')!r}, stop_attempts={variables['stop_attempts']}, task_claimed={variables.get('task_claimed')}, claimed_tasks={variables.get('claimed_tasks')}, pre_existing_errors_triaged={variables.get('pre_existing_errors_triaged')}, error_triage_blocks={variables.get('error_triage_blocks', 0)}, edit_write_pending={variables.get('edit_write_pending')}, tool_block_pending={variables.get('tool_block_pending')}",
                     )
 
                 # 1. Load enabled rules for this event, sorted by priority
@@ -216,8 +216,11 @@ class RuleEngine(EffectsMixin, TemplatingMixin, EnforcementMixin):
                         return step_block
 
                 # 4c. Step workflow transition processing (after successful MCP tool calls)
+                _step_transition_msg: str | None = None
                 if rule_event == RuleEvent.AFTER_TOOL:
-                    self._process_step_after_tool(event, session_id, variables)
+                    _step_transition_msg = self._process_step_after_tool(
+                        event, session_id, variables
+                    )
 
                 # Deferred overrides — these used to early-return, but that skipped rule
                 # evaluation entirely, preventing mcp_call effects (like digest-on-response)
@@ -270,23 +273,36 @@ class RuleEngine(EffectsMixin, TemplatingMixin, EnforcementMixin):
                             variables["tool_block_pending"] = True
                             self._check_catastrophic_failure(event, variables)
                         else:
+                            # Snapshot before clearing — if a tool just failed,
+                            # a parallel non-edit success shouldn't clear edit state.
+                            had_pending_failure = variables.get("tool_block_pending", False)
+
                             # Clear tool_block_pending on successful tool completion
                             variables["tool_block_pending"] = False
                             variables["_last_blocked_tool"] = ""
                             variables["consecutive_tool_blocks"] = 0
 
-                            # Clear edit_write_pending on successful edit/write
-                            tool_name_lower = event.data.get("tool_name", "").lower()
-                            if tool_name_lower in EDIT_TOOLS and not is_failure:
-                                _clear_edit_write_state(variables)
+                            # Clear edit_write_pending when the successful tool is an
+                            # edit/write, OR when no failure is pending (stale flag).
+                            # Don't clear on non-edit success during a parallel failure
+                            # — the edit wasn't recovered yet.
+                            if variables.get("edit_write_pending"):
+                                after_tool_lower = event.data.get("tool_name", "").lower()
+                                if after_tool_lower in EDIT_TOOLS or not had_pending_failure:
+                                    _clear_edit_write_state(variables)
                     # Honour hardcoded override decisions (e.g. tool_block_pending stop gate)
                     # even when no declarative rules are installed for this event.
+                    _no_rules_ctx = _step_transition_msg or None
                     if override_decision == "block":
-                        resp = HookResponse(decision="block", reason=override_reason or "")
+                        resp = HookResponse(
+                            decision="block",
+                            reason=override_reason or "",
+                            context=_no_rules_ctx,
+                        )
                     elif override_decision == "allow":
-                        resp = HookResponse(decision="allow")
+                        resp = HookResponse(decision="allow", context=_no_rules_ctx)
                     else:
-                        resp = HookResponse(decision="allow")
+                        resp = HookResponse(decision="allow", context=_no_rules_ctx)
 
                     if span.is_recording():
                         span.set_attribute("final_decision", resp.decision)
@@ -304,18 +320,28 @@ class RuleEngine(EffectsMixin, TemplatingMixin, EnforcementMixin):
                         variables["tool_block_pending"] = True
                         self._check_catastrophic_failure(event, variables)
                     else:
+                        # Snapshot before clearing — if a tool just failed,
+                        # a parallel non-edit success shouldn't clear edit state.
+                        had_pending_failure = variables.get("tool_block_pending", False)
+
                         # Clear tool_block_pending on successful tool completion
                         variables["tool_block_pending"] = False
                         variables["_last_blocked_tool"] = ""
                         variables["consecutive_tool_blocks"] = 0
 
-                        # Clear edit_write_pending on successful edit/write
-                        tool_name_lower = event.data.get("tool_name", "").lower()
-                        if tool_name_lower in EDIT_TOOLS and not is_failure:
-                            _clear_edit_write_state(variables)
+                        # Clear edit_write_pending when the successful tool is an
+                        # edit/write, OR when no failure is pending (stale flag).
+                        # Don't clear on non-edit success during a parallel failure
+                        # — the edit wasn't recovered yet.
+                        if variables.get("edit_write_pending"):
+                            after_tool_lower = event.data.get("tool_name", "").lower()
+                            if after_tool_lower in EDIT_TOOLS or not had_pending_failure:
+                                _clear_edit_write_state(variables)
 
                 # 5. Evaluate rules in priority order
                 context_parts: list[str] = []
+                if _step_transition_msg:
+                    context_parts.append(_step_transition_msg)
                 mcp_calls: list[dict[str, Any]] = []
                 block_reason: str | None = None
 

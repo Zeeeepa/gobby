@@ -233,6 +233,9 @@ async def spawn_agent_impl(
     effective_base_branch = base_branch
     if effective_base_branch is None and agent_body:
         effective_base_branch = agent_body.base_branch
+    # "inherit" means "resolve from context", treat as unset
+    if effective_base_branch == "inherit":
+        effective_base_branch = None
     # Auto-detect current branch if no base_branch specified
     if effective_base_branch is None and git_manager:
         try:

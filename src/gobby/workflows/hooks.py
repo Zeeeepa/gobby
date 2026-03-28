@@ -1,5 +1,6 @@
 import asyncio
 import concurrent.futures
+import json
 import logging
 import threading
 from copy import deepcopy
@@ -138,6 +139,48 @@ class WorkflowHookHandler:
                         )
                     logger.debug(f"Could not load session variables for rules: {e}")
 
+            # Inject current_step from active workflow instance so rule templates
+            # can display it (e.g., require-step-completion block message).
+            if variables.get("is_spawned_agent") and not variables.get("current_step"):
+                try:
+                    from gobby.workflows.state_manager import WorkflowInstanceManager
+
+                    instances = WorkflowInstanceManager(self.rule_engine.db).get_active_instances(
+                        session_id
+                    )
+                    for inst in instances:
+                        if inst.current_step:
+                            variables["current_step"] = inst.current_step
+                            break
+                except Exception as e:
+                    logger.debug(f"Could not inject current_step from workflow instance: {e}")
+
+            # Lazy-init variable presets for sessions that started before gobby init.
+            # Mirrors the baseline_dirty_files pattern below — one-time DB hit per session.
+            if "_variable_defaults_loaded" not in variables and event.project_id:
+                try:
+                    from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
+
+                    def_manager = LocalWorkflowDefinitionManager(self.rule_engine.db)
+                    enabled_variables = [
+                        v for v in def_manager.list_all(workflow_type="variable") if v.enabled
+                    ]
+                    defaults: dict[str, Any] = {}
+                    for var_row in enabled_variables:
+                        try:
+                            var_body = json.loads(var_row.definition_json)
+                            key = var_body.get("variable", var_row.name)
+                            if key not in variables:
+                                defaults[key] = var_body.get("value")
+                        except (json.JSONDecodeError, AttributeError):
+                            pass
+                    defaults["_variable_defaults_loaded"] = True
+                    variables.update(defaults)
+                    if self._session_var_manager and session_id:
+                        self._session_var_manager.merge_variables(session_id, defaults)
+                except Exception as e:
+                    logger.debug(f"Could not lazy-load variable defaults: {e}")
+
             from gobby.workflows.git_utils import get_dirty_files_categorized
             from gobby.workflows.safe_evaluator import LazyBool
 
@@ -160,27 +203,18 @@ class WorkflowHookHandler:
                     )
 
             session_edited = set(variables.get("session_edited_files", []))
-            baseline = set(variables.get("baseline_dirty_files", []))
 
             def _check_dirty(
                 _edited: set[str] = session_edited,
-                _base: set[str] = baseline,
                 _path: str | None = project_path,
             ) -> bool:
                 result = get_dirty_files_categorized(_path)
-                # Tracked dirty files (modified/staged/deleted) — always relevant
-                # Untracked files — only count ones this session created
+                # Only count files this session actually touched
                 dirty_tracked = result.tracked
                 dirty_untracked = result.untracked
-                if _edited:
-                    # Precise: session-edited tracked files that are still dirty,
-                    # plus any untracked files this session created
-                    session_dirty_tracked = _edited & dirty_tracked
-                    session_dirty_untracked = _edited & dirty_untracked
-                    return bool(session_dirty_tracked or session_dirty_untracked)
-                # Legacy fallback: no per-session tracking, baseline subtraction
-                # Only consider tracked dirty files minus baseline
-                return bool(dirty_tracked - _base)
+                session_dirty_tracked = _edited & dirty_tracked
+                session_dirty_untracked = _edited & dirty_untracked
+                return bool(session_dirty_tracked or session_dirty_untracked)
 
             eval_context = {"has_dirty_files": LazyBool(_check_dirty)}
 

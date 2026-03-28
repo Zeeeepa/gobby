@@ -2133,6 +2133,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   padding: 0 0.75rem;
   height: 100%;
   border: none;
@@ -2158,6 +2159,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.activity-panel-tab-label {
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .activity-panel-pin {
@@ -2925,6 +2932,41 @@
 }
 
 .session-ctx-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.session-ctx-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 0.25rem 0;
+}
+
+.session-ctx-item--destructive {
+  color: #ef4444;
+}
+
+.session-ctx-item--destructive:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* --- Session more button (mobile) --- */
+.session-more-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: none;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.session-more-btn:hover {
+  color: var(--text-primary);
   background: var(--bg-tertiary);
 }
 

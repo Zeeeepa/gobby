@@ -153,17 +153,21 @@ describe('useChat', () => {
     expect(result.current.isStreaming).toBe(true)
   })
 
-  it('sendMessage returns false when WS not connected', async () => {
+  it('sendMessage queues message when WS not connected', async () => {
     await loadModule()
     const { result } = renderHook(() => useChat())
 
-    // Don't open WS — should return false
-    let sent: boolean = true
+    // Don't open WS — message should be queued (returns true)
+    let sent: boolean = false
     act(() => {
       sent = result.current.sendMessage('Hello')
     })
 
-    expect(sent).toBe(false)
+    expect(sent).toBe(true)
+    // Message should appear in UI even though WS is disconnected
+    expect(result.current.messages).toHaveLength(1)
+    expect(result.current.messages[0].content).toBe('Hello')
+    expect(result.current.messages[0].role).toBe('user')
   })
 
   it('handles chat_stream messages', async () => {
@@ -451,7 +455,7 @@ describe('useChat', () => {
 
     const calls = ws.send.mock.calls.map(c => JSON.parse(c[0]))
     const projectMsg = calls.find(m => m.type === 'set_project')
-    
+
     expect(projectMsg).toBeDefined()
     expect(projectMsg.project_id).toBe('test-project-123')
   })

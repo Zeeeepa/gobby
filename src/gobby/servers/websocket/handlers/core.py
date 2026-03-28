@@ -232,7 +232,7 @@ class HandlerMixin:
             "type": "stop_response",
             "session_id": "uuid",
             "success": true,
-            "signal_id": "uuid"
+            "signaled_at": "iso8601"
         }
 
         Args:
@@ -265,7 +265,6 @@ class HandlerMixin:
                         "type": "stop_response",
                         "session_id": session_id,
                         "success": True,
-                        "signal_id": signal.session_id,
                         "signaled_at": signal.requested_at.isoformat(),
                     }
                 )
@@ -277,7 +276,6 @@ class HandlerMixin:
                 session_id=session_id,
                 reason=reason,
                 source="websocket",
-                signal_id=signal.session_id,
             )
 
             logger.info(f"Stop requested for session {session_id} via WebSocket")

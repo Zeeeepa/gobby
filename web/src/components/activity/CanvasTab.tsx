@@ -4,9 +4,10 @@ import type { CanvasPanelState } from '../canvas/hooks/useCanvasPanel'
 interface CanvasTabProps {
   state: CanvasPanelState | null
   onClose: () => void
+  onClearAll?: () => void
 }
 
-export const CanvasTab = memo(function CanvasTab({ state, onClose }: CanvasTabProps) {
+export const CanvasTab = memo(function CanvasTab({ state, onClose, onClearAll }: CanvasTabProps) {
   if (!state) {
     return (
       <div className="activity-tab-empty">
@@ -24,12 +25,22 @@ export const CanvasTab = memo(function CanvasTab({ state, onClose }: CanvasTabPr
         <span className="text-sm font-medium text-foreground truncate">
           {state.title || 'Canvas'}
         </span>
-        <button
-          className="text-muted-foreground hover:text-foreground text-xs"
-          onClick={onClose}
-        >
-          Close
-        </button>
+        <div className="flex items-center gap-2">
+          {onClearAll && (
+            <button
+              className="text-muted-foreground hover:text-foreground text-xs"
+              onClick={onClearAll}
+            >
+              Clear
+            </button>
+          )}
+          <button
+            className="text-muted-foreground hover:text-foreground text-xs"
+            onClick={onClose}
+          >
+            Close
+          </button>
+        </div>
       </div>
       <div className="flex-1 overflow-hidden relative">
         <iframe

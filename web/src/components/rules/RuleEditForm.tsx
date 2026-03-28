@@ -614,7 +614,7 @@ function McpCallFields({
     };
   }, [selectedServer, selectedTool, fetchToolSchema]);
 
-  const connectedServers = servers.filter((s) => s.connected);
+  const connectedServers = servers.filter((s) => s.state === "connected");
   const serverNames = connectedServers.map((s) => s.name);
   const availableTools = toolsByServer[selectedServer] ?? [];
   const toolNames = availableTools.map((t) => t.name);

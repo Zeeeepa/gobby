@@ -294,17 +294,38 @@ def resolve_sync_placeholders(definition_json: str) -> str:
     - ``{{ gobby_bin }}``: resolved to the absolute path of the ``gobby``
       binary via ``shutil.which``, falling back to
       ``<sys.executable> -m gobby`` when the binary isn't on PATH.
+    - ``{{ gsqz_bin }}``: resolved to the absolute path of the ``gsqz``
+      binary. Checks ``~/.gobby/bin/gsqz`` first, then ``shutil.which``.
 
     Called once per rule during sync so the DB always stores a concrete path
-    that works regardless of whether ``gobby`` is on the CLI's PATH.
+    that works regardless of whether the binaries are on the CLI's PATH.
     """
-    if "{{ gobby_bin }}" not in definition_json:
-        return definition_json
+    if "{{ gobby_bin }}" in definition_json:
+        gobby_bin = shutil.which("gobby")
+        if not gobby_bin:
+            gobby_bin = f"{sys.executable} -m gobby"
+        definition_json = definition_json.replace("{{ gobby_bin }}", gobby_bin)
 
-    gobby_bin = shutil.which("gobby")
-    if not gobby_bin:
-        gobby_bin = f"{sys.executable} -m gobby"
-    return definition_json.replace("{{ gobby_bin }}", gobby_bin)
+    if "{{ gsqz_bin }}" in definition_json:
+        gsqz_bin = _resolve_gsqz_bin()
+        definition_json = definition_json.replace("{{ gsqz_bin }}", gsqz_bin)
+
+    return definition_json
+
+
+def _resolve_gsqz_bin() -> str:
+    """Resolve the gsqz binary path.
+
+    Checks ~/.gobby/bin/gsqz first (standard install location),
+    then falls back to shutil.which, then to 'gsqz' (hope it's on PATH).
+    """
+    gobby_home = Path.home() / ".gobby" / "bin" / "gsqz"
+    if gobby_home.exists():
+        return str(gobby_home)
+    which_gsqz = shutil.which("gsqz")
+    if which_gsqz:
+        return which_gsqz
+    return "gsqz"
 
 
 def _sync_single_rule(

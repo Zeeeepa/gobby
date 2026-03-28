@@ -10,7 +10,7 @@ from .agents import agents
 from .auth import auth
 from .clones import clones
 from .code_index import code_index
-from .compress import compress
+from .communications import comms
 from .cron import cron
 from .daemon import restart, start, status, stop
 from .export_import import export_cmd, import_cmd
@@ -87,10 +87,10 @@ cli.add_command(sync)
 cli.add_command(auth)
 cli.add_command(secrets)
 cli.add_command(service)
-cli.add_command(compress)
 cli.add_command(export_cmd)
 cli.add_command(import_cmd)
 cli.add_command(code_index)
 cli.add_command(pack)
 cli.add_command(unpack)
 cli.add_command(models)
+cli.add_command(comms)

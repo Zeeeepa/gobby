@@ -148,21 +148,64 @@ class GitHubSyncService:
         )
 
         issues = result.get("issues", [])
-        created_tasks = []
+        imported = []
+        updated = []
 
         for issue in issues:
-            # Create gobby task linked to GitHub issue
-            task = self.task_manager.create_task(
-                project_id=self.project_id,
-                title=issue.get("title", "Untitled Issue"),
-                description=issue.get("body", ""),
-                github_issue_number=issue.get("number"),
-                github_repo=repo,
-            )
-            created_tasks.append(task.to_dict())
+            issue_number = issue.get("number")
+            title = issue.get("title", "Untitled Issue")
+            description = issue.get("body", "")
+            issue_labels = [
+                lbl["name"] if isinstance(lbl, dict) else lbl for lbl in (issue.get("labels") or [])
+            ]
 
-        logger.info(f"Imported {len(created_tasks)} issues from {repo}")
-        return created_tasks
+            # Dedup: check if task already exists for this repo + issue number
+            existing = self._find_task_by_github_issue(repo, issue_number)
+            if existing:
+                self.task_manager.update_task(
+                    existing.id,
+                    title=title,
+                    description=description,
+                    labels=issue_labels or None,
+                )
+                refreshed = self.task_manager.get_task(existing.id)
+                if refreshed:
+                    updated.append(refreshed.to_dict())
+            else:
+                task = self.task_manager.create_task(
+                    project_id=self.project_id,
+                    title=title,
+                    description=description,
+                    github_issue_number=issue_number,
+                    github_repo=repo,
+                    labels=issue_labels or None,
+                )
+                imported.append(task.to_dict())
+
+        all_tasks = imported + updated
+        logger.info(f"GitHub import from {repo}: {len(imported)} imported, {len(updated)} updated")
+        return all_tasks
+
+    def _find_task_by_github_issue(self, repo: str, issue_number: int | None) -> Any | None:
+        """Find an existing task linked to a GitHub issue.
+
+        Args:
+            repo: GitHub repo in "owner/repo" format.
+            issue_number: GitHub issue number.
+
+        Returns:
+            Task object if found, None otherwise.
+        """
+        if issue_number is None:
+            return None
+        row = self.task_manager.db.execute(
+            "SELECT id FROM tasks WHERE github_repo = ? AND github_issue_number = ? "
+            "AND project_id = ? LIMIT 1",
+            (repo, issue_number, self.project_id),
+        ).fetchone()
+        if row:
+            return self.task_manager.get_task(row["id"])
+        return None
 
     async def sync_task_to_github(self, task_id: str) -> dict[str, Any]:
         """Sync a gobby task to its linked GitHub issue.

@@ -103,8 +103,12 @@ class TestSyncBundledVariables:
         mgr.list_all.return_value = []
 
         with (
-            patch("gobby.workflows.sync_variables.get_bundled_variables_path", return_value=tmp_path),
-            patch("gobby.workflows.sync_variables.LocalWorkflowDefinitionManager", return_value=mgr),
+            patch(
+                "gobby.workflows.sync_variables.get_bundled_variables_path", return_value=tmp_path
+            ),
+            patch(
+                "gobby.workflows.sync_variables.LocalWorkflowDefinitionManager", return_value=mgr
+            ),
         ):
             db.fetchall.return_value = []
             result = sync_bundled_variables(db)
@@ -124,8 +128,12 @@ class TestSyncBundledVariables:
         mgr.list_all.return_value = []
 
         with (
-            patch("gobby.workflows.sync_variables.get_bundled_variables_path", return_value=tmp_path),
-            patch("gobby.workflows.sync_variables.LocalWorkflowDefinitionManager", return_value=mgr),
+            patch(
+                "gobby.workflows.sync_variables.get_bundled_variables_path", return_value=tmp_path
+            ),
+            patch(
+                "gobby.workflows.sync_variables.LocalWorkflowDefinitionManager", return_value=mgr
+            ),
         ):
             db.fetchall.return_value = []
             result = sync_bundled_variables(db)
@@ -142,8 +150,12 @@ class TestSyncBundledVariables:
         ]
 
         with (
-            patch("gobby.workflows.sync_variables.get_bundled_variables_path", return_value=tmp_path),
-            patch("gobby.workflows.sync_variables.LocalWorkflowDefinitionManager", return_value=mgr),
+            patch(
+                "gobby.workflows.sync_variables.get_bundled_variables_path", return_value=tmp_path
+            ),
+            patch(
+                "gobby.workflows.sync_variables.LocalWorkflowDefinitionManager", return_value=mgr
+            ),
         ):
             result = sync_bundled_variables(db)
 

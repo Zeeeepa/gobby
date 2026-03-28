@@ -210,7 +210,7 @@ function CreateJobDialog({ onSubmit, onClose }: CreateDialogProps) {
         <div className="cron-form-group">
           <label className="cron-form-label">Action Config (JSON)</label>
           <textarea
-            className="cron-form-textarea"
+            className="cron-form-textarea cron-form-json"
             value={actionConfigStr}
             onChange={e => setActionConfigStr(e.target.value)}
             rows={5}
@@ -353,7 +353,7 @@ function EditJobSidebar({ job, onSave, onClose }: EditJobSidebarProps) {
 
       <div className="cron-form-group">
         <label className="cron-form-label">Action Config (JSON)</label>
-        <textarea className="cron-form-textarea" value={actionConfigStr} onChange={e => setActionConfigStr(e.target.value)} rows={8} />
+        <textarea className="cron-form-textarea cron-form-json" value={actionConfigStr} onChange={e => setActionConfigStr(e.target.value)} rows={8} />
       </div>
     </SidebarPanel>
   )

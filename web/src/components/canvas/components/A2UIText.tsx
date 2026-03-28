@@ -4,7 +4,7 @@ import { A2UIComponentProps, resolveBoundValue } from '../types';
 export const A2UIText: React.FC<A2UIComponentProps> = ({ def, dataModel }) => {
   const text = resolveBoundValue(def.text, dataModel);
   const style = def.style || 'body'; // e.g. 'title1', 'title2', 'body'
-  
+
   if (!text) return null;
 
   switch (style) {

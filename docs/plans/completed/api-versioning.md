@@ -16,7 +16,7 @@ Migrate all API endpoints from root-level prefixes (e.g., `/mcp`, `/sessions`) t
     ```python
     # Before
     app.include_router(create_mcp_router())
-    
+
     # After
     from gobby.servers.routes import API_V1_PREFIX
     api_v1_router = APIRouter(prefix=API_V1_PREFIX)

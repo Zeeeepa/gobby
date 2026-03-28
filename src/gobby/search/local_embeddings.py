@@ -150,7 +150,12 @@ class LocalEmbeddingModel:
 
     def _load_model(self) -> Llama:
         """Load the GGUF model (runs in thread)."""
-        from llama_cpp import Llama
+        try:
+            from llama_cpp import Llama
+        except ImportError as e:
+            raise RuntimeError(
+                "llama-cpp-python not installed. Run: uv sync --extra local-embeddings"
+            ) from e
 
         logger.info(f"Loading local embedding model: {self._model_path.name}")
         model = Llama(
