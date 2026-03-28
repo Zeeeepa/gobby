@@ -48,8 +48,8 @@ dependencies = [
     # python-multipart 0.0.21 has CVE-2026-24486 - pin to fixed version
     "python-multipart>=0.0.22",
     "protobuf>=5.29.6,<6.0.0",
-    # cryptography <46.0.5 has CVE-2026-26007
-    "cryptography>=46.0.5",
+    # cryptography <46.0.6 has CVE-2026-26007, CVE-2026-34073
+    "cryptography>=46.0.6",
     # faster-whisper for voice STT
     "faster-whisper>=1.0.0",
     # kokoro-onnx for local TTS (82M params, Apache 2.0, async streaming)
