@@ -62,6 +62,7 @@ class CommunicationsManager:
         self._adapters: dict[str, BaseChannelAdapter] = {}
         self._channel_by_name: dict[str, ChannelConfig] = {}
         self._thread_map: dict[str, str] = {}  # "channel_name:session_id" -> platform_thread_id
+        self._thread_map_max_size = 10000  # Evict oldest entries beyond this limit
         self.attachment_manager = AttachmentManager()
         self._rate_limiter = TokenBucketRateLimiter.from_defaults(config.channel_defaults)
         self._router = MessageRouter(store)
@@ -448,6 +449,9 @@ class CommunicationsManager:
                 self._thread_map[f"{channel_name}:{message.session_id}"] = (
                     message.platform_thread_id
                 )
+                # Evict oldest entries if map exceeds limit
+                while len(self._thread_map) > self._thread_map_max_size:
+                    self._thread_map.pop(next(iter(self._thread_map)))
 
             # Store message
             try:

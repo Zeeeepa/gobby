@@ -110,7 +110,8 @@ def create_communications_router(server: HTTPServer) -> APIRouter:
             )
             return asdict(channel)
         except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+            logger.error("Failed to add channel: %s", e, exc_info=True)
+            raise HTTPException(status_code=400, detail="Invalid channel configuration") from e
 
     @router.put("/channels/{channel_id}")
     async def update_channel(channel_id: str, request: ChannelUpdateRequest) -> dict[str, Any]:

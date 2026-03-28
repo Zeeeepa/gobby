@@ -77,7 +77,7 @@ def get_messages(
             try:
                 msg["metadata"] = json.loads(row["metadata_json"])
             except json.JSONDecodeError:
-                pass
+                msg["metadata"] = {}
         result.append(msg)
     return result
 

@@ -287,8 +287,12 @@ def _install_gsqz_from_github(bin_dir: Path, target: str, version: str | None = 
         with tarfile.open(fileobj=tarball, mode="r:gz") as tar:
             for member in tar.getmembers():
                 if member.name.endswith(f"/{_GSQZ_BIN_NAME}") or member.name == _GSQZ_BIN_NAME:
-                    member.name = _GSQZ_BIN_NAME
-                    tar.extract(member, path=bin_dir)
+                    fileobj = tar.extractfile(member)
+                    if fileobj is None:
+                        continue
+                    dest = bin_dir / _GSQZ_BIN_NAME
+                    dest.write_bytes(fileobj.read())
+                    dest.chmod(0o755)
                     return True
             logger.warning("gsqz binary not found in release tarball")
             return False
