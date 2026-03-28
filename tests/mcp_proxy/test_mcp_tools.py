@@ -87,15 +87,14 @@ async def test_create_task(mock_task_manager, mock_sync_manager):
     }
     mock_task_manager.get_task.return_value = mock_task
 
-    # Mock get_project_context and LocalSessionManager
-    with (
-        patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx,
-        patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
-    ):
-        mock_ctx.return_value = {"id": "test-project-id"}
-        # Mock session manager to resolve session_id as-is
+    # Mock LocalSessionManager so resolve_project_from_session resolves correctly
+    with patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager:
         mock_session_manager = MagicMock()
         mock_session_manager.resolve_session_reference.return_value = "test-session"
+        # resolve_project_from_session looks up the session to get project_id
+        mock_session = MagicMock()
+        mock_session.project_id = "test-project-id"
+        mock_session_manager.get.return_value = mock_session
         MockSessionManager.return_value = mock_session_manager
 
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
@@ -138,15 +137,13 @@ async def test_create_task_with_session_id(mock_task_manager, mock_sync_manager)
     }
     mock_task_manager.get_task.return_value = mock_task
 
-    # Mock get_project_context and LocalSessionManager
-    with (
-        patch("gobby.mcp_proxy.tools.tasks._crud.get_project_context") as mock_ctx,
-        patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager,
-    ):
-        mock_ctx.return_value = {"id": "test-project-id"}
-        # Mock session manager to resolve session_id as-is
+    # Mock LocalSessionManager so resolve_project_from_session resolves correctly
+    with patch("gobby.mcp_proxy.tools.tasks._context.LocalSessionManager") as MockSessionManager:
         mock_session_manager = MagicMock()
         mock_session_manager.resolve_session_reference.return_value = "session-abc123"
+        mock_session = MagicMock()
+        mock_session.project_id = "test-project-id"
+        mock_session_manager.get.return_value = mock_session
         MockSessionManager.return_value = mock_session_manager
 
         registry = create_task_registry(mock_task_manager, mock_sync_manager)

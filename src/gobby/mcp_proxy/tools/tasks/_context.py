@@ -155,7 +155,7 @@ class RegistryContext:
             session = self.session_manager.get(resolved_sid)
             if session and session.project_id:
                 return session.project_id
-        except (ValueError, AttributeError):
+        except Exception:
             pass
         # Fallback to context var (may be set by rules engine path)
         project_ctx = get_project_context()
