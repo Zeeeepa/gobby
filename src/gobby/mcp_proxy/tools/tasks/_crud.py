@@ -12,7 +12,6 @@ from gobby.mcp_proxy.tools.tasks._resolution import resolve_task_id_for_mcp
 from gobby.storage.projects import PERSONAL_PROJECT_ID
 from gobby.storage.task_dependencies import DependencyCycleError
 from gobby.storage.tasks import TaskNotFoundError
-from gobby.utils.project_context import get_project_context
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +69,13 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         Returns:
             Created task dict with id (minimal) or full task details based on config.
         """
-        # Resolve project: explicit param > context > personal workspace
+        # Resolve session_id first — needed for project resolution and DB insert
+        try:
+            resolved_session_id = ctx.resolve_session_id(session_id)
+        except ValueError as e:
+            return {"error": f"Cannot resolve session '{session_id}': {e}"}
+
+        # Resolve project: explicit param > session (authoritative) > context > personal
         if project:
             try:
                 resolved = ctx.resolve_project_filter(project)
@@ -78,11 +83,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 return {"error": str(e)}
             project_id: str = resolved or PERSONAL_PROJECT_ID
         else:
-            project_ctx = get_project_context()
-            if project_ctx and project_ctx.get("id"):
-                project_id = project_ctx["id"]
-            else:
-                project_id = PERSONAL_PROJECT_ID
+            project_id = ctx.resolve_project_from_session(session_id)
 
         # Resolve parent_task_id if it's a reference format
         if parent_task_id:
@@ -99,12 +100,6 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 "error": "Code tasks require validation_criteria. "
                 "Describe what 'done' looks like so validate_task can check your diff against it."
             }
-
-        # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
-        try:
-            resolved_session_id = ctx.resolve_session_id(session_id)
-        except ValueError as e:
-            return {"error": f"Cannot resolve session '{session_id}': {e}"}
 
         # Create task
         create_result = ctx.task_manager.create_task_with_decomposition(
@@ -702,7 +697,7 @@ def build_task_tree(
     """
     from gobby.tasks.tree_builder import TaskTreeBuilder
 
-    # Resolve project: explicit param > context > personal workspace
+    # Resolve project: explicit param > session (authoritative) > context > personal
     if project:
         try:
             resolved = ctx.resolve_project_filter(project)
@@ -710,11 +705,7 @@ def build_task_tree(
             return {"success": False, "error": str(e)}
         project_id: str = resolved or PERSONAL_PROJECT_ID
     else:
-        project_ctx = get_project_context()
-        if project_ctx and project_ctx.get("id"):
-            project_id = project_ctx["id"]
-        else:
-            project_id = PERSONAL_PROJECT_ID
+        project_id = ctx.resolve_project_from_session(session_id)
 
     # Build the tree
     builder = TaskTreeBuilder(

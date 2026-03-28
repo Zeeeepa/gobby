@@ -133,6 +133,36 @@ class RegistryContext:
         project_id = self.get_current_project_id()
         return self.session_manager.resolve_session_reference(session_id, project_id)
 
+    def resolve_project_from_session(self, session_id: str) -> str:
+        """Resolve project_id from session (authoritative source).
+
+        The session's project_id is the authoritative source for project
+        affiliation. Falls back to context var then personal workspace.
+
+        This prevents cross-project leakage when the daemon's CWD differs
+        from the calling session's project (e.g., stdio MCP transport).
+
+        Args:
+            session_id: Session reference (unreolved — #N, N, UUID, prefix)
+
+        Returns:
+            Resolved project_id string
+        """
+        from gobby.storage.projects import PERSONAL_PROJECT_ID
+
+        try:
+            resolved_sid = self.resolve_session_id(session_id)
+            session = self.session_manager.get(resolved_sid)
+            if session and session.project_id:
+                return session.project_id
+        except (ValueError, AttributeError):
+            pass
+        # Fallback to context var (may be set by rules engine path)
+        project_ctx = get_project_context()
+        if project_ctx and project_ctx.get("id"):
+            return project_ctx["id"]
+        return PERSONAL_PROJECT_ID
+
 
 def resolve_project_filter_standalone(
     project: str | None,

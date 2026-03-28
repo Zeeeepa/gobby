@@ -929,10 +929,10 @@ class TestBaselineDirtyFilesSubtraction:
 
     @pytest.mark.asyncio
     @patch("gobby.workflows.git_utils.get_dirty_files_categorized")
-    async def test_blocked_when_new_files_beyond_baseline(
+    async def test_not_blocked_when_new_files_but_no_session_edits(
         self, mock_get_dirty, db, handler, session_var_manager
     ) -> None:
-        """Should block when there are files not in the baseline."""
+        """Should allow when files beyond baseline exist but session has no edits."""
         mock_get_dirty.return_value = DirtyFiles({"file_a.py", "file_b.py", "new_file.py"}, set())
         session_var_manager.set_variable(
             "test-session", "baseline_dirty_files", ["file_a.py", "file_b.py"]
@@ -942,7 +942,8 @@ class TestBaselineDirtyFilesSubtraction:
         event = self._make_event()
         response = await handler._evaluate_rules(event)
 
-        assert response.decision == "block"
+        # No session edits → has_dirty_files is False even with new dirty files
+        assert response.decision == "allow"
 
     @pytest.mark.asyncio
     @patch("gobby.workflows.git_utils.get_dirty_files_categorized")
@@ -1092,10 +1093,10 @@ class TestBaselineDirtyFilesSubtraction:
 
     @pytest.mark.asyncio
     @patch("gobby.workflows.git_utils.get_dirty_files_categorized")
-    async def test_lazy_init_then_new_file_blocks(
+    async def test_lazy_init_then_new_file_allows_without_session_edits(
         self, mock_get_dirty, db, handler, session_var_manager
     ) -> None:
-        """After lazy-init baseline, new dirty files beyond baseline should block."""
+        """After lazy-init baseline, new dirty files should NOT block without session edits."""
         # First evaluation: captures baseline
         mock_get_dirty.return_value = DirtyFiles({"pre_existing.py"}, set())
         self._insert_block_on_dirty_rule(db)
@@ -1104,10 +1105,11 @@ class TestBaselineDirtyFilesSubtraction:
         response = await handler._evaluate_rules(event)
         assert response.decision == "allow"
 
-        # Second evaluation: new file appears
+        # Second evaluation: new file appears (from another session/process)
         mock_get_dirty.return_value = DirtyFiles({"pre_existing.py", "new_file.py"}, set())
         response = await handler._evaluate_rules(event)
-        assert response.decision == "block"
+        # No session edits → has_dirty_files is False
+        assert response.decision == "allow"
 
     # --- Untracked file scoping tests ---
 
@@ -1146,19 +1148,18 @@ class TestBaselineDirtyFilesSubtraction:
 
     @pytest.mark.asyncio
     @patch("gobby.workflows.git_utils.get_dirty_files_categorized")
-    async def test_untracked_ignored_in_legacy_fallback(
+    async def test_untracked_ignored_without_session_edits(
         self, mock_get_dirty, db, handler, session_var_manager
     ) -> None:
-        """Legacy fallback (no session_edited_files) should ignore untracked files entirely."""
+        """Untracked files should not trigger has_dirty_files without session edits."""
         mock_get_dirty.return_value = DirtyFiles(set(), {"random_file.txt"})
         session_var_manager.set_variable("test-session", "baseline_dirty_files", [])
-        # No session_edited_files set → legacy fallback path
         self._insert_block_on_dirty_rule(db)
 
         event = self._make_event()
         response = await handler._evaluate_rules(event)
 
-        # Untracked files ignored in legacy fallback → allow
+        # No session edits → allow
         assert response.decision == "allow"
 
 

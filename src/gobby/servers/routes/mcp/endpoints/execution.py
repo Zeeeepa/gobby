@@ -23,6 +23,37 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _set_project_context_for_request(server: "HTTPServer", arguments: Any) -> Any:
+    """Extract session_id from arguments and set project context var.
+
+    The stdio MCP transport doesn't pass session_id at the HTTP level,
+    so we extract it from tool arguments. Without this, get_project_context()
+    falls back to the daemon's CWD, causing cross-project leakage.
+
+    Returns a context var token for reset, or None.
+    """
+    session_id = arguments.get("session_id") if isinstance(arguments, dict) else None
+    if not session_id or not server.session_manager:
+        return None
+    try:
+        from gobby.utils.project_context import set_project_context_from_session
+
+        return set_project_context_from_session(
+            session_id, server.session_manager, server.session_manager.db
+        )
+    except Exception as e:
+        logger.debug(f"Failed to set project context from session_id '{session_id}': {e}")
+        return None
+
+
+def _reset_project_context(token: Any) -> None:
+    """Reset project context var if a token was set."""
+    if token is not None:
+        from gobby.utils.project_context import reset_project_context
+
+        reset_project_context(token)
+
+
 def _process_tool_proxy_result(
     result: Any,
     server_name: str,
@@ -406,45 +437,50 @@ async def call_mcp_tool(
                 detail={"success": False, "error": "Required fields: server_name, tool_name"},
             )
 
-        # Route through ToolProxyService for consistent error enrichment
-        if server.tool_proxy:
-            result = await server.tool_proxy.call_tool(server_name, tool_name, arguments)
-            response_time_ms = (time.perf_counter() - start_time) * 1000
-            return _process_tool_proxy_result(result, server_name, tool_name, response_time_ms)
+        # Set project context from session_id (same fix as mcp_proxy)
+        ctx_token = _set_project_context_for_request(server, arguments)
+        try:
+            # Route through ToolProxyService for consistent error enrichment
+            if server.tool_proxy:
+                result = await server.tool_proxy.call_tool(server_name, tool_name, arguments)
+                response_time_ms = (time.perf_counter() - start_time) * 1000
+                return _process_tool_proxy_result(result, server_name, tool_name, response_time_ms)
 
-        # Fallback: no tool_proxy available, use direct registry calls
-        # Check internal first
-        if server._internal_manager and server._internal_manager.is_internal(server_name):
-            registry = server._internal_manager.get_registry(server_name)
-            if registry:
-                return await _call_internal_tool(
-                    registry, server_name, tool_name, arguments, start_time
+            # Fallback: no tool_proxy available, use direct registry calls
+            # Check internal first
+            if server._internal_manager and server._internal_manager.is_internal(server_name):
+                registry = server._internal_manager.get_registry(server_name)
+                if registry:
+                    return await _call_internal_tool(
+                        registry, server_name, tool_name, arguments, start_time
+                    )
+
+            if server.mcp_manager is None:
+                raise HTTPException(
+                    status_code=503,
+                    detail={"success": False, "error": "MCP manager not available"},
                 )
 
-        if server.mcp_manager is None:
-            raise HTTPException(
-                status_code=503,
-                detail={"success": False, "error": "MCP manager not available"},
-            )
+            # Call external MCP tool
+            try:
+                result = await server.mcp_manager.call_tool(server_name, tool_name, arguments)
+                response_time_ms = (time.perf_counter() - start_time) * 1000
+                inc_counter("mcp_tool_calls_succeeded_total")
 
-        # Call external MCP tool
-        try:
-            result = await server.mcp_manager.call_tool(server_name, tool_name, arguments)
-            response_time_ms = (time.perf_counter() - start_time) * 1000
-            inc_counter("mcp_tool_calls_succeeded_total")
+                return {
+                    "success": True,
+                    "result": result,
+                    "response_time_ms": response_time_ms,
+                }
 
-            return {
-                "success": True,
-                "result": result,
-                "response_time_ms": response_time_ms,
-            }
-
-        except Exception as e:
-            inc_counter("mcp_tool_calls_failed_total")
-            error_msg = str(e) or f"{type(e).__name__}: (no message)"
-            raise HTTPException(
-                status_code=500, detail={"success": False, "error": error_msg}
-            ) from e
+            except Exception as e:
+                inc_counter("mcp_tool_calls_failed_total")
+                error_msg = str(e) or f"{type(e).__name__}: (no message)"
+                raise HTTPException(
+                    status_code=500, detail={"success": False, "error": error_msg}
+                ) from e
+        finally:
+            _reset_project_context(ctx_token)
 
     except HTTPException:
         raise
@@ -485,16 +521,21 @@ async def mcp_proxy(
                 detail={"success": False, "error": f"Invalid JSON in request body: {e}"},
             ) from e
 
-        # Route through ToolProxyService for consistent error enrichment
-        if server.tool_proxy:
-            result = await server.tool_proxy.call_tool(server_name, tool_name, arguments)
-            response_time_ms = (time.perf_counter() - start_time) * 1000
-            return _process_tool_proxy_result(result, server_name, tool_name, response_time_ms)
+        # Set project context from session_id so internal tools resolve
+        # the correct project. Without this, get_project_context() falls
+        # through to the daemon's CWD, causing cross-project leakage.
+        ctx_token = _set_project_context_for_request(server, arguments)
+        try:
+            # Route through ToolProxyService for consistent error enrichment
+            if server.tool_proxy:
+                result = await server.tool_proxy.call_tool(server_name, tool_name, arguments)
+                response_time_ms = (time.perf_counter() - start_time) * 1000
+                return _process_tool_proxy_result(result, server_name, tool_name, response_time_ms)
 
-        # Fallback: no tool_proxy available, use direct registry calls
-        # Check internal registries first (gobby-tasks, gobby-memory, etc.)
-        if server._internal_manager and server._internal_manager.is_internal(server_name):
-            registry = server._internal_manager.get_registry(server_name)
+            # Fallback: no tool_proxy available, use direct registry calls
+            # Check internal registries first (gobby-tasks, gobby-memory, etc.)
+            if server._internal_manager and server._internal_manager.is_internal(server_name):
+                registry = server._internal_manager.get_registry(server_name)
             if registry:
                 return await _call_internal_tool(
                     registry, server_name, tool_name, arguments, start_time
@@ -507,53 +548,58 @@ async def mcp_proxy(
                 },
             )
 
-        if server.mcp_manager is None:
-            raise HTTPException(
-                status_code=503,
-                detail={"success": False, "error": "MCP manager not available"},
-            )
+            if server.mcp_manager is None:
+                raise HTTPException(
+                    status_code=503,
+                    detail={"success": False, "error": "MCP manager not available"},
+                )
 
-        # Call MCP tool
-        try:
-            result = await server.mcp_manager.call_tool(server_name, tool_name, arguments)
+            # Call MCP tool
+            try:
+                result = await server.mcp_manager.call_tool(server_name, tool_name, arguments)
 
-            response_time_ms = (time.perf_counter() - start_time) * 1000
+                response_time_ms = (time.perf_counter() - start_time) * 1000
 
-            logger.debug(
-                f"MCP tool call successful: {server_name}.{tool_name}",
-                extra={
-                    "server": server_name,
-                    "tool": tool_name,
+                logger.debug(
+                    f"MCP tool call successful: {server_name}.{tool_name}",
+                    extra={
+                        "server": server_name,
+                        "tool": tool_name,
+                        "response_time_ms": response_time_ms,
+                    },
+                )
+
+                inc_counter("mcp_tool_calls_succeeded_total")
+
+                return {
+                    "success": True,
+                    "result": result,
                     "response_time_ms": response_time_ms,
-                },
-            )
+                }
 
-            inc_counter("mcp_tool_calls_succeeded_total")
+            except ValueError as e:
+                inc_counter("mcp_tool_calls_failed_total")
+                logger.warning(
+                    f"MCP tool not found: {server_name}.{tool_name}",
+                    extra={"server": server_name, "tool": tool_name, "error": str(e)},
+                )
+                raise HTTPException(
+                    status_code=404, detail={"success": False, "error": str(e)}
+                ) from e
+            except Exception as e:
+                inc_counter("mcp_tool_calls_failed_total")
+                error_msg = str(e) or f"{type(e).__name__}: (no message)"
+                logger.error(
+                    f"MCP tool call error: {server_name}.{tool_name}",
+                    exc_info=True,
+                    extra={"server": server_name, "tool": tool_name},
+                )
+                raise HTTPException(
+                    status_code=500, detail={"success": False, "error": error_msg}
+                ) from e
 
-            return {
-                "success": True,
-                "result": result,
-                "response_time_ms": response_time_ms,
-            }
-
-        except ValueError as e:
-            inc_counter("mcp_tool_calls_failed_total")
-            logger.warning(
-                f"MCP tool not found: {server_name}.{tool_name}",
-                extra={"server": server_name, "tool": tool_name, "error": str(e)},
-            )
-            raise HTTPException(status_code=404, detail={"success": False, "error": str(e)}) from e
-        except Exception as e:
-            inc_counter("mcp_tool_calls_failed_total")
-            error_msg = str(e) or f"{type(e).__name__}: (no message)"
-            logger.error(
-                f"MCP tool call error: {server_name}.{tool_name}",
-                exc_info=True,
-                extra={"server": server_name, "tool": tool_name},
-            )
-            raise HTTPException(
-                status_code=500, detail={"success": False, "error": error_msg}
-            ) from e
+        finally:
+            _reset_project_context(ctx_token)
 
     except HTTPException:
         raise

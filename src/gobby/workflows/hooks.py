@@ -202,27 +202,18 @@ class WorkflowHookHandler:
                     )
 
             session_edited = set(variables.get("session_edited_files", []))
-            baseline = set(variables.get("baseline_dirty_files", []))
 
             def _check_dirty(
                 _edited: set[str] = session_edited,
-                _base: set[str] = baseline,
                 _path: str | None = project_path,
             ) -> bool:
                 result = get_dirty_files_categorized(_path)
-                # Tracked dirty files (modified/staged/deleted) — always relevant
-                # Untracked files — only count ones this session created
+                # Only count files this session actually touched
                 dirty_tracked = result.tracked
                 dirty_untracked = result.untracked
-                if _edited:
-                    # Precise: session-edited tracked files that are still dirty,
-                    # plus any untracked files this session created
-                    session_dirty_tracked = _edited & dirty_tracked
-                    session_dirty_untracked = _edited & dirty_untracked
-                    return bool(session_dirty_tracked or session_dirty_untracked)
-                # Legacy fallback: no per-session tracking, baseline subtraction
-                # Only consider tracked dirty files minus baseline
-                return bool(dirty_tracked - _base)
+                session_dirty_tracked = _edited & dirty_tracked
+                session_dirty_untracked = _edited & dirty_untracked
+                return bool(session_dirty_tracked or session_dirty_untracked)
 
             eval_context = {"has_dirty_files": LazyBool(_check_dirty)}
 
