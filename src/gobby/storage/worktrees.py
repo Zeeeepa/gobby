@@ -51,7 +51,7 @@ class Worktree:
                 return row.get(field)
             try:
                 return row[field]
-            except (KeyError, IndexError):
+            except (KeyError, IndexError, TypeError):
                 return None
 
         return cls(

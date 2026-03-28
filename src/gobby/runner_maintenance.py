@@ -320,8 +320,8 @@ async def cleanup_expired_isolation_loop(
                             ["git", "worktree", "remove", "--force", path],
                         )
                         removed = result == 0
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("git worktree remove failed for %s: %s", path, e)
                     if not removed and os.path.exists(path):
                         await asyncio.to_thread(shutil.rmtree, path, ignore_errors=True)
                     # Prune stale worktree references

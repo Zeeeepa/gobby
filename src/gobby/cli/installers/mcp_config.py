@@ -7,6 +7,7 @@ Handles configuring/removing MCP server entries in JSON and TOML config files.
 
 import json
 import logging
+import sys
 import time
 from pathlib import Path
 from shutil import copy2
@@ -236,8 +237,6 @@ def configure_mcp_server_json(settings_path: Path, server_name: str = "gobby") -
     # Add gobby MCP server config
     # Resolve the gobby binary from the same environment running this install,
     # so the MCP config survives uv tool reinstalls and PATH changes.
-    import sys
-
     gobby_bin = str(Path(sys.executable).parent / "gobby")
     if Path(gobby_bin).exists():
         existing_settings["mcpServers"][server_name] = {

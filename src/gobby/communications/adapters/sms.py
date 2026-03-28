@@ -8,7 +8,7 @@ import hmac
 import logging
 import time
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl
@@ -177,7 +177,7 @@ class SMSAdapter(BaseChannelAdapter):
                 channel_id=from_number,  # In SMS, the channel is the conversation with the user
                 direction="inbound",
                 content=body,
-                created_at=datetime.now().isoformat(),
+                created_at=datetime.now(UTC).isoformat(),
                 identity_id=from_number,  # Identity is also the phone number
                 platform_message_id=message_sid,
                 content_type="text",

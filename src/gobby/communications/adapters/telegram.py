@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hmac
+import json
 import logging
 import uuid
 from collections.abc import Callable
@@ -178,8 +179,6 @@ class TelegramAdapter(BaseChannelAdapter):
         self, payload: dict[str, Any] | bytes, headers: dict[str, str]
     ) -> list[CommsMessage]:
         """Normalize inbound webhook payload."""
-        import json
-
         if isinstance(payload, bytes):
             payload_dict = json.loads(payload)
         else:

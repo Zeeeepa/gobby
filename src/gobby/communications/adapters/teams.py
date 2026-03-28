@@ -135,7 +135,7 @@ class TeamsAdapter(BaseChannelAdapter):
         """Return channel capabilities."""
         return ChannelCapabilities(
             threading=True,
-            reactions=True,
+            reactions=False,
             files=True,
             markdown=True,
             max_message_length=self.max_message_length,

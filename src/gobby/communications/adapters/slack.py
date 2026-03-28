@@ -8,7 +8,7 @@ import json
 import logging
 import time
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -210,7 +210,7 @@ class SlackAdapter(BaseChannelAdapter):
                             channel_id=channel,
                             direction="inbound",
                             content=text,
-                            created_at=datetime.now().isoformat(),
+                            created_at=datetime.now(UTC).isoformat(),
                             identity_id=user,
                             platform_message_id=ts,
                             platform_thread_id=thread_ts,
@@ -234,7 +234,7 @@ class SlackAdapter(BaseChannelAdapter):
                                 channel_id=channel,
                                 direction="inbound",
                                 content=reaction,
-                                created_at=datetime.now().isoformat(),
+                                created_at=datetime.now(UTC).isoformat(),
                                 identity_id=user,
                                 platform_message_id=ts,  # ID of message being reacted to
                                 content_type="reaction",

@@ -7,7 +7,7 @@ import json
 import logging
 import time
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -251,7 +251,7 @@ class DiscordAdapter(BaseChannelAdapter):
                         channel_id=channel_id,
                         direction="inbound",
                         content=reaction,
-                        created_at=datetime.now().isoformat(),
+                        created_at=datetime.now(UTC).isoformat(),
                         identity_id=user_id,
                         platform_message_id=msg_id,
                         content_type="reaction",
@@ -287,7 +287,7 @@ class DiscordAdapter(BaseChannelAdapter):
                     channel_id=channel_id,
                     direction="inbound",
                     content=content,
-                    created_at=datetime.now().isoformat(),
+                    created_at=datetime.now(UTC).isoformat(),
                     identity_id=user_id,
                     platform_message_id=msg_id,
                     platform_thread_id=thread_id,

@@ -260,7 +260,7 @@ def test_capabilities(adapter: TeamsAdapter) -> None:
     """Test adapter capabilities."""
     caps = adapter.capabilities()
     assert caps.threading is True
-    assert caps.reactions is True
+    assert caps.reactions is False
     assert caps.files is True
     assert caps.markdown is True
     assert caps.max_message_length == 28000

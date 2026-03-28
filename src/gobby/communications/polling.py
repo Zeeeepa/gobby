@@ -97,7 +97,17 @@ class PollingManager:
 
         while True:
             try:
-                # Calculate sleep duration based on failures
+                # Poll messages first, then sleep
+                messages = await adapter.poll()
+
+                if messages:
+                    # Pass directly to manager
+                    await self._manager.handle_inbound_messages(channel_name, messages)
+
+                # Reset failures on success
+                consecutive_failures = 0
+
+                # Sleep after polling
                 if consecutive_failures > 0:
                     sleep_duration = min(
                         base_backoff * (2 ** (consecutive_failures - 1)), max_backoff
@@ -107,16 +117,6 @@ class PollingManager:
                     sleep_duration = interval
 
                 await asyncio.sleep(sleep_duration)
-
-                # Poll messages
-                messages = await adapter.poll()
-
-                if messages:
-                    # Pass directly to manager
-                    await self._manager.handle_inbound_messages(channel_name, messages)
-
-                # Reset failures on success
-                consecutive_failures = 0
 
             except asyncio.CancelledError:
                 # Task was cancelled normally

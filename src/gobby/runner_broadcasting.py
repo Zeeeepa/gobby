@@ -225,7 +225,7 @@ def setup_communications_event_broadcasting(
                 if hasattr(v, "model_dump"):
                     safe_kwargs[k] = v.model_dump()
                 elif hasattr(v, "__dict__"):
-                    safe_kwargs[k] = str(v)
+                    safe_kwargs[k] = vars(v)
                 else:
                     safe_kwargs[k] = v
             await websocket_server.broadcast_communications_event(

@@ -143,7 +143,7 @@ class RegistryContext:
         from the calling session's project (e.g., stdio MCP transport).
 
         Args:
-            session_id: Session reference (unreolved — #N, N, UUID, prefix)
+            session_id: Session reference (unresolved — #N, N, UUID, prefix)
 
         Returns:
             Resolved project_id string

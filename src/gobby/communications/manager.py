@@ -383,8 +383,6 @@ class CommunicationsManager:
             if needs_update:
                 self._store.update_identity(identity)
         else:
-            from gobby.communications.models import CommsIdentity
-
             identity = CommsIdentity(
                 id="",
                 channel_id=channel_id,
@@ -603,8 +601,6 @@ class CommunicationsManager:
         channels = self._store.list_channels(enabled_only=False)
         if any(c.channel_type == "web_chat" for c in channels):
             return
-
-        from gobby.communications.adapters import get_adapter_class
 
         if get_adapter_class("web_chat") is None:
             logger.debug("web_chat adapter not registered, skipping auto-create")

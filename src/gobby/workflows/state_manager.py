@@ -166,7 +166,7 @@ class SessionVariableManager:
             self._defaults_cache is not None
             and (now - self._defaults_cache_time) < self._DEFAULTS_CACHE_TTL
         ):
-            return self._defaults_cache
+            return dict(self._defaults_cache)
 
         rows = self.db.fetchall(
             "SELECT name, definition_json FROM workflow_definitions "
