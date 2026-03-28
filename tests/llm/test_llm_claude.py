@@ -483,10 +483,11 @@ class TestGenerateWithMcpToolsWithCli:
 
             # Verify create_sdk_mcp_server was called
             mock_create_server.assert_called_once_with(name="my-server", tools=[sample_tool_func])
-            # Verify mcp_servers config was passed
-            assert captured_options[0].kwargs["mcp_servers"] == {
-                "my-server": {"type": "mcp_server"}
-            }
+            # Verify mcp_servers config includes both gobby and in-process server
+            mcp_servers = captured_options[0].kwargs["mcp_servers"]
+            assert "my-server" in mcp_servers
+            assert mcp_servers["my-server"] == {"type": "mcp_server"}
+            assert "gobby" in mcp_servers
 
     @pytest.mark.asyncio
     async def test_handles_user_message_string_content(self, claude_config: DaemonConfig):
@@ -831,93 +832,30 @@ class TestGenerateText:
             assert result == ""
 
 
-class TestGenerateWithMcpToolsMcpConfigPath:
-    """Tests for generate_with_mcp_tools with MCP config file path."""
+class TestGenerateWithMcpToolsGobbyInjection:
+    """Tests for generate_with_mcp_tools always injecting gobby MCP server."""
 
     @pytest.mark.asyncio
-    async def test_uses_mcp_json_from_cwd(self, claude_config: DaemonConfig, tmp_path):
-        """Test that .mcp.json is loaded from current working directory."""
+    async def test_gobby_always_injected(self, claude_config: DaemonConfig):
+        """Gobby MCP server entry is always present in mcp_servers dict."""
         captured_options = []
 
         async def mock_query(prompt, options):
             captured_options.append(options)
             yield MockResultMessage(result="Done")
 
-        # Create a mock .mcp.json file
-        mcp_config = tmp_path / ".mcp.json"
-        mcp_config.write_text('{"servers": {}}')
-
         with mock_claude_sdk(mock_query):
-            with patch("pathlib.Path.cwd", return_value=tmp_path):
-                from gobby.llm.claude import ClaudeLLMProvider
+            from gobby.llm.claude import ClaudeLLMProvider
 
-                provider = ClaudeLLMProvider(claude_config)
+            provider = ClaudeLLMProvider(claude_config)
 
-                await provider.generate_with_mcp_tools(
-                    prompt="Create task",
-                    allowed_tools=["mcp__gobby-tasks__create_task"],
-                    # No tool_functions, so it should look for .mcp.json
-                )
+            await provider.generate_with_mcp_tools(
+                prompt="Create task",
+                allowed_tools=["mcp__gobby-tasks__create_task"],
+            )
 
-                assert len(captured_options) == 1
-                # The mcp_servers should be the path string
-                assert str(mcp_config) == captured_options[0].kwargs["mcp_servers"]
-
-    @pytest.mark.asyncio
-    async def test_uses_mcp_json_from_project_root(self, claude_config: DaemonConfig, tmp_path):
-        """Test that .mcp.json is loaded from project root when not in cwd."""
-        captured_options = []
-
-        async def mock_query(prompt, options):
-            captured_options.append(options)
-            yield MockResultMessage(result="Done")
-
-        # Create a cwd directory without .mcp.json
-        cwd_dir = tmp_path / "some_other_dir"
-        cwd_dir.mkdir()
-
-        # This test just verifies the code path runs when cwd has no .mcp.json
-        # The actual project root detection uses __file__ which we can't easily mock
-        with mock_claude_sdk(mock_query):
-            with patch("pathlib.Path.cwd", return_value=cwd_dir):
-                from gobby.llm.claude import ClaudeLLMProvider
-
-                provider = ClaudeLLMProvider(claude_config)
-
-                await provider.generate_with_mcp_tools(
-                    prompt="Create task",
-                    allowed_tools=["mcp__gobby-tasks__create_task"],
-                )
-
-                # Check that the method ran successfully
-                assert len(captured_options) == 1
-                # When no cwd config is found, it may use project root config or empty dict
-                mcp_servers = captured_options[0].kwargs["mcp_servers"]
-                assert mcp_servers == {} or isinstance(mcp_servers, str)
-
-    @pytest.mark.asyncio
-    async def test_no_mcp_config_uses_empty_dict(self, claude_config: DaemonConfig, tmp_path):
-        """Test that empty dict is used when no .mcp.json is found."""
-        captured_options = []
-
-        async def mock_query(prompt, options):
-            captured_options.append(options)
-            yield MockResultMessage(result="Done")
-
-        # cwd without .mcp.json
-        with mock_claude_sdk(mock_query):
-            with patch("pathlib.Path.cwd", return_value=tmp_path):
-                from gobby.llm.claude import ClaudeLLMProvider
-
-                provider = ClaudeLLMProvider(claude_config)
-
-                await provider.generate_with_mcp_tools(
-                    prompt="Create task",
-                    allowed_tools=["mcp__gobby-tasks__create_task"],
-                )
-
-                assert len(captured_options) == 1
-                # Should be empty dict when no config found
-                # (since gobby project root also won't have .mcp.json in this test)
-                mcp_servers = captured_options[0].kwargs["mcp_servers"]
-                assert mcp_servers == {} or isinstance(mcp_servers, str)
+            assert len(captured_options) == 1
+            mcp_servers = captured_options[0].kwargs["mcp_servers"]
+            assert isinstance(mcp_servers, dict)
+            assert "gobby" in mcp_servers
+            assert mcp_servers["gobby"]["args"] == ["mcp-server"]

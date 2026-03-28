@@ -608,33 +608,17 @@ class ClaudeLLMProvider(LLMProvider):
             )
 
         # Build mcp_servers config
-        # Can be a dict of server configs OR a path to .mcp.json file
-        from pathlib import Path
+        from gobby.servers.chat_session_helpers import _build_gobby_mcp_entry
 
-        mcp_servers_config: dict[str, Any] | str | None = None
+        mcp_servers_config: dict[str, Any] = {"gobby": _build_gobby_mcp_entry()}
 
         # Add in-process tool functions if provided
         if tool_functions:
-            mcp_servers_config = {}
             for server_name, tools in tool_functions.items():
                 mcp_servers_config[server_name] = create_sdk_mcp_server(
                     name=server_name,
                     tools=tools,
                 )
-
-        # If no tool_functions provided but we have allowed gobby tools,
-        # use the .mcp.json config file (avoids in-process config issues)
-        if not tool_functions and any("gobby" in t for t in allowed_tools):
-            # Look for .mcp.json in the current working directory or gobby project
-            cwd_config = Path.cwd() / ".mcp.json"
-            if cwd_config.exists():
-                mcp_servers_config = str(cwd_config)
-            else:
-                # Try the gobby project root
-                gobby_root = Path(__file__).parent.parent.parent.parent
-                gobby_config = gobby_root / ".mcp.json"
-                if gobby_config.exists():
-                    mcp_servers_config = str(gobby_config)
 
         # Configure Claude Agent SDK with MCP tools
         options = ClaudeAgentOptions(
@@ -644,7 +628,7 @@ class ClaudeLLMProvider(LLMProvider):
             allowed_tools=allowed_tools,
             permission_mode="bypassPermissions",
             cli_path=cli_path,
-            mcp_servers=mcp_servers_config if mcp_servers_config is not None else {},
+            mcp_servers=mcp_servers_config,
         )
 
         # Track tool calls and results

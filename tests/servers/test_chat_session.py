@@ -31,7 +31,7 @@ class TestCanUseTool:
 
         with (
             patch("gobby.servers.chat_session._find_cli_path", return_value="/usr/bin/claude"),
-            patch("gobby.servers.chat_session._find_mcp_config", return_value=None),
+            patch("gobby.servers.chat_session._build_gobby_mcp_entry", return_value={"command": "gobby", "args": ["mcp-server"]}),
             patch("gobby.servers.chat_session._find_project_root", return_value=None),
             patch(
                 "gobby.servers.chat_session._load_chat_system_prompt", return_value="test prompt"
@@ -132,6 +132,42 @@ class TestCanUseTool:
         assert result.updated_input["answers"] == answers
 
 
+class TestMcpServerInjection:
+    """Tests for gobby MCP server always being injected."""
+
+    @pytest.mark.asyncio
+    async def test_start_always_injects_gobby_mcp_server(self, session: ChatSession) -> None:
+        """start() should always pass gobby MCP server in mcp_servers dict."""
+        captured_options: dict[str, Any] = {}
+
+        def capture_options(**kwargs: Any) -> MagicMock:
+            captured_options.update(kwargs)
+            return MagicMock()
+
+        with (
+            patch("gobby.servers.chat_session._find_cli_path", return_value="/usr/bin/claude"),
+            patch(
+                "gobby.servers.chat_session._build_gobby_mcp_entry",
+                return_value={"command": "/usr/local/bin/gobby", "args": ["mcp-server"]},
+            ),
+            patch("gobby.servers.chat_session._find_project_root", return_value=None),
+            patch(
+                "gobby.servers.chat_session._load_chat_system_prompt", return_value="test prompt"
+            ),
+            patch("gobby.servers.chat_session.ClaudeAgentOptions", side_effect=capture_options),
+            patch("gobby.servers.chat_session.ClaudeSDKClient") as mock_client_cls,
+        ):
+            mock_client = AsyncMock()
+            mock_client_cls.return_value = mock_client
+            await session.start()
+
+            mcp = captured_options["mcp_servers"]
+            assert isinstance(mcp, dict)
+            assert "gobby" in mcp
+            assert mcp["gobby"]["command"] == "/usr/local/bin/gobby"
+            assert mcp["gobby"]["args"] == ["mcp-server"]
+
+
 class TestToolApproval:
     """Tests for the tool approval flow."""
 
@@ -205,7 +241,7 @@ class TestProjectRouting:
 
         with (
             patch("gobby.servers.chat_session._find_cli_path", return_value="/usr/bin/claude"),
-            patch("gobby.servers.chat_session._find_mcp_config", return_value=None),
+            patch("gobby.servers.chat_session._build_gobby_mcp_entry", return_value={"command": "gobby", "args": ["mcp-server"]}),
             patch(
                 "gobby.servers.chat_session._load_chat_system_prompt", return_value="test prompt"
             ),
@@ -235,7 +271,7 @@ class TestProjectRouting:
 
         with (
             patch("gobby.servers.chat_session._find_cli_path", return_value="/usr/bin/claude"),
-            patch("gobby.servers.chat_session._find_mcp_config", return_value=None),
+            patch("gobby.servers.chat_session._build_gobby_mcp_entry", return_value={"command": "gobby", "args": ["mcp-server"]}),
             patch("gobby.servers.chat_session._find_project_root", return_value=None),
             patch(
                 "gobby.servers.chat_session._load_chat_system_prompt", return_value="test prompt"

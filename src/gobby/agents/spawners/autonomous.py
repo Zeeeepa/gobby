@@ -38,8 +38,8 @@ from claude_agent_sdk.types import (
 )
 
 from gobby.servers.chat_session_helpers import (
+    _build_gobby_mcp_entry,
     _find_cli_path,
-    _find_mcp_config,
     _response_to_compact_output,
     _response_to_post_tool_output,
     _response_to_pre_tool_output,
@@ -137,8 +137,6 @@ class AutonomousRunner:
                 self.agent_run_manager.fail(self.run_id, error=error)
             raise RuntimeError(error)
 
-        mcp_config = _find_mcp_config()
-
         # Build system prompt with environment context
         system_prompt = self.system_prompt or "You are an autonomous coding agent."
         system_prompt += f"\n\n## Environment\n- Working directory: {self.cwd}\n"
@@ -165,7 +163,7 @@ class AutonomousRunner:
             allowed_tools=["mcp__gobby__*"],
             can_use_tool=_approve_all_tools,  # Autonomous: approve all
             cli_path=cli_path,
-            mcp_servers=mcp_config if mcp_config is not None else {},
+            mcp_servers={"gobby": _build_gobby_mcp_entry()},
             cwd=self.cwd,
             hooks=cast(Any, sdk_hooks) if sdk_hooks else None,
             env=env,

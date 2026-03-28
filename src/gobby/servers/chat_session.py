@@ -59,8 +59,8 @@ from gobby.llm.sdk_utils import (
 from gobby.servers.chat_session_helpers import (
     _PLAN_FILE_PATTERN,
     PendingApproval,
+    _build_gobby_mcp_entry,
     _find_cli_path,
-    _find_mcp_config,
     _find_project_root,
     _load_chat_system_prompt,
     _response_to_compact_output,
@@ -166,7 +166,6 @@ class ChatSession(ChatSessionPermissionsMixin):
                 "auth_mode to 'api_key' in llm_providers config."
             )
 
-        mcp_config = _find_mcp_config()
         self._model = model
 
         # Use the project's repo_path if available (set by web UI project selector),
@@ -215,7 +214,7 @@ class ChatSession(ChatSessionPermissionsMixin):
             allowed_tools=["mcp__gobby__*"],
             can_use_tool=self._can_use_tool,
             cli_path=cli_path,
-            mcp_servers=mcp_config if mcp_config is not None else {},
+            mcp_servers={"gobby": _build_gobby_mcp_entry()},
             cwd=cwd,
             hooks=cast(Any, sdk_hooks) if sdk_hooks else None,
             env=env or {},

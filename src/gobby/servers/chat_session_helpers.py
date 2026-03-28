@@ -10,6 +10,7 @@ import logging
 import os
 import re
 import shutil
+import sys
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
@@ -109,6 +110,21 @@ def _find_mcp_config() -> str | None:
             return str(config)
 
     return None
+
+
+def _build_gobby_mcp_entry() -> dict[str, str | list[str]]:
+    """Build gobby MCP server config for ClaudeAgentOptions.mcp_servers.
+
+    Resolves the gobby binary using the same pattern as the installer
+    (sys.executable sibling → shutil.which → bare command).
+    """
+    gobby_bin = str(Path(sys.executable).parent / "gobby")
+    if Path(gobby_bin).exists():
+        return {"command": gobby_bin, "args": ["mcp-server"]}
+    gobby_path = shutil.which("gobby")
+    if gobby_path:
+        return {"command": gobby_path, "args": ["mcp-server"]}
+    return {"command": "gobby", "args": ["mcp-server"]}
 
 
 def _response_to_prompt_output(resp: dict[str, Any] | None) -> SyncHookJSONOutput:
