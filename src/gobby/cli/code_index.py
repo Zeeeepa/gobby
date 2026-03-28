@@ -46,9 +46,11 @@ def _get_storage() -> CodeIndexStorage:
 
 def _auto_project_id() -> str:
     """Auto-detect project ID from .gobby/project.json, fallback to 'default'."""
+    from pathlib import Path
+
     from gobby.utils.project_context import get_project_context
 
-    ctx = get_project_context()
+    ctx = get_project_context(cwd=Path.cwd())
     if ctx and ctx.get("id"):
         return str(ctx["id"])
     return "default"

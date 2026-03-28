@@ -108,7 +108,7 @@ def resolve_project_ref(project_ref: str | None, exit_on_not_found: bool = True)
     """
     if not project_ref:
         # Use current project context
-        ctx = get_project_context()
+        ctx = get_project_context(cwd=Path.cwd())
         return ctx.get("id") if ctx else None
 
     db = LocalDatabase()
@@ -182,7 +182,7 @@ def resolve_session_id(session_ref: str | None, project_id: str | None = None) -
 
         # Get project_id from context if not provided
         if not project_id:
-            ctx = get_project_context()
+            ctx = get_project_context(cwd=Path.cwd())
             project_id = ctx.get("id") if ctx else None
 
         # Use SessionManager for resolution logic

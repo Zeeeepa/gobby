@@ -23,27 +23,69 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _set_project_context_for_request(server: "HTTPServer", arguments: Any) -> Any:
-    """Extract session_id from arguments and set project context var.
+def _set_project_context_for_request(
+    server: "HTTPServer", arguments: Any, request: Request | None = None
+) -> Any:
+    """Set project context var from the best available source.
 
-    The stdio MCP transport doesn't pass session_id at the HTTP level,
-    so we extract it from tool arguments. Without this, get_project_context()
-    falls back to the daemon's CWD, causing cross-project leakage.
+    Priority:
+      1. session_id from tool arguments (most specific — tool knows its session)
+      2. X-Gobby-Session-Id header (injected by stdio proxy from learned session)
+      3. X-Gobby-Project-Id header (injected by stdio proxy from CWD project.json)
+
+    The stdio process runs in the CLI's project directory, so its CWD-derived
+    project_id is always correct. The daemon's CWD is NOT — it points to the
+    gobby project regardless of which project the caller is in.
 
     Returns a context var token for reset, or None.
     """
+    # 1. Try session_id from tool arguments
     session_id = arguments.get("session_id") if isinstance(arguments, dict) else None
-    if not session_id or not server.session_manager:
-        return None
-    try:
-        from gobby.utils.project_context import set_project_context_from_session
 
-        return set_project_context_from_session(
-            session_id, server.session_manager, server.session_manager.db
-        )
-    except Exception as e:
-        logger.debug(f"Failed to set project context from session_id '{session_id}': {e}")
-        return None
+    # 2. Try session_id from header (stdio proxy injects this once learned)
+    if not session_id and request:
+        session_id = request.headers.get("x-gobby-session-id")
+
+    # Resolve session → project (authoritative: session knows its project)
+    if session_id and server.session_manager:
+        try:
+            from gobby.utils.project_context import set_project_context_from_session
+
+            token = set_project_context_from_session(
+                session_id, server.session_manager, server.session_manager.db
+            )
+            if token is not None:
+                return token
+        except Exception as e:
+            logger.debug(f"Failed to set project context from session_id '{session_id}': {e}")
+
+    # 3. Fallback: project_id from header (always available from stdio startup)
+    if request:
+        project_id = request.headers.get("x-gobby-project-id")
+        if project_id:
+            from gobby.utils.project_context import set_project_context
+
+            # Enrich from DB if possible (gives tools project_path, name, etc.)
+            if server.session_manager:
+                try:
+                    from gobby.storage.projects import LocalProjectManager
+
+                    pm = LocalProjectManager(server.session_manager.db)
+                    project = pm.get(project_id)
+                    if project:
+                        return set_project_context(
+                            {
+                                "id": project.id,
+                                "name": project.name,
+                                "project_path": project.repo_path,
+                            }
+                        )
+                except Exception as e:
+                    logger.debug(f"Failed to enrich project context for '{project_id}': {e}")
+            # Minimal fallback — id alone is enough for scoping
+            return set_project_context({"id": project_id})
+
+    return None
 
 
 def _reset_project_context(token: Any) -> None:
@@ -437,8 +479,8 @@ async def call_mcp_tool(
                 detail={"success": False, "error": "Required fields: server_name, tool_name"},
             )
 
-        # Set project context from session_id (same fix as mcp_proxy)
-        ctx_token = _set_project_context_for_request(server, arguments)
+        # Set project context from session_id or stdio proxy headers
+        ctx_token = _set_project_context_for_request(server, arguments, request)
         try:
             # Route through ToolProxyService for consistent error enrichment
             if server.tool_proxy:
@@ -521,10 +563,8 @@ async def mcp_proxy(
                 detail={"success": False, "error": f"Invalid JSON in request body: {e}"},
             ) from e
 
-        # Set project context from session_id so internal tools resolve
-        # the correct project. Without this, get_project_context() falls
-        # through to the daemon's CWD, causing cross-project leakage.
-        ctx_token = _set_project_context_for_request(server, arguments)
+        # Set project context from session_id or stdio proxy headers
+        ctx_token = _set_project_context_for_request(server, arguments, request)
         try:
             # Route through ToolProxyService for consistent error enrichment
             if server.tool_proxy:

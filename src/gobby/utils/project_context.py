@@ -111,6 +111,13 @@ def get_project_context(cwd: Path | None = None) -> dict[str, Any] | None:
         # CWD doesn't match — return minimal context with just the ID
         return {"id": override_id}
 
+    # Only search the filesystem when an explicit cwd was provided.
+    # When cwd is None, the caller is in daemon context where os.getcwd()
+    # points to the daemon's directory, NOT the calling session's project.
+    # The stdio proxy injects the correct project via HTTP headers instead.
+    if cwd is None:
+        return None
+
     root = find_project_root(cwd)
     if not root:
         return None

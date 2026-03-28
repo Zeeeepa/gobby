@@ -445,7 +445,7 @@ def backup_memories(ctx: click.Context, output_path: str | None, quiet: bool) ->
     from gobby.sync.memories import MemoryBackupManager
     from gobby.utils.project_context import get_project_context
 
-    project_ctx = get_project_context()
+    project_ctx = get_project_context(cwd=Path.cwd())
     project_id = project_ctx.get("id") if project_ctx else None
 
     manager = get_memory_manager(ctx)

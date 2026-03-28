@@ -76,9 +76,11 @@ def sync_tasks(do_import: bool, do_export: bool, quiet: bool) -> None:
 
     If neither --import nor --export specified, does both.
     """
+    from pathlib import Path
+
     from gobby.utils.project_context import get_project_context
 
-    ctx = get_project_context()
+    ctx = get_project_context(cwd=Path.cwd())
     project_id = ctx.get("id") if ctx else None
 
     manager = get_sync_manager()

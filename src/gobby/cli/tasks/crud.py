@@ -354,7 +354,9 @@ def create_task(
         task_type=task_type,
     )
     task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
-    project_ctx = get_project_context()
+    from pathlib import Path
+
+    project_ctx = get_project_context(cwd=Path.cwd())
     project_name = project_ctx.get("name") if project_ctx else None
 
     if project_name and task.seq_num:
