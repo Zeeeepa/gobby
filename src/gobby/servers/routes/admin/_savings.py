@@ -54,7 +54,12 @@ def register_savings_routes(router: APIRouter, server: "HTTPServer") -> None:
 
     @router.post("/savings/record")
     async def record_savings(body: dict[str, Any]) -> dict[str, Any]:
-        """Record a savings event from an external caller (e.g. gobby compress)."""
+        """Record a savings event from an external caller (e.g. gsqz).
+
+        When ``model`` is not provided, the endpoint resolves it from
+        the most recently active session so cost can be calculated
+        server-side — callers like gsqz only need to report chars.
+        """
         tracker = _get_tracker(server)
         if tracker is None:
             return {"success": False, "error": "Savings tracker not available"}
@@ -71,6 +76,9 @@ def register_savings_routes(router: APIRouter, server: "HTTPServer") -> None:
                 "error": f"Invalid category {category!r}. Valid: {sorted(VALID_CATEGORIES)}",
             }
 
+        # Resolve model from active session when caller doesn't provide one
+        model = body.get("model") or _resolve_active_model(server)
+
         # Support both chars and tokens
         if "original_tokens" in body:
             tracker.record_tokens(
@@ -79,7 +87,7 @@ def register_savings_routes(router: APIRouter, server: "HTTPServer") -> None:
                 actual_tokens=body.get("actual_tokens", 0),
                 session_id=body.get("session_id"),
                 project_id=body.get("project_id"),
-                model=body.get("model"),
+                model=model,
                 metadata=body.get("metadata"),
             )
         else:
@@ -89,11 +97,23 @@ def register_savings_routes(router: APIRouter, server: "HTTPServer") -> None:
                 actual_chars=body.get("actual_chars", 0),
                 session_id=body.get("session_id"),
                 project_id=body.get("project_id"),
-                model=body.get("model"),
+                model=model,
                 metadata=body.get("metadata"),
             )
 
         return {"success": True}
+
+
+def _resolve_active_model(server: "HTTPServer") -> str | None:
+    """Look up the model from the most recently updated session."""
+    try:
+        row = server.services.database.fetchone(
+            "SELECT model FROM sessions WHERE model IS NOT NULL ORDER BY updated_at DESC LIMIT 1"
+        )
+        return row["model"] if row else None
+    except Exception as e:
+        logger.debug(f"Failed to resolve active model: {e}")
+        return None
 
 
 def _get_tracker(server: "HTTPServer") -> Any:

@@ -823,19 +823,6 @@ CREATE TABLE savings_ledger (
 CREATE INDEX idx_savings_ledger_created ON savings_ledger(created_at);
 CREATE INDEX idx_savings_ledger_project_cat ON savings_ledger(project_id, category);
 
-CREATE TABLE savings_daily (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    project_id TEXT,
-    category TEXT NOT NULL,
-    date TEXT NOT NULL,
-    event_count INTEGER NOT NULL DEFAULT 0,
-    total_original_tokens INTEGER NOT NULL DEFAULT 0,
-    total_actual_tokens INTEGER NOT NULL DEFAULT 0,
-    total_tokens_saved INTEGER NOT NULL DEFAULT 0,
-    total_cost_saved_usd REAL NOT NULL DEFAULT 0.0,
-    UNIQUE(project_id, category, date)
-);
-
 CREATE TABLE task_affected_files (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,

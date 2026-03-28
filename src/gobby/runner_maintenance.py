@@ -221,34 +221,6 @@ async def expire_approval_timeouts_loop(
             logger.error(f"Error in approval timeout loop: {e}")
 
 
-async def savings_rollup_loop(
-    db: Any,
-    is_shutdown_requested: Callable[[], bool],
-    interval_hours: int = 24,
-    retention_days: int = 7,
-) -> None:
-    """Roll up old savings ledger entries into daily aggregates.
-
-    Runs every ``interval_hours``, aggregating ledger entries older than
-    ``retention_days`` into the savings_daily table.
-    """
-    interval_seconds = interval_hours * 3600
-
-    while not is_shutdown_requested():
-        try:
-            await asyncio.sleep(interval_seconds)
-            from gobby.savings.tracker import SavingsTracker
-
-            tracker = SavingsTracker(db=db)
-            rolled = tracker.rollup_daily(retention_days=retention_days)
-            if rolled > 0:
-                logger.info(f"Savings rollup: rolled up {rolled} ledger entries")
-        except asyncio.CancelledError:
-            break
-        except Exception as e:
-            logger.error(f"Error in savings rollup loop: {e}")
-
-
 async def metric_snapshot_loop(
     db: Any,
     is_shutdown_requested: Callable[[], bool],

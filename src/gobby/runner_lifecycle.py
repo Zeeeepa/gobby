@@ -32,7 +32,6 @@ async def run_daemon(runner: GobbyRunner) -> None:
         metrics_archive_loop,
         metrics_cleanup_loop,
         rebuild_vector_store,
-        savings_rollup_loop,
         setup_signal_handlers,
         span_cleanup_loop,
     )
@@ -211,12 +210,6 @@ async def run_daemon(runner: GobbyRunner) -> None:
                 ),
                 name="code-index-maintenance",
             )
-
-        # Start periodic savings rollup (every 24 hours)
-        runner._savings_rollup_task = asyncio.create_task(
-            savings_rollup_loop(runner.database, lambda: runner._shutdown_requested),
-            name="savings-rollup",
-        )
 
         # Start periodic metric snapshot loop (every 60s)
         runner._metric_snapshot_task = asyncio.create_task(

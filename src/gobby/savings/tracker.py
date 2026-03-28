@@ -107,7 +107,6 @@ class SavingsTracker:
         cat_filter = f"AND category IN ({cat_placeholders})"
         cat_params = list(VALID_CATEGORIES)
 
-        # Recent ledger entries
         rows = self.db.fetchall(
             f"SELECT category, "
             f"SUM(original_tokens) as original_tokens, "
@@ -139,37 +138,6 @@ class SavingsTracker:
             total_cost_saved += row["cost_saved_usd"] or 0.0
             total_events += row["event_count"] or 0
 
-        # Also include rolled-up daily data for the window
-        daily_params: list[Any] = [f"-{days} days"]
-        if project_id:
-            daily_params.append(project_id)
-        daily_rows = self.db.fetchall(
-            f"SELECT category, "
-            f"SUM(total_tokens_saved) as tokens_saved, "
-            f"SUM(total_cost_saved_usd) as cost_saved_usd, "
-            f"SUM(event_count) as event_count "
-            f"FROM savings_daily "
-            f"WHERE date >= date('now', ?) {project_filter} {cat_filter} "
-            f"GROUP BY category",
-            tuple(daily_params + cat_params),
-        )
-        for row in daily_rows:
-            cat = row["category"]
-            if cat not in categories:
-                categories[cat] = {
-                    "original_tokens": 0,
-                    "actual_tokens": 0,
-                    "tokens_saved": 0,
-                    "cost_saved_usd": 0.0,
-                    "event_count": 0,
-                }
-            categories[cat]["tokens_saved"] += row["tokens_saved"] or 0
-            categories[cat]["cost_saved_usd"] += row["cost_saved_usd"] or 0.0
-            categories[cat]["event_count"] += row["event_count"] or 0
-            total_tokens_saved += row["tokens_saved"] or 0
-            total_cost_saved += row["cost_saved_usd"] or 0.0
-            total_events += row["event_count"] or 0
-
         return {
             "days": days,
             "total_tokens_saved": total_tokens_saved,
@@ -181,47 +149,6 @@ class SavingsTracker:
     def get_cumulative(self, days: int = 30, project_id: str | None = None) -> dict[str, Any]:
         """Get cumulative savings over a longer window (for dashboard headline)."""
         return self.get_summary(days=days, project_id=project_id)
-
-    def rollup_daily(self, retention_days: int = 7) -> int:
-        """Roll up old ledger entries into daily aggregates.
-
-        Entries older than retention_days are aggregated into savings_daily,
-        then deleted from savings_ledger. Returns number of rows rolled up.
-        """
-        cutoff = f"-{retention_days} days"
-
-        # Aggregate into daily
-        self.db.execute(
-            "INSERT INTO savings_daily (project_id, category, date, event_count, "
-            "total_original_tokens, total_actual_tokens, total_tokens_saved, total_cost_saved_usd) "
-            "SELECT project_id, category, date(created_at), COUNT(*), "
-            "SUM(original_tokens), SUM(actual_tokens), SUM(tokens_saved), "
-            "COALESCE(SUM(cost_saved_usd), 0.0) "
-            "FROM savings_ledger "
-            "WHERE created_at < datetime('now', ?) "
-            "GROUP BY project_id, category, date(created_at) "
-            "ON CONFLICT(project_id, category, date) DO UPDATE SET "
-            "event_count = event_count + excluded.event_count, "
-            "total_original_tokens = total_original_tokens + excluded.total_original_tokens, "
-            "total_actual_tokens = total_actual_tokens + excluded.total_actual_tokens, "
-            "total_tokens_saved = total_tokens_saved + excluded.total_tokens_saved, "
-            "total_cost_saved_usd = total_cost_saved_usd + excluded.total_cost_saved_usd",
-            (cutoff,),
-        )
-
-        # Delete rolled-up entries
-        result = self.db.execute(
-            "DELETE FROM savings_ledger WHERE created_at < datetime('now', ?)",
-            (cutoff,),
-        )
-        count = result.rowcount if result.rowcount else 0
-        if count > 0:
-            logger.info(f"Rolled up {count} savings ledger entries into daily aggregates")
-        return count
-
-    def cleanup(self, retention_days: int = 7) -> int:
-        """Convenience alias for rollup_daily."""
-        return self.rollup_daily(retention_days=retention_days)
 
     def _estimate_cost(self, tokens_saved: int, model: str | None) -> float | None:
         """Estimate cost saved based on input token rate for the model."""

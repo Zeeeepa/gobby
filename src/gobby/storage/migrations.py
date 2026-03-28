@@ -229,6 +229,13 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         ALTER TABLE worktrees ADD COLUMN cleanup_after TEXT;
         """,
     ),
+    (
+        176,
+        "Drop savings_daily table (rollup replaced by direct ledger queries)",
+        """
+        DROP TABLE IF EXISTS savings_daily;
+        """,
+    ),
 ]
 
 

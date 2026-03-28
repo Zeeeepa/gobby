@@ -28,18 +28,6 @@ def db(tmp_path) -> LocalDatabase:
     db.execute(
         "CREATE INDEX idx_savings_ledger_project_cat ON savings_ledger(project_id, category)"
     )
-    db.execute("""CREATE TABLE savings_daily (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        project_id TEXT,
-        category TEXT NOT NULL,
-        date TEXT NOT NULL,
-        event_count INTEGER NOT NULL DEFAULT 0,
-        total_original_tokens INTEGER NOT NULL DEFAULT 0,
-        total_actual_tokens INTEGER NOT NULL DEFAULT 0,
-        total_tokens_saved INTEGER NOT NULL DEFAULT 0,
-        total_cost_saved_usd REAL NOT NULL DEFAULT 0.0,
-        UNIQUE(project_id, category, date)
-    )""")
     return db
 
 
@@ -104,30 +92,6 @@ class TestSavingsTracker:
         assert summary["total_cost_saved_usd"] == 0.0
         assert summary["total_events"] == 0
         assert summary["categories"] == {}
-
-    def test_rollup_daily(self, tracker: SavingsTracker, db: LocalDatabase) -> None:
-        # Insert an old entry
-        db.execute(
-            "INSERT INTO savings_ledger "
-            "(category, original_tokens, actual_tokens, tokens_saved, created_at) "
-            "VALUES (?, ?, ?, ?, datetime('now', '-10 days'))",
-            ("compression", 1000, 200, 800),
-        )
-        # Insert a recent entry
-        tracker.record_tokens(category="compression", original_tokens=500, actual_tokens=100)
-
-        # Rollup with 7-day retention
-        rolled = tracker.rollup_daily(retention_days=7)
-        assert rolled == 1  # Only the old entry
-
-        # Recent entry should still be in ledger
-        rows = db.fetchall("SELECT * FROM savings_ledger")
-        assert len(rows) == 1
-
-        # Daily should have the rolled-up data
-        daily = db.fetchall("SELECT * FROM savings_daily")
-        assert len(daily) == 1
-        assert daily[0]["total_tokens_saved"] == 800
 
     def test_negative_savings_clamped(self, tracker: SavingsTracker) -> None:
         """If actual > original, tokens_saved should be 0."""
