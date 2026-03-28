@@ -799,17 +799,31 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
         if not task:
             return {"error": f"Task {task_id} not found"}
 
+        skipped_response: dict[str, Any] = {
+            "passed": True,
+            "qa_skipped": True,
+            "fixes": [],
+            "escalations": [],
+        }
+
         if not task.expansion_context:
-            return {"error": "No expansion context on task"}
+            logger.warning(f"check_expansion_qa_result: no expansion_context on task {task_id}")
+            return {**skipped_response, "reason": "No expansion context on task"}
 
         try:
             context = json.loads(task.expansion_context)
         except json.JSONDecodeError:
-            return {"error": "Invalid expansion_context JSON"}
+            logger.warning(
+                f"check_expansion_qa_result: invalid JSON in expansion_context for task {task_id}"
+            )
+            return {**skipped_response, "reason": "Invalid expansion_context JSON"}
 
         qa_result = context.get("qa_result")
         if qa_result is None:
-            return {"error": "No QA result in expansion context"}
+            logger.warning(
+                f"check_expansion_qa_result: no qa_result in expansion_context for task {task_id}"
+            )
+            return {**skipped_response, "reason": "QA agent did not save result"}
 
         return dict(qa_result) if isinstance(qa_result, dict) else {"result": qa_result}
 

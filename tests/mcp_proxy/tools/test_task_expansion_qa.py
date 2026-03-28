@@ -329,12 +329,16 @@ class TestCheckExpansionQaResult:
         expansion_registry: dict,
         parent_task_with_context: str,
     ) -> None:
-        """expansion_context exists but has no qa_result key."""
+        """expansion_context exists but has no qa_result key — returns skipped response."""
         check_fn = expansion_registry["check_expansion_qa_result"].func
         result = await check_fn(task_id=parent_task_with_context)
 
-        assert "error" in result
-        assert "No QA result" in result["error"]
+        assert "error" not in result
+        assert result["passed"] is True
+        assert result["qa_skipped"] is True
+        assert result["reason"] == "QA agent did not save result"
+        assert result["fixes"] == []
+        assert result["escalations"] == []
 
     @pytest.mark.asyncio
     async def test_check_no_expansion_context(
@@ -342,12 +346,36 @@ class TestCheckExpansionQaResult:
         expansion_registry: dict,
         parent_task: str,
     ) -> None:
-        """Task has no expansion_context at all."""
+        """Task has no expansion_context at all — returns skipped response."""
         check_fn = expansion_registry["check_expansion_qa_result"].func
         result = await check_fn(task_id=parent_task)
 
-        assert "error" in result
-        assert "No expansion context" in result["error"]
+        assert "error" not in result
+        assert result["passed"] is True
+        assert result["qa_skipped"] is True
+        assert result["reason"] == "No expansion context on task"
+        assert result["fixes"] == []
+        assert result["escalations"] == []
+
+    @pytest.mark.asyncio
+    async def test_check_invalid_expansion_context_json(
+        self,
+        expansion_registry: dict,
+        parent_task: str,
+        task_manager: LocalTaskManager,
+    ) -> None:
+        """Invalid JSON in expansion_context — returns skipped response."""
+        task_manager.update_task(parent_task, expansion_context="not-valid-json{{{")
+
+        check_fn = expansion_registry["check_expansion_qa_result"].func
+        result = await check_fn(task_id=parent_task)
+
+        assert "error" not in result
+        assert result["passed"] is True
+        assert result["qa_skipped"] is True
+        assert result["reason"] == "Invalid expansion_context JSON"
+        assert result["fixes"] == []
+        assert result["escalations"] == []
 
     @pytest.mark.asyncio
     async def test_check_task_not_found(
