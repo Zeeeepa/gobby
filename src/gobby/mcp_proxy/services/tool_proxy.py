@@ -66,6 +66,10 @@ class ToolProxyService:
         self._validate_arguments = validate_arguments
         self._tool_filter = tool_filter
 
+    def _resolve_server_name(self, server_name: str) -> str:
+        """Auto-redirect known server name aliases to the correct server."""
+        return self._SERVER_SUGGESTIONS.get(server_name, server_name)
+
     def _get_server_suggestion(self, server_name: str) -> str | None:
         """Get a suggestion for a possibly misspelled server name."""
         return self._SERVER_SUGGESTIONS.get(server_name)
@@ -211,6 +215,7 @@ class ToolProxyService:
         Returns:
             Dict with tool metadata: {"success": true, "tools": [...], "tool_count": N}
         """
+        server_name = self._resolve_server_name(server_name)
         # Handle proxy namespace: aggregate tools from all internal registries
         if self._is_proxy_namespace(server_name):
             logger.warning(
@@ -318,6 +323,7 @@ class ToolProxyService:
                 them.  Missing-required and type errors still fail.
 
         """
+        server_name = self._resolve_server_name(server_name)
         arguments = arguments or {}
         if isinstance(arguments, str):
             try:
@@ -487,6 +493,7 @@ class ToolProxyService:
 
     async def get_tool_schema(self, server_name: str, tool_name: str) -> dict[str, Any]:
         """Get full schema for a specific tool."""
+        server_name = self._resolve_server_name(server_name)
         # Handle proxy namespace: auto-resolve to the real server
         if self._is_proxy_namespace(server_name):
             resolved = self._resolve_server_for_tool(tool_name)
