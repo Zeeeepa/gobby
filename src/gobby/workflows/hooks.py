@@ -169,8 +169,9 @@ class WorkflowHookHandler:
                     for var_row in enabled_variables:
                         try:
                             var_body = json.loads(var_row.definition_json)
-                            if var_row.name not in variables:
-                                defaults[var_row.name] = var_body.get("value")
+                            key = var_body.get("variable", var_row.name)
+                            if key not in variables:
+                                defaults[key] = var_body.get("value")
                         except (json.JSONDecodeError, AttributeError):
                             pass
                     defaults["_variable_defaults_loaded"] = True

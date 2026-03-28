@@ -7,6 +7,7 @@ Provides commands for syncing gobby tasks with Linear issues.
 import asyncio
 import json
 import logging
+from pathlib import Path
 
 import click
 
@@ -24,8 +25,6 @@ logger = logging.getLogger(__name__)
 
 def get_linear_deps() -> tuple[LocalTaskManager, MCPClientManager, LocalProjectManager, str]:
     """Get dependencies for Linear commands."""
-    from pathlib import Path
-
     db = LocalDatabase()
     task_manager = LocalTaskManager(db)
     project_manager = LocalProjectManager(db)

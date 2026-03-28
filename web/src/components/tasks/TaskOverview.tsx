@@ -1,11 +1,10 @@
-import type { GobbyTask, TaskStats } from "../../hooks/useTasks";
+import type { TaskStats } from "../../hooks/useTasks";
 
 // =============================================================================
 // TaskOverview
 // =============================================================================
 
 interface TaskOverviewProps {
-  tasks: GobbyTask[];
   stats: TaskStats;
   activeFilter: string | null;
   onFilterStatus: (status: string | null) => void;

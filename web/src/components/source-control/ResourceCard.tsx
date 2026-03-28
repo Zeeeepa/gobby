@@ -49,8 +49,8 @@ export function ResourceCard({ id, title, status, fields, onSync, onDelete }: Re
         <StatusBadge status={status} />
       </div>
       <div className="sc-card__body">
-        {fields.map((f) => (
-          <div key={f.label} className="sc-card__field">
+        {fields.map((f, i) => (
+          <div key={`${f.label}-${i}`} className="sc-card__field">
             <span className="sc-card__label">{f.label}</span>
             {f.code ? (
               <code className="sc-card__value">{f.value}</code>

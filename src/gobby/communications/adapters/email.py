@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import email
 import logging
+import uuid
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from email.message import EmailMessage
 from email.utils import make_msgid
 from pathlib import Path
@@ -155,7 +156,10 @@ class EmailAdapter(BaseChannelAdapter):
 
         msg.set_content(message.content or "")
 
-        maintype, subtype = (attachment.content_type or "application/octet-stream").split("/", 1)
+        ct = attachment.content_type or "application/octet-stream"
+        maintype, _, subtype = ct.partition("/")
+        if not subtype:
+            subtype = "octet-stream"
         file_data = file_path.read_bytes()
         msg.add_attachment(
             file_data, maintype=maintype, subtype=subtype, filename=attachment.filename
@@ -217,11 +221,11 @@ class EmailAdapter(BaseChannelAdapter):
 
                     messages.append(
                         CommsMessage(
-                            id=msg_id or str(datetime.now().timestamp()),
+                            id=msg_id or f"{datetime.now(UTC).timestamp()}-{uuid.uuid4().hex[:8]}",
                             channel_id=sender,
                             direction="inbound",
                             content=content,
-                            created_at=datetime.now().isoformat(),
+                            created_at=datetime.now(UTC).isoformat(),
                             identity_id=sender,
                             platform_message_id=msg_id,
                             platform_thread_id=thread_id,

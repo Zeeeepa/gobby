@@ -396,7 +396,6 @@ export function TasksPage({ projectFilter }: TasksPageProps = {}) {
 
       {/* Overview cards */}
       <TaskOverview
-        tasks={scopedTasks}
         stats={stats}
         activeFilter={filters.status}
         onFilterStatus={status => setFilters(f => ({ ...f, status }))}

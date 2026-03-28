@@ -47,13 +47,16 @@ class KokoroTTS:
     def __init__(self, config: VoiceConfig) -> None:
         self._config = config
         self._model: Any | None = None
-        self._load_lock = asyncio.Lock()
+        self._load_lock: asyncio.Lock | None = None
         self._sample_rate = 24000  # Kokoro outputs 24kHz
 
     async def _ensure_model(self) -> Any:
         """Lazy-load the Kokoro model (thread-safe, async)."""
         if self._model is not None:
             return self._model
+
+        if self._load_lock is None:
+            self._load_lock = asyncio.Lock()
 
         async with self._load_lock:
             # Double-check after acquiring lock

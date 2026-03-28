@@ -1,7 +1,10 @@
+import logging
 from typing import Any, Literal
 
 from gobby.communications.manager import CommunicationsManager
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+
+logger = logging.getLogger(__name__)
 
 
 def create_communications_registry(
@@ -39,6 +42,7 @@ def create_communications_registry(
             )
             return {"success": True, "message_id": msg.id}
         except Exception as e:
+            logger.exception("Communications tool error")
             return {"success": False, "error": str(e)}
 
     @registry.tool(description="List configured communication channels and their status.")
@@ -60,6 +64,7 @@ def create_communications_registry(
                 )
             return {"success": True, "channels": result}
         except Exception as e:
+            logger.exception("Communications tool error")
             return {"success": False, "error": str(e)}
 
     @registry.tool(description="Get message history for a channel.")
@@ -100,6 +105,7 @@ def create_communications_registry(
                 ],
             }
         except Exception as e:
+            logger.exception("Communications tool error")
             return {"success": False, "error": str(e)}
 
     @registry.tool(description="Add a new communication channel.")
@@ -117,6 +123,7 @@ def create_communications_registry(
             )
             return {"success": True, "channel_id": ch.id}
         except Exception as e:
+            logger.exception("Communications tool error")
             return {"success": False, "error": str(e)}
 
     @registry.tool(description="Remove a communication channel.")
@@ -128,6 +135,7 @@ def create_communications_registry(
             await communications_manager.remove_channel(name=name)
             return {"success": True}
         except Exception as e:
+            logger.exception("Communications tool error")
             return {"success": False, "error": str(e)}
 
     @registry.tool(description="Manually link an external user to a Gobby session.")
@@ -147,6 +155,7 @@ def create_communications_registry(
             communications_manager._store.update_identity_session(identity.id, session_id)
             return {"success": True, "identity_id": identity.id}
         except Exception as e:
+            logger.exception("Communications tool error")
             return {"success": False, "error": str(e)}
 
     @registry.tool(description="List identity mappings with optional filters.")
@@ -181,6 +190,7 @@ def create_communications_registry(
                 ],
             }
         except Exception as e:
+            logger.exception("Communications tool error")
             return {"success": False, "error": str(e)}
 
     @registry.tool(description="Remove session link from an identity.")
@@ -190,6 +200,7 @@ def create_communications_registry(
             communications_manager._store.update_identity_session(identity_id, None)
             return {"success": True}
         except Exception as e:
+            logger.exception("Communications tool error")
             return {"success": False, "error": str(e)}
 
     return registry

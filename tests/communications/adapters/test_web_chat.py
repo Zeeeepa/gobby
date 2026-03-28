@@ -55,11 +55,11 @@ def outbound_message() -> CommsMessage:
         id="msg-001",
         channel_id="test_web_chat_channel",
         direction="outbound",
-        content="Hello from Telegram!",
+        content="Hello from WebChat!",
         created_at="2024-01-01T00:00:00Z",
         session_id="session-abc",
         content_type="text",
-        metadata_json={"source_channel": "telegram"},
+        metadata_json={"source_channel": "web_chat"},
     )
 
 
@@ -126,7 +126,7 @@ async def test_send_message_with_broadcast(
     assert payload["type"] == "comms_message"
     assert payload["channel_type"] == "web_chat"
     assert payload["message_id"] == "msg-001"
-    assert payload["content"] == "Hello from Telegram!"
+    assert payload["content"] == "Hello from WebChat!"
     assert payload["session_id"] == "session-abc"
     assert payload["direction"] == "outbound"
 

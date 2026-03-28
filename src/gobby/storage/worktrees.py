@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Any
 
@@ -342,8 +342,6 @@ class LocalWorktreeManager:
         Returns:
             Updated Worktree or None if not found
         """
-        from datetime import timedelta
-
         now = datetime.now(UTC)
         cleanup_after = (now + timedelta(days=cleanup_days)).isoformat()
         return self.update(
@@ -383,8 +381,6 @@ class LocalWorktreeManager:
             List of stale Worktree instances
         """
         # Calculate cutoff time
-        from datetime import timedelta
-
         cutoff = (datetime.now(UTC) - timedelta(hours=hours)).isoformat()
 
         rows = self.db.fetchall(

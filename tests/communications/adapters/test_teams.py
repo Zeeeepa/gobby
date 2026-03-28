@@ -204,9 +204,8 @@ def test_verify_webhook_success(adapter: TeamsAdapter) -> None:
     )
     headers = {"Authorization": f"Bearer {token}"}
 
-    with patch("jwt.decode") as mock_decode, patch.object(
-        type(adapter), "_jwk_client", new=mock_jwk_client
-    ):
+    adapter._jwk_client = mock_jwk_client
+    with patch("jwt.decode") as mock_decode:
         mock_decode.return_value = {
             "aud": "test-app-id",
             "iss": "https://api.botframework.com",
@@ -239,9 +238,8 @@ def test_verify_webhook_failure(adapter: TeamsAdapter) -> None:
         {"aud": "test-app-id", "iss": "https://api.botframework.com"}, "secret", algorithm="HS256"
     )
 
-    with patch("jwt.decode") as mock_decode, patch.object(
-        type(adapter), "_jwk_client", new=mock_jwk_client
-    ):
+    adapter._jwk_client = mock_jwk_client
+    with patch("jwt.decode") as mock_decode:
         mock_decode.side_effect = jwt.InvalidTokenError("bad signature")
         assert (
             adapter.verify_webhook(b"", {"Authorization": f"Bearer {token}"}, "not-used") is False
@@ -250,10 +248,10 @@ def test_verify_webhook_failure(adapter: TeamsAdapter) -> None:
     # JWKS fetch failure
     mock_bad_client = MagicMock()
     mock_bad_client.get_signing_key_from_jwt.side_effect = jwt.PyJWKClientError("fetch failed")
-    with patch.object(type(adapter), "_jwk_client", new=mock_bad_client):
-        assert (
-            adapter.verify_webhook(b"", {"Authorization": f"Bearer {token}"}, "not-used") is False
-        )
+    adapter._jwk_client = mock_bad_client
+    assert (
+        adapter.verify_webhook(b"", {"Authorization": f"Bearer {token}"}, "not-used") is False
+    )
 
 
 def test_capabilities(adapter: TeamsAdapter) -> None:

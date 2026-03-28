@@ -77,7 +77,8 @@ class TestSentenceBuffer:
     def test_mixed_punctuation(self):
         buf = SentenceBuffer()
         result = buf.feed("What?! Yes, I think so. Really! ")
-        assert len(result) >= 2
+        assert len(result) == 3
+        assert result == ["What?!", "Yes, I think so.", "Really!"]
 
     def test_no_split_on_abbreviations(self):
         """Periods not followed by whitespace shouldn't split."""

@@ -456,11 +456,8 @@ def _register_routes(app: FastAPI, server: "HTTPServer") -> None:
     app.include_router(create_traces_router(server))
     app.include_router(create_metrics_router(server))
 
-    if (
-        server.services.config
-        and hasattr(server.services.config, "communications")
-        and server.services.config.communications.enabled
-    ):
+    comms_config = getattr(server.services.config, "communications", None)
+    if comms_config and comms_config.enabled:
         app.include_router(create_communications_router(server))
 
 

@@ -53,8 +53,8 @@ def _set_project_context_from_headers(request: Request) -> Any:
                 )
                 if token is not None:
                     return token
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to set project context from session %s: %s", session_id, e)
 
     project_id = request.headers.get("x-gobby-project-id")
     if project_id:
@@ -69,8 +69,8 @@ def _set_project_context_from_headers(request: Request) -> Any:
                     return set_project_context(
                         {"id": project.id, "name": project.name, "project_path": project.repo_path}
                     )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to resolve project %s: %s", project_id, e)
         return set_project_context({"id": project_id})
 
     return None

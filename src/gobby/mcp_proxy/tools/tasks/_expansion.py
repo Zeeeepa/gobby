@@ -125,16 +125,19 @@ def _apply_tdd_sandwich(subtasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         )
 
         # 2. [IMPL] tasks (originals) — depend on TEST + intra-phase deps
+        # Two-pass: first reserve indices, then wire deps (preserves forward refs)
+        impl_start = len(new_subtasks)
+        for i, orig_idx in enumerate(orig_indices):
+            old_to_new[orig_idx] = impl_start + i
+            new_subtasks.append(dict(subtasks[orig_idx]))
+
         for orig_idx in orig_indices:
-            new_idx = len(new_subtasks)
-            old_to_new[orig_idx] = new_idx
-            st = dict(subtasks[orig_idx])
+            st = new_subtasks[old_to_new[orig_idx]]
             new_deps = [test_new_idx]
             for dep in st.get("depends_on", []):
                 if dep in orig_set and dep in old_to_new:
                     new_deps.append(old_to_new[dep])
             st["depends_on"] = new_deps
-            new_subtasks.append(st)
 
         # 3. [REF] task — depends on all IMPLs in phase
         ref_new_idx = len(new_subtasks)

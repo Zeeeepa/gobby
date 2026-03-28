@@ -450,6 +450,8 @@
 @media (max-width: 768px) {
   .tasks-page {
     padding: 0.75rem;
+    overflow-x: hidden;
+    max-width: 100vw;
   }
 
   .tasks-toolbar {
@@ -525,10 +527,6 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  .tasks-page {
-    overflow-x: hidden;
-    max-width: 100vw;
-  }
 }
 
 @media (max-width: 480px) {

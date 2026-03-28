@@ -91,7 +91,14 @@ class AttachmentManager:
 
     def _safe_filename(self, filename: str) -> str:
         """Sanitize a filename, prepending a timestamp to avoid collisions."""
-        basename = Path(filename).name.replace("\x00", "")
+        import re
+
+        basename = Path(filename).name
+        # Strip null bytes and path traversal sequences
+        basename = basename.replace("\x00", "").replace("/", "").replace("\\", "")
+        basename = basename.lstrip(".")  # Remove leading dots (hidden files / traversal)
+        # Replace unsafe characters with underscores
+        basename = re.sub(r"[^\w.\-]", "_", basename)
         if not basename:
             basename = "attachment"
         return f"{int(time.time() * 1000)}_{basename}"

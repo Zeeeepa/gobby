@@ -473,7 +473,26 @@ def _install_gsqz(force: bool = False) -> dict[str, Any]:
         return {"installed": False, "skipped": False, "reason": "all installation methods failed"}
 
     gsqz_path.chmod(0o755)
-    resolved_version = target_version or "latest"
+    # Probe the installed binary for its actual version
+    resolved_version = target_version
+    if not resolved_version:
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                [str(gsqz_path), "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                # Output is typically "gsqz X.Y.Z" — extract version
+                parts = result.stdout.strip().split()
+                resolved_version = parts[-1] if parts else "unknown"
+            else:
+                resolved_version = "unknown"
+        except Exception:
+            resolved_version = "unknown"
     _write_gsqz_version_stamp(bin_dir, resolved_version)
 
     # Ensure ~/.gobby/bin is on PATH

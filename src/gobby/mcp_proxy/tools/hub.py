@@ -12,6 +12,7 @@ These tools query the hub database directly (not the project db).
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Any
 
@@ -92,8 +93,9 @@ def create_hub_registry(
             return {"success": False, "error": f"Hub database not found: {hub_db_path}"}
 
         try:
-            rows = hub_db.fetchall(
-                "SELECT id, name, repo_path FROM projects WHERE deleted_at IS NULL ORDER BY name"
+            rows = await asyncio.to_thread(
+                hub_db.fetchall,
+                "SELECT id, name, repo_path FROM projects WHERE deleted_at IS NULL ORDER BY name",
             )
             projects = [
                 {"id": r["id"], "name": r["name"], "repo_path": r["repo_path"]} for r in rows
@@ -130,7 +132,8 @@ def create_hub_registry(
 
         try:
             if status:
-                rows = hub_db.fetchall(
+                rows = await asyncio.to_thread(
+                    hub_db.fetchall,
                     """
                     SELECT id, project_id, title, status, task_type, priority, created_at, updated_at
                     FROM tasks
@@ -141,7 +144,8 @@ def create_hub_registry(
                     (status, limit),
                 )
             else:
-                rows = hub_db.fetchall(
+                rows = await asyncio.to_thread(
+                    hub_db.fetchall,
                     """
                     SELECT id, project_id, title, status, task_type, priority, created_at, updated_at
                     FROM tasks
@@ -191,7 +195,8 @@ def create_hub_registry(
             return {"success": False, "error": f"Hub database not found: {hub_db_path}"}
 
         try:
-            rows = hub_db.fetchall(
+            rows = await asyncio.to_thread(
+                hub_db.fetchall,
                 """
                 SELECT id, project_id, source, status, machine_id, created_at, updated_at
                 FROM sessions
@@ -236,11 +241,10 @@ def create_hub_registry(
         if hub_db is None:
             return {"success": False, "error": f"Hub database not found: {hub_db_path}"}
 
-        try:
+        def _collect_stats(db: LocalDatabase) -> dict[str, Any]:
             stats: dict[str, Any] = {}
 
-            # Count unique projects
-            project_count_result = hub_db.fetchone(
+            project_count_result = db.fetchone(
                 """
                 SELECT COUNT(DISTINCT project_id) as count
                 FROM (
@@ -252,8 +256,7 @@ def create_hub_registry(
             )
             stats["project_count"] = project_count_result["count"] if project_count_result else 0
 
-            # Count tasks by status
-            task_stats = hub_db.fetchall(
+            task_stats = db.fetchall(
                 """
                 SELECT status, COUNT(*) as count
                 FROM tasks
@@ -265,8 +268,7 @@ def create_hub_registry(
                 "by_status": {row["status"]: row["count"] for row in task_stats},
             }
 
-            # Count sessions by status
-            session_stats = hub_db.fetchall(
+            session_stats = db.fetchall(
                 """
                 SELECT status, COUNT(*) as count
                 FROM sessions
@@ -278,13 +280,16 @@ def create_hub_registry(
                 "by_status": {row["status"]: row["count"] for row in session_stats},
             }
 
-            # Count memories if table exists
             try:
-                memory_count = hub_db.fetchone("SELECT COUNT(*) as count FROM memories")
+                memory_count = db.fetchone("SELECT COUNT(*) as count FROM memories")
                 stats["memories"] = memory_count["count"] if memory_count else 0
             except Exception:
                 stats["memories"] = 0
 
+            return stats
+
+        try:
+            stats = await asyncio.to_thread(_collect_stats, hub_db)
             return {"success": True, "stats": stats}
         except Exception as e:
             return {"success": False, "error": str(e)}

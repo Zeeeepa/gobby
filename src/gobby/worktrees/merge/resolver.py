@@ -56,6 +56,7 @@ async def auto_resolve_trivial_conflicts(
     if not trivial:
         return conflicted_files
 
+    resolved: list[str] = []
     for f in trivial:
         # Accept incoming version for trivial files
         checkout = await asyncio.create_subprocess_exec(
@@ -67,7 +68,11 @@ async def auto_resolve_trivial_conflicts(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        await checkout.communicate()
+        _, co_stderr = await checkout.communicate()
+        if checkout.returncode != 0:
+            logger.error(f"git checkout --theirs failed for {f}: {co_stderr.decode().strip()}")
+            remaining.append(f)
+            continue
 
         # Stage the resolution
         add = await asyncio.create_subprocess_exec(
@@ -78,10 +83,16 @@ async def auto_resolve_trivial_conflicts(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        await add.communicate()
+        _, add_stderr = await add.communicate()
+        if add.returncode != 0:
+            logger.error(f"git add failed for {f}: {add_stderr.decode().strip()}")
+            remaining.append(f)
+            continue
+
+        resolved.append(f)
 
     logger.info(
-        f"Auto-resolved {len(trivial)} trivial conflict(s) in worktree {worktree_path}: {trivial}"
+        f"Auto-resolved {len(resolved)} trivial conflict(s) in worktree {worktree_path}: {resolved}"
     )
 
     return remaining

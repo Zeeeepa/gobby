@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -12,9 +13,14 @@ from gobby.communications.adapters import register_adapter
 from gobby.communications.adapters.base import BaseChannelAdapter
 from gobby.communications.models import ChannelCapabilities, ChannelConfig, CommsMessage
 
+logger = logging.getLogger(__name__)
+
 
 class TeamsAdapter(BaseChannelAdapter):
     """Microsoft Teams Bot Framework adapter."""
+
+    _BOTFRAMEWORK_JWKS_URL = "https://login.botframework.com/v1/.well-known/keys"
+    _BOTFRAMEWORK_ISSUER = "https://api.botframework.com"
 
     def __init__(self) -> None:
         self._client: httpx.AsyncClient | None = None
@@ -22,6 +28,7 @@ class TeamsAdapter(BaseChannelAdapter):
         self._app_password: str = ""
         self._access_token: str | None = None
         self._token_expires_at: float = 0
+        self._jwk_client: PyJWKClient | None = None
 
     @property
     def channel_type(self) -> str:
@@ -53,7 +60,7 @@ class TeamsAdapter(BaseChannelAdapter):
         if not self._app_id or not self._app_password:
             raise ValueError("TEAMS_APP_ID and TEAMS_APP_PASSWORD secrets are required")
 
-        self._client = httpx.AsyncClient()
+        self._client = httpx.AsyncClient(timeout=30.0)
         await self._refresh_token()
 
     async def _refresh_token(self) -> None:
@@ -100,8 +107,12 @@ class TeamsAdapter(BaseChannelAdapter):
         if message.content_type == "adaptive_card":
             try:
                 card_content = json.loads(message.content)
-            except json.JSONDecodeError:
-                card_content = message.content
+                if not isinstance(card_content, dict):
+                    raise ValueError(
+                        f"Adaptive card content must be a JSON object, got {type(card_content).__name__}"
+                    )
+            except json.JSONDecodeError as exc:
+                raise ValueError("Adaptive card content is not valid JSON") from exc
             activity["attachments"] = [
                 {
                     "contentType": "application/vnd.microsoft.card.adaptive",
@@ -187,10 +198,6 @@ class TeamsAdapter(BaseChannelAdapter):
 
         return [msg]
 
-    _BOTFRAMEWORK_JWKS_URL = "https://login.botframework.com/v1/.well-known/keys"
-    _BOTFRAMEWORK_ISSUER = "https://api.botframework.com"
-    _jwk_client: PyJWKClient | None = None
-
     def verify_webhook(self, payload: bytes, headers: dict[str, str], secret: str) -> bool:
         """Verify webhook JWT signature against Bot Framework JWKS."""
         auth_header = ""
@@ -223,9 +230,7 @@ class TeamsAdapter(BaseChannelAdapter):
 
             return True
         except (jwt.InvalidTokenError, jwt.PyJWKClientError) as e:
-            import logging
-
-            logging.getLogger(__name__).debug("Teams webhook JWT verification failed: %s", e)
+            logger.debug("Teams webhook JWT verification failed: %s", e)
             return False
 
 
