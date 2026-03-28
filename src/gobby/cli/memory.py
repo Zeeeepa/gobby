@@ -430,7 +430,7 @@ def fix_null_project(ctx: click.Context, dry_run: bool) -> None:
 def backup_memories(ctx: click.Context, output_path: str | None, quiet: bool) -> None:
     """Backup memories to JSONL file.
 
-    Exports all memories to a JSONL file for backup/disaster recovery.
+    Exports project-scoped memories to a JSONL file for backup/disaster recovery.
     This runs synchronously and can be used even when the daemon is not running.
 
     Examples:
@@ -443,6 +443,10 @@ def backup_memories(ctx: click.Context, output_path: str | None, quiet: bool) ->
 
     from gobby.config.persistence import MemoryBackupConfig
     from gobby.sync.memories import MemoryBackupManager
+    from gobby.utils.project_context import get_project_context
+
+    project_ctx = get_project_context()
+    project_id = project_ctx.get("id") if project_ctx else None
 
     manager = get_memory_manager(ctx)
 
@@ -459,7 +463,7 @@ def backup_memories(ctx: click.Context, output_path: str | None, quiet: bool) ->
         config=config,
     )
 
-    count = backup_mgr.backup_sync()
+    count = backup_mgr.backup_sync(project_id=project_id)
     if not quiet:
         if count > 0:
             click.echo(f"Backed up {count} memories to {export_path}")
