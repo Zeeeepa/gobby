@@ -108,6 +108,8 @@ body {
   justify-content: space-between;
   padding: 1rem;
   border-bottom: 1px solid var(--border);
+  position: relative;
+  z-index: 100;
 }
 
 .header-brand {
