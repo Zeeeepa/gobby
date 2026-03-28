@@ -476,6 +476,14 @@ async def run_daemon(runner: GobbyRunner) -> None:
             except (asyncio.CancelledError, TimeoutError):
                 pass
 
+        # Cancel comms message cleanup task
+        if runner._comms_messages_task and not runner._comms_messages_task.done():
+            runner._comms_messages_task.cancel()
+            try:
+                await asyncio.wait_for(runner._comms_messages_task, timeout=2.0)
+            except (asyncio.CancelledError, TimeoutError):
+                pass
+
         # Cancel expired isolation cleanup task
         if runner._expired_isolation_task and not runner._expired_isolation_task.done():
             runner._expired_isolation_task.cancel()

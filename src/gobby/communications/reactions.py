@@ -119,12 +119,13 @@ class ReactionHandler:
                 logger.error("Pipeline manager not available to process approval")
                 return
 
+            session_id_str = str(identity.session_id) if identity.session_id is not None else None
             if approved:
                 logger.info(f"Approving pipeline {pipeline_run_id} step {step_id}")
-                await pipelines.approve_step(pipeline_run_id, step_id, str(identity.session_id))
+                await pipelines.approve_step(pipeline_run_id, step_id, session_id_str)
             else:
                 logger.info(f"Rejecting pipeline {pipeline_run_id} step {step_id}")
-                await pipelines.reject_step(pipeline_run_id, step_id, str(identity.session_id))
+                await pipelines.reject_step(pipeline_run_id, step_id, session_id_str)
 
         except Exception as e:
             logger.error(f"Failed to process approval action: {e}", exc_info=True)

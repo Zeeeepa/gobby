@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import logging
 import uuid
 from collections.abc import Callable
@@ -115,7 +116,6 @@ class TelegramAdapter(BaseChannelAdapter):
             payload: dict[str, Any] = {
                 "chat_id": chat_id,
                 "text": chunk,
-                "parse_mode": "MarkdownV2",
             }
 
             if message.platform_thread_id:
@@ -235,7 +235,7 @@ class TelegramAdapter(BaseChannelAdapter):
         if not header_secret:
             return False
 
-        return header_secret == secret
+        return hmac.compare_digest(header_secret, secret)
 
     async def poll(self) -> list[CommsMessage]:
         """Call getUpdates with offset tracking for polling fallback."""

@@ -146,7 +146,6 @@ async def test_send_message_basic(
         assert call_kwargs["json"] == {
             "chat_id": "chat999",
             "text": "Hello world",
-            "parse_mode": "MarkdownV2",
             "reply_to_message_id": "reply123",
         }
 

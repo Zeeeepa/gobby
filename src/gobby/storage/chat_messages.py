@@ -27,9 +27,13 @@ def save_message(
 ) -> str:
     """Save a chat message. Returns the message ID."""
     msg_id = str(uuid.uuid4())
-    if seq is None:
-        seq = get_max_seq(db, conversation_id) + 1
     with db.transaction() as conn:
+        if seq is None:
+            row = conn.execute(
+                "SELECT COALESCE(MAX(seq), 0) + 1 FROM chat_messages WHERE conversation_id = ?",
+                (conversation_id,),
+            ).fetchone()
+            seq = row[0]
         conn.execute(
             """INSERT INTO chat_messages (id, conversation_id, role, content, tool_calls_json, metadata_json, seq)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",

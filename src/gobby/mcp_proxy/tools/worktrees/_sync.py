@@ -234,7 +234,7 @@ def create_sync_registry(ctx: RegistryContext) -> InternalToolRegistry:
                         timeout=10,
                     )
                     return {
-                        "success": True,
+                        "success": False,
                         "has_conflicts": True,
                         "merged": False,
                         "conflicted_files": remaining,

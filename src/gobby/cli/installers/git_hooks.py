@@ -113,7 +113,7 @@ if [ -z "$GOBBY_AGENT_RUN_ID" ] && command -v gobby >/dev/null 2>&1; then
     done
 
     if [ "$JSONL_CHANGED" = true ]; then
-        git commit --amend --no-edit --no-verify 2>/dev/null || true
+        git commit -m "gobby: sync tasks/memories" --no-verify 2>/dev/null || true
     fi
 fi
 

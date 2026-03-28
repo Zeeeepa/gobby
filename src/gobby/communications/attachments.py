@@ -57,10 +57,14 @@ class AttachmentManager:
         return dest
 
     def get_path(self, filename: str) -> Path | None:
-        """Look up a stored file by filename."""
-        safe_filename = self._safe_filename(filename)
-        path = self._storage_dir / safe_filename
-        return path if path.exists() else None
+        """Look up a stored file by original filename (ignoring timestamp prefix)."""
+        basename = Path(filename).name
+        for path in self._storage_dir.iterdir():
+            if path.is_file() and path.name.endswith(f"_{basename}"):
+                return path
+        # Exact match fallback
+        exact = self._storage_dir / basename
+        return exact if exact.exists() else None
 
     def cleanup_old(self, days: int = 30) -> int:
         """Remove attachments older than the retention period."""

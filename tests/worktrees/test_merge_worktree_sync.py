@@ -99,7 +99,7 @@ async def test_merge_worktree_conflict_returns_worktree_path():
     ):
         result = await merge_tool("wt-123")
 
-    assert result["success"] is True
+    assert result["success"] is False
     assert result["has_conflicts"] is True
     assert result["merged"] is False
     assert result["worktree_path"] == "/tmp/wt"

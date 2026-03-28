@@ -865,6 +865,9 @@ class SessionStartMixin(EventHandlersBase):
             "_active_rule_names",
             "_active_skill_names",
             "_skill_format",
+            "_agent_blocked_tools",
+            "_agent_blocked_mcp_tools",
+            "is_spawned_agent",
         }
         variables_count = len([k for k in changes if k not in internal_keys])
 

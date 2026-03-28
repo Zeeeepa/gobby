@@ -168,7 +168,9 @@ class GitHubSyncService:
                     description=description,
                     labels=issue_labels or None,
                 )
-                updated.append(self.task_manager.get_task(existing.id).to_dict())
+                refreshed = self.task_manager.get_task(existing.id)
+                if refreshed:
+                    updated.append(refreshed.to_dict())
             else:
                 task = self.task_manager.create_task(
                     project_id=self.project_id,
