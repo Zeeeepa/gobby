@@ -1092,11 +1092,17 @@ async def test_merge_worktree_push_failure(
     )
     mock_worktree_storage.get.return_value = wt
 
-    # Fetch succeeds, merge succeeds, push fails
+    # _run_git call sequence: fetch, stash list (before), stash push,
+    # stash list (after), merge, push (fails), stash pop (finally)
+    ok = MagicMock(returncode=0, stdout="", stderr="")
     mock_git_manager._run_git.side_effect = [
-        MagicMock(returncode=0, stdout="", stderr=""),  # fetch
-        MagicMock(returncode=0, stdout="", stderr=""),  # merge
-        MagicMock(returncode=1, stdout="", stderr="rejected: non-fast-forward"),  # push
+        ok,  # fetch
+        MagicMock(returncode=0, stdout="stash@{0}", stderr=""),  # stash list before
+        ok,  # stash push
+        MagicMock(returncode=0, stdout="stash@{0}\nstash@{1}", stderr=""),  # stash list after (different = stash created)
+        ok,  # merge
+        MagicMock(returncode=1, stdout="", stderr="rejected: non-fast-forward"),  # push fails
+        ok,  # stash pop (finally)
     ]
     mock_worktree_storage.mark_merged.return_value = True
 
