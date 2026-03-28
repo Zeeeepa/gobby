@@ -149,6 +149,7 @@ async def test_auto_resolve_trivial_only_jsonl():
 
     with patch("asyncio.create_subprocess_exec") as mock_exec:
         mock_proc = AsyncMock()
+        mock_proc.returncode = 0
         mock_proc.communicate.return_value = (b"", b"")
         mock_exec.return_value = mock_proc
 
@@ -166,6 +167,7 @@ async def test_auto_resolve_trivial_mixed():
 
     with patch("asyncio.create_subprocess_exec") as mock_exec:
         mock_proc = AsyncMock()
+        mock_proc.returncode = 0
         mock_proc.communicate.return_value = (b"", b"")
         mock_exec.return_value = mock_proc
 

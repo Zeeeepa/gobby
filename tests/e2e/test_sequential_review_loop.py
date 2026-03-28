@@ -303,12 +303,13 @@ class TestSequentialReviewLoopE2E:
         subtask2_ref = subtask2_result.get("ref", f"#{subtask2_result.get('seq_num', '')}")
 
         # Add explicit dependency: subtask2 depends on subtask1
+        # Use full task IDs (not #N refs) to avoid project_id lookup requirement
         raw_result = mcp_client.call_tool(
             server_name="gobby-tasks",
             tool_name="add_dependency",
             arguments={
-                "task_id": subtask2_ref,
-                "depends_on": subtask1_ref,
+                "task_id": subtask2_id,
+                "depends_on": subtask1_id,
             },
         )
         result = unwrap_result(raw_result)
@@ -322,9 +323,10 @@ class TestSequentialReviewLoopE2E:
         )
         result = unwrap_result(raw_result)
         blocked_by = result.get("dependencies", {}).get("blocked_by", [])
-        blocked_by_ids = [dep.get("depends_on") for dep in blocked_by]
-        assert subtask1_id in blocked_by_ids, (
-            f"Subtask 2 should be blocked by Subtask 1. Blocked by: {blocked_by_ids}"
+        # blocked_by items have {ref, title, status, dep_type} — match by ref
+        blocked_by_refs = [dep.get("ref") for dep in blocked_by]
+        assert subtask1_ref in blocked_by_refs, (
+            f"Subtask 2 should be blocked by Subtask 1. Blocked by: {blocked_by_refs}"
         )
 
         # Verify subtask 1 has no blocking dependencies (should be ready)

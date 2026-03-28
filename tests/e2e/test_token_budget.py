@@ -401,6 +401,7 @@ class TestAgentSpawnThrottling:
                 "runner",
                 "clone_manager",  # Clone infrastructure not wired in e2e test
                 "clone_storage",  # Clone infrastructure not wired in e2e test
+                "project",  # Project context not wired in e2e test
             ]
         )
         assert is_budget_error or is_valid_other_error, (

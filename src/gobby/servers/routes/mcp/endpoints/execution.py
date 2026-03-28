@@ -596,17 +596,17 @@ async def mcp_proxy(
             # Check internal registries first (gobby-tasks, gobby-memory, etc.)
             if server._internal_manager and server._internal_manager.is_internal(server_name):
                 registry = server._internal_manager.get_registry(server_name)
-            if registry:
-                return await _call_internal_tool(
-                    registry, server_name, tool_name, arguments, start_time
+                if registry:
+                    return await _call_internal_tool(
+                        registry, server_name, tool_name, arguments, start_time
+                    )
+                raise HTTPException(
+                    status_code=404,
+                    detail={
+                        "success": False,
+                        "error": f"Internal server '{server_name}' not found",
+                    },
                 )
-            raise HTTPException(
-                status_code=404,
-                detail={
-                    "success": False,
-                    "error": f"Internal server '{server_name}' not found",
-                },
-            )
 
             if server.mcp_manager is None:
                 raise HTTPException(

@@ -95,10 +95,27 @@ def create_hub_registry(
         try:
             rows = await asyncio.to_thread(
                 hub_db.fetchall,
-                "SELECT id, name, repo_path FROM projects WHERE deleted_at IS NULL ORDER BY name",
+                """
+                SELECT p.id, p.name, p.repo_path,
+                       COUNT(DISTINCT t.id) as task_count,
+                       COUNT(DISTINCT s.id) as session_count
+                FROM projects p
+                LEFT JOIN tasks t ON t.project_id = p.id
+                LEFT JOIN sessions s ON s.project_id = p.id
+                WHERE p.deleted_at IS NULL
+                GROUP BY p.id, p.name, p.repo_path
+                ORDER BY p.name
+                """,
             )
             projects = [
-                {"id": r["id"], "name": r["name"], "repo_path": r["repo_path"]} for r in rows
+                {
+                    "project_id": r["id"],
+                    "name": r["name"],
+                    "repo_path": r["repo_path"],
+                    "task_count": r["task_count"],
+                    "session_count": r["session_count"],
+                }
+                for r in rows
             ]
             if not include_system:
                 system_prefixes = ("_orphaned", "_migrated", "_personal", "_global")

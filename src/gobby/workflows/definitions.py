@@ -151,6 +151,7 @@ class RuleEffect(BaseModel):
             "inject_result",
             "block_on_failure",
             "block_on_success",
+            "message",
         }
         relevant = _fields_by_type.get(self.type, set())
         for field_name, field_set in _fields_by_type.items():

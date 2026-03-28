@@ -124,9 +124,9 @@ def test_verify_webhook(adapter):
     mock_signing_key.key = "test-key"
     mock_jwk_client.get_signing_key_from_jwt.return_value = mock_signing_key
 
-    with patch("jwt.decode") as mock_decode, patch.object(
-        type(adapter), "_jwk_client", new=mock_jwk_client
-    ):
+    adapter._jwk_client = mock_jwk_client
+
+    with patch("jwt.decode") as mock_decode:
         # Valid case
         mock_decode.return_value = {"aud": "app_id_123", "iss": "https://api.botframework.com"}
         headers = {"Authorization": "Bearer some.jwt.token"}
@@ -147,8 +147,7 @@ def test_verify_webhook(adapter):
         assert not result
 
     # JWT verification failure returns False
-    with patch.object(type(adapter), "_jwk_client", new=mock_jwk_client):
-        mock_jwk_client.get_signing_key_from_jwt.side_effect = jwt.PyJWKClientError("bad token")
-        headers = {"Authorization": "Bearer bad.jwt.token"}
-        result = adapter.verify_webhook(b"", headers, "secret")
-        assert not result
+    mock_jwk_client.get_signing_key_from_jwt.side_effect = jwt.PyJWKClientError("bad token")
+    headers = {"Authorization": "Bearer bad.jwt.token"}
+    result = adapter.verify_webhook(b"", headers, "secret")
+    assert not result
