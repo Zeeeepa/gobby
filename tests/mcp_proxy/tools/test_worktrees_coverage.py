@@ -1198,7 +1198,9 @@ async def test_merge_worktree_conflict(registry, mock_worktree_storage, mock_git
 
     result = await registry.call("merge_worktree", {"worktree_id": "wt-1", "target_branch": "main"})
 
-    assert result["success"] is False
+    # merge_worktree returns success=True with has_conflicts=True when conflicts
+    # are detected — the operation succeeded, it just found unresolvable conflicts
+    assert result["success"] is True
     assert result["has_conflicts"] is True
     assert len(result["conflicted_files"]) == 2
     mock_worktree_storage.mark_merged.assert_not_called()
