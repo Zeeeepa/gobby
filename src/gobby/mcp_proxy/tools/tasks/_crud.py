@@ -330,7 +330,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                         "status": linked.status,
                         "dep_type": dep.dep_type,
                     }
-                return dep.to_dict()
+                return dict(dep.to_dict())
 
             result["dependencies"] = {
                 "blocked_by": [_dep_brief(b, b.depends_on) for b in blockers],

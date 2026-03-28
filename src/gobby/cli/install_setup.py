@@ -221,10 +221,10 @@ def _get_latest_gsqz_version() -> str | None:
         Version string (e.g. ``"0.1.0"``) or ``None`` on failure.
     """
     try:
-        req = Request(_GSQZ_CRATES_API, headers={"User-Agent": "gobby-installer/1.0"})  # noqa: S310
-        with urlopen(req, timeout=10) as resp:  # noqa: S310
+        req = Request(_GSQZ_CRATES_API, headers={"User-Agent": "gobby-installer/1.0"})  # noqa: S310  # nosec B310
+        with urlopen(req, timeout=10) as resp:  # noqa: S310  # nosec B310
             data = json.loads(resp.read())
-        return data["crate"]["max_version"]
+        return str(data["crate"]["max_version"])
     except (URLError, json.JSONDecodeError, KeyError, OSError) as e:
         logger.debug("gsqz: could not check latest version: %s", e)
         return None
@@ -280,7 +280,7 @@ def _install_gsqz_from_github(bin_dir: Path, target: str, version: str | None = 
         else:
             url = _GSQZ_RELEASE_URL.format(target=target)
         logger.info("Downloading gsqz from %s", url)
-        with urlopen(url, timeout=30) as resp:  # noqa: S310
+        with urlopen(url, timeout=30) as resp:  # noqa: S310  # nosec B310
             tarball = BytesIO(resp.read())
 
         bin_dir.mkdir(parents=True, exist_ok=True)

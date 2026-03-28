@@ -25,7 +25,7 @@ class PollingManager:
         """
         self._manager = manager
         self._default_interval = default_interval
-        self._tasks: dict[str, asyncio.Task] = {}
+        self._tasks: dict[str, asyncio.Task[None]] = {}
         self._intervals: dict[str, int] = {}
 
     def start_polling(

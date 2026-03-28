@@ -66,9 +66,13 @@ class KokoroTTS:
             )
 
             def _load() -> Any:
+                from pathlib import Path
+
                 from kokoro_onnx import Kokoro
 
-                return Kokoro()
+                model_path = str(Path(self._config.tts_model_path).expanduser())
+                voices_path = str(Path(self._config.tts_voices_path).expanduser())
+                return Kokoro(model_path, voices_path)
 
             self._model = await asyncio.to_thread(_load)
             logger.info("Kokoro TTS model loaded successfully")

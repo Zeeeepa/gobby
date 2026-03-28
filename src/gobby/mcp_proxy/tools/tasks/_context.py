@@ -160,7 +160,7 @@ class RegistryContext:
         # Fallback to context var (may be set by rules engine path)
         project_ctx = get_project_context()
         if project_ctx and project_ctx.get("id"):
-            return project_ctx["id"]
+            return str(project_ctx["id"])
         return PERSONAL_PROJECT_ID
 
 

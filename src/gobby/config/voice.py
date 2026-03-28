@@ -36,6 +36,14 @@ class VoiceConfig(BaseModel):
         default="en-us",
         description="TTS language code (en-us, en-gb, ja, zh, hi, es, pt-br, it, fr).",
     )
+    tts_model_path: str = Field(
+        default="~/.gobby/models/kokoro-v1.0.onnx",
+        description="Path to the Kokoro ONNX model file.",
+    )
+    tts_voices_path: str = Field(
+        default="~/.gobby/models/voices-v1.0.bin",
+        description="Path to the Kokoro voices file.",
+    )
     stt_enabled: bool = Field(
         default=True,
         description="Enable speech-to-text (requires enabled=True).",
