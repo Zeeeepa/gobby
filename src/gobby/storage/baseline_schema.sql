@@ -842,6 +842,24 @@ CREATE TABLE completion_subscribers (
 );
 CREATE INDEX idx_completion_subscribers_completion ON completion_subscribers(completion_id);
 
+-- Clean up tables that gcode (gobby-code) may have created independently.
+-- When gobby is installed after gcode, the baseline needs a clean slate.
+-- Order: triggers → FTS virtual tables → content tables → gcode-only tables.
+DROP TRIGGER IF EXISTS code_content_au;
+DROP TRIGGER IF EXISTS code_content_ad;
+DROP TRIGGER IF EXISTS code_content_ai;
+DROP TRIGGER IF EXISTS code_symbols_au;
+DROP TRIGGER IF EXISTS code_symbols_ad;
+DROP TRIGGER IF EXISTS code_symbols_ai;
+DROP TABLE IF EXISTS code_content_fts;
+DROP TABLE IF EXISTS code_symbols_fts;
+DROP TABLE IF EXISTS code_content_chunks;
+DROP TABLE IF EXISTS code_symbols;
+DROP TABLE IF EXISTS code_indexed_files;
+DROP TABLE IF EXISTS code_indexed_projects;
+DROP TABLE IF EXISTS savings_ledger;
+DROP TABLE IF EXISTS gcode_schema;
+
 CREATE TABLE code_indexed_projects (
     id TEXT PRIMARY KEY,
     root_path TEXT NOT NULL,
