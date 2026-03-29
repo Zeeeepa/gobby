@@ -50,6 +50,9 @@ class ToolProxyService:
         "gobby-skill": "gobby-skills",
         "gobby-worktree": "gobby-worktrees",
         "gobby-clone": "gobby-clones",
+        # Scheduler aliases → gobby-cron
+        "gobby-scheduler": "gobby-cron",
+        "gobby-schedule": "gobby-cron",
     }
 
     def __init__(
