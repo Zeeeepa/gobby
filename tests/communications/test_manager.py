@@ -592,6 +592,7 @@ async def test_handle_inbound_populates_thread_map_and_handles_reactions():
         updated_at="",
     )
 
+    manager._identity_manager = MagicMock()
     manager._identity_manager.resolve_identity = AsyncMock(return_value=mock_identity)
 
     manager.reaction_handler = AsyncMock()

@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 HAS_WEBSOCKETS = False
 try:
     import websockets
-    import websockets.client
 
     HAS_WEBSOCKETS = True
 except ImportError:
@@ -110,9 +109,7 @@ class DiscordAdapter(BaseChannelAdapter):
             while True:
                 try:
                     gateway_url = self._resume_gateway_url or self._DEFAULT_GATEWAY_URL
-                    async with websockets.client.connect(  # type: ignore[attr-defined]
-                        gateway_url
-                    ) as ws:
+                    async with websockets.connect(gateway_url) as ws:
                         # Attempt RESUME if we have a prior session
                         if self._session_id and self._sequence is not None:
                             resume_payload = {

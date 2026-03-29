@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import functools
 import hashlib
 import hmac
 import logging
@@ -96,6 +97,7 @@ class SMSAdapter(BaseChannelAdapter):
         """Send message and return platform message ID."""
         if not self._client:
             raise RuntimeError("SMS adapter not initialized")
+        client = self._client
 
         chunks = self.chunk_message(message.content, self.max_message_length)
         last_sid = None
@@ -108,7 +110,7 @@ class SMSAdapter(BaseChannelAdapter):
             }
 
             response = await self._retry_request(
-                lambda p=payload: self._client.post("Messages.json", data=p)  # type: ignore[union-attr]
+                functools.partial(client.post, "Messages.json", data=payload)
             )
             data = response.json()
 
@@ -125,6 +127,7 @@ class SMSAdapter(BaseChannelAdapter):
         """Send a file via MMS using Twilio MediaUrl parameter."""
         if not self._client:
             raise RuntimeError("SMS adapter not initialized")
+        client = self._client
 
         if not attachment.platform_url:
             raise ValueError(
@@ -141,7 +144,7 @@ class SMSAdapter(BaseChannelAdapter):
             payload["Body"] = message.content
 
         response = await self._retry_request(
-            lambda: self._client.post("Messages.json", data=payload)  # type: ignore[union-attr]
+            functools.partial(client.post, "Messages.json", data=payload)
         )
         data = response.json()
         if "sid" not in data:

@@ -1,7 +1,5 @@
 """Tests for TDD sandwich pattern in task expansion."""
 
-import pytest
-
 from gobby.mcp_proxy.tools.tasks._expansion import (
     _apply_tdd_sandwich,
     _extract_phase_number,

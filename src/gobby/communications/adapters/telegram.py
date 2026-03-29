@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import hmac
 import json
 import logging
@@ -100,6 +101,7 @@ class TelegramAdapter(BaseChannelAdapter):
         """Send message and return platform message ID."""
         if not self._client or not self._api_base:
             raise RuntimeError("Adapter not initialized")
+        client = self._client
 
         chat_id = message.metadata_json.get("chat_id")
 
@@ -119,9 +121,7 @@ class TelegramAdapter(BaseChannelAdapter):
                 payload["reply_to_message_id"] = message.platform_thread_id
 
             url = f"{self._api_base}/sendMessage"
-            response = await self._retry_request(
-                lambda u=url, p=payload: self._client.post(u, json=p)  # type: ignore[union-attr]
-            )
+            response = await self._retry_request(functools.partial(client.post, url, json=payload))
 
             data = response.json()
             if data.get("ok"):
@@ -135,6 +135,7 @@ class TelegramAdapter(BaseChannelAdapter):
         """Send a file via Telegram sendDocument API."""
         if not self._client or not self._api_base:
             raise RuntimeError("Adapter not initialized")
+        client = self._client
 
         chat_id = message.metadata_json.get("chat_id")
         if not chat_id:
@@ -150,7 +151,7 @@ class TelegramAdapter(BaseChannelAdapter):
 
         url = f"{self._api_base}/sendDocument"
         response = await self._retry_request(
-            lambda: self._client.post(url, data=data, files=files)  # type: ignore[union-attr]
+            functools.partial(client.post, url, data=data, files=files)
         )
         result = response.json()
         if result.get("ok"):

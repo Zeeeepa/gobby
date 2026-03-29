@@ -73,6 +73,7 @@ class CommunicationsManager:
         self._router = MessageRouter(store)
         self._polling_manager = PollingManager(self)
         self.event_callback: Callable[..., Any] | None = None
+        self.reaction_handler: Any | None = None
 
     def _get_thread_id(self, channel_name: str, session_id: str) -> str | None:
         return self._thread_manager.get_thread_id(channel_name, session_id)
@@ -431,7 +432,7 @@ class CommunicationsManager:
         stored: list[CommsMessage] = []
         for message in messages:
             if message.content_type == "reaction":
-                if hasattr(self, "reaction_handler") and self.reaction_handler:
+                if self.reaction_handler:
                     try:
                         await self.reaction_handler.handle_reaction(
                             channel_name,

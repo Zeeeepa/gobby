@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import hashlib
 import hmac
 import json
@@ -97,6 +98,7 @@ class SlackAdapter(BaseChannelAdapter):
         """Send message and return platform message ID."""
         if not self._client:
             raise RuntimeError("Slack adapter not initialized")
+        client = self._client
 
         chunks = self.chunk_message(message.content, self.max_message_length)
         last_ts = None
@@ -110,7 +112,7 @@ class SlackAdapter(BaseChannelAdapter):
                 payload["thread_ts"] = message.platform_thread_id
 
             response = await self._retry_request(
-                lambda p=payload: self._client.post("chat.postMessage", json=p)  # type: ignore[union-attr]
+                functools.partial(client.post, "chat.postMessage", json=payload)
             )
             data = response.json()
             if not data.get("ok"):
@@ -127,6 +129,7 @@ class SlackAdapter(BaseChannelAdapter):
         """Send a file via Slack's files.getUploadURLExternal 3-step flow."""
         if not self._client:
             raise RuntimeError("Slack adapter not initialized")
+        client = self._client
 
         file_bytes = await asyncio.to_thread(file_path.read_bytes)
 
@@ -136,7 +139,7 @@ class SlackAdapter(BaseChannelAdapter):
             "length": len(file_bytes),
         }
         response = await self._retry_request(
-            lambda: self._client.post("files.getUploadURLExternal", data=get_url_data)  # type: ignore[union-attr]
+            functools.partial(client.post, "files.getUploadURLExternal", data=get_url_data)
         )
         result = response.json()
         if not result.get("ok"):
@@ -164,7 +167,7 @@ class SlackAdapter(BaseChannelAdapter):
             complete_payload["initial_comment"] = message.content
 
         response = await self._retry_request(
-            lambda: self._client.post("files.completeUploadExternal", data=complete_payload)  # type: ignore[union-attr]
+            functools.partial(client.post, "files.completeUploadExternal", data=complete_payload)
         )
         result = response.json()
         if not result.get("ok"):
