@@ -129,17 +129,12 @@ def run_daemon_setup(project_path: Path) -> None:
         )
         if npm_result.returncode == 0:
             click.echo("Installed Playwright CLI (@playwright/cli)")
-            # Install skills so coding agents auto-discover commands
-            skills_result = subprocess.run(
-                ["playwright-cli", "install", "--skills"],
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-            if skills_result.returncode != 0:
-                click.echo(
-                    f"Warning: Playwright skills install failed: {skills_result.stderr.strip()}"
-                )
+            # Clean up legacy .claude/skills/playwright-cli/ from older installs
+            # (skill is now served exclusively through gobby-skills)
+            legacy_skills = project_path / ".claude" / "skills" / "playwright-cli"
+            if legacy_skills.exists():
+                shutil.rmtree(legacy_skills)
+                click.echo("Removed legacy .claude/skills/playwright-cli/ (now in gobby-skills)")
         else:
             click.echo(f"Warning: Failed to install Playwright CLI: {npm_result.stderr.strip()}")
     except FileNotFoundError:

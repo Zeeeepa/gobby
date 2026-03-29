@@ -7,7 +7,6 @@ Handles installing, backing up, and routing skills across CLI integrations.
 
 import logging
 import shutil
-import time
 from pathlib import Path
 from shutil import copy2
 from typing import Any
@@ -62,66 +61,6 @@ def backup_gobby_skills(skills_dir: Path) -> dict[str, Any]:
         result["backed_up"] += 1
 
     return result
-
-
-def install_shared_skills(target_dir: Path) -> list[str]:
-    """Install shared SKILL.md files to target directory.
-
-    Copies skills from src/gobby/install/shared/skills/ to target_dir.
-    Backs up existing SKILL.md if content differs.
-
-    Args:
-        target_dir: Directory where skills should be installed (e.g. .claude/skills)
-
-    Returns:
-        List of installed skill names
-    """
-    shared_skills_dir = get_install_dir() / "shared" / "skills"
-    installed: list[str] = []
-
-    if not shared_skills_dir.exists():
-        return installed
-
-    target_dir.mkdir(parents=True, exist_ok=True)
-
-    for skill_path in shared_skills_dir.iterdir():
-        if not skill_path.is_dir():
-            continue
-
-        skill_name = skill_path.name
-        source_skill_md = skill_path / "SKILL.md"
-
-        if not source_skill_md.exists():
-            continue
-
-        # Target: target_dir/skill_name/SKILL.md
-        target_skill_dir = target_dir / skill_name
-        target_skill_dir.mkdir(parents=True, exist_ok=True)
-        target_skill_md = target_skill_dir / "SKILL.md"
-
-        # Backup if exists and differs
-        if target_skill_md.exists():
-            try:
-                # Read both to compare
-                source_content = source_skill_md.read_text(encoding="utf-8")
-                target_content = target_skill_md.read_text(encoding="utf-8")
-
-                if source_content != target_content:
-                    timestamp = int(time.time())
-                    backup_path = target_skill_md.with_suffix(f".md.{timestamp}.backup")
-                    target_skill_md.rename(backup_path)
-            except OSError as e:
-                logger.warning(f"Failed to backup/read skill {skill_name}: {e}")
-                continue
-
-        # Copy new file
-        try:
-            copy2(source_skill_md, target_skill_md)
-            installed.append(skill_name)
-        except OSError as e:
-            logger.error(f"Failed to copy skill {skill_name}: {e}")
-
-    return installed
 
 
 def install_router_skills_as_commands(target_commands_dir: Path) -> list[str]:
