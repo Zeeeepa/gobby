@@ -114,17 +114,15 @@ export function ChatPage({
   const openCodeAsArtifact = useCallback(
     (language: string, content: string, title?: string) => {
       createArtifact("code", content, language, title);
-      activity.showTab("plans");
     },
-    [createArtifact, activity.showTab],
+    [createArtifact],
   );
 
   const openFileAsArtifact = useCallback(
     (type: ArtifactType, language: string, content: string, title?: string) => {
       createArtifact(type, content, language, title);
-      activity.showTab("plans");
     },
-    [createArtifact, activity.showTab],
+    [createArtifact],
   );
 
   // Wire plan content to artifact panel when plan_pending_approval arrives.
@@ -164,7 +162,6 @@ export function ChatPage({
     (type: string, content: string, language?: string, title?: string) => {
       if (validArtifactTypes.has(type)) {
         createArtifact(type as ArtifactType, content, language, title);
-        activity.showTab("plans");
       }
     },
     [createArtifact, activity.showTab],

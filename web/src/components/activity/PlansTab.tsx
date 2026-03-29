@@ -33,10 +33,10 @@ export const PlansTab = memo(function PlansTab({
   onRequestPlanChanges,
   onClearAll,
 }: PlansTabProps) {
-  // Plans pinned to top, then other artifacts
+  // Only show plan artifacts
   const artifactList = Array.from(artifacts.values())
+    .filter((a) => a.isPlan)
     .reverse()
-    .sort((a, b) => (a.isPlan === b.isPlan ? 0 : a.isPlan ? -1 : 1))
 
   const renderHistory = (isMini = false) => {
     if (artifactList.length === 0) {
@@ -44,7 +44,7 @@ export const PlansTab = memo(function PlansTab({
         <div className="activity-tab-empty">
           <p>No plans yet</p>
           <p className="text-xs text-muted-foreground mt-1">
-            Plans and artifacts will appear here as the session progresses
+            Plans will appear here when the agent proposes one for review
           </p>
         </div>
       )
@@ -53,7 +53,7 @@ export const PlansTab = memo(function PlansTab({
     return (
       <div className={`flex flex-col h-full bg-background ${isMini ? 'border-r border-border w-64' : ''}`}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/20">
-          <h2 className="text-sm font-semibold truncate">{isMini ? 'History' : 'Plans & Artifacts'}</h2>
+          <h2 className="text-sm font-semibold truncate">{isMini ? 'Plans' : 'Plans'}</h2>
           <div className="flex items-center gap-2 shrink-0">
             {!isMini && <span className="text-xs text-muted-foreground">{artifactList.length} items</span>}
             {onClearAll && artifactList.length > 0 && (
@@ -78,25 +78,13 @@ export const PlansTab = memo(function PlansTab({
                 <div className={`text-sm font-medium truncate transition-colors ${artifact?.id === a.id ? 'text-primary' : 'group-hover:text-primary'}`}>
                   {a.title}
                 </div>
-                <div className="flex items-center gap-2 mt-1 overflow-hidden">
-                  {a.isPlan ? (
-                    <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-primary/15 text-primary shrink-0">
-                      plan
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-mono text-muted-foreground uppercase px-1.5 py-0.5 rounded bg-muted-foreground/10 shrink-0">
-                      {a.type}
-                    </span>
-                  )}
-                  {!isMini && a.language && (
-                    <span className="text-[10px] text-muted-foreground font-mono truncate">{a.language}</span>
-                  )}
-                  {!isMini && (
-                    <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
+                {!isMini && a.versions.length > 1 && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10px] text-muted-foreground">
                       v{a.versions.length}
                     </span>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
               {!isMini && <ChevronRightIcon />}
             </button>
