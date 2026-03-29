@@ -113,57 +113,6 @@ class TestDetectLoopPrompt:
         assert detector.detect_loop_prompt(output) is True
 
 
-class TestDetectGeminiTipPrompt:
-    """Tests for Gemini CLI tip/settings prompt detection."""
-
-    def test_detects_esc_to_cancel_prompt(self) -> None:
-        detector = PromptDetector()
-        output = " ⠙ Enable AI-powered prompt completion while typing (/settings)… (esc to cancel, 1m 2s)"
-        assert detector.detect_gemini_tip_prompt(output) is True
-
-    def test_detects_settings_prompt(self) -> None:
-        detector = PromptDetector()
-        output = " ⠏ Restrict available built-in tools (settings.json)… (esc to cancel, 1m 3s)"
-        assert detector.detect_gemini_tip_prompt(output) is True
-
-    def test_detects_screen_reader_prompt(self) -> None:
-        detector = PromptDetector()
-        output = " ⠴ Enable screen reader mode for better accessibility (/settings)… (esc to cancel, 1m 3s)"
-        assert detector.detect_gemini_tip_prompt(output) is True
-
-    def test_detects_keyboard_shortcut_tip(self) -> None:
-        detector = PromptDetector()
-        output = " ⠧ Delete the word to the right of the cursor with Ctrl+Delete… (esc to cancel, 1m 49s)"
-        assert detector.detect_gemini_tip_prompt(output) is True
-
-    def test_detects_seconds_only_format(self) -> None:
-        detector = PromptDetector()
-        output = "Some tip text… (esc to cancel, 45s)"
-        assert detector.detect_gemini_tip_prompt(output) is True
-
-    def test_case_insensitive(self) -> None:
-        detector = PromptDetector()
-        assert detector.detect_gemini_tip_prompt("(Esc to cancel, 1m 2s)") is True
-        assert detector.detect_gemini_tip_prompt("(ESC TO CANCEL, 30s)") is True
-
-    def test_no_match_on_normal_output(self) -> None:
-        detector = PromptDetector()
-        assert detector.detect_gemini_tip_prompt("Running tests...\n$ pytest -v\n") is False
-        assert detector.detect_gemini_tip_prompt("Press Escape to quit\n") is False
-        assert detector.detect_gemini_tip_prompt("") is False
-
-    def test_embedded_in_pane_output(self) -> None:
-        detector = PromptDetector()
-        output = (
-            "✦ I will search for the relevant files.\n"
-            "╭─────────────────────────────────────╮\n"
-            "│ ✓ Shell grep -r 'handle_inbound'    │\n"
-            "╰─────────────────────────────────────╯\n"
-            " ⠙ Enable AI-powered prompt completion (/settings)… (esc to cancel, 1m 2s)\n"
-        )
-        assert detector.detect_gemini_tip_prompt(output) is True
-
-
 class TestDismissedTracking:
     """Tests for the dismissed state tracking."""
 

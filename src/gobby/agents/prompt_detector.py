@@ -40,13 +40,6 @@ class PromptDetector:
     # Key sequence to dismiss loop detection: "yes, continue"
     LOOP_DISMISS_KEYS = "y\n"
 
-    GEMINI_TIP_PATTERNS: tuple[re.Pattern[str], ...] = (
-        re.compile(r"\(esc to cancel,\s*\d+[ms]", re.IGNORECASE),
-    )
-
-    # Escape key dismisses Gemini tip/settings prompts
-    GEMINI_TIP_DISMISS_KEYS = "Escape"
-
     def __init__(self) -> None:
         self._dismissed: set[str] = set()
 
@@ -60,13 +53,6 @@ class PromptDetector:
     def detect_loop_prompt(self, pane_output: str) -> bool:
         """Return True if pane output contains a loop detection prompt."""
         for pattern in self.LOOP_DETECTION_PATTERNS:
-            if pattern.search(pane_output):
-                return True
-        return False
-
-    def detect_gemini_tip_prompt(self, pane_output: str) -> bool:
-        """Return True if pane output contains a Gemini CLI tip/settings prompt."""
-        for pattern in self.GEMINI_TIP_PATTERNS:
             if pattern.search(pane_output):
                 return True
         return False
