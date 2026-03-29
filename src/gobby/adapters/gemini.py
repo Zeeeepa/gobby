@@ -261,7 +261,8 @@ class GeminiAdapter(BaseAdapter):
             }
         }
 
-        Exit codes: 0 = allow, 2 = deny (handled by dispatcher)
+        Exit codes: always 0 — Gemini CLI treats non-zero as "hook failed".
+        Block decisions are conveyed via decision="block" in the JSON body.
 
         Args:
             response: Unified HookResponse from HookManager.

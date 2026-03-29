@@ -744,6 +744,16 @@ async def main() -> int:
 
             # Check for block/deny decision
             if is_blocked(result):
+                # Gemini CLI interprets non-zero exit codes as "hook failed",
+                # not "tool blocked". It shows the stderr as the tool's error
+                # result, breaking the agent. Instead, output the full JSON
+                # (which includes decision="block", reason, and any injected
+                # context from mcp_call effects) and exit 0. Gemini reads
+                # the block decision from the JSON body.
+                if config.source == "gemini":
+                    print(json.dumps(result))
+                    return 0
+
                 reason = extract_reason(result)
                 print(f"\n{reason.rstrip()}", file=sys.stderr)
                 return 2
