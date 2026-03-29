@@ -318,6 +318,18 @@ DEFAULT_CONTEXT_TEMPLATE = """## Context from Parent Session
 {{ prompt }}"""
 
 
+GCODE_HINT = """## Code Index (gcode)
+You have `gcode` on PATH for fast code symbol search and navigation:
+- `gcode search "query"` — hybrid search (FTS + semantic + graph)
+- `gcode search-content "query"` — full-text search across file content
+- `gcode outline path/to/file.py` — symbol outline (cheaper than reading whole file)
+- `gcode symbol <id>` — get source for a specific symbol by ID
+- `gcode callers <name>` — find callers of a function
+- `gcode blast-radius <name>` — transitive impact analysis
+- `gcode tree` — file tree with symbol counts
+Use `gcode --help` for all commands. Prefer gcode over reading entire files."""
+
+
 def format_injected_prompt(context: str, prompt: str, template: str | None = None) -> str:
     """
     Format the injected prompt with context prepended.
@@ -331,6 +343,11 @@ def format_injected_prompt(context: str, prompt: str, template: str | None = Non
     Returns:
         Formatted prompt with context, or original prompt if context is empty.
     """
+    # Prepend gcode hint if the binary exists
+    gcode_path = Path.home() / ".gobby" / "bin" / "gcode"
+    if gcode_path.exists():
+        context = GCODE_HINT + "\n\n" + (context or "")
+
     if not context or not context.strip():
         return prompt
 

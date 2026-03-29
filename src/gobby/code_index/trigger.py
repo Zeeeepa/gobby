@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -76,7 +77,7 @@ class CodeIndexTrigger:
         )
 
     async def _flush(self, project_id: str) -> None:
-        """Flush pending files for a project (runs on event loop)."""
+        """Flush pending files for a project via gcode subprocess."""
         files = self._pending.pop(project_id, set())
         self._flush_timers.pop(project_id, None)
         root_path = self._root_paths.pop(project_id, None)
@@ -84,16 +85,28 @@ class CodeIndexTrigger:
         if not files or not root_path:
             return
 
+        gcode_bin = Path.home() / ".gobby" / "bin" / "gcode"
+        if not gcode_bin.exists():
+            logger.warning("gcode not installed — skipping incremental index. Run `gobby install`.")
+            return
+
         try:
-            result = await self._indexer.index_changed_files(
-                project_id=project_id,
-                root_path=root_path,
-                file_paths=list(files),
+            proc = await asyncio.create_subprocess_exec(
+                str(gcode_bin),
+                "index",
+                "--files",
+                *files,
+                "--quiet",
+                cwd=root_path,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE,
             )
-            if result.files_indexed > 0:
-                logger.info(
-                    f"Hook-triggered reindex: {result.files_indexed} files, "
-                    f"{result.symbols_found} symbols in {result.duration_ms}ms"
-                )
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+            if proc.returncode == 0:
+                logger.debug(f"gcode indexed {len(files)} files for project {project_id}")
+            elif stderr:
+                logger.warning(f"gcode index exited {proc.returncode}: {stderr.decode().strip()}")
+        except TimeoutError:
+            logger.warning("gcode index timed out after 30s")
         except Exception as e:
-            logger.warning(f"Hook-triggered reindex failed: {e}")
+            logger.warning(f"gcode index failed: {e}")

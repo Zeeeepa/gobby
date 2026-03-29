@@ -177,9 +177,9 @@ class HTTPServer:
             transcript_reader=services.transcript_reader,
             communications_manager=services.communications_manager,
         )
-        # Wire code index registry if code_indexer is available
+        # Wire code index registry if code_indexer is available and native MCP enabled
         code_indexer = getattr(services, "code_indexer", None)
-        if code_indexer is not None:
+        if code_indexer is not None and getattr(code_indexer.config, "use_native_code_index", True):
             try:
                 from gobby.mcp_proxy.tools.code import create_code_registry
 

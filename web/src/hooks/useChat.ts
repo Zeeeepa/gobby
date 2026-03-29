@@ -940,13 +940,17 @@ export function useChat() {
             setIsThinking(false);
           }
         } else if (data.type === "plan_pending_approval") {
-          const planContent = (data as Record<string, unknown>).plan_content as
-            | string
-            | undefined;
-          if (planContent) {
-            setPlanPendingApproval(true);
-            planContentRef.current = planContent;
-            onPlanReadyRef.current?.(planContent);
+          const msgConvId = (data as Record<string, unknown>)
+            .conversation_id as string | undefined;
+          // Only accept plans for the current conversation (or unscoped legacy events)
+          if (!msgConvId || msgConvId === conversationIdRef.current) {
+            const planContent = (data as Record<string, unknown>)
+              .plan_content as string | undefined;
+            if (planContent) {
+              setPlanPendingApproval(true);
+              planContentRef.current = planContent;
+              onPlanReadyRef.current?.(planContent);
+            }
           }
         } else if (data.type === "mode_changed") {
           const msgConvId = (data as Record<string, unknown>)

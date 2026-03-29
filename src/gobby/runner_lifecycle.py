@@ -207,6 +207,7 @@ async def run_daemon(runner: GobbyRunner) -> None:
                     runner.code_indexer,
                     shutdown_flag=shutdown_event,
                     interval=runner.config.code_index.maintenance_interval_seconds,
+                    summarizer=getattr(runner, "symbol_summarizer", None),
                 ),
                 name="code-index-maintenance",
             )

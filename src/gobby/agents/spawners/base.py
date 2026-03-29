@@ -111,6 +111,13 @@ def make_spawn_env(env: dict[str, str] | None = None) -> dict[str, str]:
     # the child's.
     for var in ("TMUX", "TMUX_PANE"):
         spawn_env.pop(var, None)
+
+    # Ensure ~/.gobby/bin is on PATH (gcode, gsqz)
+    gobby_bin = str(Path.home() / ".gobby" / "bin")
+    current_path = spawn_env.get("PATH", "")
+    if gobby_bin not in current_path.split(os.pathsep):
+        spawn_env["PATH"] = f"{gobby_bin}{os.pathsep}{current_path}"
+
     return spawn_env
 
 

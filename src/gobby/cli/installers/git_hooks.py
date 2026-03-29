@@ -162,18 +162,19 @@ fi
     "post-commit": """
 # Gobby incremental code indexing after commit
 # NOTE: JSONL export moved to pre-push to avoid contamination in agent worktrees
-if command -v gobby >/dev/null 2>&1; then
-    # Read daemon port from bootstrap config, default to 60887
-    GOBBY_PORT=60887
-    BOOTSTRAP_YAML="$HOME/.gobby/bootstrap.yaml"
-    if [ -f "$BOOTSTRAP_YAML" ]; then
-        _port=$(grep -E '^daemon_port:' "$BOOTSTRAP_YAML" 2>/dev/null | head -1 | sed 's/^daemon_port:[[:space:]]*//')
-        if [ -n "$_port" ]; then GOBBY_PORT="$_port"; fi
-    fi
+CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD 2>/dev/null)
+if [ -n "$CHANGED_FILES" ]; then
+    INDEXED=false
 
-    # Incremental code index: send changed files to daemon
-    CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD 2>/dev/null)
-    if [ -n "$CHANGED_FILES" ]; then
+    # Strategy 1: Daemon HTTP API (fast, async)
+    if command -v gobby >/dev/null 2>&1; then
+        GOBBY_PORT=60887
+        BOOTSTRAP_YAML="$HOME/.gobby/bootstrap.yaml"
+        if [ -f "$BOOTSTRAP_YAML" ]; then
+            _port=$(grep -E '^daemon_port:' "$BOOTSTRAP_YAML" 2>/dev/null | head -1 | sed 's/^daemon_port:[[:space:]]*//')
+            if [ -n "$_port" ]; then GOBBY_PORT="$_port"; fi
+        fi
+
         PROJECT_ID=""
         if [ -f .gobby/project.json ]; then
             PROJECT_ID=$(python3 -c "import json; print(json.load(open('.gobby/project.json')).get('project_id',''))" 2>/dev/null || echo "")
@@ -181,11 +182,21 @@ if command -v gobby >/dev/null 2>&1; then
         if [ -n "$PROJECT_ID" ]; then
             FILES_JSON=$(echo "$CHANGED_FILES" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip().split('\\n')))" 2>/dev/null)
             if [ -n "$FILES_JSON" ]; then
-                curl -s -X POST "http://localhost:$GOBBY_PORT/api/code-index/incremental" \
+                if curl -s -X POST "http://localhost:$GOBBY_PORT/api/code-index/incremental" \
                     -H "Content-Type: application/json" \
                     -d "{\\\"project_id\\\": \\\"$PROJECT_ID\\\", \\\"files\\\": $FILES_JSON}" \
-                    >/dev/null 2>&1 || true
+                    >/dev/null 2>&1; then
+                    INDEXED=true
+                fi
             fi
+        fi
+    fi
+
+    # Strategy 2: gcode CLI fallback (standalone, no daemon needed)
+    if [ "$INDEXED" = "false" ]; then
+        GCODE="$HOME/.gobby/bin/gcode"
+        if [ -x "$GCODE" ]; then
+            $GCODE index --files $CHANGED_FILES --quiet &
         fi
     fi
 fi

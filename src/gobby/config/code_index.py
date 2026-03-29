@@ -10,6 +10,11 @@ class CodeIndexConfig(BaseModel):
         default=True,
         description="Enable code indexing via tree-sitter AST parsing",
     )
+    use_native_code_index: bool = Field(
+        default=True,
+        description="Use Python-native code index MCP server (gobby-code). "
+        "Set False to disable — agents use gcode CLI instead.",
+    )
     auto_index_on_commit: bool = Field(
         default=True,
         description="Auto-reindex changed files on git commit",

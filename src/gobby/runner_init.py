@@ -396,6 +396,7 @@ def init_services(runner: GobbyRunner) -> None:
                 config=ci_config,
             )
             runner.code_indexer.searcher = ci_searcher
+            runner.symbol_summarizer = ci_summarizer
 
             logger.info("Code indexer initialized")
         except Exception as e:
