@@ -31,7 +31,8 @@ rules:
     when: >
       variables.get('require_commit_before_status') and
       tool_input.get('reason', '') not in ['already_implemented', 'obsolete', 'duplicate', 'wont_fix', 'out_of_repo'] and
-      not variables.get('task_has_commits') and not tool_input.get('commit_sha')
+      not variables.get('task_has_commits') and not tool_input.get('commit_sha') and
+      (variables.get('session_edited_files', []) or has_dirty_files)
     effects:
       - type: block
         mcp_tools:

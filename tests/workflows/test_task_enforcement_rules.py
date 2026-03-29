@@ -417,14 +417,15 @@ class TestRequireCommitBeforeStatus:
         assert "task_has_commits" in body.when
         assert "commit_sha" in body.when
 
-    def test_when_does_not_check_dirty_files(self, db, manager) -> None:
-        """Dirty files condition should be in the separate rule now."""
+    def test_when_checks_session_edited_files_and_dirty(self, db, manager) -> None:
+        """Should only require commit when session has changes."""
         _sync_bundled(db)
 
         row = manager.get_by_name("require-commit-before-status")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
-        assert "has_dirty_files" not in body.when
+        assert "session_edited_files" in body.when
+        assert "has_dirty_files" in body.when
 
     def test_error_message_mentions_no_commit(self, db, manager) -> None:
         """Error message should specifically mention no commit linked."""
