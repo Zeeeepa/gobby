@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, type PointerEvent as ReactPointerEvent } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -114,32 +114,6 @@ export function SessionInteractionModal({
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Drag-to-resize state (pane mode, desktop only)
-  const [paneSize, setPaneSize] = useState<{ w: number; h: number } | null>(null);
-  const dragRef = useRef<{ startX: number; startY: number; startW: number; startH: number } | null>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
-
-  const onResizePointerDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const el = dialogRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    dragRef.current = { startX: e.clientX, startY: e.clientY, startW: rect.width, startH: rect.height };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  }, []);
-
-  const onResizePointerMove = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
-    const d = dragRef.current;
-    if (!d) return;
-    const newW = Math.max(400, d.startW + (e.clientX - d.startX));
-    const newH = Math.max(300, d.startH + (e.clientY - d.startY));
-    setPaneSize({ w: newW, h: newH });
-  }, []);
-
-  const onResizePointerUp = useCallback(() => {
-    dragRef.current = null;
-  }, []);
-
   // MCP tool selector state (command mode)
   const {
     servers,
@@ -168,7 +142,6 @@ export function SessionInteractionModal({
       setError(null);
       setPaneOutput(null);
       setSending(false);
-      setPaneSize(null);
       setSelectedServer("");
       setSelectedTool("");
       setToolSchema(null);
@@ -329,11 +302,7 @@ export function SessionInteractionModal({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent
-        ref={mode === "pane" ? dialogRef : undefined}
-        className={mode === "command" ? "max-w-lg" : mode === "pane" ? "max-w-md md:max-w-4xl md:h-[70vh] flex flex-col relative overflow-hidden" : "max-w-md md:max-w-2xl"}
-        style={mode === "pane" && paneSize ? { width: paneSize.w, height: paneSize.h, maxWidth: "95vw", maxHeight: "95vh" } : undefined}
-      >
+      <DialogContent className={mode === "command" ? "max-w-lg" : mode === "pane" ? "max-w-md md:max-w-4xl session-pane-dialog" : "max-w-md md:max-w-2xl"}>
         <DialogTitle>{config.title}</DialogTitle>
         <DialogDescription>
           {config.description}
@@ -344,7 +313,7 @@ export function SessionInteractionModal({
         </DialogDescription>
 
         {mode === "pane" ? (
-          <div className="mt-3 flex flex-col flex-1 min-h-0">
+          <div className="mt-3 flex flex-col min-h-0" style={{ flex: "1 1 0" }}>
             {paneLoading ? (
               <div className="text-xs text-muted-foreground p-3">
                 Loading...
@@ -366,13 +335,6 @@ export function SessionInteractionModal({
                 Close
               </button>
             </div>
-            {/* Resize handle — desktop only */}
-            <div
-              className="hidden md:block session-resize-handle"
-              onPointerDown={onResizePointerDown}
-              onPointerMove={onResizePointerMove}
-              onPointerUp={onResizePointerUp}
-            />
           </div>
         ) : mode === "command" ? (
           <div className="mt-3 flex flex-col gap-3">

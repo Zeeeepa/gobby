@@ -3054,37 +3054,19 @@
 }
 
 @media (min-width: 768px) {
+  .session-pane-dialog {
+    display: flex;
+    flex-direction: column;
+    height: 70vh;
+    resize: both !important;
+    overflow: auto !important;
+  }
+
   .session-pane-output {
     max-height: none;
     flex: 1 1 0;
     min-height: 0;
   }
-}
-
-.session-resize-handle {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 20px;
-  height: 20px;
-  cursor: nwse-resize;
-  touch-action: none;
-}
-
-.session-resize-handle::before {
-  content: "";
-  position: absolute;
-  right: 4px;
-  bottom: 4px;
-  width: 10px;
-  height: 10px;
-  border-right: 2px solid var(--text-muted);
-  border-bottom: 2px solid var(--text-muted);
-  opacity: 0.5;
-}
-
-.session-resize-handle:hover::before {
-  opacity: 1;
 }
 
 /* ============================================
