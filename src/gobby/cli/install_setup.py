@@ -606,6 +606,64 @@ def _install_gcode_from_github(bin_dir: Path, target: str, version: str | None =
         return False
 
 
+def _install_gcode_from_submodule(bin_dir: Path) -> bool:
+    """Build gcode from the deps/gobby-code submodule.
+
+    Preferred for development — uses the pinned submodule commit for
+    schema-compatible builds.
+
+    Returns:
+        ``True`` on success, ``False`` if submodule or cargo unavailable.
+    """
+    if not shutil.which("cargo"):
+        return False
+
+    # Walk up from this file to find the repo root with deps/gobby-code/
+    search = Path(__file__).resolve().parent
+    for _ in range(10):
+        manifest = search / "deps" / "gobby-code" / "Cargo.toml"
+        if manifest.exists():
+            break
+        search = search.parent
+    else:
+        return False
+
+    if not manifest.exists():
+        return False
+
+    try:
+        click.echo("  Building gcode from submodule (this may take 30-60 seconds)...")
+        result = subprocess.run(
+            [
+                "cargo",
+                "build",
+                "--release",
+                "--manifest-path",
+                str(manifest),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        if result.returncode != 0:
+            return False
+
+        # Copy binary from target/release/ to bin_dir
+        release_dir = manifest.parent / "target" / "release"
+        src_bin = release_dir / _GCODE_BIN_NAME
+        if not src_bin.exists():
+            return False
+
+        bin_dir.mkdir(parents=True, exist_ok=True)
+        dest = bin_dir / _GCODE_BIN_NAME
+        copy2(str(src_bin), str(dest))
+        dest.chmod(0o755)
+        return True
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
+        logger.warning("gcode: submodule build failed: %s", e)
+        return False
+
+
 def _install_gcode_from_cargo_git(bin_dir: Path) -> bool:
     """Install gcode from source via ``cargo install --git``.
 
@@ -641,8 +699,9 @@ def _install_gcode(force: bool = False) -> dict[str, Any]:
     """Install or upgrade the gcode binary with a fallback chain.
 
     Installation priority:
-      1. GitHub release download (fast, no deps)
-      2. ``cargo install --git`` (compiles from source)
+      1. Build from submodule (schema-compatible, for dev)
+      2. GitHub release download (fast, no deps)
+      3. ``cargo install --git`` (compiles from source)
 
     Args:
         force: Re-download even if the installed version is current.
@@ -676,7 +735,9 @@ def _install_gcode(force: bool = False) -> dict[str, Any]:
     bin_dir.mkdir(parents=True, exist_ok=True)
     method = None
 
-    if _install_gcode_from_github(bin_dir, target):
+    if _install_gcode_from_submodule(bin_dir):
+        method = "submodule"
+    elif _install_gcode_from_github(bin_dir, target):
         method = "github"
     elif _install_gcode_from_cargo_git(bin_dir):
         method = "cargo-git"
