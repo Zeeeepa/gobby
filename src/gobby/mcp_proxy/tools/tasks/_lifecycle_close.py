@@ -112,17 +112,7 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
                 "Describe what was changed and why.",
             }
 
-        # Check for linked commits (unless parent with all children closed or epic)
-        if not skip_leaf_checks:
-            commit_result = validate_commit_requirements(task, reason, repo_path)
-            if not commit_result.can_close:
-                return {
-                    "success": False,
-                    "error": commit_result.error_type,
-                    "message": commit_result.message,
-                }
-
-        # Resolve session_id to UUID early (needed for skip_validation checks)
+        # Resolve session_id to UUID early (needed for commit and validation checks)
         resolved_session_id = session_id
         if session_id:
             try:
@@ -132,6 +122,26 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
 
         # Single session manager instance for the duration of close_task
         _session_manager = LocalSessionManager(ctx.task_manager.db)
+
+        # Resolve session for edit-awareness (used by commit checks below)
+        _session = None
+        if resolved_session_id:
+            try:
+                _session = _session_manager.get(resolved_session_id)
+            except Exception as e:
+                logger.debug(f"Best-effort session lookup failed: {e}")
+
+        # Check for linked commits (unless parent with all children closed or epic)
+        # Skip the check if the session made no edits — nothing to commit
+        session_had_edits = _session.had_edits if _session else None
+        if not skip_leaf_checks and session_had_edits is not False:
+            commit_result = validate_commit_requirements(task, reason, repo_path)
+            if not commit_result.can_close:
+                return {
+                    "success": False,
+                    "error": commit_result.error_type,
+                    "message": commit_result.message,
+                }
 
         # Enforce skip_validation constraints:
         # - Cannot skip if a commit_sha is provided (you did real work, validate it)
@@ -170,28 +180,22 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
         # (if the session edited in-repo files, those need commits regardless of reason)
         # Also skip for parent tasks with all children closed (no direct edits expected)
         if not skip_leaf_checks and resolved_session_id and not skip_validation:
-            try:
-                session = _session_manager.get(resolved_session_id)
+            # Check if task has commits (including the one being linked right now)
+            has_commits = bool(task.commits) or bool(commit_sha)
 
-                # Check if task has commits (including the one being linked right now)
-                has_commits = bool(task.commits) or bool(commit_sha)
-
-                if session and session.had_edits and not has_commits:
-                    return {
-                        "success": False,
-                        "error": "missing_commits_for_edits",
-                        "message": (
-                            "This session made edits but no commits are linked to the task. "
-                            "You must commit your changes and link them to the task before closing."
-                        ),
-                        "suggestion": (
-                            f"Commit your changes with `[{ctx.get_current_project_name() or 'project'}-#task_id]` in the message, "
-                            "or pass `commit_sha` to `close_task`."
-                        ),
-                    }
-            except Exception as e:
-                # Don't block close on internal error
-                logger.debug(f"Best-effort session edit check failed: {e}")
+            if session_had_edits and not has_commits:
+                return {
+                    "success": False,
+                    "error": "missing_commits_for_edits",
+                    "message": (
+                        "This session made edits but no commits are linked to the task. "
+                        "You must commit your changes and link them to the task before closing."
+                    ),
+                    "suggestion": (
+                        f"Commit your changes with `[{ctx.get_current_project_name() or 'project'}-#task_id]` in the message, "
+                        "or pass `commit_sha` to `close_task`."
+                    ),
+                }
 
         if not should_skip and not skip_leaf_checks:
             # Check if task has children (is a parent task)
