@@ -144,6 +144,11 @@ def install_gemini(project_path: Path, mode: str = "global") -> dict[str, Any]:
         existing_settings["general"] = {}
     existing_settings["general"]["enableHooks"] = True
 
+    # Disable tip prompts — they block agent input in headless/YOLO mode
+    if "ui" not in existing_settings:
+        existing_settings["ui"] = {}
+    existing_settings["ui"]["hideTips"] = True
+
     # Write merged settings back
     with open(settings_file, "w") as f:
         json.dump(existing_settings, f, indent=2)

@@ -301,7 +301,7 @@ def extract_reason(result: dict[str, Any]) -> str:
 # ── Agent Daemon Failure Tracking ───────────────────────────────────────
 
 _DAEMON_FAILURE_DIR = Path("/tmp/gobby-agent-failures")
-_MAX_DAEMON_FAILURES = 3
+_MAX_DAEMON_FAILURES = 5
 
 
 def _track_daemon_failure(agent_run_id: str) -> int:
@@ -370,15 +370,20 @@ def _force_kill_agent() -> None:
 # ── Daemon Health Check ─────────────────────────────────────────────────
 
 
-async def check_daemon_running(timeout: float = 0.5) -> bool:
+async def check_daemon_running(timeout: float = 5.0) -> bool:
     """Check if gobby daemon is active and responding.
 
-    Performs a quick health check to verify the HTTP server is running
+    Performs a health check to verify the HTTP server is running
     before processing hooks. This prevents hook execution when the daemon
     is stopped, avoiding long timeouts and confusing error messages.
 
+    The 5s timeout is intentionally generous — healthy daemons respond in
+    <10ms, so the timeout only fires on actual unreachability. A tight
+    timeout (e.g. 0.5s) causes false positives during GC pauses or load
+    spikes, which cascades into agent self-termination.
+
     Args:
-        timeout: Maximum time to wait for response in seconds (default: 0.5)
+        timeout: Maximum time to wait for response in seconds (default: 5.0)
 
     Returns:
         True if daemon is running and responding, False otherwise

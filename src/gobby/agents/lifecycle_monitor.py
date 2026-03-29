@@ -169,6 +169,7 @@ class AgentLifecycleMonitor:
                 logger.debug(f"Lifecycle check iteration {iteration}")
                 await self.check_trust_prompts()  # Fast unblock before other checks
                 await self.check_loop_prompts()  # Dismiss loop detection prompts
+                await self.check_gemini_tip_prompts()  # Dismiss tip/settings prompts
                 await self.check_unhealthy_agents()
                 await self.check_initialization_timeout()
                 await self.check_idle_agents()
@@ -263,6 +264,40 @@ class AgentLifecycleMonitor:
                         handled += 1
             except Exception as e:
                 logger.warning(f"Error checking loop prompt for agent {run.id}: {e}")
+
+        return handled
+
+    async def check_gemini_tip_prompts(self) -> int:
+        """Check for Gemini CLI tip/settings prompts and auto-dismiss them.
+
+        Gemini CLI shows keyboard shortcut tips and settings nudges that
+        block the input area with an ``(esc to cancel, Nm Ns)`` countdown.
+        These prevent the agent from continuing work. Sends Escape to dismiss.
+        No dismissed tracking needed — tips can recur like loop prompts.
+
+        Returns:
+            Number of tip prompts dismissed.
+        """
+        runs = await asyncio.to_thread(self._get_active_terminal_runs)
+
+        handled = 0
+        for run in runs:
+            tmux_name = run.tmux_session_name
+            assert tmux_name is not None  # guaranteed by filter
+
+            try:
+                pane_output = await self._tmux.capture_pane(tmux_name, lines=15)
+                if pane_output and self._prompt_detector.detect_gemini_tip_prompt(pane_output):
+                    sent = await self._tmux.send_keys(
+                        tmux_name, PromptDetector.GEMINI_TIP_DISMISS_KEYS
+                    )
+                    if sent:
+                        logger.info(
+                            f"Auto-dismissed Gemini tip prompt for agent {run.id}",
+                        )
+                        handled += 1
+            except Exception as e:
+                logger.warning(f"Error checking Gemini tip prompt for agent {run.id}: {e}")
 
         return handled
 
