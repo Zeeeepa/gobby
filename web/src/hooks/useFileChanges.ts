@@ -41,8 +41,9 @@ export function useFileChanges(messages: ChatMessage[], projectId: string | null
         const filePath = extractFilePath(tc.arguments)
         if (!filePath) continue
 
-        // Skip internal gobby files
+        // Skip internal gobby files and plan files
         if (filePath.includes('.gobby/')) continue
+        if (filePath.includes('.claude/plans/')) continue
 
         // Determine status: Write = new file, Edit = modified
         const toolName = tc.tool_name?.toLowerCase() || ''
