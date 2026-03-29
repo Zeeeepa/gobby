@@ -52,6 +52,8 @@ export function useVoice(
   const isPlayingRef = useRef(false)
   const currentSourceRef = useRef<AudioBufferSourceNode | null>(null)
   const pendingTTSMetaRef = useRef<TTSMeta | null>(null)
+  const mountedRef = useRef(true)
+  const playErrorCountRef = useRef(0)
 
   // Set a voice error that auto-clears after a delay
   const setTransientError = useCallback((msg: string, ms = 3000) => {
@@ -82,14 +84,14 @@ export function useVoice(
     const buffer = audioQueueRef.current.shift()
     if (!buffer) {
       isPlayingRef.current = false
-      setIsSpeaking(false)
+      if (mountedRef.current) setIsSpeaking(false)
       return
     }
 
     const ctx = getAudioContext()
     if (!ctx) {
       isPlayingRef.current = false
-      setIsSpeaking(false)
+      if (mountedRef.current) setIsSpeaking(false)
       return
     }
 
@@ -100,10 +102,19 @@ export function useVoice(
       source.onended = playNextChunk
       source.start()
       currentSourceRef.current = source
+      playErrorCountRef.current = 0
     } catch (err) {
       console.error('Voice: Failed to play audio chunk:', err)
-      // Skip this chunk and try the next
-      playNextChunk()
+      playErrorCountRef.current += 1
+      if (playErrorCountRef.current >= 3) {
+        console.warn('Voice: Too many consecutive playback errors, stopping TTS')
+        audioQueueRef.current = []
+        isPlayingRef.current = false
+        playErrorCountRef.current = 0
+        if (mountedRef.current) setIsSpeaking(false)
+        return
+      }
+      setTimeout(playNextChunk, 0)
     }
   }, [getAudioContext])
 
@@ -122,8 +133,12 @@ export function useVoice(
       const audioBuffer = ctx.createBuffer(1, float32.length, sampleRate)
       audioBuffer.getChannelData(0).set(float32)
 
+      const MAX_AUDIO_QUEUE_SIZE = 50
+      while (audioQueueRef.current.length >= MAX_AUDIO_QUEUE_SIZE) {
+        audioQueueRef.current.shift()
+      }
       audioQueueRef.current.push(audioBuffer)
-      setIsSpeaking(true)
+      if (mountedRef.current) setIsSpeaking(true)
 
       // Start playback if not already playing
       if (!isPlayingRef.current) {
@@ -148,7 +163,7 @@ export function useVoice(
     audioQueueRef.current = []
     isPlayingRef.current = false
     pendingTTSMetaRef.current = null
-    setIsSpeaking(false)
+    if (mountedRef.current) setIsSpeaking(false)
 
     // Tell backend to stop synthesizing
     const ws = wsRef.current
@@ -233,7 +248,7 @@ export function useVoice(
                 return
               }
 
-              setIsTranscribing(true)
+              if (mountedRef.current) setIsTranscribing(true)
 
               // Encode to WAV (16kHz mono 16-bit) and send
               const wavBuffer = utils.encodeWAV(audio, 1, 16000, 1, 16)
@@ -248,7 +263,7 @@ export function useVoice(
               }))
             } catch (err) {
               console.error('Voice: Failed to encode/send audio:', err)
-              setIsTranscribing(false)
+              if (mountedRef.current) setIsTranscribing(false)
               setTransientError('Failed to process audio')
             }
           },
@@ -288,9 +303,15 @@ export function useVoice(
     }
   }, [voiceMode, wsRef, conversationId, setTransientError, stopTTS])
 
+  // Stop TTS when switching conversations
+  useEffect(() => {
+    stopTTS()
+  }, [conversationId, stopTTS])
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      mountedRef.current = false
       voiceModeRef.current = false
       if (vadRef.current) {
         vadRef.current.destroy()
@@ -302,7 +323,7 @@ export function useVoice(
       } catch { /* noop */ }
       audioQueueRef.current = []
       try {
-        audioContextRef.current?.close()
+        audioContextRef.current?.suspend()
       } catch { /* noop */ }
       if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
     }
@@ -312,18 +333,18 @@ export function useVoice(
     const type = data.type as string
 
     if (type === 'voice_transcription') {
-      setIsTranscribing(false)
+      if (mountedRef.current) setIsTranscribing(false)
       setVoiceError(null)
     } else if (type === 'voice_status') {
       const status = data.status as string
       if (status === 'error') {
         setVoiceError(data.error as string || 'Voice error')
-        setIsTranscribing(false)
+        if (mountedRef.current) setIsTranscribing(false)
       } else if (status === 'empty') {
-        setIsTranscribing(false)
+        if (mountedRef.current) setIsTranscribing(false)
         setTransientError('No speech detected — try speaking louder or closer to the mic')
       } else if (status === 'transcribing') {
-        setIsTranscribing(true)
+        if (mountedRef.current) setIsTranscribing(true)
         setVoiceError(null)
       }
     } else if (type === 'tts_audio') {
