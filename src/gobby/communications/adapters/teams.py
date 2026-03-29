@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import time
@@ -28,6 +29,7 @@ class TeamsAdapter(BaseChannelAdapter):
         self._app_password: str = ""
         self._access_token: str | None = None
         self._token_expires_at: float = 0
+        self._token_lock = asyncio.Lock()
         self._jwk_client: PyJWKClient | None = None
 
     @property
@@ -89,8 +91,9 @@ class TeamsAdapter(BaseChannelAdapter):
         if not self._client:
             raise ValueError("Adapter not initialized")
 
-        if time.time() >= self._token_expires_at:
-            await self._refresh_token()
+        async with self._token_lock:
+            if time.time() >= self._token_expires_at:
+                await self._refresh_token()
 
         service_url = message.metadata_json.get("service_url")
         if not service_url:
@@ -129,8 +132,9 @@ class TeamsAdapter(BaseChannelAdapter):
             "Content-Type": "application/json",
         }
 
-        response = await self._client.post(url, json=activity, headers=headers)
-        response.raise_for_status()
+        response = await self._retry_request(
+            lambda: self._client.post(url, json=activity, headers=headers)  # type: ignore[union-attr]
+        )
 
         data = response.json()
         message_id = data.get("id")

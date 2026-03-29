@@ -109,8 +109,9 @@ class SlackAdapter(BaseChannelAdapter):
             if message.platform_thread_id:
                 payload["thread_ts"] = message.platform_thread_id
 
-            response = await self._client.post("chat.postMessage", json=payload)
-            response.raise_for_status()
+            response = await self._retry_request(
+                lambda p=payload: self._client.post("chat.postMessage", json=p)  # type: ignore[union-attr]
+            )
             data = response.json()
             if not data.get("ok"):
                 error_msg = data.get("error", "Unknown error")
@@ -123,37 +124,60 @@ class SlackAdapter(BaseChannelAdapter):
     async def send_attachment(
         self, message: CommsMessage, attachment: CommsAttachment, file_path: Path
     ) -> str | None:
-        """Send a file via Slack files.upload API."""
+        """Send a file via Slack's files.getUploadURLExternal 3-step flow."""
         if not self._client:
             raise RuntimeError("Slack adapter not initialized")
 
         file_bytes = await asyncio.to_thread(file_path.read_bytes)
-        data: dict[str, Any] = {
-            "channels": message.channel_id,
-            "filename": attachment.filename,
-            "title": attachment.filename,
-        }
-        if message.content:
-            data["initial_comment"] = message.content
-        if message.platform_thread_id:
-            data["thread_ts"] = message.platform_thread_id
 
-        response = await self._client.post(
-            "files.upload",
-            data=data,
-            files={"file": (attachment.filename, file_bytes, attachment.content_type)},
+        # Step 1: Get upload URL
+        get_url_data: dict[str, Any] = {
+            "filename": attachment.filename,
+            "length": len(file_bytes),
+        }
+        response = await self._retry_request(
+            lambda: self._client.post("files.getUploadURLExternal", data=get_url_data)  # type: ignore[union-attr]
         )
-        response.raise_for_status()
         result = response.json()
         if not result.get("ok"):
-            raise ValueError(f"Failed to upload Slack file: {result.get('error')}")
+            raise ValueError(f"files.getUploadURLExternal failed: {result.get('error')}")
+        upload_url = result["upload_url"]
+        file_id = result["file_id"]
 
-        file_info = result.get("file", {})
-        shares = file_info.get("shares", {})
-        for channel_shares in shares.values():
-            for share_list in channel_shares.values():
-                if share_list:
-                    return str(share_list[0].get("ts"))
+        # Step 2: PUT file bytes to the upload URL
+        async with httpx.AsyncClient(timeout=60.0) as upload_client:
+            upload_resp = await upload_client.put(
+                upload_url,
+                content=file_bytes,
+                headers={"Content-Type": attachment.content_type},
+            )
+            upload_resp.raise_for_status()
+
+        # Step 3: Complete the upload
+        complete_payload: dict[str, Any] = {
+            "files": json.dumps([{"id": file_id, "title": attachment.filename}]),
+            "channel_id": message.channel_id,
+        }
+        if message.platform_thread_id:
+            complete_payload["thread_ts"] = message.platform_thread_id
+        if message.content:
+            complete_payload["initial_comment"] = message.content
+
+        response = await self._retry_request(
+            lambda: self._client.post("files.completeUploadExternal", data=complete_payload)  # type: ignore[union-attr]
+        )
+        result = response.json()
+        if not result.get("ok"):
+            raise ValueError(f"files.completeUploadExternal failed: {result.get('error')}")
+
+        # Extract message ts from the completed upload
+        files_list = result.get("files", [])
+        if files_list:
+            shares = files_list[0].get("shares", {})
+            for channel_shares in shares.values():
+                for share_list in channel_shares.values():
+                    if share_list:
+                        return str(share_list[0].get("ts"))
         return None
 
     async def shutdown(self) -> None:

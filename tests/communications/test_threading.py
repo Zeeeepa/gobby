@@ -285,6 +285,8 @@ async def test_slack_adapter_sends_with_thread_ts():
     adapter = SlackAdapter()
     adapter._client = AsyncMock()
     mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.headers = {}
     mock_response.json.return_value = {"ok": True, "ts": "1234567890.111111"}
     mock_response.raise_for_status = MagicMock()
     adapter._client.post = AsyncMock(return_value=mock_response)
@@ -301,7 +303,11 @@ async def test_slack_adapter_sends_with_thread_ts():
     await adapter.send_message(msg)
 
     call_kwargs = adapter._client.post.call_args
-    json_body = call_kwargs[1].get("json") or call_kwargs[0][1] if len(call_kwargs[0]) > 1 else call_kwargs[1].get("json", {})
+    json_body = (
+        call_kwargs[1].get("json") or call_kwargs[0][1]
+        if len(call_kwargs[0]) > 1
+        else call_kwargs[1].get("json", {})
+    )
     # The Slack adapter should include thread_ts in the payload
     assert json_body.get("thread_ts") == "1234567890.000001"
 

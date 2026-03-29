@@ -21,7 +21,9 @@ def mock_client() -> MagicMock:
     return client
 
 
-def _mock_response(status_code: int = 200, json_data: dict | None = None, text: str = "") -> MagicMock:
+def _mock_response(
+    status_code: int = 200, json_data: dict | None = None, text: str = ""
+) -> MagicMock:
     resp = MagicMock()
     resp.status_code = status_code
     resp.json.return_value = json_data or {}
@@ -179,9 +181,7 @@ def test_channels_list_empty(runner: CliRunner, mock_client: MagicMock) -> None:
 
 def test_channels_list_api_failure(runner: CliRunner, mock_client: MagicMock) -> None:
     """channels list handles API errors."""
-    mock_client.call_http_api.return_value = _mock_response(
-        status_code=500, text="Server Error"
-    )
+    mock_client.call_http_api.return_value = _mock_response(status_code=500, text="Server Error")
 
     with patch("gobby.cli.communications.get_daemon_client", return_value=mock_client):
         result = runner.invoke(comms, ["channels", "list"])
@@ -207,7 +207,11 @@ def test_channels_add_telegram(runner: CliRunner, mock_client: MagicMock) -> Non
     assert "added successfully" in result.output
 
     call_args = mock_client.call_http_api.call_args
-    json_data = call_args[1].get("json_data") or call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("json_data", {})
+    json_data = (
+        call_args[1].get("json_data") or call_args[0][1]
+        if len(call_args[0]) > 1
+        else call_args[1].get("json_data", {})
+    )
     assert json_data["channel_type"] == "telegram"
     assert json_data["name"] == "my-tg"
 
@@ -244,9 +248,7 @@ def test_channels_add_generic_json(runner: CliRunner, mock_client: MagicMock) ->
 
 def test_channels_add_api_failure(runner: CliRunner, mock_client: MagicMock) -> None:
     """channels add handles API errors."""
-    mock_client.call_http_api.return_value = _mock_response(
-        status_code=400, text="Invalid config"
-    )
+    mock_client.call_http_api.return_value = _mock_response(status_code=400, text="Invalid config")
 
     with patch("gobby.cli.communications.get_daemon_client", return_value=mock_client):
         result = runner.invoke(
@@ -289,9 +291,7 @@ def test_channels_remove_success(runner: CliRunner, mock_client: MagicMock) -> N
 
 def test_channels_remove_not_found(runner: CliRunner, mock_client: MagicMock) -> None:
     """channels remove shows error when channel name not found."""
-    mock_client.call_http_api.return_value = _mock_response(
-        json_data={"channels": []}
-    )
+    mock_client.call_http_api.return_value = _mock_response(json_data={"channels": []})
 
     with patch("gobby.cli.communications.get_daemon_client", return_value=mock_client):
         result = runner.invoke(comms, ["channels", "remove", "nonexistent", "--yes"])
@@ -299,9 +299,7 @@ def test_channels_remove_not_found(runner: CliRunner, mock_client: MagicMock) ->
     assert "not found" in result.output
 
 
-def test_channels_remove_connection_failure(
-    runner: CliRunner, mock_client: MagicMock
-) -> None:
+def test_channels_remove_connection_failure(runner: CliRunner, mock_client: MagicMock) -> None:
     """channels remove handles daemon connection failure."""
     import httpx
 

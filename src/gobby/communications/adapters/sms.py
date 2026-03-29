@@ -30,11 +30,15 @@ logger = logging.getLogger(__name__)
 class SMSAdapter(BaseChannelAdapter):
     """Adapter for SMS via Twilio."""
 
+    _OPT_OUT_KEYWORDS = frozenset({"STOP", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"})
+    _OPT_IN_KEYWORDS = frozenset({"START", "UNSTOP", "YES"})
+
     def __init__(self) -> None:
         self._client: httpx.AsyncClient | None = None
         self._account_sid: str | None = None
         self._auth_token: str | None = None
         self._from_number: str | None = None
+        self._messaging_service_sid: str | None = None
 
     @property
     def channel_type(self) -> str:
@@ -64,12 +68,14 @@ class SMSAdapter(BaseChannelAdapter):
         self._account_sid = config.config_json.get("account_sid")
         self._from_number = config.config_json.get("from_number")
 
+        self._messaging_service_sid = config.config_json.get("messaging_service_sid")
+
         if not self._auth_token:
             raise ValueError("TWILIO_AUTH_TOKEN secret is required")
         if not self._account_sid:
             raise ValueError("account_sid is required in config_json")
-        if not self._from_number:
-            raise ValueError("from_number is required in config_json")
+        if not self._from_number and not self._messaging_service_sid:
+            raise ValueError("from_number or messaging_service_sid is required in config_json")
 
         self._client = httpx.AsyncClient(
             base_url=f"https://api.twilio.com/2010-04-01/Accounts/{self._account_sid}/",
@@ -80,24 +86,30 @@ class SMSAdapter(BaseChannelAdapter):
         # In a real scenario we could make a request to test the auth, e.g. GET Messages.json
         # but that can be expensive/slow on Twilio. We just assume it's good.
 
+    def _build_sender_payload(self) -> dict[str, str]:
+        """Build the sender identification fields for Twilio API payloads."""
+        if self._messaging_service_sid:
+            return {"MessagingServiceSid": self._messaging_service_sid}
+        return {"From": self._from_number or ""}
+
     async def send_message(self, message: CommsMessage) -> str | None:
         """Send message and return platform message ID."""
-        if not self._client or not self._from_number:
+        if not self._client:
             raise RuntimeError("SMS adapter not initialized")
 
-        # SMS is essentially flat, so we don't handle threading or rich formatting
         chunks = self.chunk_message(message.content, self.max_message_length)
         last_sid = None
 
         for chunk in chunks:
-            payload = {
-                "To": message.channel_id,  # channel_id is the recipient phone number
-                "From": self._from_number,
+            payload: dict[str, str] = {
+                "To": message.channel_id,
+                **self._build_sender_payload(),
                 "Body": chunk,
             }
 
-            response = await self._client.post("Messages.json", data=payload)
-            response.raise_for_status()
+            response = await self._retry_request(
+                lambda p=payload: self._client.post("Messages.json", data=p)  # type: ignore[union-attr]
+            )
             data = response.json()
 
             if "sid" not in data:
@@ -111,7 +123,7 @@ class SMSAdapter(BaseChannelAdapter):
         self, message: CommsMessage, attachment: CommsAttachment, file_path: Path
     ) -> str | None:
         """Send a file via MMS using Twilio MediaUrl parameter."""
-        if not self._client or not self._from_number:
+        if not self._client:
             raise RuntimeError("SMS adapter not initialized")
 
         if not attachment.platform_url:
@@ -122,14 +134,15 @@ class SMSAdapter(BaseChannelAdapter):
 
         payload: dict[str, Any] = {
             "To": message.channel_id,
-            "From": self._from_number,
+            **self._build_sender_payload(),
             "MediaUrl": attachment.platform_url,
         }
         if message.content:
             payload["Body"] = message.content
 
-        response = await self._client.post("Messages.json", data=payload)
-        response.raise_for_status()
+        response = await self._retry_request(
+            lambda: self._client.post("Messages.json", data=payload)  # type: ignore[union-attr]
+        )
         data = response.json()
         if "sid" not in data:
             raise ValueError(f"Failed to send MMS message: {data}")
@@ -168,20 +181,29 @@ class SMSAdapter(BaseChannelAdapter):
         message_sid = params.get("MessageSid")
 
         if not from_number or not body:
-            # Not a standard message webhook
             return []
+
+        # Detect opt-out/opt-in keywords
+        body_upper = body.strip().upper()
+        opt_out_action: str | None = None
+        if body_upper in self._OPT_OUT_KEYWORDS:
+            opt_out_action = "opt_out"
+        elif body_upper in self._OPT_IN_KEYWORDS:
+            opt_out_action = "opt_in"
+
+        metadata: dict[str, Any] = {**params, "opt_out_action": opt_out_action}
 
         return [
             CommsMessage(
                 id=message_sid or f"sms_{time.time()}",
-                channel_id=from_number,  # In SMS, the channel is the conversation with the user
+                channel_id=from_number,
                 direction="inbound",
                 content=body,
                 created_at=datetime.now(UTC).isoformat(),
-                identity_id=from_number,  # Identity is also the phone number
+                identity_id=from_number,
                 platform_message_id=message_sid,
                 content_type="text",
-                metadata_json=params,
+                metadata_json=metadata,
             )
         ]
 

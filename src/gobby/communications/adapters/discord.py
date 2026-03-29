@@ -46,10 +46,18 @@ except ImportError:
 class DiscordAdapter(BaseChannelAdapter):
     """Adapter for Discord using Gateway for receiving and REST for sending."""
 
+    _DEFAULT_GATEWAY_URL = "wss://gateway.discord.gg/?v=10&encoding=json"
+
     def __init__(self) -> None:
         self._client: httpx.AsyncClient | None = None
         self._gateway_task: asyncio.Task[Any] | None = None
         self._bot_token: str = ""
+        # Gateway session state for RESUME
+        self._session_id: str | None = None
+        self._resume_gateway_url: str | None = None
+        self._sequence: int | None = None
+        # Per-route REST rate limit tracking
+        self._route_buckets: dict[str, dict[str, Any]] = {}
 
     @property
     def channel_type(self) -> str:
@@ -101,43 +109,159 @@ class DiscordAdapter(BaseChannelAdapter):
         try:
             while True:
                 try:
+                    gateway_url = self._resume_gateway_url or self._DEFAULT_GATEWAY_URL
                     async with websockets.client.connect(  # type: ignore[attr-defined]
-                        "wss://gateway.discord.gg/?v=10&encoding=json"
+                        gateway_url
                     ) as ws:
-                        # Send IDENTIFY
-                        identify_payload = {
-                            "op": 2,
-                            "d": {
-                                "token": self._bot_token,
-                                "intents": 37376,  # 1 << 9 (GUILD_MESSAGES) | 1 << 12 (DIRECT_MESSAGES) | 1 << 15 (MESSAGE_CONTENT)
-                                "properties": {
-                                    "os": "linux",
-                                    "browser": "gobby",
-                                    "device": "gobby",
+                        # Attempt RESUME if we have a prior session
+                        if self._session_id and self._sequence is not None:
+                            resume_payload = {
+                                "op": 6,
+                                "d": {
+                                    "token": self._bot_token,
+                                    "session_id": self._session_id,
+                                    "seq": self._sequence,
                                 },
-                            },
-                        }
-                        await ws.send(json.dumps(identify_payload))
+                            }
+                            await ws.send(json.dumps(resume_payload))
+                            logger.info(
+                                "Discord gateway: sent RESUME (session=%s)", self._session_id
+                            )
+                        else:
+                            await self._send_identify(ws)
 
-                        async for message in ws:
-                            if isinstance(message, (str, bytes)):
-                                data = json.loads(message)
+                        heartbeat_interval: float | None = None
+                        heartbeat_task: asyncio.Task[Any] | None = None
 
-                                # In a full implementation we would handle heartbeat and other opcodes
-                                # Here we specifically look for MESSAGE_CREATE as requested
-                                if data.get("t") == "MESSAGE_CREATE":
+                        async for raw_message in ws:
+                            if not isinstance(raw_message, (str, bytes)):
+                                continue
+                            data = json.loads(raw_message)
+                            op = data.get("op")
+
+                            # Track sequence number from all dispatches
+                            if data.get("s") is not None:
+                                self._sequence = data["s"]
+
+                            if op == 10:  # Hello — start heartbeating
+                                heartbeat_interval = data["d"]["heartbeat_interval"] / 1000.0
+                                if heartbeat_task and not heartbeat_task.done():
+                                    heartbeat_task.cancel()
+                                heartbeat_task = asyncio.create_task(
+                                    self._heartbeat_loop(ws, heartbeat_interval)
+                                )
+
+                            elif op == 11:  # Heartbeat ACK
+                                pass  # Acknowledged
+
+                            elif op == 9:  # Invalid Session
+                                resumable = data.get("d", False)
+                                if not resumable:
+                                    logger.warning(
+                                        "Discord gateway: invalid session (not resumable), re-identifying"
+                                    )
+                                    self._session_id = None
+                                    self._resume_gateway_url = None
+                                    self._sequence = None
+                                    await asyncio.sleep(1 + 4 * asyncio.get_event_loop().time() % 1)
+                                    await self._send_identify(ws)
+                                else:
+                                    logger.info(
+                                        "Discord gateway: invalid session (resumable), re-sending RESUME"
+                                    )
+
+                            elif op == 0:  # Dispatch
+                                event_type = data.get("t")
+
+                                if event_type == "READY":
+                                    d = data.get("d", {})
+                                    self._session_id = d.get("session_id")
+                                    self._resume_gateway_url = d.get("resume_gateway_url")
+                                    logger.info(
+                                        "Discord gateway: READY (session=%s)",
+                                        self._session_id,
+                                    )
+
+                                elif event_type == "RESUMED":
+                                    logger.info("Discord gateway: RESUMED successfully")
+
+                                elif event_type == "MESSAGE_CREATE":
                                     msg_data = data.get("d", {})
                                     logger.debug(
-                                        f"Discord gateway received MESSAGE_CREATE: {msg_data.get('id')}"
+                                        "Discord gateway received MESSAGE_CREATE: %s",
+                                        msg_data.get("id"),
                                     )
-                                    # Since supports_polling=False, we don't have a way to inject this
-                                    # into the polling loop. Real implementations might push this to
-                                    # an event bus or call a callback.
+
+                        if heartbeat_task and not heartbeat_task.done():
+                            heartbeat_task.cancel()
+
                 except Exception as e:
-                    logger.warning(f"Discord gateway connection error: {e}")
+                    logger.warning("Discord gateway connection error: %s", e)
                     await asyncio.sleep(5)
         except asyncio.CancelledError:
             pass
+
+    async def _send_identify(self, ws: Any) -> None:
+        """Send IDENTIFY payload to the gateway."""
+        identify_payload = {
+            "op": 2,
+            "d": {
+                "token": self._bot_token,
+                "intents": 37376,
+                "properties": {
+                    "os": "linux",
+                    "browser": "gobby",
+                    "device": "gobby",
+                },
+            },
+        }
+        await ws.send(json.dumps(identify_payload))
+        logger.info("Discord gateway: sent IDENTIFY")
+
+    async def _heartbeat_loop(self, ws: Any, interval: float) -> None:
+        """Send periodic heartbeats to keep the gateway connection alive."""
+        try:
+            while True:
+                await asyncio.sleep(interval)
+                await ws.send(json.dumps({"op": 1, "d": self._sequence}))
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.debug("Discord heartbeat error: %s", e)
+
+    async def _rate_limited_request(
+        self, route: str, method: str = "post", **kwargs: Any
+    ) -> httpx.Response:
+        """Make a REST API request with per-route rate limit tracking.
+
+        Checks the local rate limit bucket before making the request,
+        sleeps if the bucket is exhausted, then updates the bucket from
+        response headers.
+        """
+        if not self._client:
+            raise RuntimeError("Discord adapter not initialized")
+
+        # Pre-request: check if route bucket is exhausted
+        bucket = self._route_buckets.get(route)
+        if bucket and bucket["remaining"] == 0:
+            wait = bucket["reset"] - time.time()
+            if wait > 0:
+                logger.debug("Discord REST: rate limit pre-wait %.1fs for %s", wait, route)
+                await asyncio.sleep(wait)
+
+        client = self._client
+        response = await self._retry_request(lambda: getattr(client, method)(route, **kwargs))
+
+        # Post-request: parse rate limit headers
+        headers = response.headers
+        if "X-RateLimit-Remaining" in headers:
+            self._route_buckets[route] = {
+                "remaining": int(headers["X-RateLimit-Remaining"]),
+                "reset": float(headers.get("X-RateLimit-Reset", "0")),
+                "bucket_id": headers.get("X-RateLimit-Bucket", ""),
+            }
+
+        return response
 
     async def send_message(self, message: CommsMessage) -> str | None:
         """Send message and return platform message ID."""
@@ -155,8 +279,8 @@ class DiscordAdapter(BaseChannelAdapter):
                 "content": chunk,
             }
 
-            response = await self._client.post(f"/channels/{channel_id}/messages", json=payload)
-            response.raise_for_status()
+            route = f"/channels/{channel_id}/messages"
+            response = await self._rate_limited_request(route, "post", json=payload)
             data = response.json()
             last_id = data.get("id")
 
@@ -178,12 +302,10 @@ class DiscordAdapter(BaseChannelAdapter):
         files: dict[str, Any] = {
             "files[0]": (attachment.filename, file_bytes, attachment.content_type),
         }
-        response = await self._client.post(
-            f"/channels/{channel_id}/messages",
-            data={"payload_json": payload_json},
-            files=files,
+        route = f"/channels/{channel_id}/messages"
+        response = await self._rate_limited_request(
+            route, "post", data={"payload_json": payload_json}, files=files
         )
-        response.raise_for_status()
         result = response.json()
         msg_id: str | None = result.get("id")
         return msg_id

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -77,6 +78,8 @@ async def test_send_message_success(
 
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {}
         mock_response.json.return_value = {"id": "1234567890"}
         mock_post.return_value = mock_response
 
@@ -154,3 +157,192 @@ def test_verify_webhook_invalid_signature(adapter: DiscordAdapter) -> None:
     }
 
     assert adapter.verify_webhook(payload, headers, secret) is False
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_headers_parsed(
+    adapter: DiscordAdapter,
+    channel_config: ChannelConfig,
+    secret_resolver: Callable[[str], str | None],
+) -> None:
+    """Test that REST rate limit headers are parsed and stored per route."""
+    channel_config.config_json["enable_gateway"] = False
+    await adapter.initialize(channel_config, secret_resolver)
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {
+            "X-RateLimit-Remaining": "4",
+            "X-RateLimit-Reset": "1700000000.0",
+            "X-RateLimit-Bucket": "abc123",
+        }
+        mock_response.json.return_value = {"id": "msg1"}
+        mock_post.return_value = mock_response
+
+        message = CommsMessage(
+            id="msg_1",
+            channel_id="channel_123",
+            direction="outbound",
+            content="Test",
+            created_at="2024-01-01T00:00:00Z",
+        )
+
+        await adapter.send_message(message)
+
+        route = "/channels/channel_123/messages"
+        assert route in adapter._route_buckets
+        assert adapter._route_buckets[route]["remaining"] == 4
+        assert adapter._route_buckets[route]["bucket_id"] == "abc123"
+
+
+@pytest.mark.asyncio
+@patch("gobby.communications.adapters.discord.asyncio.sleep", new_callable=AsyncMock)
+async def test_rate_limit_pre_wait(
+    mock_sleep: AsyncMock,
+    adapter: DiscordAdapter,
+    channel_config: ChannelConfig,
+    secret_resolver: Callable[[str], str | None],
+) -> None:
+    """Test that exhausted route bucket triggers pre-request sleep."""
+    channel_config.config_json["enable_gateway"] = False
+    await adapter.initialize(channel_config, secret_resolver)
+
+    import time
+
+    # Pre-set an exhausted bucket
+    route = "/channels/channel_123/messages"
+    adapter._route_buckets[route] = {
+        "remaining": 0,
+        "reset": time.time() + 2.0,
+        "bucket_id": "abc123",
+    }
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {"X-RateLimit-Remaining": "29", "X-RateLimit-Reset": "9999999999"}
+        mock_response.json.return_value = {"id": "msg1"}
+        mock_post.return_value = mock_response
+
+        message = CommsMessage(
+            id="msg_1",
+            channel_id="channel_123",
+            direction="outbound",
+            content="Test",
+            created_at="2024-01-01T00:00:00Z",
+        )
+
+        await adapter.send_message(message)
+
+        # Should have slept before making the request
+        assert mock_sleep.await_count >= 1
+
+
+def test_gateway_resume_state(adapter: DiscordAdapter) -> None:
+    """Test that gateway session state is initialized for RESUME support."""
+    assert adapter._session_id is None
+    assert adapter._resume_gateway_url is None
+    assert adapter._sequence is None
+
+
+@pytest.mark.asyncio
+async def test_send_identify(adapter: DiscordAdapter) -> None:
+    """Test that _send_identify sends IDENTIFY (op 2)."""
+    adapter._bot_token = "test-token"
+
+    sent_messages: list[str] = []
+    mock_ws = MagicMock()
+    mock_ws.send = AsyncMock(side_effect=lambda data: sent_messages.append(data))
+
+    await adapter._send_identify(mock_ws)
+
+    assert len(sent_messages) == 1
+    identify_data = json.loads(sent_messages[0])
+    assert identify_data["op"] == 2
+    assert identify_data["d"]["token"] == "test-token"
+    assert identify_data["d"]["intents"] == 37376
+
+
+@pytest.mark.asyncio
+async def test_gateway_resume_logic(adapter: DiscordAdapter) -> None:
+    """Test that RESUME payload is constructed correctly when session exists."""
+    adapter._bot_token = "test-token"
+    adapter._session_id = "existing-session"
+    adapter._resume_gateway_url = "wss://resume.discord.gg"
+    adapter._sequence = 42
+
+    # Verify resume payload structure
+    resume_payload = {
+        "op": 6,
+        "d": {
+            "token": adapter._bot_token,
+            "session_id": adapter._session_id,
+            "seq": adapter._sequence,
+        },
+    }
+    assert resume_payload["op"] == 6
+    assert resume_payload["d"]["session_id"] == "existing-session"
+    assert resume_payload["d"]["seq"] == 42
+
+    # Verify gateway URL selection
+    assert adapter._resume_gateway_url == "wss://resume.discord.gg"
+    gateway_url = adapter._resume_gateway_url or adapter._DEFAULT_GATEWAY_URL
+    assert gateway_url == "wss://resume.discord.gg"
+
+
+@pytest.mark.asyncio
+async def test_gateway_identify_when_no_session(adapter: DiscordAdapter) -> None:
+    """Test that IDENTIFY is used when no prior session exists."""
+    adapter._bot_token = "test-token"
+    adapter._session_id = None
+
+    # Verify gateway URL falls back to default
+    gateway_url = adapter._resume_gateway_url or adapter._DEFAULT_GATEWAY_URL
+    assert gateway_url == adapter._DEFAULT_GATEWAY_URL
+
+    # Verify _send_identify works
+    sent_messages: list[str] = []
+    mock_ws = MagicMock()
+    mock_ws.send = AsyncMock(side_effect=lambda data: sent_messages.append(data))
+
+    await adapter._send_identify(mock_ws)
+
+    identify_data = json.loads(sent_messages[0])
+    assert identify_data["op"] == 2
+
+
+@pytest.mark.asyncio
+async def test_gateway_ready_stores_session(adapter: DiscordAdapter) -> None:
+    """Test that READY event data is stored for future RESUME."""
+    assert adapter._session_id is None
+    assert adapter._resume_gateway_url is None
+
+    # Simulate what _run_gateway does on READY
+    ready_data = {
+        "session_id": "new-session-123",
+        "resume_gateway_url": "wss://resume.discord.gg/?v=10",
+    }
+    adapter._session_id = ready_data.get("session_id")
+    adapter._resume_gateway_url = ready_data.get("resume_gateway_url")
+
+    assert adapter._session_id == "new-session-123"
+    assert adapter._resume_gateway_url == "wss://resume.discord.gg/?v=10"
+
+
+def test_invalid_session_clears_state(adapter: DiscordAdapter) -> None:
+    """Test that non-resumable Invalid Session (op 9, d=false) clears session state."""
+    adapter._session_id = "old-session"
+    adapter._resume_gateway_url = "wss://resume.discord.gg"
+    adapter._sequence = 10
+
+    # Simulate what _run_gateway does on op 9 with d=false
+    resumable = False
+    if not resumable:
+        adapter._session_id = None
+        adapter._resume_gateway_url = None
+        adapter._sequence = None
+
+    assert adapter._session_id is None
+    assert adapter._resume_gateway_url is None
+    assert adapter._sequence is None

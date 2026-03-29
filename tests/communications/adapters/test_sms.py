@@ -98,6 +98,7 @@ async def test_send_message_success(
 
     with patch("httpx.AsyncClient.post") as mock_post:
         mock_response = MagicMock()
+        mock_response.status_code = 200
         mock_response.json.return_value = {"sid": "SM12345"}
         mock_post.return_value = mock_response
 
@@ -140,6 +141,71 @@ def test_parse_webhook(adapter: SMSAdapter) -> None:
     assert msg.content == "Hello from Twilio!"
     assert msg.platform_message_id == "SM12345"
     assert msg.identity_id == "+0987654321"
+    assert msg.metadata_json["opt_out_action"] is None
+
+
+@pytest.mark.parametrize("keyword", ["STOP", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"])
+def test_parse_webhook_opt_out(adapter: SMSAdapter, keyword: str) -> None:
+    """Test opt-out keyword detection."""
+    payload = {"From": "+1111111111", "Body": keyword, "MessageSid": "SM1"}
+    messages = adapter.parse_webhook(payload, {})
+    assert len(messages) == 1
+    assert messages[0].metadata_json["opt_out_action"] == "opt_out"
+
+
+@pytest.mark.parametrize("keyword", ["START", "UNSTOP", "YES"])
+def test_parse_webhook_opt_in(adapter: SMSAdapter, keyword: str) -> None:
+    """Test opt-in keyword detection."""
+    payload = {"From": "+1111111111", "Body": keyword, "MessageSid": "SM1"}
+    messages = adapter.parse_webhook(payload, {})
+    assert len(messages) == 1
+    assert messages[0].metadata_json["opt_out_action"] == "opt_in"
+
+
+def test_parse_webhook_opt_out_case_insensitive(adapter: SMSAdapter) -> None:
+    """Test opt-out keywords are case insensitive."""
+    payload = {"From": "+1111111111", "Body": "stop", "MessageSid": "SM1"}
+    messages = adapter.parse_webhook(payload, {})
+    assert messages[0].metadata_json["opt_out_action"] == "opt_out"
+
+
+@pytest.mark.asyncio
+async def test_messaging_service_sid(secret_resolver: Any) -> None:
+    """Test MessagingServiceSid is used when configured."""
+    config = ChannelConfig(
+        id="test_channel",
+        channel_type="sms",
+        name="Test SMS",
+        enabled=True,
+        config_json={
+            "account_sid": "test-account-sid",
+            "messaging_service_sid": "MG12345",
+        },
+        created_at="2024-01-01T00:00:00Z",
+        updated_at="2024-01-01T00:00:00Z",
+    )
+
+    adapter = SMSAdapter()
+    await adapter.initialize(config, secret_resolver)
+
+    with patch("httpx.AsyncClient.post") as mock_post:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"sid": "SM99"}
+        mock_post.return_value = mock_response
+
+        message = CommsMessage(
+            id="1",
+            channel_id="+0987654321",
+            direction="outbound",
+            content="Hello",
+            created_at="2024-01-01T00:00:00Z",
+        )
+        await adapter.send_message(message)
+
+        call_data = mock_post.call_args[1]["data"]
+        assert call_data["MessagingServiceSid"] == "MG12345"
+        assert "From" not in call_data
 
 
 def test_verify_webhook(adapter: SMSAdapter) -> None:

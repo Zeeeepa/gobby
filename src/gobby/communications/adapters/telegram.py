@@ -106,12 +106,7 @@ class TelegramAdapter(BaseChannelAdapter):
         if not chat_id:
             raise ValueError("No chat_id provided in message to send")
 
-        # Handle message chunking
-        content = message.content
-        chunks = [
-            content[i : i + self.max_message_length]
-            for i in range(0, len(content), self.max_message_length)
-        ]
+        chunks = self.chunk_message(message.content)
 
         last_message_id = None
         for chunk in chunks:
@@ -123,8 +118,10 @@ class TelegramAdapter(BaseChannelAdapter):
             if message.platform_thread_id:
                 payload["reply_to_message_id"] = message.platform_thread_id
 
-            response = await self._client.post(f"{self._api_base}/sendMessage", json=payload)
-            response.raise_for_status()
+            url = f"{self._api_base}/sendMessage"
+            response = await self._retry_request(
+                lambda u=url, p=payload: self._client.post(u, json=p)  # type: ignore[union-attr]
+            )
 
             data = response.json()
             if data.get("ok"):
@@ -151,8 +148,10 @@ class TelegramAdapter(BaseChannelAdapter):
         if message.platform_thread_id:
             data["reply_to_message_id"] = message.platform_thread_id
 
-        response = await self._client.post(f"{self._api_base}/sendDocument", data=data, files=files)
-        response.raise_for_status()
+        url = f"{self._api_base}/sendDocument"
+        response = await self._retry_request(
+            lambda: self._client.post(url, data=data, files=files)  # type: ignore[union-attr]
+        )
         result = response.json()
         if result.get("ok"):
             return str(result["result"]["message_id"])

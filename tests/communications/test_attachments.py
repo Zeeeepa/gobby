@@ -262,6 +262,8 @@ async def test_telegram_send_attachment(tmp_path: Path) -> None:
     adapter._api_base = "https://api.telegram.org/bot123"
 
     mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.headers = {}
     mock_response.json.return_value = {"ok": True, "result": {"message_id": 42}}
     mock_response.raise_for_status = MagicMock()
 
@@ -297,14 +299,24 @@ async def test_slack_send_attachment(tmp_path: Path) -> None:
 
     adapter = SlackAdapter()
     mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.headers = {}
     mock_response.json.return_value = {
         "ok": True,
-        "file": {"shares": {"public": {"C123": [{"ts": "1234567890.123456"}]}}},
+        "upload_url": "https://files.slack.com/upload/v1/test",
+        "file_id": "F_TEST",
     }
-    mock_response.raise_for_status = MagicMock()
+    mock_complete = MagicMock()
+    mock_complete.status_code = 200
+    mock_complete.headers = {}
+    mock_complete.json.return_value = {
+        "ok": True,
+        "files": [{"shares": {"public": {"C123": [{"ts": "1234567890.123456"}]}}}],
+    }
+    mock_complete.raise_for_status = MagicMock()
 
     adapter._client = AsyncMock()
-    adapter._client.post = AsyncMock(return_value=mock_response)
+    adapter._client.post = AsyncMock(side_effect=[mock_response, mock_complete])
 
     file = tmp_path / "report.csv"
     file.write_bytes(b"a,b,c")
@@ -324,7 +336,18 @@ async def test_slack_send_attachment(tmp_path: Path) -> None:
         size_bytes=5,
     )
 
-    result = await adapter.send_attachment(msg, att, file)
+    # Mock the httpx.AsyncClient used for the PUT upload in step 2
+    mock_upload_client = AsyncMock()
+    mock_upload_resp = MagicMock()
+    mock_upload_resp.raise_for_status = MagicMock()
+    mock_upload_client.put = AsyncMock(return_value=mock_upload_resp)
+    mock_upload_client.__aenter__ = AsyncMock(return_value=mock_upload_client)
+    mock_upload_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch(
+        "gobby.communications.adapters.slack.httpx.AsyncClient", return_value=mock_upload_client
+    ):
+        result = await adapter.send_attachment(msg, att, file)
     assert result == "1234567890.123456"
 
 
@@ -334,6 +357,8 @@ async def test_discord_send_attachment(tmp_path: Path) -> None:
 
     adapter = DiscordAdapter()
     mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.headers = {}
     mock_response.json.return_value = {"id": "999888777"}
     mock_response.raise_for_status = MagicMock()
 
@@ -431,6 +456,8 @@ async def test_sms_send_attachment_with_url() -> None:
     adapter = SMSAdapter()
     adapter._from_number = "+15551234567"
     mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.headers = {}
     mock_response.json.return_value = {"sid": "SM123abc"}
     mock_response.raise_for_status = MagicMock()
 

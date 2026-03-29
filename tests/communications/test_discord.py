@@ -63,6 +63,8 @@ async def test_send_message(adapter, mock_secret_resolver):
 
     with patch.object(adapter._client, "post", new_callable=AsyncMock) as mock_post:
         mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {}
         mock_response.json.return_value = {"id": "msg_456"}
         mock_response.raise_for_status.return_value = None
         mock_post.return_value = mock_response
@@ -100,6 +102,8 @@ async def test_send_message_chunking(adapter, mock_secret_resolver):
 
     with patch.object(adapter._client, "post", new_callable=AsyncMock) as mock_post:
         mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {}
         mock_response.json.return_value = {"id": "msg_456"}
         mock_response.raise_for_status.return_value = None
         mock_post.return_value = mock_response

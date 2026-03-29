@@ -111,6 +111,7 @@ async def test_send_message_basic(
     # Mock behavior depending on the url called
     async def side_effect(url, **kwargs):
         resp = MagicMock()
+        resp.status_code = 200
         resp.raise_for_status = MagicMock()
         if "deleteWebhook" in url:
             resp.json.return_value = {"ok": True}
@@ -161,6 +162,7 @@ async def test_send_message_chunking(
     # Mock behavior depending on the url called
     async def side_effect(url, **kwargs):
         resp = MagicMock()
+        resp.status_code = 200
         resp.raise_for_status = MagicMock()
         if "deleteWebhook" in url:
             resp.json.return_value = {"ok": True}
@@ -178,6 +180,7 @@ async def test_send_message_chunking(
 
         # Reset mock to only count send_message calls
         mock_post.reset_mock()
+        mock_post.side_effect = side_effect  # Re-apply after reset
 
         long_content = "A" * 5000
         message = CommsMessage(

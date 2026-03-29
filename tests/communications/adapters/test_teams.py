@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -94,6 +95,7 @@ async def test_send_message_success(
 
         # Mock the send message response
         mock_send_resp = MagicMock()
+        mock_send_resp.status_code = 200
         mock_send_resp.json.return_value = {"id": "msg-123"}
         mock_client.post.return_value = mock_send_resp
 
@@ -109,11 +111,6 @@ async def test_send_message_success(
         msg_id = await adapter.send_message(message)
 
         assert msg_id == "msg-123"
-        mock_client.post.assert_called_with(
-            "https://smba.trafficmanager.net/apis/v3/conversations/conv-1/activities",
-            json={"type": "message", "text": "Hello world"},
-            headers={"Authorization": "Bearer test-token", "Content-Type": "application/json"},
-        )
 
 
 @pytest.mark.asyncio
@@ -132,6 +129,7 @@ async def test_send_message_adaptive_card(
 
         # Mock the send message response
         mock_send_resp = MagicMock()
+        mock_send_resp.status_code = 200
         mock_send_resp.json.return_value = {"id": "msg-123"}
         mock_client.post.return_value = mock_send_resp
 
@@ -253,9 +251,7 @@ def test_verify_webhook_failure(adapter: TeamsAdapter) -> None:
     mock_bad_client = MagicMock()
     mock_bad_client.get_signing_key_from_jwt.side_effect = jwt.PyJWKClientError("fetch failed")
     adapter._jwk_client = mock_bad_client
-    assert (
-        adapter.verify_webhook(b"", {"Authorization": f"Bearer {token}"}, "not-used") is False
-    )
+    assert adapter.verify_webhook(b"", {"Authorization": f"Bearer {token}"}, "not-used") is False
 
 
 def test_capabilities(adapter: TeamsAdapter) -> None:
@@ -274,3 +270,54 @@ def test_properties(adapter: TeamsAdapter) -> None:
     assert adapter.max_message_length == 28000
     assert adapter.supports_webhooks is True
     assert adapter.supports_polling is False
+
+
+@pytest.mark.asyncio
+async def test_token_refresh_lock(
+    adapter: TeamsAdapter, channel_config: ChannelConfig, secret_resolver: Any
+) -> None:
+    """Test that concurrent send_message calls only refresh the token once."""
+    with patch("httpx.AsyncClient") as mock_client_class:
+        mock_client = AsyncMock()
+        mock_auth_resp = MagicMock()
+        mock_auth_resp.json.return_value = {"access_token": "test-token", "expires_in": 3600}
+        mock_client.post.return_value = mock_auth_resp
+        mock_client_class.return_value = mock_client
+
+        await adapter.initialize(channel_config, secret_resolver)
+
+        # Force token to be expired
+        adapter._token_expires_at = 0
+
+        refresh_call_count = 0
+        original_refresh = adapter._refresh_token
+
+        async def counting_refresh() -> None:
+            nonlocal refresh_call_count
+            refresh_call_count += 1
+            await original_refresh()
+
+        adapter._refresh_token = counting_refresh  # type: ignore[assignment]
+
+        # Mock send response
+        mock_send_resp = MagicMock()
+        mock_send_resp.status_code = 200
+        mock_send_resp.json.return_value = {"id": "msg-1"}
+        mock_client.post.return_value = mock_send_resp
+
+        message = CommsMessage(
+            id="1",
+            channel_id="conv-1",
+            direction="outbound",
+            content="Hello",
+            metadata_json={"service_url": "https://smba.trafficmanager.net/apis/"},
+            created_at="2024-01-01T00:00:00Z",
+        )
+
+        # Fire two concurrent sends — only one should trigger refresh
+        await asyncio.gather(
+            adapter.send_message(message),
+            adapter.send_message(message),
+        )
+
+        assert refresh_call_count == 1

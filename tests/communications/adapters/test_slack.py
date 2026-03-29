@@ -94,6 +94,7 @@ async def test_send_message_success(
 
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_response = MagicMock()
+        mock_response.status_code = 200
         mock_response.json.return_value = {"ok": True, "ts": "1234567890.123456"}
         mock_post.return_value = mock_response
 
@@ -180,7 +181,7 @@ def test_verify_webhook_invalid_signature(adapter: SlackAdapter) -> None:
         "X-Slack-Signature": "v0=invalid_signature",
     }
 
-    assert adapter.verify_webhook(payload, headers, secret) is False
+    assert adapter.verify_webhook(payload, headers, secret) is False  # noqa: E501
 
 
 def test_verify_webhook_replay_attack(adapter: SlackAdapter) -> None:
@@ -203,3 +204,89 @@ def test_verify_webhook_replay_attack(adapter: SlackAdapter) -> None:
     }
 
     assert adapter.verify_webhook(payload, headers, secret) is False
+
+
+@pytest.mark.asyncio
+async def test_send_attachment_three_step_upload(
+    adapter: SlackAdapter, channel_config: ChannelConfig, secret_resolver: Any
+) -> None:
+    """Test the files.getUploadURLExternal 3-step upload flow."""
+    from pathlib import Path
+
+    from gobby.communications.models import CommsAttachment
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_auth_response = MagicMock()
+        mock_auth_response.json.return_value = {"ok": True, "user_id": "U12345"}
+        mock_post.return_value = mock_auth_response
+        await adapter.initialize(channel_config, secret_resolver)
+
+    with (
+        patch("asyncio.to_thread", new_callable=AsyncMock) as mock_to_thread,
+        patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post,
+        patch("httpx.AsyncClient.put", new_callable=AsyncMock) as mock_put,
+    ):
+        mock_to_thread.return_value = b"file-content-bytes"
+
+        # Step 1: getUploadURLExternal response
+        mock_get_url_resp = MagicMock()
+        mock_get_url_resp.status_code = 200
+        mock_get_url_resp.json.return_value = {
+            "ok": True,
+            "upload_url": "https://files.slack.com/upload/v1/abc123",
+            "file_id": "F123456",
+        }
+
+        # Step 3: completeUploadExternal response
+        mock_complete_resp = MagicMock()
+        mock_complete_resp.status_code = 200
+        mock_complete_resp.json.return_value = {
+            "ok": True,
+            "files": [
+                {
+                    "id": "F123456",
+                    "shares": {"public": {"C12345": [{"ts": "111.222"}]}},
+                }
+            ],
+        }
+
+        mock_post.side_effect = [mock_get_url_resp, mock_complete_resp]
+
+        # Step 2: PUT to upload_url
+        mock_upload_resp = MagicMock()
+        mock_upload_resp.status_code = 200
+        mock_upload_resp.raise_for_status = MagicMock()
+        mock_put.return_value = mock_upload_resp
+
+        message = CommsMessage(
+            id="msg_1",
+            channel_id="C12345",
+            direction="outbound",
+            content="Here's the file",
+            created_at="2024-01-01T00:00:00Z",
+            platform_thread_id="thread_1",
+        )
+
+        attachment = CommsAttachment(
+            id="att_1",
+            message_id="msg_1",
+            filename="test.txt",
+            content_type="text/plain",
+            size_bytes=18,
+        )
+
+        ts = await adapter.send_attachment(message, attachment, Path("/fake/test.txt"))
+
+        assert ts == "111.222"
+
+        # Verify step 1: getUploadURLExternal
+        step1_call = mock_post.call_args_list[0]
+        assert step1_call[0][0] == "files.getUploadURLExternal"
+
+        # Verify step 3: completeUploadExternal
+        step3_call = mock_post.call_args_list[1]
+        assert step3_call[0][0] == "files.completeUploadExternal"
+        step3_data = step3_call[1]["data"]
+        assert step3_data["channel_id"] == "C12345"
+        assert step3_data["thread_ts"] == "thread_1"
+        assert step3_data["initial_comment"] == "Here's the file"

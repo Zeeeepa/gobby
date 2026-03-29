@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+import httpx
 
 if TYPE_CHECKING:
     from gobby.communications.models import (
@@ -12,6 +16,8 @@ if TYPE_CHECKING:
         CommsAttachment,
         CommsMessage,
     )
+
+logger = logging.getLogger(__name__)
 
 
 class BaseChannelAdapter(ABC):
@@ -77,6 +83,67 @@ class BaseChannelAdapter(ABC):
     async def poll(self) -> list[CommsMessage]:
         """Poll for new messages (default implementation returns empty list)."""
         return []
+
+    async def _retry_request(
+        self,
+        coro_factory: Callable[[], Awaitable[httpx.Response]],
+        max_retries: int = 3,
+        backoff_base: float = 1.0,
+    ) -> httpx.Response:
+        """Execute an HTTP request with retry logic for 429 and 5xx responses.
+
+        Args:
+            coro_factory: Zero-arg callable that returns a new awaitable for each attempt.
+            max_retries: Maximum number of retry attempts.
+            backoff_base: Base delay in seconds for exponential backoff.
+
+        Returns:
+            The successful HTTP response.
+
+        Raises:
+            httpx.HTTPStatusError: If all retries are exhausted or a non-retryable error occurs.
+        """
+        last_response: httpx.Response | None = None
+        for attempt in range(max_retries + 1):
+            response = await coro_factory()
+            last_response = response
+
+            if response.status_code == 429:
+                retry_after = response.headers.get("Retry-After")
+                if retry_after:
+                    delay = float(retry_after)
+                else:
+                    delay = backoff_base * (2**attempt)
+                logger.warning(
+                    "%s rate limited (429), retrying in %.1fs (attempt %d/%d)",
+                    self.channel_type,
+                    delay,
+                    attempt + 1,
+                    max_retries + 1,
+                )
+                await asyncio.sleep(delay)
+                continue
+
+            if response.status_code >= 500 and attempt < max_retries:
+                delay = backoff_base * (2**attempt)
+                logger.warning(
+                    "%s server error %d, retrying in %.1fs (attempt %d/%d)",
+                    self.channel_type,
+                    response.status_code,
+                    delay,
+                    attempt + 1,
+                    max_retries + 1,
+                )
+                await asyncio.sleep(delay)
+                continue
+
+            response.raise_for_status()
+            return response
+
+        # All retries exhausted — raise on last response
+        assert last_response is not None
+        last_response.raise_for_status()
+        return last_response  # Unreachable, but satisfies type checker
 
     def chunk_message(self, content: str, max_length: int | None = None) -> list[str]:
         """Split long messages respecting word boundaries."""
