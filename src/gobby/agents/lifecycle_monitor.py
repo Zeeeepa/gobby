@@ -588,7 +588,11 @@ class AgentLifecycleMonitor:
                 tmux_name = run.tmux_session_name
                 assert tmux_name is not None
 
-                pane_output = await self._tmux.capture_pane(tmux_name, lines=30)
+                # Only capture last 8 lines — provider errors appear at the
+                # bottom of the pane. 30 lines would include the agent's own
+                # working output (code, task descriptions) which can contain
+                # false-positive text like "rate limit" in variable names.
+                pane_output = await self._tmux.capture_pane(tmux_name, lines=8)
                 classification = self._stall_classifier.classify(
                     run.id,
                     pane_output=pane_output,

@@ -40,33 +40,37 @@ class _RunState:
     last_status: StallStatus = StallStatus.HEALTHY
 
 
-# Patterns that indicate provider-side errors (not the agent's fault)
+# Patterns that indicate provider-side errors (not the agent's fault).
+#
+# IMPORTANT: These patterns are matched against tmux pane output, which
+# includes the agent's own working text (code, task descriptions, file
+# contents). Patterns must be specific enough to avoid matching agents
+# working on code *about* rate limiting, error handling, etc.
 _PROVIDER_ERROR_PATTERNS: tuple[re.Pattern[str], ...] = (
-    # HTTP status codes
+    # HTTP status codes with error context — specific enough as-is
     re.compile(r"\b429\b.*(?:rate|limit|too many|quota)", re.IGNORECASE),
     re.compile(r"\b503\b.*(?:service|unavailable|overloaded)", re.IGNORECASE),
     re.compile(r"\b502\b.*(?:bad gateway|upstream)", re.IGNORECASE),
     re.compile(r"\b500\b.*(?:internal server error)", re.IGNORECASE),
-    # Rate limiting messages
-    re.compile(r"rate.?limit(?:ed|ing)?", re.IGNORECASE),
-    re.compile(r"too many requests", re.IGNORECASE),
-    re.compile(r"quota.?(?:exceeded|exhausted|limit)", re.IGNORECASE),
-    re.compile(r"tokens?.?per.?(?:minute|day|hour)", re.IGNORECASE),
-    # Timeout / connectivity
+    # Rate limiting — require error/exception context to avoid matching
+    # code that discusses rate limiting (task titles, variable names, etc.)
+    re.compile(r"(?:error|failed|exception|raise|fatal|❌).*rate.?limit", re.IGNORECASE),
+    re.compile(r"rate.?limit.*(?:error|exception|exceeded|please retry)", re.IGNORECASE),
+    re.compile(r"(?:error|failed|warning).*too many requests", re.IGNORECASE),
+    re.compile(r"quota\s+(?:exceeded|exhausted)", re.IGNORECASE),
+    # Timeout / connectivity — already specific
     re.compile(r"(?:request|connection|read)\s+timed?\s*out", re.IGNORECASE),
     re.compile(r"ETIMEDOUT|ECONNREFUSED|ECONNRESET", re.IGNORECASE),
     re.compile(r"network\s+error", re.IGNORECASE),
-    # Provider-specific
+    # Provider-specific error types — already specific (class names / error codes)
     re.compile(r"overloaded_error", re.IGNORECASE),
     re.compile(r"ResourceExhausted", re.IGNORECASE),
-    re.compile(r"capacity.*exceeded", re.IGNORECASE),
-    re.compile(r"model.*(?:busy|unavailable|overloaded)", re.IGNORECASE),
-    re.compile(r"server.*(?:busy|unavailable|overloaded)", re.IGNORECASE),
-    # Anthropic/OpenAI/Google specific
-    re.compile(r"anthropic.*error", re.IGNORECASE),
+    re.compile(r"capacity\s+exceeded", re.IGNORECASE),
+    # Anthropic/OpenAI/Google — use specific exception class names
     re.compile(r"APIConnectionError", re.IGNORECASE),
     re.compile(r"APIStatusError", re.IGNORECASE),
     re.compile(r"InternalServerError", re.IGNORECASE),
+    re.compile(r"anthropic\..*Error", re.IGNORECASE),
 )
 
 # Minimum consecutive checks with provider errors before confirming stall

@@ -22,16 +22,20 @@ class TestIsProviderError:
     @pytest.mark.parametrize(
         "error",
         [
+            # HTTP status codes with context
             "429 rate limit exceeded",
             "429 Too Many Requests",
             "503 service unavailable",
             "502 bad gateway error",
-            "rate limited by provider",
-            "rate-limiting in effect",
-            "too many requests, please retry",
-            "quota exceeded for model",
+            "500 internal server error",
+            # Rate limiting with error context
+            "Error: rate limited by provider",
+            "rate limit exceeded, please retry",
+            "failed: rate-limiting in effect",
+            "Error: too many requests, please retry",
+            "quota exceeded",
             "quota exhausted",
-            "tokens per minute limit reached",
+            # Timeout / connectivity
             "request timed out after 30s",
             "connection timed out",
             "read timeout",
@@ -39,15 +43,16 @@ class TestIsProviderError:
             "ECONNREFUSED",
             "ECONNRESET by peer",
             "network error during request",
+            # Provider-specific error types
             "overloaded_error",
             "ResourceExhausted: quota",
-            "capacity exceeded, try again later",
-            "model is currently busy",
-            "server unavailable",
-            "anthropic error: internal",
+            "capacity exceeded",
+            # Exception class names
             "APIConnectionError: connection failed",
             "APIStatusError: 529",
             "InternalServerError from provider",
+            "anthropic.APIError: rate limit",
+            "anthropic.RateLimitError: too many requests",
         ],
     )
     def test_matches_provider_errors(self, error: str) -> None:
@@ -63,6 +68,13 @@ class TestIsProviderError:
             "TypeError: cannot add str and int",
             "task failed validation",
             "git merge conflict in file.py",
+            # Task content that should NOT trigger (the whole point of this fix)
+            "Add rate limit handling to adapters",
+            "implement rate_limit_backoff()",
+            "rate_limiter = TokenBucketRateLimiter()",
+            "tokens per minute configuration",
+            "model busy flag check",
+            "from anthropic import Anthropic",
             "",
             None,
         ],
