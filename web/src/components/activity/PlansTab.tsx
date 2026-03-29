@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useEffect } from 'react'
 import type { Artifact } from '../../types/artifacts'
 import { ArtifactPanel } from '../chat/artifacts/ArtifactPanel'
 
@@ -7,15 +7,11 @@ interface PlansTabProps {
   artifact: Artifact | null
   onOpenArtifact: (id: string) => void
   onClose: () => void
-  onMinimize?: () => void
-  onMaximize?: () => void
-  isMaximized?: boolean
   onUpdateContent?: (id: string, content: string) => void
   onSetVersion: (id: string, index: number) => void
   planPendingApproval?: boolean
   onApprovePlan?: () => void
   onRequestPlanChanges?: (feedback: string) => void
-  onClearAll?: () => void
 }
 
 export const PlansTab = memo(function PlansTab({
@@ -23,112 +19,42 @@ export const PlansTab = memo(function PlansTab({
   artifact,
   onOpenArtifact,
   onClose,
-  onMinimize,
-  onMaximize,
-  isMaximized,
   onUpdateContent,
   onSetVersion,
   planPendingApproval,
   onApprovePlan,
   onRequestPlanChanges,
-  onClearAll,
 }: PlansTabProps) {
-  // Only show plan artifacts
-  const artifactList = Array.from(artifacts.values())
-    .filter((a) => a.isPlan)
-    .reverse()
+  // Only plan artifacts
+  const plans = Array.from(artifacts.values()).filter((a) => a.isPlan)
+  const latestPlan = plans[plans.length - 1] ?? null
 
-  const renderHistory = (isMini = false) => {
-    if (artifactList.length === 0) {
-      return (
-        <div className="activity-tab-empty">
-          <p>No plans yet</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Plans will appear here when the agent proposes one for review
-          </p>
-        </div>
-      )
+  // Auto-open the latest plan if none is active
+  useEffect(() => {
+    if (!artifact && latestPlan) {
+      onOpenArtifact(latestPlan.id)
     }
+  }, [artifact, latestPlan, onOpenArtifact])
 
+  if (!latestPlan) {
     return (
-      <div className={`flex flex-col h-full bg-background ${isMini ? 'border-r border-border w-64' : ''}`}>
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/20">
-          <h2 className="text-sm font-semibold truncate">{isMini ? 'Plans' : 'Plans'}</h2>
-          <div className="flex items-center gap-2 shrink-0">
-            {!isMini && <span className="text-xs text-muted-foreground">{artifactList.length} items</span>}
-            {onClearAll && artifactList.length > 0 && (
-              <button
-                onClick={onClearAll}
-                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                title="Clear all"
-              >
-                <TrashIcon />
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {artifactList.map((a) => (
-            <button
-              key={a.id}
-              onClick={() => onOpenArtifact(a.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted transition-colors border-b border-border/50 group ${artifact?.id === a.id ? 'bg-muted/50' : ''}`}
-            >
-              <div className="flex-1 min-w-0">
-                <div className={`text-sm font-medium truncate transition-colors ${artifact?.id === a.id ? 'text-primary' : 'group-hover:text-primary'}`}>
-                  {a.title}
-                </div>
-                {!isMini && a.versions.length > 1 && (
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[10px] text-muted-foreground">
-                      v{a.versions.length}
-                    </span>
-                  </div>
-                )}
-              </div>
-              {!isMini && <ChevronRightIcon />}
-            </button>
-          ))}
-        </div>
+      <div className="activity-tab-empty">
+        <p>No plans yet</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Plans will appear here when the agent proposes one for review
+        </p>
       </div>
     )
   }
 
-  if (!artifact) {
-    return renderHistory(false)
-  }
-
-  if (isMaximized) {
-    return (
-      <div className="flex h-full overflow-hidden bg-background">
-        {renderHistory(true)}
-        <div className="flex-1 min-w-0 overflow-hidden">
-          <ArtifactPanel
-            artifact={artifact}
-            onClose={onClose}
-            onMinimize={onMinimize}
-            onMaximize={onMaximize}
-            isMaximized={isMaximized}
-            onBack={() => onClose()}
-            onUpdateContent={onUpdateContent}
-            onSetVersion={onSetVersion}
-            planPendingApproval={planPendingApproval}
-            onApprovePlan={onApprovePlan}
-            onRequestPlanChanges={onRequestPlanChanges}
-          />
-        </div>
-      </div>
-    )
-  }
+  // Show the active plan (or latest if none selected)
+  const displayPlan = artifact?.isPlan ? artifact : latestPlan
 
   return (
     <ArtifactPanel
-      artifact={artifact}
+      artifact={displayPlan}
       onClose={onClose}
-      onMinimize={onMinimize}
-      onMaximize={onMaximize}
-      isMaximized={isMaximized}
-      onBack={() => onClose()}
+      onBack={onClose}
       onUpdateContent={onUpdateContent}
       onSetVersion={onSetVersion}
       planPendingApproval={planPendingApproval}
@@ -137,20 +63,3 @@ export const PlansTab = memo(function PlansTab({
     />
   )
 })
-
-function TrashIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="3 6 5 6 21 6" />
-      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-    </svg>
-  )
-}
-
-function ChevronRightIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
-      <polyline points="9 18 15 12 9 6" />
-    </svg>
-  )
-}

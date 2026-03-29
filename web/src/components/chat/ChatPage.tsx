@@ -375,7 +375,6 @@ export function ChatPage({
         onRequestPlanChanges={handleRequestPlanChanges}
         canvasState={canvas.activeCanvas}
         onCloseCanvas={canvas.closeCanvas}
-        onClearArtifacts={clearArtifacts}
         onClearCanvas={canvas.closeCanvas}
         changedFiles={fileChanges.changedFiles}
         fetchDiff={fileChanges.fetchDiff}

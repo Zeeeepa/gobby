@@ -141,7 +141,6 @@ interface ActivityPanelProps {
   canvasState: CanvasPanelState | null;
   onCloseCanvas: () => void;
   // Clear callbacks
-  onClearArtifacts?: () => void;
   onClearCanvas?: () => void;
   // File changes tab
   changedFiles?: { path: string; status: string }[];
@@ -175,7 +174,6 @@ export function ActivityPanel({
   onRequestPlanChanges,
   canvasState,
   onCloseCanvas,
-  onClearArtifacts,
   onClearCanvas,
   changedFiles = [],
   fetchDiff,
@@ -190,14 +188,6 @@ export function ActivityPanel({
 
   // Mobile: close handler
   const handleClose = () => onPinnedChange(false);
-
-  const handleMaximize = () => {
-    if (panelWidth < 800) {
-      onWidthChange(Math.min(1200, window.innerWidth - 100));
-    } else {
-      onWidthChange(480);
-    }
-  };
 
   const tabContent = () => {
     switch (activeTab) {
@@ -224,15 +214,11 @@ export function ActivityPanel({
             artifact={activeArtifact}
             onOpenArtifact={onOpenArtifact}
             onClose={onCloseArtifact}
-            onMinimize={onCloseArtifact}
-            onMaximize={handleMaximize}
-            isMaximized={panelWidth >= 800}
             onUpdateContent={onUpdateArtifactContent}
             onSetVersion={onSetArtifactVersion}
             planPendingApproval={planPendingApproval}
             onApprovePlan={onApprovePlan}
             onRequestPlanChanges={onRequestPlanChanges}
-            onClearAll={onClearArtifacts}
           />
         );
       case "artifacts":
