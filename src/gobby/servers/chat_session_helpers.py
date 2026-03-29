@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, TypedDict, cast
 
 from claude_agent_sdk.types import (
+    McpStdioServerConfig,
     PostToolUseHookSpecificOutput,
     PreToolUseHookSpecificOutput,
     SyncHookJSONOutput,
@@ -112,7 +113,7 @@ def _find_mcp_config() -> str | None:
     return None
 
 
-def _build_gobby_mcp_entry() -> dict[str, str | list[str]]:
+def _build_gobby_mcp_entry() -> McpStdioServerConfig:
     """Build gobby MCP server config for ClaudeAgentOptions.mcp_servers.
 
     Resolves the gobby binary using the same pattern as the installer
