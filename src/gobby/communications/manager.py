@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import uuid
 from collections.abc import Callable
@@ -11,15 +10,18 @@ from typing import TYPE_CHECKING, Any
 
 from gobby.communications.adapters import get_adapter_class
 from gobby.communications.attachments import AttachmentManager
+from gobby.communications.identities import IdentityManager
 from gobby.communications.models import (
     ChannelConfig,
     CommsAttachment,
     CommsIdentity,
     CommsMessage,
+    CommsRoutingRule,
 )
 from gobby.communications.polling import PollingManager
 from gobby.communications.rate_limiter import TokenBucketRateLimiter
 from gobby.communications.router import MessageRouter
+from gobby.communications.threads import ThreadManager
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -61,13 +63,22 @@ class CommunicationsManager:
         self._session_store = session_store
         self._adapters: dict[str, BaseChannelAdapter] = {}
         self._channel_by_name: dict[str, ChannelConfig] = {}
-        self._thread_map: dict[str, str] = {}  # "channel_name:session_id" -> platform_thread_id
-        self._thread_map_max_size = 10000  # Evict oldest entries beyond this limit
+
+        # Extracted managers
+        self._identity_manager = IdentityManager(store, session_store, config)
+        self._thread_manager = ThreadManager(max_size=10000)
+
         self.attachment_manager = AttachmentManager()
         self._rate_limiter = TokenBucketRateLimiter.from_defaults(config.channel_defaults)
         self._router = MessageRouter(store)
         self._polling_manager = PollingManager(self)
         self.event_callback: Callable[..., Any] | None = None
+
+    def _get_thread_id(self, channel_name: str, session_id: str) -> str | None:
+        return self._thread_manager.get_thread_id(channel_name, session_id)
+
+    def _track_thread(self, channel_name: str, session_id: str, platform_thread_id: str) -> None:
+        self._thread_manager.track_thread(channel_name, session_id, platform_thread_id)
 
     async def start(self) -> None:
         """Load enabled channels from DB, initialize adapters, configure rate limiter."""
@@ -131,6 +142,24 @@ class CommunicationsManager:
         if adapter_cls is None:
             raise ValueError(f"No adapter registered for channel type {channel.channel_type!r}")
         adapter = adapter_cls()
+
+        # Wire rate limiter backoff to the adapter
+        def on_rate_limit(duration: float, is_global: bool = False, cid: str = channel.id) -> None:
+            if is_global:
+                # Back off all channels of the same type
+                for c in self._channel_by_name.values():
+                    if c.channel_type == channel.channel_type:
+                        self._rate_limiter.set_backoff(c.id, duration)
+                logger.warning(
+                    "Global rate limit hit on %s, backing off ALL %s channels for %.1fs",
+                    channel.name,
+                    channel.channel_type,
+                    duration,
+                )
+            else:
+                self._rate_limiter.set_backoff(cid, duration)
+
+        adapter.set_rate_limit_callback(on_rate_limit)
         await adapter.initialize(channel, self._secret_store.get)
         return adapter
 
@@ -167,7 +196,27 @@ class CommunicationsManager:
         # Look up thread if we have a session
         platform_thread_id = None
         if session_id:
-            platform_thread_id = self._thread_map.get(f"{channel_name}:{session_id}")
+            platform_thread_id = self._get_thread_id(channel_name, session_id)
+
+        # Inject platform_destination from channel config if not already provided
+        effective_metadata = dict(metadata) if metadata else {}
+        if "platform_destination" not in effective_metadata:
+            # 1. Try channel default
+            default_dest = channel.config_json.get("default_destination")
+            if default_dest:
+                effective_metadata["platform_destination"] = default_dest
+
+            # 2. Try proactive messaging via identity conversation reference
+            if not effective_metadata.get("platform_destination") and session_id:
+                identity = self._identity_manager.get_identity_by_session(channel.id, session_id)
+                if identity and "conversation_reference" in identity.metadata_json:
+                    effective_metadata["conversation_reference"] = identity.metadata_json[
+                        "conversation_reference"
+                    ]
+                    logger.debug(
+                        "Injected conversation_reference for proactive messaging on %s",
+                        channel_name,
+                    )
 
         # Build CommsMessage
         message = CommsMessage(
@@ -178,7 +227,7 @@ class CommunicationsManager:
             session_id=session_id,
             status="pending",
             platform_thread_id=platform_thread_id,
-            metadata_json=metadata or {},
+            metadata_json=effective_metadata,
             created_at=datetime.now(UTC).isoformat(),
         )
 
@@ -241,9 +290,18 @@ class CommunicationsManager:
 
         platform_thread_id = None
         if session_id:
-            platform_thread_id = self._thread_map.get(f"{channel_name}:{session_id}")
+            platform_thread_id = self._thread_manager.get_thread_id(channel_name, session_id)
 
         display_name = filename or file_path.name
+
+        # Proactive messaging support for attachments
+        effective_metadata = dict(metadata) if metadata else {}
+        if "platform_destination" not in effective_metadata and session_id:
+            identity = self._identity_manager.get_identity_by_session(channel.id, session_id)
+            if identity and "conversation_reference" in identity.metadata_json:
+                effective_metadata["conversation_reference"] = identity.metadata_json[
+                    "conversation_reference"
+                ]
 
         message = CommsMessage(
             id=str(uuid.uuid4()),
@@ -254,7 +312,7 @@ class CommunicationsManager:
             session_id=session_id,
             status="pending",
             platform_thread_id=platform_thread_id,
-            metadata_json=metadata or {},
+            metadata_json=effective_metadata,
             created_at=datetime.now(UTC).isoformat(),
         )
 
@@ -337,64 +395,19 @@ class CommunicationsManager:
 
     def _find_cross_channel_identity(self, external_username: str) -> str | None:
         """Search for matching identity on other channels by username pattern."""
-        identities = self._store.find_identities_by_username(external_username)
-        for identity in identities:
-            if identity.session_id:
-                return str(identity.session_id)
-        return None
+        return self._identity_manager.find_cross_channel_identity(external_username)
 
     def _bridge_identity(self, identity_id: str, session_id: str) -> None:
         """Link existing identity to a session."""
-        identity = self._store.get_identity(identity_id)
-        if identity:
-            identity.session_id = session_id
-            self._store.update_identity(identity)
+        self._identity_manager.bridge_identity(identity_id, session_id)
 
     async def _resolve_identity(
         self, channel_id: str, external_user_id: str, external_username: str | None = None
     ) -> CommsIdentity:
         """Resolve identity and auto-create/link session if needed."""
-        identity = self._store.get_identity_by_external(channel_id, external_user_id)
-
-        session_id = None
-        if identity and identity.session_id:
-            session_id = identity.session_id
-        elif external_username:
-            session_id = self._find_cross_channel_identity(external_username)
-
-        if not session_id and self._config.auto_create_sessions:
-            session = self._session_store.register(
-                external_id=f"comms:{channel_id}:{external_user_id}",
-                machine_id="comms",
-                source="comms",
-                project_id="",
-                title=f"Comms: {external_username or external_user_id}",
-            )
-            session_id = session.id
-
-        if identity:
-            needs_update = False
-            if session_id and identity.session_id != session_id:
-                identity.session_id = session_id
-                needs_update = True
-            if external_username and identity.external_username != external_username:
-                identity.external_username = external_username
-                needs_update = True
-            if needs_update:
-                self._store.update_identity(identity)
-        else:
-            identity = CommsIdentity(
-                id="",
-                channel_id=channel_id,
-                external_user_id=external_user_id,
-                external_username=external_username,
-                session_id=session_id,
-                created_at="",
-                updated_at="",
-            )
-            identity = self._store.create_identity(identity)
-
-        return identity
+        return await self._identity_manager.resolve_identity(
+            channel_id, external_user_id, external_username
+        )
 
     async def handle_inbound_messages(
         self, channel_name: str, messages: list[CommsMessage]
@@ -437,19 +450,21 @@ class CommunicationsManager:
             # Resolve identity: if identity_id looks like an external_user_id, resolve it
             if message.identity_id:
                 external_username = message.metadata_json.get("external_username")
-                identity = await self._resolve_identity(
-                    channel.id, message.identity_id, external_username
+                # Capture conversation_reference from message metadata if present (proactive messaging)
+                identity_meta = {}
+                if "conversation_reference" in message.metadata_json:
+                    identity_meta["conversation_reference"] = message.metadata_json[
+                        "conversation_reference"
+                    ]
+
+                identity = await self._identity_manager.resolve_identity(
+                    channel.id, message.identity_id, external_username, metadata=identity_meta
                 )
                 message.session_id = identity.session_id
                 message.identity_id = identity.id
 
             if message.session_id and message.platform_thread_id:
-                self._thread_map[f"{channel_name}:{message.session_id}"] = (
-                    message.platform_thread_id
-                )
-                # Evict oldest entries if map exceeds limit
-                while len(self._thread_map) > self._thread_map_max_size:
-                    self._thread_map.pop(next(iter(self._thread_map)))
+                self._track_thread(channel_name, message.session_id, message.platform_thread_id)
 
             # Store message
             try:
@@ -473,6 +488,7 @@ class CommunicationsManager:
         channel_name: str,
         payload: dict[str, Any] | bytes,
         headers: dict[str, str],
+        raw_body: bytes | None = None,
     ) -> list[CommsMessage]:
         """Handle an inbound webhook payload.
 
@@ -495,8 +511,17 @@ class CommunicationsManager:
 
         # Verify webhook signature if a secret is configured
         if channel.webhook_secret:
-            raw = payload if isinstance(payload, bytes) else json.dumps(payload).encode()
-            if not adapter.verify_webhook(raw, headers, channel.webhook_secret):
+            verify_bytes: bytes
+            if raw_body is not None:
+                verify_bytes = raw_body
+            elif isinstance(payload, bytes):
+                verify_bytes = payload
+            else:
+                # We cannot safely verify signature without raw bytes, as JSON serialization
+                # might differ from the original request body, breaking HMAC.
+                raise ValueError("raw_body must be provided for webhook signature verification")
+
+            if not adapter.verify_webhook(verify_bytes, headers, channel.webhook_secret):
                 raise ValueError(
                     f"Webhook signature verification failed for channel {channel_name!r}"
                 )
@@ -504,6 +529,13 @@ class CommunicationsManager:
         # Parse messages from payload
         payload_for_parse: dict[str, Any] | bytes = payload
         parsed: list[CommsMessage] = adapter.parse_webhook(payload_for_parse, headers)
+
+        # If any message is a URL verification challenge, return immediately without storing
+        for msg in parsed:
+            if msg.content_type == "url_verification":
+                if not msg.channel_id:
+                    msg.channel_id = channel.id
+                return parsed
 
         return await self.handle_inbound_messages(channel_name, parsed)
 
@@ -638,6 +670,29 @@ class CommunicationsManager:
             adapter.set_broadcast(broadcast)
             logger.info("WebChatAdapter wired to WebSocket broadcast")
 
+    def get_channel(self, channel_id: str) -> ChannelConfig | None:
+        """Get a channel by ID.
+
+        Args:
+            channel_id: The channel UUID.
+
+        Returns:
+            ChannelConfig if found, None otherwise.
+        """
+        return self._store.get_channel(channel_id)
+
+    def update_channel(self, channel: ChannelConfig) -> ChannelConfig:
+        """Update channel configuration in DB.
+
+        Args:
+            channel: The ChannelConfig with updated fields.
+
+        Returns:
+            The updated ChannelConfig.
+        """
+        channel.updated_at = datetime.now(UTC).isoformat()
+        return self._store.update_channel(channel)
+
     def list_channels(self) -> list[ChannelConfig]:
         """List all channels (enabled and disabled) from DB.
 
@@ -683,3 +738,115 @@ class CommunicationsManager:
             "active": False,
             "enabled": db_channel.enabled,
         }
+
+    # --- Public store delegation methods ---
+
+    def get_channel_by_name(self, name: str) -> ChannelConfig | None:
+        """Get a channel by name.
+
+        Args:
+            name: The channel name.
+
+        Returns:
+            ChannelConfig if found, None otherwise.
+        """
+        return self._store.get_channel_by_name(name)
+
+    def list_messages(
+        self,
+        channel_id: str | None = None,
+        session_id: str | None = None,
+        direction: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[CommsMessage]:
+        """List messages with optional filters.
+
+        Args:
+            channel_id: Filter by channel ID.
+            session_id: Filter by session ID.
+            direction: Filter by direction ('inbound' or 'outbound').
+            limit: Max results to return.
+            offset: Number of results to skip.
+
+        Returns:
+            List of CommsMessage objects.
+        """
+        return self._store.list_messages(
+            channel_id=channel_id,
+            session_id=session_id,
+            direction=direction,
+            limit=limit,
+            offset=offset,
+        )
+
+    def get_identity_by_external(
+        self, channel_id: str, external_user_id: str
+    ) -> CommsIdentity | None:
+        """Get an identity by channel and external user ID.
+
+        Args:
+            channel_id: The channel UUID.
+            external_user_id: The external platform user ID.
+
+        Returns:
+            CommsIdentity if found, None otherwise.
+        """
+        return self._store.get_identity_by_external(channel_id, external_user_id)
+
+    def list_identities(self, channel_id: str | None = None) -> list[CommsIdentity]:
+        """List identities, optionally filtered by channel.
+
+        Args:
+            channel_id: Optional channel ID filter.
+
+        Returns:
+            List of CommsIdentity objects.
+        """
+        return self._store.list_identities(channel_id=channel_id)
+
+    def update_identity_session(self, identity_id: str, session_id: str | None) -> None:
+        """Link or unlink an identity to a session.
+
+        Args:
+            identity_id: The identity UUID.
+            session_id: Session ID to link, or None to unlink.
+        """
+        self._store.update_identity_session(identity_id, session_id)
+
+    # --- Routing Rule CRUD (with cache invalidation) ---
+
+    def create_routing_rule(self, rule: CommsRoutingRule) -> CommsRoutingRule:
+        """Create a routing rule and invalidate the router cache.
+
+        Args:
+            rule: The routing rule to create.
+
+        Returns:
+            The created routing rule.
+        """
+        result = self._store.create_routing_rule(rule)
+        self._router.invalidate_cache()
+        return result
+
+    def update_routing_rule(self, rule: CommsRoutingRule) -> CommsRoutingRule:
+        """Update a routing rule and invalidate the router cache.
+
+        Args:
+            rule: The routing rule to update.
+
+        Returns:
+            The updated routing rule.
+        """
+        result = self._store.update_routing_rule(rule)
+        self._router.invalidate_cache()
+        return result
+
+    def delete_routing_rule(self, rule_id: str) -> None:
+        """Delete a routing rule and invalidate the router cache.
+
+        Args:
+            rule_id: ID of the rule to delete.
+        """
+        self._store.delete_routing_rule(rule_id)
+        self._router.invalidate_cache()

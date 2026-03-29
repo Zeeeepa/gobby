@@ -25,6 +25,13 @@ def mock_manager(mock_store):
     manager.add_channel = AsyncMock()
     manager.remove_channel = AsyncMock()
     manager.get_channel_status = MagicMock(return_value={"connected": True})
+    # Public delegation methods (mirror CommunicationsManager API)
+    manager.list_channels = mock_store.list_channels
+    manager.get_channel_by_name = mock_store.get_channel_by_name
+    manager.list_messages = mock_store.list_messages
+    manager.get_identity_by_external = mock_store.get_identity_by_external
+    manager.list_identities = mock_store.list_identities
+    manager.update_identity_session = mock_store.update_identity_session
     return manager
 
 

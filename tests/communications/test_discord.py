@@ -49,7 +49,11 @@ async def test_send_message(adapter, mock_secret_resolver):
         enabled=True,
         created_at="2024-01-01T00:00:00Z",
         updated_at="2024-01-01T00:00:00Z",
-        config_json={"bot_token": "$secret:DISCORD_BOT_TOKEN", "enable_gateway": False},
+        config_json={
+            "bot_token": "$secret:DISCORD_BOT_TOKEN",
+            "enable_gateway": False,
+            "channel_id": "channel_123",
+        },
     )
     await adapter.initialize(config, mock_secret_resolver)
 
@@ -87,7 +91,11 @@ async def test_send_message_chunking(adapter, mock_secret_resolver):
         enabled=True,
         created_at="2024-01-01T00:00:00Z",
         updated_at="2024-01-01T00:00:00Z",
-        config_json={"bot_token": "$secret:DISCORD_BOT_TOKEN", "enable_gateway": False},
+        config_json={
+            "bot_token": "$secret:DISCORD_BOT_TOKEN",
+            "enable_gateway": False,
+            "channel_id": "channel_123",
+        },
     )
     await adapter.initialize(config, mock_secret_resolver)
 

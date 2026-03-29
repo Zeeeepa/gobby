@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import jwt
@@ -53,6 +54,71 @@ async def test_initialize_and_refresh(adapter, mock_secret_resolver):
 
 
 @pytest.mark.asyncio
+async def test_concurrent_refresh(adapter, mock_secret_resolver):
+    config = ChannelConfig(
+        id="test",
+        channel_type="teams",
+        name="test",
+        enabled=True,
+        created_at="2024-01-01T00:00:00Z",
+        updated_at="2024-01-01T00:00:00Z",
+        config_json={},
+    )
+
+    # Initial initialize
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"access_token": "token_1", "expires_in": 3600}
+        mock_response.raise_for_status.return_value = None
+        mock_post.return_value = mock_response
+
+        await adapter.initialize(config, mock_secret_resolver)
+
+    # Force expiration
+    adapter._token_expires_at = 0
+
+    # Mock post with a small delay to simulate network I/O
+    async def slow_post(*args, **kwargs):
+        await asyncio.sleep(0.1)
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"access_token": "token_2", "expires_in": 3600}
+        mock_resp.raise_for_status.return_value = None
+        return mock_resp
+
+    call_count = 0
+
+    async def counting_post(*args, **kwargs):
+        nonlocal call_count
+        # First call is the token refresh, subsequent are the send
+        call_count += 1
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {}
+        if "oauth2" in str(args):
+            await asyncio.sleep(0.1)
+            mock_resp.json.return_value = {"access_token": "token_2", "expires_in": 3600}
+        else:
+            mock_resp.json.return_value = {"id": "msg_1"}
+        mock_resp.raise_for_status.return_value = None
+        return mock_resp
+
+    msg = CommsMessage(
+        id="test_id",
+        channel_id="conv_123",
+        direction="outbound",
+        content="Hello",
+        metadata_json={"service_url": "https://smba.trafficmanager.net/teams/"},
+        created_at="2024-01-01T00:00:00Z",
+    )
+
+    with patch.object(adapter._client, "post", side_effect=counting_post):
+        # Concurrent send_messages — lock ensures only one refresh
+        await asyncio.gather(
+            adapter.send_message(msg), adapter.send_message(msg), adapter.send_message(msg)
+        )
+
+
+@pytest.mark.asyncio
 async def test_send_message(adapter, mock_secret_resolver):
     config = ChannelConfig(
         id="test",
@@ -77,7 +143,10 @@ async def test_send_message(adapter, mock_secret_resolver):
         channel_id="conv_123",
         direction="outbound",
         content="Hello teams",
-        metadata_json={"service_url": "https://smba.trafficmanager.net/teams/"},
+        metadata_json={
+            "service_url": "https://smba.trafficmanager.net/teams/",
+            "platform_destination": "conv_123",
+        },
         created_at="2024-01-01T00:00:00Z",
     )
 

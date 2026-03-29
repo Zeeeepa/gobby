@@ -55,7 +55,9 @@ def create_communications_router(server: HTTPServer) -> APIRouter:
                 pass
 
         try:
-            messages = await comms_manager.handle_inbound(channel_name, payload, headers)
+            messages = await comms_manager.handle_inbound(
+                channel_name, payload, headers, raw_body=body
+            )
 
             # Check for challenge response (e.g., Slack url_verification)
             for msg in messages:
@@ -120,19 +122,16 @@ def create_communications_router(server: HTTPServer) -> APIRouter:
         if not comms_manager:
             raise HTTPException(status_code=503, detail="Communications manager not available")
 
-        store = comms_manager._store
-        channel = store.get_channel(channel_id)
+        channel = comms_manager.get_channel(channel_id)
         if not channel:
             raise HTTPException(status_code=404, detail="Channel not found")
 
-        updated = store.update_channel(
-            channel_id=channel_id,
-            config_json=request.config,
-            enabled=request.enabled,
-        )
+        if request.config is not None:
+            channel.config_json = request.config
+        if request.enabled is not None:
+            channel.enabled = request.enabled
 
-        if not updated:
-            raise HTTPException(status_code=404, detail="Channel not found")
+        updated = comms_manager.update_channel(channel)
 
         return asdict(updated)
 
@@ -143,8 +142,7 @@ def create_communications_router(server: HTTPServer) -> APIRouter:
         if not comms_manager:
             raise HTTPException(status_code=503, detail="Communications manager not available")
 
-        store = comms_manager._store
-        channel = store.get_channel(channel_id)
+        channel = comms_manager.get_channel(channel_id)
         if not channel:
             raise HTTPException(status_code=404, detail="Channel not found")
 
@@ -161,8 +159,7 @@ def create_communications_router(server: HTTPServer) -> APIRouter:
         if not comms_manager:
             raise HTTPException(status_code=503, detail="Communications manager not available")
 
-        store = comms_manager._store
-        channel = store.get_channel(channel_id)
+        channel = comms_manager.get_channel(channel_id)
         if not channel:
             raise HTTPException(status_code=404, detail="Channel not found")
 
@@ -182,8 +179,7 @@ def create_communications_router(server: HTTPServer) -> APIRouter:
         if not comms_manager:
             raise HTTPException(status_code=503, detail="Communications manager not available")
 
-        store = comms_manager._store
-        messages = store.list_messages(
+        messages = comms_manager.list_messages(
             channel_id=channel_id,
             session_id=session_id,
             direction=direction,

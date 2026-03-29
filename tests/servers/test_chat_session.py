@@ -31,7 +31,10 @@ class TestCanUseTool:
 
         with (
             patch("gobby.servers.chat_session._find_cli_path", return_value="/usr/bin/claude"),
-            patch("gobby.servers.chat_session._build_gobby_mcp_entry", return_value={"command": "gobby", "args": ["mcp-server"]}),
+            patch(
+                "gobby.servers.chat_session._build_gobby_mcp_entry",
+                return_value={"command": "gobby", "args": ["mcp-server"]},
+            ),
             patch("gobby.servers.chat_session._find_project_root", return_value=None),
             patch(
                 "gobby.servers.chat_session._load_chat_system_prompt", return_value="test prompt"
@@ -241,7 +244,10 @@ class TestProjectRouting:
 
         with (
             patch("gobby.servers.chat_session._find_cli_path", return_value="/usr/bin/claude"),
-            patch("gobby.servers.chat_session._build_gobby_mcp_entry", return_value={"command": "gobby", "args": ["mcp-server"]}),
+            patch(
+                "gobby.servers.chat_session._build_gobby_mcp_entry",
+                return_value={"command": "gobby", "args": ["mcp-server"]},
+            ),
             patch(
                 "gobby.servers.chat_session._load_chat_system_prompt", return_value="test prompt"
             ),
@@ -271,7 +277,10 @@ class TestProjectRouting:
 
         with (
             patch("gobby.servers.chat_session._find_cli_path", return_value="/usr/bin/claude"),
-            patch("gobby.servers.chat_session._build_gobby_mcp_entry", return_value={"command": "gobby", "args": ["mcp-server"]}),
+            patch(
+                "gobby.servers.chat_session._build_gobby_mcp_entry",
+                return_value={"command": "gobby", "args": ["mcp-server"]},
+            ),
             patch("gobby.servers.chat_session._find_project_root", return_value=None),
             patch(
                 "gobby.servers.chat_session._load_chat_system_prompt", return_value="test prompt"

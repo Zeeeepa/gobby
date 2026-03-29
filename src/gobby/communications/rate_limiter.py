@@ -20,7 +20,11 @@ class _Bucket:
 
 
 class TokenBucketRateLimiter:
-    """Token-bucket rate limiter with per-channel tracking."""
+    """Token-bucket rate limiter with per-channel tracking.
+
+    Note: This is an in-memory, single-instance rate limiter. It is suitable for
+    Gobby's single-daemon architecture but would not work for a multi-instance deployment.
+    """
 
     def __init__(
         self,
@@ -36,6 +40,7 @@ class TokenBucketRateLimiter:
         self._default_rate = default_rate / 60.0
         self._default_burst = default_burst
         self._buckets: dict[str, _Bucket] = {}
+        self._backoffs: dict[str, float] = {}  # channel_id -> monotonic expiry time
 
     @classmethod
     def from_defaults(cls, defaults: ChannelDefaults) -> TokenBucketRateLimiter:
@@ -44,6 +49,16 @@ class TokenBucketRateLimiter:
             default_rate=defaults.rate_limit_per_minute,
             default_burst=defaults.burst,
         )
+
+    def set_backoff(self, channel_id: str, duration_seconds: float) -> None:
+        """Set a mandatory backoff for a channel.
+
+        Args:
+            channel_id: The ID of the channel.
+            duration_seconds: How long to back off in seconds.
+        """
+        expiry = time.monotonic() + duration_seconds
+        self._backoffs[channel_id] = max(self._backoffs.get(channel_id, 0), expiry)
 
     def _get_or_create_bucket(self, channel_id: str) -> _Bucket:
         """Get an existing bucket or create a new one with default settings."""
@@ -100,6 +115,10 @@ class TokenBucketRateLimiter:
         Returns:
             True if a token was consumed, False otherwise.
         """
+        # Check backoff first
+        if time.monotonic() < self._backoffs.get(channel_id, 0):
+            return False
+
         bucket = self._get_or_create_bucket(channel_id)
         self._refill(bucket)
 
@@ -115,6 +134,13 @@ class TokenBucketRateLimiter:
             channel_id: The ID of the channel.
         """
         while True:
+            # Respect backoff
+            now = time.monotonic()
+            backoff_expiry = self._backoffs.get(channel_id, 0)
+            if now < backoff_expiry:
+                await asyncio.sleep(backoff_expiry - now)
+                continue
+
             # We don't really need the lock for single bucket ops as they are atomic-ish in GIL,
             # but for refill + check it's safer. However, this is local memory state.
             bucket = self._get_or_create_bucket(channel_id)

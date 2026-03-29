@@ -321,6 +321,12 @@ class HookManager:
         # Resolve platform session_id from CLI external_id
         self._session_lookup.resolve(event)  # side-effect: enriches event.metadata
 
+        # Translate #N session references to UUIDs for MCP tool calls.
+        # #N is human-friendly but ambiguous across projects (seq_num is per-project).
+        # The hook has project context; the MCP server doesn't. Resolve here so
+        # downstream tools get unambiguous UUIDs.
+        self._resolve_session_refs_in_tool_input(event)
+
         # Get handler for this event type
         handler = self._get_event_handler(event.event_type)
         if handler is None:
@@ -379,6 +385,13 @@ class HookManager:
         if "_modified_input" in event.metadata:
             response.modified_input = event.metadata.pop("_modified_input")
             response.auto_approve = event.metadata.pop("_auto_approve", False)
+
+        # If we resolved #N session refs but no rule/coercion set _modified_input,
+        # create one so Claude Code sends UUIDs to the MCP server
+        if event.metadata.pop("_session_refs_resolved", False):
+            if not response.modified_input:
+                response.modified_input = event.data.get("tool_input", {})
+                response.auto_approve = True
 
         # Apply output compression from rule evaluation (PostToolUse)
         if "_compression" in event.metadata:
@@ -460,6 +473,64 @@ class HookManager:
             Handler method or None if not found.
         """
         return self._event_handlers.get_handler(event_type)
+
+    def _resolve_session_refs_in_tool_input(self, event: HookEvent) -> None:
+        """Resolve #N session references to UUIDs in MCP tool arguments.
+
+        Modifies event.data["tool_input"] in place so all downstream consumers
+        (rules, handlers, auto-coercion) see resolved UUIDs. Sets a flag so
+        post-processing knows to create _modified_input if no one else did.
+        """
+        if event.event_type != HookEventType.BEFORE_TOOL:
+            return
+
+        tool_name = (event.data or {}).get("tool_name", "")
+        if not tool_name.startswith("mcp__gobby__"):
+            return
+
+        tool_input = event.data.get("tool_input")
+        if not tool_input or not isinstance(tool_input, dict):
+            return
+
+        project_id = event.project_id
+        modified = False
+
+        # Top-level session_id (set_variable, get_variable, call_tool, etc.)
+        modified |= self._try_resolve_session_field(tool_input, "session_id", project_id)
+
+        # Nested session_id inside call_tool arguments
+        if tool_name == "mcp__gobby__call_tool":
+            args = tool_input.get("arguments")
+            if isinstance(args, dict):
+                modified |= self._try_resolve_session_field(args, "session_id", project_id)
+
+        if modified:
+            event.metadata["_session_refs_resolved"] = True
+
+    def _try_resolve_session_field(
+        self, d: dict[str, Any], field: str, project_id: str | None
+    ) -> bool:
+        """Resolve a #N session reference in d[field] to UUID in place.
+
+        Returns True if the field was rewritten.
+        """
+        val = d.get(field)
+        if not isinstance(val, str):
+            return False
+
+        ref = val.lstrip("#") if val.startswith("#") else val
+        if not ref.isdigit():
+            return False  # Already a UUID or prefix — no resolution needed
+
+        try:
+            resolved = self._session_manager.resolve_session_reference(val, project_id)
+            if resolved != val:
+                d[field] = resolved
+                return True
+        except (ValueError, Exception) as e:
+            self.logger.debug(f"Could not resolve session ref '{val}': {e}")
+
+        return False
 
     def _evaluate_workflow_rules(self, event: HookEvent) -> tuple[str | None, HookResponse | None]:
         """Evaluate workflow rules and dispatch mcp_call effects.

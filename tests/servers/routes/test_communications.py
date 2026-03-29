@@ -135,8 +135,8 @@ def test_update_channel(client, comms_manager):
         created_at="2023-01-01T00:00:00Z",
         updated_at="2023-01-01T00:00:00Z",
     )
-    comms_manager._store.get_channel.return_value = ch
-    comms_manager._store.update_channel.return_value = ch
+    comms_manager.get_channel.return_value = ch
+    comms_manager.update_channel.return_value = ch
 
     response = client.put(
         "/api/comms/channels/ch1", json={"config": {"foo": "baz"}, "enabled": False}
@@ -144,9 +144,58 @@ def test_update_channel(client, comms_manager):
 
     assert response.status_code == 200
     assert response.json()["id"] == "ch1"
-    comms_manager._store.update_channel.assert_called_once_with(
-        channel_id="ch1", config_json={"foo": "baz"}, enabled=False
+    comms_manager.update_channel.assert_called_once_with(ch)
+    assert ch.config_json == {"foo": "baz"}
+    assert ch.enabled is False
+
+
+def test_update_channel_partial_config_only(client, comms_manager):
+    """Test that partial updates (only config, not enabled) don't overwrite with None."""
+    ch = ChannelConfig(
+        id="ch1",
+        channel_type="slack",
+        name="myslack",
+        enabled=True,
+        config_json={"old": "value"},
+        created_at="2023-01-01T00:00:00Z",
+        updated_at="2023-01-01T00:00:00Z",
     )
+    comms_manager.get_channel.return_value = ch
+    comms_manager.update_channel.return_value = ch
+
+    response = client.put("/api/comms/channels/ch1", json={"config": {"new": "config"}})
+
+    assert response.status_code == 200
+    assert ch.config_json == {"new": "config"}
+    assert ch.enabled is True  # Not overwritten to None
+
+
+def test_update_channel_partial_enabled_only(client, comms_manager):
+    """Test that partial updates (only enabled, not config) don't overwrite with None."""
+    ch = ChannelConfig(
+        id="ch1",
+        channel_type="slack",
+        name="myslack",
+        enabled=True,
+        config_json={"keep": "this"},
+        created_at="2023-01-01T00:00:00Z",
+        updated_at="2023-01-01T00:00:00Z",
+    )
+    comms_manager.get_channel.return_value = ch
+    comms_manager.update_channel.return_value = ch
+
+    response = client.put("/api/comms/channels/ch1", json={"enabled": False})
+
+    assert response.status_code == 200
+    assert ch.enabled is False
+    assert ch.config_json == {"keep": "this"}  # Not overwritten to None
+
+
+def test_update_channel_not_found(client, comms_manager):
+    comms_manager.get_channel.return_value = None
+
+    response = client.put("/api/comms/channels/ch1", json={"enabled": False})
+    assert response.status_code == 404
 
 
 def test_remove_channel(client, comms_manager):
@@ -159,7 +208,7 @@ def test_remove_channel(client, comms_manager):
         created_at="2023-01-01T00:00:00Z",
         updated_at="2023-01-01T00:00:00Z",
     )
-    comms_manager._store.get_channel.return_value = ch
+    comms_manager.get_channel.return_value = ch
 
     response = client.delete("/api/comms/channels/ch1")
     assert response.status_code == 200
@@ -177,7 +226,7 @@ def test_get_channel_status(client, comms_manager):
         created_at="2023-01-01T00:00:00Z",
         updated_at="2023-01-01T00:00:00Z",
     )
-    comms_manager._store.get_channel.return_value = ch
+    comms_manager.get_channel.return_value = ch
     comms_manager.get_channel_status.return_value = {"name": "myslack", "status": "active"}
 
     response = client.get("/api/comms/channels/ch1/status")
@@ -193,13 +242,13 @@ def test_list_messages(client, comms_manager):
         content="test",
         created_at="2023-01-01T00:00:00Z",
     )
-    comms_manager._store.list_messages.return_value = [msg]
+    comms_manager.list_messages.return_value = [msg]
 
     response = client.get("/api/comms/messages?channel_id=ch1")
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
     assert data[0]["id"] == "msg1"
-    comms_manager._store.list_messages.assert_called_once_with(
+    comms_manager.list_messages.assert_called_once_with(
         channel_id="ch1", session_id=None, direction=None, limit=50, offset=0
     )

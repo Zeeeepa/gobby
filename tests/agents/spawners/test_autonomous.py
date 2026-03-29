@@ -118,7 +118,10 @@ class TestSuccessfulRun:
             patch(
                 "gobby.agents.spawners.autonomous._find_cli_path", return_value="/usr/bin/claude"
             ),
-            patch("gobby.agents.spawners.autonomous._build_gobby_mcp_entry", return_value={"command": "gobby", "args": ["mcp-server"]}),
+            patch(
+                "gobby.agents.spawners.autonomous._build_gobby_mcp_entry",
+                return_value={"command": "gobby", "args": ["mcp-server"]},
+            ),
             patch("gobby.agents.spawners.autonomous.ClaudeSDKClient", return_value=client),
         ):
             result = await runner.run()
@@ -145,7 +148,10 @@ class TestSuccessfulRun:
             patch(
                 "gobby.agents.spawners.autonomous._find_cli_path", return_value="/usr/bin/claude"
             ),
-            patch("gobby.agents.spawners.autonomous._build_gobby_mcp_entry", return_value={"command": "gobby", "args": ["mcp-server"]}),
+            patch(
+                "gobby.agents.spawners.autonomous._build_gobby_mcp_entry",
+                return_value={"command": "gobby", "args": ["mcp-server"]},
+            ),
             patch("gobby.agents.spawners.autonomous.ClaudeSDKClient", return_value=client),
         ):
             result = await runner.run()
@@ -172,7 +178,10 @@ class TestSessionIdCapture:
             patch(
                 "gobby.agents.spawners.autonomous._find_cli_path", return_value="/usr/bin/claude"
             ),
-            patch("gobby.agents.spawners.autonomous._build_gobby_mcp_entry", return_value={"command": "gobby", "args": ["mcp-server"]}),
+            patch(
+                "gobby.agents.spawners.autonomous._build_gobby_mcp_entry",
+                return_value={"command": "gobby", "args": ["mcp-server"]},
+            ),
             patch("gobby.agents.spawners.autonomous.ClaudeSDKClient", return_value=client),
         ):
             await runner.run()
@@ -193,7 +202,10 @@ class TestSessionIdCapture:
             patch(
                 "gobby.agents.spawners.autonomous._find_cli_path", return_value="/usr/bin/claude"
             ),
-            patch("gobby.agents.spawners.autonomous._build_gobby_mcp_entry", return_value={"command": "gobby", "args": ["mcp-server"]}),
+            patch(
+                "gobby.agents.spawners.autonomous._build_gobby_mcp_entry",
+                return_value={"command": "gobby", "args": ["mcp-server"]},
+            ),
             patch("gobby.agents.spawners.autonomous.ClaudeSDKClient", return_value=client),
         ):
             await runner.run()
@@ -219,7 +231,10 @@ class TestAgentRunManager:
             patch(
                 "gobby.agents.spawners.autonomous._find_cli_path", return_value="/usr/bin/claude"
             ),
-            patch("gobby.agents.spawners.autonomous._build_gobby_mcp_entry", return_value={"command": "gobby", "args": ["mcp-server"]}),
+            patch(
+                "gobby.agents.spawners.autonomous._build_gobby_mcp_entry",
+                return_value={"command": "gobby", "args": ["mcp-server"]},
+            ),
             patch("gobby.agents.spawners.autonomous.ClaudeSDKClient", return_value=client),
         ):
             await runner.run()
@@ -241,7 +256,10 @@ class TestAgentRunManager:
             patch(
                 "gobby.agents.spawners.autonomous._find_cli_path", return_value="/usr/bin/claude"
             ),
-            patch("gobby.agents.spawners.autonomous._build_gobby_mcp_entry", return_value={"command": "gobby", "args": ["mcp-server"]}),
+            patch(
+                "gobby.agents.spawners.autonomous._build_gobby_mcp_entry",
+                return_value={"command": "gobby", "args": ["mcp-server"]},
+            ),
             patch("gobby.agents.spawners.autonomous.ClaudeSDKClient", return_value=client),
         ):
             with pytest.raises(RuntimeError, match="SDK exploded"):
@@ -263,7 +281,10 @@ class TestAgentRunManager:
             patch(
                 "gobby.agents.spawners.autonomous._find_cli_path", return_value="/usr/bin/claude"
             ),
-            patch("gobby.agents.spawners.autonomous._build_gobby_mcp_entry", return_value={"command": "gobby", "args": ["mcp-server"]}),
+            patch(
+                "gobby.agents.spawners.autonomous._build_gobby_mcp_entry",
+                return_value={"command": "gobby", "args": ["mcp-server"]},
+            ),
             patch("gobby.agents.spawners.autonomous.ClaudeSDKClient", return_value=client),
         ):
             with pytest.raises(asyncio.CancelledError):
@@ -282,7 +303,10 @@ class TestAgentRunManager:
             patch(
                 "gobby.agents.spawners.autonomous._find_cli_path", return_value="/usr/bin/claude"
             ),
-            patch("gobby.agents.spawners.autonomous._build_gobby_mcp_entry", return_value={"command": "gobby", "args": ["mcp-server"]}),
+            patch(
+                "gobby.agents.spawners.autonomous._build_gobby_mcp_entry",
+                return_value={"command": "gobby", "args": ["mcp-server"]},
+            ),
             patch("gobby.agents.spawners.autonomous.ClaudeSDKClient", return_value=client),
         ):
             result = await runner.run()
@@ -321,7 +345,10 @@ class TestErrorHandling:
             patch(
                 "gobby.agents.spawners.autonomous._find_cli_path", return_value="/usr/bin/claude"
             ),
-            patch("gobby.agents.spawners.autonomous._build_gobby_mcp_entry", return_value={"command": "gobby", "args": ["mcp-server"]}),
+            patch(
+                "gobby.agents.spawners.autonomous._build_gobby_mcp_entry",
+                return_value={"command": "gobby", "args": ["mcp-server"]},
+            ),
             patch("gobby.agents.spawners.autonomous.ClaudeSDKClient", return_value=client),
         ):
             result = await runner.run()
@@ -350,7 +377,10 @@ class TestAutoApprove:
             patch(
                 "gobby.agents.spawners.autonomous._find_cli_path", return_value="/usr/bin/claude"
             ),
-            patch("gobby.agents.spawners.autonomous._build_gobby_mcp_entry", return_value={"command": "gobby", "args": ["mcp-server"]}),
+            patch(
+                "gobby.agents.spawners.autonomous._build_gobby_mcp_entry",
+                return_value={"command": "gobby", "args": ["mcp-server"]},
+            ),
             patch(
                 "gobby.agents.spawners.autonomous.ClaudeSDKClient",
                 side_effect=_capture_client,
@@ -396,7 +426,10 @@ class TestOptionsConstruction:
             patch(
                 "gobby.agents.spawners.autonomous._find_cli_path", return_value="/usr/bin/claude"
             ),
-            patch("gobby.agents.spawners.autonomous._build_gobby_mcp_entry", return_value={"command": "gobby", "args": ["mcp-server"]}),
+            patch(
+                "gobby.agents.spawners.autonomous._build_gobby_mcp_entry",
+                return_value={"command": "gobby", "args": ["mcp-server"]},
+            ),
             patch("gobby.agents.spawners.autonomous.ClaudeSDKClient", side_effect=_capture),
         ):
             await runner.run()
@@ -422,7 +455,10 @@ class TestOptionsConstruction:
             patch(
                 "gobby.agents.spawners.autonomous._find_cli_path", return_value="/usr/bin/claude"
             ),
-            patch("gobby.agents.spawners.autonomous._build_gobby_mcp_entry", return_value={"command": "gobby", "args": ["mcp-server"]}),
+            patch(
+                "gobby.agents.spawners.autonomous._build_gobby_mcp_entry",
+                return_value={"command": "gobby", "args": ["mcp-server"]},
+            ),
             patch("gobby.agents.spawners.autonomous.ClaudeSDKClient", side_effect=_capture),
         ):
             await runner.run()
@@ -447,7 +483,10 @@ class TestOptionsConstruction:
             patch(
                 "gobby.agents.spawners.autonomous._find_cli_path", return_value="/usr/bin/claude"
             ),
-            patch("gobby.agents.spawners.autonomous._build_gobby_mcp_entry", return_value={"command": "gobby", "args": ["mcp-server"]}),
+            patch(
+                "gobby.agents.spawners.autonomous._build_gobby_mcp_entry",
+                return_value={"command": "gobby", "args": ["mcp-server"]},
+            ),
             patch("gobby.agents.spawners.autonomous.ClaudeSDKClient", side_effect=_capture),
         ):
             await runner.run()
@@ -509,7 +548,10 @@ class TestHookWiring:
             patch(
                 "gobby.agents.spawners.autonomous._find_cli_path", return_value="/usr/bin/claude"
             ),
-            patch("gobby.agents.spawners.autonomous._build_gobby_mcp_entry", return_value={"command": "gobby", "args": ["mcp-server"]}),
+            patch(
+                "gobby.agents.spawners.autonomous._build_gobby_mcp_entry",
+                return_value={"command": "gobby", "args": ["mcp-server"]},
+            ),
             patch("gobby.agents.spawners.autonomous.ClaudeSDKClient", side_effect=_capture),
         ):
             await runner.run()
@@ -536,7 +578,10 @@ class TestHookWiring:
             patch(
                 "gobby.agents.spawners.autonomous._find_cli_path", return_value="/usr/bin/claude"
             ),
-            patch("gobby.agents.spawners.autonomous._build_gobby_mcp_entry", return_value={"command": "gobby", "args": ["mcp-server"]}),
+            patch(
+                "gobby.agents.spawners.autonomous._build_gobby_mcp_entry",
+                return_value={"command": "gobby", "args": ["mcp-server"]},
+            ),
             patch("gobby.agents.spawners.autonomous.ClaudeSDKClient", side_effect=_capture),
         ):
             await runner.run()

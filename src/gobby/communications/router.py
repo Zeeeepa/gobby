@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 import fnmatch
 import logging
-from typing import TYPE_CHECKING
+import time
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from gobby.storage.communications import LocalCommunicationsStore
@@ -24,6 +25,14 @@ class MessageRouter:
             store: Communications storage manager.
         """
         self.store = store
+        self._rules_cache: list[Any] | None = None
+        self._cache_expires_at: float = 0
+        self._cache_ttl: float = 30.0  # seconds
+
+    def invalidate_cache(self) -> None:
+        """Invalidate the routing rules cache."""
+        self._rules_cache = None
+        self._cache_expires_at = 0
 
     async def match_channels(
         self,
@@ -41,11 +50,17 @@ class MessageRouter:
         Returns:
             List of matched channel IDs, sorted by priority (highest first).
         """
-        # rules should already be sorted by priority from store
-        rules = self.store.list_routing_rules(enabled_only=True)
-        # Handle both sync and async return from store if needed in future
-        if asyncio.iscoroutine(rules):
-            rules = await rules
+        now = time.monotonic()
+        if self._rules_cache is None or now >= self._cache_expires_at:
+            # rules should already be sorted by priority from store
+            rules = self.store.list_routing_rules(enabled_only=True)
+            # Handle both sync and async return from store if needed in future
+            if asyncio.iscoroutine(rules):
+                rules = await rules
+            self._rules_cache = rules
+            self._cache_expires_at = now + self._cache_ttl
+        else:
+            rules = self._rules_cache
 
         event_type = self._normalize_event_type(event_type)
 

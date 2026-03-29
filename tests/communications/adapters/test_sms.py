@@ -208,6 +208,20 @@ async def test_messaging_service_sid(secret_resolver: Any) -> None:
         assert "From" not in call_data
 
 
+def test_parse_webhook_no_opt_action(adapter: SMSAdapter) -> None:
+    payload = {
+        "From": "+0987654321",
+        "To": "+1234567890",
+        "Body": "Hello",
+        "MessageSid": "SM123",
+    }
+    messages = adapter.parse_webhook(payload, {})
+
+    assert len(messages) == 1
+    assert messages[0].content == "Hello"
+    assert messages[0].metadata_json["opt_out_action"] is None
+
+
 def test_verify_webhook(adapter: SMSAdapter) -> None:
     """Test verify Twilio webhook signature."""
     import base64

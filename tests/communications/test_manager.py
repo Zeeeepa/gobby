@@ -331,6 +331,37 @@ async def test_handle_inbound_resolves_identity():
 
 
 @pytest.mark.asyncio
+async def test_adapter_rate_limit_callback_wires_to_limiter():
+    """Verify that the adapter's rate_limit_callback correctly updates the manager's rate limiter."""
+    channel = make_channel(channel_id="chan-rate-limit")
+    store = make_store([channel])
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
+
+    mock_adapter = make_adapter()
+    # Capture the callback that manager sets on the adapter
+    captured_callback = None
+
+    def set_callback(cb):
+        nonlocal captured_callback
+        captured_callback = cb
+
+    mock_adapter.set_rate_limit_callback.side_effect = set_callback
+    mock_adapter_cls = MagicMock(return_value=mock_adapter)
+
+    with patch("gobby.communications.manager.get_adapter_class", return_value=mock_adapter_cls):
+        await manager.start()
+
+    assert captured_callback is not None
+
+    # Manually trigger the callback
+    captured_callback(5.0, False)  # 5 seconds backoff
+
+    # Verify backoff is set in the rate limiter
+    # TokenBucketRateLimiter.check should return False due to backoff
+    assert manager._rate_limiter.check("chan-rate-limit") is False
+
+
+@pytest.mark.asyncio
 async def test_add_channel_creates_and_initializes():
     """add_channel() saves to DB and initializes adapter."""
     store = make_store()
@@ -430,6 +461,99 @@ def test_get_channel_status_not_found():
     assert status["active"] is False
 
 
+def test_get_channel_delegates_to_store():
+    """get_channel() delegates to store.get_channel()."""
+    channel = make_channel()
+    store = make_store()
+    store.get_channel.return_value = channel
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
+
+    result = manager.get_channel("chan-1")
+    assert result == channel
+    store.get_channel.assert_called_once_with("chan-1")
+
+
+def test_get_channel_returns_none_for_missing():
+    """get_channel() returns None when channel doesn't exist."""
+    store = make_store()
+    store.get_channel.return_value = None
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
+
+    result = manager.get_channel("nonexistent")
+    assert result is None
+
+
+def test_update_channel_delegates_to_store():
+    """update_channel() delegates to store and sets updated_at."""
+    channel = make_channel()
+    store = make_store()
+    store.update_channel.return_value = channel
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
+
+    result = manager.update_channel(channel)
+
+    assert result == channel
+    store.update_channel.assert_called_once_with(channel)
+    # updated_at should be refreshed
+    assert channel.updated_at != "2024-01-01T00:00:00"
+
+
+@pytest.mark.asyncio
+async def test_send_message_injects_platform_destination():
+    """send_message() injects platform_destination from channel config."""
+    channel = make_channel(config_json={"default_destination": "C0123ABCD"})
+    store = make_store([channel])
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
+
+    mock_adapter = make_adapter()
+    mock_adapter_cls = MagicMock(return_value=mock_adapter)
+
+    with patch("gobby.communications.manager.get_adapter_class", return_value=mock_adapter_cls):
+        await manager.start()
+
+    msg = await manager.send_message("test-channel", "Hello!")
+
+    assert msg.metadata_json.get("platform_destination") == "C0123ABCD"
+
+
+@pytest.mark.asyncio
+async def test_send_message_preserves_caller_platform_destination():
+    """send_message() does not override platform_destination if caller provided it."""
+    channel = make_channel(config_json={"default_destination": "C0123ABCD"})
+    store = make_store([channel])
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
+
+    mock_adapter = make_adapter()
+    mock_adapter_cls = MagicMock(return_value=mock_adapter)
+
+    with patch("gobby.communications.manager.get_adapter_class", return_value=mock_adapter_cls):
+        await manager.start()
+
+    msg = await manager.send_message(
+        "test-channel", "Hello!", metadata={"platform_destination": "COVERRIDE"}
+    )
+
+    assert msg.metadata_json["platform_destination"] == "COVERRIDE"
+
+
+@pytest.mark.asyncio
+async def test_send_message_no_platform_destination_without_config():
+    """send_message() does not inject platform_destination when channel has no default."""
+    channel = make_channel(config_json={})
+    store = make_store([channel])
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
+
+    mock_adapter = make_adapter()
+    mock_adapter_cls = MagicMock(return_value=mock_adapter)
+
+    with patch("gobby.communications.manager.get_adapter_class", return_value=mock_adapter_cls):
+        await manager.start()
+
+    msg = await manager.send_message("test-channel", "Hello!")
+
+    assert "platform_destination" not in msg.metadata_json
+
+
 @pytest.mark.asyncio
 async def test_send_message_propagates_thread_id():
     """send_message() should include platform_thread_id from thread map."""
@@ -444,7 +568,7 @@ async def test_send_message_propagates_thread_id():
     with patch("gobby.communications.manager.get_adapter_class", return_value=mock_adapter_cls):
         await manager.start()
 
-    manager._thread_map["test-channel:session-123"] = "thread-456"
+    manager._thread_manager._thread_map["test-channel:session-123"] = "thread-456"
 
     msg = await manager.send_message("test-channel", "Hello reply", session_id="session-123")
 
@@ -468,7 +592,7 @@ async def test_handle_inbound_populates_thread_map_and_handles_reactions():
         updated_at="",
     )
 
-    manager._resolve_identity = AsyncMock(return_value=mock_identity)
+    manager._identity_manager.resolve_identity = AsyncMock(return_value=mock_identity)
 
     manager.reaction_handler = AsyncMock()
 
@@ -501,9 +625,94 @@ async def test_handle_inbound_populates_thread_map_and_handles_reactions():
 
     await manager.handle_inbound_messages("test-channel", [inbound_msg, rxn_msg])
 
-    assert manager._thread_map["test-channel:session-123"] == "thread-456"
+    assert manager._thread_manager._thread_map["test-channel:session-123"] == "thread-456"
 
     # reaction should have called handler
     manager.reaction_handler.handle_reaction.assert_awaited_once_with(
         "test-channel", "msg-123", "+1", "user-1"
     )
+
+
+def test_thread_map_lru_eviction_order():
+    """LRU eviction should evict least-recently-used entries, not active ones."""
+    store = make_store()
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
+    manager._thread_manager._max_size = 3
+
+    # Add 3 entries
+    manager._track_thread("ch", "s1", "t1")
+    manager._track_thread("ch", "s2", "t2")
+    manager._track_thread("ch", "s3", "t3")
+
+    # Access s1 to make it recently used
+    assert manager._get_thread_id("ch", "s1") == "t1"
+
+    # Add a 4th entry — should evict s2 (LRU), NOT s1 (recently accessed)
+    manager._track_thread("ch", "s4", "t4")
+
+    assert manager._get_thread_id("ch", "s1") == "t1"  # Still present (was accessed)
+    assert manager._get_thread_id("ch", "s2") is None  # Evicted (LRU)
+    assert manager._get_thread_id("ch", "s3") == "t3"  # Still present
+    assert manager._get_thread_id("ch", "s4") == "t4"  # Newly added
+
+
+def test_thread_map_move_to_end_on_track():
+    """Re-tracking an existing thread should refresh its LRU position."""
+    store = make_store()
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
+    manager._thread_manager._max_size = 2
+
+    manager._track_thread("ch", "s1", "t1")
+    manager._track_thread("ch", "s2", "t2")
+
+    # Re-track s1 (refreshes its position)
+    manager._track_thread("ch", "s1", "t1-updated")
+
+    # Add s3 — should evict s2 (now LRU), not s1
+    manager._track_thread("ch", "s3", "t3")
+
+    assert manager._get_thread_id("ch", "s1") == "t1-updated"
+    assert manager._get_thread_id("ch", "s2") is None  # Evicted
+    assert manager._get_thread_id("ch", "s3") == "t3"
+
+
+def test_routing_rule_crud_invalidates_cache():
+    """Manager routing rule CRUD methods should invalidate router cache."""
+    from gobby.communications.models import CommsRoutingRule
+
+    store = make_store()
+    manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
+
+    rule = CommsRoutingRule(
+        id="rule-1",
+        name="Test Rule",
+        channel_id="chan-1",
+        event_pattern="task.*",
+        priority=10,
+    )
+
+    # Populate cache by setting it directly
+    manager._router._rules_cache = [rule]
+    manager._router._cache_expires_at = float("inf")
+
+    # Create should invalidate
+    store.create_routing_rule.return_value = rule
+    manager.create_routing_rule(rule)
+    assert manager._router._rules_cache is None
+
+    # Repopulate cache
+    manager._router._rules_cache = [rule]
+    manager._router._cache_expires_at = float("inf")
+
+    # Update should invalidate
+    store.update_routing_rule.return_value = rule
+    manager.update_routing_rule(rule)
+    assert manager._router._rules_cache is None
+
+    # Repopulate cache
+    manager._router._rules_cache = [rule]
+    manager._router._cache_expires_at = float("inf")
+
+    # Delete should invalidate
+    manager.delete_routing_rule("rule-1")
+    assert manager._router._rules_cache is None

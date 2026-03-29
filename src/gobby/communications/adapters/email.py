@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import email
 import logging
 import uuid
@@ -44,6 +45,7 @@ class EmailAdapter(BaseChannelAdapter):
     """Adapter for Email using SMTP for sending and IMAP for receiving."""
 
     def __init__(self) -> None:
+        super().__init__()
         self._smtp_client: aiosmtplib.SMTP | None = None
         self._imap_client: aioimaplib.IMAP4_SSL | None = None
         self._smtp_host: str = ""
@@ -51,6 +53,8 @@ class EmailAdapter(BaseChannelAdapter):
         self._imap_host: str = ""
         self._imap_port: int = 993
         self._from_address: str = ""
+        self._to_address: str | None = None
+        self._default_destination: str | None = None
         self._password: str = ""
 
     @property
@@ -82,6 +86,10 @@ class EmailAdapter(BaseChannelAdapter):
         self._imap_host = config.config_json.get("imap_host", "")
         self._imap_port = config.config_json.get("imap_port", 993)
         self._from_address = config.config_json.get("from_address", "")
+        self._to_address = config.config_json.get("to_address", "")
+        self._default_destination = (
+            config.config_json.get("default_recipient") or self._to_address or None
+        )
 
         password_ref = config.config_json.get("password", "$secret:EMAIL_PASSWORD")
         password = (
@@ -108,15 +116,84 @@ class EmailAdapter(BaseChannelAdapter):
             await self._imap_client.wait_hello_from_server()
             await self._imap_client.login(self._from_address, self._password)
 
+    async def _ensure_smtp_connected(self) -> None:
+        """Ensure SMTP connection is active."""
+        smtp_client = self._smtp_client
+        if not HAS_SMTP or not smtp_client:
+            return
+
+        async def _check_and_reconnect() -> None:
+            nonlocal smtp_client
+            try:
+                assert smtp_client is not None
+                if not smtp_client.is_connected:
+                    raise RuntimeError("SMTP not connected")
+                await smtp_client.noop()
+            except Exception:
+                if smtp_client:
+                    try:
+                        smtp_client.close()
+                    except Exception:
+                        pass
+
+                self._smtp_client = aiosmtplib.SMTP(
+                    hostname=self._smtp_host,
+                    port=self._smtp_port,
+                    use_tls=self._smtp_port == 465,
+                    start_tls=self._smtp_port == 587,
+                )
+                smtp_client = self._smtp_client
+                assert smtp_client is not None
+                await smtp_client.connect()
+                await smtp_client.login(self._from_address, self._password)
+
+        await self._retry(_check_and_reconnect)
+
+    async def _ensure_imap_connected(self) -> None:
+        """Ensure IMAP connection is active."""
+        imap_client = self._imap_client
+        if not HAS_IMAP or not imap_client:
+            return
+
+        async def _check_and_reconnect() -> None:
+            nonlocal imap_client
+            try:
+                # No robust is_connected check in aioimaplib besides trying a command
+                assert imap_client is not None
+                await imap_client.noop()
+            except Exception:
+                try:
+                    if imap_client:
+                        await imap_client.logout()
+                except Exception:
+                    pass
+                self._imap_client = aioimaplib.IMAP4_SSL(host=self._imap_host, port=self._imap_port)
+                imap_client = self._imap_client
+                assert imap_client is not None
+                await imap_client.wait_hello_from_server()
+                await imap_client.login(self._from_address, self._password)
+
+        await self._retry(_check_and_reconnect)
+
     async def send_message(self, message: CommsMessage) -> str | None:
         """Send message and return platform message ID."""
         if not HAS_SMTP or not self._smtp_client:
             raise RuntimeError("Email SMTP client not initialized or aiosmtplib missing")
 
+        await self._ensure_smtp_connected()
+
         msg = EmailMessage()
         msg["Subject"] = message.metadata_json.get("subject", "Message from Gobby")
         msg["From"] = self._from_address
-        msg["To"] = message.channel_id
+
+        target_address = (
+            message.metadata_json.get("platform_destination")
+            or message.metadata_json.get("to_address")
+            or self._default_destination
+        )
+        if not target_address:
+            raise ValueError("No target email address provided in config or message metadata")
+        msg["To"] = target_address
 
         domain = self._from_address.split("@")[-1] if "@" in self._from_address else "gobby.local"
         msg_id = make_msgid(domain=domain)
@@ -131,7 +208,7 @@ class EmailAdapter(BaseChannelAdapter):
         else:
             msg.set_content(message.content)
 
-        await self._smtp_client.send_message(msg)
+        await self._retry(lambda: self._smtp_client.send_message(msg))  # type: ignore[union-attr]
         return msg_id
 
     async def send_attachment(
@@ -141,10 +218,20 @@ class EmailAdapter(BaseChannelAdapter):
         if not HAS_SMTP or not self._smtp_client:
             raise RuntimeError("Email SMTP client not initialized or aiosmtplib missing")
 
+        await self._ensure_smtp_connected()
+
         msg = EmailMessage()
         msg["Subject"] = message.metadata_json.get("subject", "Message from Gobby")
         msg["From"] = self._from_address
-        msg["To"] = message.channel_id
+
+        target_address = (
+            message.metadata_json.get("platform_destination")
+            or message.metadata_json.get("to_address")
+            or self._default_destination
+        )
+        if not target_address:
+            raise ValueError("No target email address provided in config or message metadata")
+        msg["To"] = target_address
 
         domain = self._from_address.split("@")[-1] if "@" in self._from_address else "gobby.local"
         msg_id = make_msgid(domain=domain)
@@ -160,12 +247,12 @@ class EmailAdapter(BaseChannelAdapter):
         maintype, _, subtype = ct.partition("/")
         if not subtype:
             subtype = "octet-stream"
-        file_data = file_path.read_bytes()
+        file_data = await asyncio.to_thread(file_path.read_bytes)
         msg.add_attachment(
             file_data, maintype=maintype, subtype=subtype, filename=attachment.filename
         )
 
-        await self._smtp_client.send_message(msg)
+        await self._retry(lambda: self._smtp_client.send_message(msg))  # type: ignore[union-attr]
         return msg_id
 
     async def poll(self) -> list[CommsMessage]:
@@ -173,8 +260,14 @@ class EmailAdapter(BaseChannelAdapter):
         if not HAS_IMAP or not self._imap_client:
             return []
 
-        await self._imap_client.select("INBOX")
-        status, response = await self._imap_client.search("UNSEEN")
+        await self._ensure_imap_connected()
+
+        async def _search_unseen() -> tuple[str, list[bytes]]:
+            await self._imap_client.select("INBOX")  # type: ignore[union-attr]
+            status, response = await self._imap_client.search("UNSEEN")  # type: ignore[union-attr]
+            return status, response
+
+        status, response = await self._retry(_search_unseen)
         if status != "OK" or not response[0]:
             return []
 
@@ -182,7 +275,9 @@ class EmailAdapter(BaseChannelAdapter):
         msg_nums = response[0].split()
 
         for num in msg_nums:
-            status, fetch_data = await self._imap_client.fetch(num.decode(), "(RFC822)")
+            status, fetch_data = await self._retry(
+                lambda n=num: self._imap_client.fetch(n.decode(), "(RFC822)")  # type: ignore[union-attr, misc]
+            )
             if status != "OK":
                 continue
 
@@ -230,9 +325,16 @@ class EmailAdapter(BaseChannelAdapter):
                             platform_message_id=msg_id,
                             platform_thread_id=thread_id,
                             content_type=content_type,
-                            metadata_json={"subject": subject},
+                            metadata_json={
+                                "subject": subject,
+                                "platform_destination": sender,
+                            },
                         )
                     )
+
+            await self._retry(
+                lambda n=num: self._imap_client.store(n.decode(), "+FLAGS", "(\\Seen)")  # type: ignore[union-attr, misc]
+            )
 
         return messages
 

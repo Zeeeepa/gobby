@@ -55,7 +55,11 @@ async def test_send_message(adapter, mock_secret_resolver):
         enabled=True,
         created_at="2024-01-01T00:00:00Z",
         updated_at="2024-01-01T00:00:00Z",
-        config_json={"account_sid": "AC123", "from_number": "+1234567890"},
+        config_json={
+            "account_sid": "AC123",
+            "from_number": "+1234567890",
+            "to_number": "+0987654321",
+        },
     )
     await adapter.initialize(config, mock_secret_resolver)
 

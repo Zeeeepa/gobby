@@ -101,10 +101,13 @@ async def test_send_message_success(
 
         message = CommsMessage(
             id="1",
-            channel_id="conv-1",
+            channel_id="gobby-internal-uuid",
             direction="outbound",
             content="Hello world",
-            metadata_json={"service_url": "https://smba.trafficmanager.net/apis/"},
+            metadata_json={
+                "service_url": "https://smba.trafficmanager.net/apis/",
+                "platform_destination": "conv-1",
+            },
             created_at="2024-01-01T00:00:00Z",
         )
 

@@ -1099,7 +1099,9 @@ async def test_merge_worktree_push_failure(
         ok,  # fetch
         MagicMock(returncode=0, stdout="stash@{0}", stderr=""),  # stash list before
         ok,  # stash push
-        MagicMock(returncode=0, stdout="stash@{0}\nstash@{1}", stderr=""),  # stash list after (different = stash created)
+        MagicMock(
+            returncode=0, stdout="stash@{0}\nstash@{1}", stderr=""
+        ),  # stash list after (different = stash created)
         ok,  # merge
         MagicMock(returncode=1, stdout="", stderr="rejected: non-fast-forward"),  # push fails
         ok,  # stash pop (finally)

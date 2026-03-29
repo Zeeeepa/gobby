@@ -49,7 +49,7 @@ def create_communications_registry(
     def list_channels() -> dict[str, Any]:
         """List all configured communication channels."""
         try:
-            channels = communications_manager._store.list_channels()
+            channels = communications_manager.list_channels()
             result = []
             for ch in channels:
                 status = communications_manager.get_channel_status(ch.name)
@@ -78,13 +78,13 @@ def create_communications_registry(
         try:
             channel_id = None
             if channel:
-                ch = communications_manager._store.get_channel_by_name(channel)
+                ch = communications_manager.get_channel_by_name(channel)
                 if ch:
                     channel_id = ch.id
                 else:
                     return {"success": False, "error": f"Channel '{channel}' not found"}
 
-            messages = communications_manager._store.list_messages(
+            messages = communications_manager.list_messages(
                 channel_id=channel_id,
                 session_id=session_id,
                 direction=direction,
@@ -142,17 +142,15 @@ def create_communications_registry(
     def link_identity(channel: str, external_user_id: str, session_id: str) -> dict[str, Any]:
         """Link an external user to a Gobby session."""
         try:
-            ch = communications_manager._store.get_channel_by_name(channel)
+            ch = communications_manager.get_channel_by_name(channel)
             if not ch:
                 return {"success": False, "error": f"Channel '{channel}' not found"}
 
-            identity = communications_manager._store.get_identity_by_external(
-                ch.id, external_user_id
-            )
+            identity = communications_manager.get_identity_by_external(ch.id, external_user_id)
             if not identity:
                 return {"success": False, "error": f"Identity for '{external_user_id}' not found"}
 
-            communications_manager._store.update_identity_session(identity.id, session_id)
+            communications_manager.update_identity_session(identity.id, session_id)
             return {"success": True, "identity_id": identity.id}
         except Exception as e:
             logger.exception("Communications tool error")
@@ -166,13 +164,13 @@ def create_communications_registry(
         try:
             channel_id = None
             if channel:
-                ch = communications_manager._store.get_channel_by_name(channel)
+                ch = communications_manager.get_channel_by_name(channel)
                 if ch:
                     channel_id = ch.id
                 else:
                     return {"success": False, "error": f"Channel '{channel}' not found"}
 
-            identities = communications_manager._store.list_identities(channel_id=channel_id)
+            identities = communications_manager.list_identities(channel_id=channel_id)
             if session_id:
                 identities = [i for i in identities if i.session_id == session_id]
 
@@ -197,7 +195,7 @@ def create_communications_registry(
     def unlink_identity(identity_id: str) -> dict[str, Any]:
         """Remove session link from an identity."""
         try:
-            communications_manager._store.update_identity_session(identity_id, None)
+            communications_manager.update_identity_session(identity_id, None)
             return {"success": True}
         except Exception as e:
             logger.exception("Communications tool error")

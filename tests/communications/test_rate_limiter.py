@@ -77,3 +77,26 @@ async def test_rate_limiter_reset_remove():
     limiter.remove_channel("chan-1")
     # Should re-create with defaults
     assert limiter.check("chan-1") is True
+
+
+@pytest.mark.asyncio
+async def test_rate_limiter_backoff():
+    limiter = TokenBucketRateLimiter(default_rate=60, default_burst=10)
+
+    # Normal check passes
+    assert limiter.check("chan-1") is True
+
+    # Set 0.2s backoff
+    limiter.set_backoff("chan-1", 0.2)
+
+    # Should fail immediately even if tokens are available
+    assert limiter.check("chan-1") is False
+
+    # wait_if_needed should wait
+    start = time.monotonic()
+    await limiter.wait_if_needed("chan-1")
+    end = time.monotonic()
+
+    assert end - start >= 0.15
+    # Should pass now
+    assert limiter.check("chan-1") is True

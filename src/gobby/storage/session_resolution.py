@@ -26,7 +26,7 @@ def resolve_session_reference(db: DatabaseProtocol, ref: str, project_id: str | 
         db: Database connection.
         ref: Session reference string.
         project_id: Project ID for project-scoped #N lookup.
-            If not provided, falls back to global lookup for backwards compat.
+            Required when ref is #N format (raises ValueError if missing).
 
     Returns:
         Resolved Session UUID
@@ -44,17 +44,17 @@ def resolve_session_reference(db: DatabaseProtocol, ref: str, project_id: str | 
 
     if seq_num_ref.isdigit():
         seq_num = int(seq_num_ref)
-        if project_id:
-            # Project-scoped lookup
-            row = db.fetchone(
-                "SELECT id FROM sessions WHERE project_id = ? AND seq_num = ?",
-                (project_id, seq_num),
+        if not project_id:
+            raise ValueError(
+                f"Cannot resolve session #{seq_num}: project context is required "
+                f"for #N lookups. Pass a full UUID or ensure project context is set."
             )
-        else:
-            # Fallback to global lookup for backwards compat
-            row = db.fetchone("SELECT id FROM sessions WHERE seq_num = ?", (seq_num,))
+        row = db.fetchone(
+            "SELECT id FROM sessions WHERE project_id = ? AND seq_num = ?",
+            (project_id, seq_num),
+        )
         if not row:
-            raise ValueError(f"Session #{seq_num} not found")
+            raise ValueError(f"Session #{seq_num} not found in project")
         return str(row["id"])
 
     # Full UUID check

@@ -1673,12 +1673,12 @@ class TestProjectScopedSeqNum:
         resolved2 = session_manager.resolve_session_reference("#1", project_id=project2.id)
         assert resolved2 == s2.id
 
-    def test_resolve_session_reference_fallback_without_project_id(
+    def test_resolve_session_reference_requires_project_id_for_seq_num(
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
     ) -> None:
-        """Test that resolve_session_reference falls back to global lookup without project_id."""
+        """Test that resolve_session_reference raises ValueError for #N without project_id."""
         session = session_manager.register(
             external_id="global-test",
             machine_id="m1",
@@ -1686,9 +1686,9 @@ class TestProjectScopedSeqNum:
             project_id=sample_project["id"],
         )
 
-        # Without project_id, should still resolve (fallback to global)
-        resolved = session_manager.resolve_session_reference(f"#{session.seq_num}")
-        assert resolved == session.id
+        # Without project_id, #N resolution must fail (seq_num is per-project)
+        with pytest.raises(ValueError, match="project context is required"):
+            session_manager.resolve_session_reference(f"#{session.seq_num}")
 
     def test_resolve_session_reference_uuid_format(
         self,

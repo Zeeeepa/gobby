@@ -104,8 +104,34 @@ class LocalCommunicationsStore:
         return channel
 
     def delete_channel(self, channel_id: str) -> None:
-        """Delete a channel by ID."""
+        """Delete a channel and all related records in a single transaction.
+
+        Cascades to: comms_attachments, comms_messages, comms_identities,
+        comms_routing_rules.
+        """
         with self.db.transaction() as conn:
+            # Get message IDs for attachment cleanup
+            msg_ids = [
+                r["id"]
+                for r in conn.execute(
+                    "SELECT id FROM comms_messages WHERE channel_id = ?", (channel_id,)
+                ).fetchall()
+            ]
+
+            # Delete attachments for those messages
+            if msg_ids:
+                placeholders = ",".join("?" * len(msg_ids))
+                conn.execute(
+                    f"DELETE FROM comms_attachments WHERE message_id IN ({placeholders})",
+                    msg_ids,
+                )
+
+            # Delete child records
+            conn.execute("DELETE FROM comms_messages WHERE channel_id = ?", (channel_id,))
+            conn.execute("DELETE FROM comms_identities WHERE channel_id = ?", (channel_id,))
+            conn.execute("DELETE FROM comms_routing_rules WHERE channel_id = ?", (channel_id,))
+
+            # Delete the channel
             conn.execute("DELETE FROM comms_channels WHERE id = ?", (channel_id,))
 
     # --- Identities ---

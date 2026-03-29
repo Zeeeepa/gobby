@@ -42,6 +42,7 @@ class WebChatAdapter(BaseChannelAdapter):
     """
 
     def __init__(self) -> None:
+        super().__init__()
         self._broadcast: Callable[..., Any] | None = None
         self._initialized = False
 

@@ -120,6 +120,89 @@ async def test_send_message_success(
         )
 
 
+@pytest.mark.asyncio
+async def test_send_attachment_success(
+    adapter: SlackAdapter, channel_config: ChannelConfig, secret_resolver: Any, tmp_path: Any
+) -> None:
+    # 1. Initialize
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_auth_response = MagicMock()
+        mock_auth_response.json.return_value = {"ok": True, "user_id": "U12345"}
+        mock_post.return_value = mock_auth_response
+        await adapter.initialize(channel_config, secret_resolver)
+
+    # 2. Setup file
+    test_file = tmp_path / "test.txt"
+    test_file.write_text("hello world")
+    message = CommsMessage(
+        id="msg_1",
+        channel_id="C12345",
+        direction="outbound",
+        content="Check this out",
+        created_at="2024-01-01T00:00:00Z",
+    )
+    attachment = MagicMock()
+    attachment.filename = "test.txt"
+    attachment.content_type = "text/plain"
+
+    # 3. Mock the 3-step flow
+    with (
+        patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post,
+        patch("httpx.AsyncClient.put", new_callable=AsyncMock) as mock_put,
+    ):
+        # Step 1 response
+        mock_get_url_resp = MagicMock()
+        mock_get_url_resp.status_code = 200
+        mock_get_url_resp.json.return_value = {
+            "ok": True,
+            "upload_url": "https://upload.slack.com/123",
+            "file_id": "F123",
+        }
+
+        # Step 3 response
+        mock_complete_resp = MagicMock()
+        mock_complete_resp.status_code = 200
+        mock_complete_resp.json.return_value = {
+            "ok": True,
+            "files": [
+                {"id": "F123", "shares": {"public": {"C12345": [{"ts": "1234567890.123456"}]}}}
+            ],
+        }
+
+        mock_post.side_effect = [mock_get_url_resp, mock_complete_resp]
+
+        # Step 2 response (PUT)
+        mock_put_resp = MagicMock()
+        mock_put_resp.status_code = 200
+        mock_put.return_value = mock_put_resp
+
+        ts = await adapter.send_attachment(message, attachment, test_file)
+
+        assert ts == "1234567890.123456"
+
+        # Verify Step 1
+        mock_post.assert_any_call(
+            "files.getUploadURLExternal", data={"filename": "test.txt", "length": 11}
+        )
+
+        # Verify Step 2
+        mock_put.assert_called_once_with(
+            "https://upload.slack.com/123",
+            content=b"hello world",
+            headers={"Content-Type": "text/plain"},
+        )
+
+        # Verify Step 3
+        mock_post.assert_any_call(
+            "files.completeUploadExternal",
+            data={
+                "files": '[{"id": "F123", "title": "test.txt"}]',
+                "channel_id": "C12345",
+                "initial_comment": "Check this out",
+            },
+        )
+
+
 def test_parse_webhook_url_verification(adapter: SlackAdapter) -> None:
     payload = {"type": "url_verification", "challenge": "test_challenge"}
     with pytest.raises(SlackVerificationChallenge) as exc_info:

@@ -393,6 +393,7 @@ async def test_email_send_attachment(tmp_path: Path) -> None:
 
     adapter = EmailAdapter()
     adapter._from_address = "bot@gobby.local"
+    adapter._default_destination = "user@example.com"
     mock_smtp = AsyncMock()
     adapter._smtp_client = mock_smtp
 

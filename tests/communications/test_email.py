@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -66,7 +66,11 @@ async def test_send_message(adapter, mock_secret_resolver):
         enabled=True,
         created_at="2024-01-01T00:00:00Z",
         updated_at="2024-01-01T00:00:00Z",
-        config_json={"from_address": "bot@example.com", "smtp_host": "smtp.example.com"},
+        config_json={
+            "from_address": "bot@example.com",
+            "smtp_host": "smtp.example.com",
+            "to_address": "user@example.com",
+        },
     )
 
     with patch("aiosmtplib.SMTP") as MockSMTP, patch("aioimaplib.IMAP4_SSL"):
@@ -141,7 +145,11 @@ async def test_send_message_with_threading(adapter, mock_secret_resolver):
         enabled=True,
         created_at="2024-01-01T00:00:00Z",
         updated_at="2024-01-01T00:00:00Z",
-        config_json={"from_address": "bot@example.com", "smtp_host": "smtp.example.com"},
+        config_json={
+            "from_address": "bot@example.com",
+            "smtp_host": "smtp.example.com",
+            "to_address": "user@example.com",
+        },
     )
 
     with patch("aiosmtplib.SMTP") as MockSMTP, patch("aioimaplib.IMAP4_SSL"):
@@ -181,3 +189,145 @@ def test_parse_webhook(adapter):
 
 def test_verify_webhook(adapter):
     assert not adapter.verify_webhook(b"", {}, "")
+
+
+@pytest.mark.asyncio
+async def test_poll_marks_messages_as_seen(adapter, mock_secret_resolver):
+    """poll() marks each fetched message with the \\Seen flag."""
+    config = ChannelConfig(
+        id="test",
+        channel_type="email",
+        name="test",
+        enabled=True,
+        created_at="2024-01-01T00:00:00Z",
+        updated_at="2024-01-01T00:00:00Z",
+        config_json={"from_address": "bot@example.com", "imap_host": "imap.example.com"},
+    )
+
+    with patch("aiosmtplib.SMTP"), patch("aioimaplib.IMAP4_SSL") as MockIMAP:
+        mock_imap_inst = AsyncMock()
+        MockIMAP.return_value = mock_imap_inst
+        await adapter.initialize(config, mock_secret_resolver)
+
+        mock_imap_inst.search.return_value = ("OK", [b"1 2"])
+        email_content = b"From: user@example.com\r\nSubject: Test\r\nMessage-ID: <m1>\r\n\r\nBody"
+        mock_imap_inst.fetch.side_effect = [
+            ("OK", [(b"1 (RFC822 {50})", email_content), b")"]),
+            ("OK", [(b"2 (RFC822 {50})", email_content), b")"]),
+        ]
+
+        await adapter.poll()
+
+        # Verify store was called for each message with \Seen flag
+        assert mock_imap_inst.store.call_count == 2
+        mock_imap_inst.store.assert_any_call("1", "+FLAGS", "(\\Seen)")
+        mock_imap_inst.store.assert_any_call("2", "+FLAGS", "(\\Seen)")
+
+
+@pytest.mark.asyncio
+async def test_smtp_reconnect_on_failure(adapter, mock_secret_resolver):
+    """_ensure_smtp_connected() reconnects when NOOP fails."""
+    config = ChannelConfig(
+        id="test",
+        channel_type="email",
+        name="test",
+        enabled=True,
+        created_at="2024-01-01T00:00:00Z",
+        updated_at="2024-01-01T00:00:00Z",
+        config_json={"from_address": "bot@example.com", "smtp_host": "smtp.example.com"},
+    )
+
+    with patch("aiosmtplib.SMTP") as MockSMTP, patch("aioimaplib.IMAP4_SSL"):
+        mock_smtp_inst = AsyncMock()
+        MockSMTP.return_value = mock_smtp_inst
+        await adapter.initialize(config, mock_secret_resolver)
+
+        # Simulate a dropped connection: is_connected returns False
+        mock_smtp_inst.is_connected = False
+        mock_smtp_inst.connect.reset_mock()
+        mock_smtp_inst.login.reset_mock()
+
+        await adapter._ensure_smtp_connected()
+
+        # Should have reconnected
+        mock_smtp_inst.connect.assert_called_once()
+        mock_smtp_inst.login.assert_called_once_with("bot@example.com", "pass123")
+
+
+@pytest.mark.asyncio
+async def test_smtp_reconnect_on_noop_exception(adapter, mock_secret_resolver):
+    """_ensure_smtp_connected() reconnects when NOOP raises an exception."""
+    config = ChannelConfig(
+        id="test",
+        channel_type="email",
+        name="test",
+        enabled=True,
+        created_at="2024-01-01T00:00:00Z",
+        updated_at="2024-01-01T00:00:00Z",
+        config_json={"from_address": "bot@example.com", "smtp_host": "smtp.example.com"},
+    )
+
+    with patch("aiosmtplib.SMTP") as MockSMTP, patch("aioimaplib.IMAP4_SSL"):
+        mock_smtp_inst = AsyncMock()
+        MockSMTP.return_value = mock_smtp_inst
+        await adapter.initialize(config, mock_secret_resolver)
+
+        # Simulate NOOP failure (connection alive check fails)
+        mock_smtp_inst.is_connected = True
+        mock_smtp_inst.noop.side_effect = OSError("Connection reset")
+        mock_smtp_inst.connect.reset_mock()
+        mock_smtp_inst.login.reset_mock()
+
+        await adapter._ensure_smtp_connected()
+
+        mock_smtp_inst.connect.assert_called_once()
+        mock_smtp_inst.login.assert_called_once_with("bot@example.com", "pass123")
+
+
+@pytest.mark.asyncio
+async def test_send_attachment_uses_async_file_read(adapter, mock_secret_resolver):
+    """send_attachment() reads file bytes via asyncio.to_thread."""
+    from gobby.communications.models import CommsAttachment
+
+    config = ChannelConfig(
+        id="test",
+        channel_type="email",
+        name="test",
+        enabled=True,
+        created_at="2024-01-01T00:00:00Z",
+        updated_at="2024-01-01T00:00:00Z",
+        config_json={
+            "from_address": "bot@example.com",
+            "smtp_host": "smtp.example.com",
+            "to_address": "user@example.com",
+        },
+    )
+
+    with patch("aiosmtplib.SMTP") as MockSMTP, patch("aioimaplib.IMAP4_SSL"):
+        mock_smtp_inst = AsyncMock()
+        MockSMTP.return_value = mock_smtp_inst
+        await adapter.initialize(config, mock_secret_resolver)
+
+    msg = CommsMessage(
+        id="test_id",
+        channel_id="user@example.com",
+        direction="outbound",
+        content="See attached",
+        metadata_json={"subject": "File"},
+        created_at="2024-01-01T00:00:00Z",
+    )
+    attachment = CommsAttachment(
+        id="att_1",
+        message_id="test_id",
+        filename="test.txt",
+        content_type="text/plain",
+        size_bytes=12,
+    )
+    mock_path = MagicMock()
+    mock_path.read_bytes.return_value = b"file content"
+
+    with patch("asyncio.to_thread", new_callable=AsyncMock) as mock_to_thread:
+        mock_to_thread.return_value = b"file content"
+        await adapter.send_attachment(msg, attachment, mock_path)
+
+        mock_to_thread.assert_called_once_with(mock_path.read_bytes)

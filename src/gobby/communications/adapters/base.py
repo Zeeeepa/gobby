@@ -84,6 +84,45 @@ class BaseChannelAdapter(ABC):
         """Poll for new messages (default implementation returns empty list)."""
         return []
 
+    def set_rate_limit_callback(self, callback: Callable[[float, bool], None]) -> None:
+        """Set a callback invoked when an adapter detects a platform rate limit.
+
+        Args:
+            callback: Callable(duration_seconds, is_global). The manager uses this
+                      to propagate backoff to the TokenBucketRateLimiter.
+        """
+        self._rate_limit_callback = callback
+
+    async def _retry(
+        self,
+        coro_factory: Callable[[], Awaitable[Any]],
+        max_retries: int = 3,
+        backoff_base: float = 0.5,
+    ) -> Any:
+        """Retry an arbitrary async callable with exponential backoff.
+
+        Unlike _retry_request (HTTP-specific), this retries any async operation
+        on exception. Used for SMTP/IMAP reconnects, etc.
+        """
+        last_exc: Exception | None = None
+        for attempt in range(max_retries + 1):
+            try:
+                return await coro_factory()
+            except Exception as exc:
+                last_exc = exc
+                if attempt < max_retries:
+                    delay = backoff_base * (2**attempt)
+                    logger.warning(
+                        "%s operation failed, retrying in %.1fs (attempt %d/%d): %s",
+                        self.channel_type,
+                        delay,
+                        attempt + 1,
+                        max_retries + 1,
+                        exc,
+                    )
+                    await asyncio.sleep(delay)
+        raise last_exc  # type: ignore[misc]
+
     async def _retry_request(
         self,
         coro_factory: Callable[[], Awaitable[httpx.Response]],
