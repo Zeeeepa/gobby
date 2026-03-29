@@ -651,26 +651,14 @@ class TestMacOSRestart:
     """Test macOS launchd restart."""
 
     @patch("gobby.cli.installers.service.subprocess.run")
-    def test_restart_uses_kickstart(self, mock_run: MagicMock) -> None:
-        """Restart uses launchctl kickstart -k when it succeeds."""
-        from gobby.cli.installers.service import _macos_restart
-
-        mock_run.return_value = MagicMock(returncode=0, stderr="", stdout="")
-
-        result = _macos_restart()
-
-        assert result["success"] is True
-        assert "kickstart" in result["method"]
-
-    @patch("gobby.cli.installers.service.subprocess.run")
     @patch("gobby.cli.installers.service._plist_path")
-    def test_restart_recovers_from_stale_entry(
+    def test_restart_bootout_bootstrap(
         self,
         mock_plist_path: MagicMock,
         mock_run: MagicMock,
         tmp_path: Path,
     ) -> None:
-        """Restart falls back to bootout+bootstrap when kickstart fails."""
+        """Restart does a full bootout + bootstrap cycle."""
         from gobby.cli.installers.service import _macos_restart
 
         plist_file = tmp_path / LAUNCHD_PLIST_NAME
@@ -678,7 +666,6 @@ class TestMacOSRestart:
         mock_plist_path.return_value = plist_file
 
         mock_run.side_effect = [
-            MagicMock(returncode=5, stderr="Bootstrap failed: 5: Input/output error", stdout=""),
             MagicMock(returncode=0, stderr="", stdout=""),  # bootout
             MagicMock(returncode=0, stderr="", stdout=""),  # bootstrap
         ]
@@ -686,17 +673,18 @@ class TestMacOSRestart:
         result = _macos_restart()
 
         assert result["success"] is True
-        assert "recovery" in result["method"]
+        assert "bootout" in result["method"]
+        assert "bootstrap" in result["method"]
 
     @patch("gobby.cli.installers.service.subprocess.run")
     @patch("gobby.cli.installers.service._plist_path")
-    def test_restart_reports_both_errors_on_full_failure(
+    def test_restart_bootstrap_failure(
         self,
         mock_plist_path: MagicMock,
         mock_run: MagicMock,
         tmp_path: Path,
     ) -> None:
-        """Restart reports both kickstart and bootstrap errors when all fail."""
+        """Restart reports bootstrap error on failure."""
         from gobby.cli.installers.service import _macos_restart
 
         plist_file = tmp_path / LAUNCHD_PLIST_NAME
@@ -704,38 +692,30 @@ class TestMacOSRestart:
         mock_plist_path.return_value = plist_file
 
         mock_run.side_effect = [
-            MagicMock(returncode=5, stderr="kickstart error", stdout=""),
             MagicMock(returncode=0, stderr="", stdout=""),  # bootout
-            MagicMock(returncode=1, stderr="bootstrap error", stdout=""),  # bootstrap fails too
+            MagicMock(returncode=1, stderr="bootstrap error", stdout=""),  # bootstrap fails
         ]
 
         result = _macos_restart()
 
         assert result["success"] is False
-        assert "kickstart" in result["error"]
         assert "bootstrap" in result["error"]
 
-    @patch("gobby.cli.installers.service.subprocess.run")
     @patch("gobby.cli.installers.service._plist_path")
-    def test_restart_fails_when_no_plist_for_recovery(
+    def test_restart_fails_when_no_plist(
         self,
         mock_plist_path: MagicMock,
-        mock_run: MagicMock,
         tmp_path: Path,
     ) -> None:
-        """Restart fails when kickstart fails and plist is missing."""
+        """Restart fails early when plist is missing."""
         from gobby.cli.installers.service import _macos_restart
 
         mock_plist_path.return_value = tmp_path / "nonexistent.plist"
 
-        mock_run.side_effect = [
-            MagicMock(returncode=5, stderr="kickstart error", stdout=""),
-            MagicMock(returncode=0, stderr="", stdout=""),  # bootout
-        ]
-
         result = _macos_restart()
 
         assert result["success"] is False
+        assert "not installed" in result["error"].lower()
 
 
 class TestMacOSUninstall:
