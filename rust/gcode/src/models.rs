@@ -1,9 +1,10 @@
+use rusqlite::Row;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Stable namespace for deterministic symbol UUIDs.
 /// Must match Python: uuid.UUID("c0de1de0-0000-4000-8000-000000000000")
-const CODE_INDEX_UUID_NAMESPACE: Uuid = Uuid::from_bytes([
+pub const CODE_INDEX_UUID_NAMESPACE: Uuid = Uuid::from_bytes([
     0xc0, 0xde, 0x1d, 0xe0, 0x00, 0x00, 0x40, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00,
 ]);
@@ -51,6 +52,45 @@ impl Symbol {
         let key = format!("{project_id}:{file_path}:{name}:{kind}:{byte_start}");
         Uuid::new_v5(&CODE_INDEX_UUID_NAMESPACE, key.as_bytes()).to_string()
     }
+
+    /// Read a Symbol from a rusqlite Row (SELECT * FROM code_symbols).
+    pub fn from_row(row: &Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            id: row.get("id")?,
+            project_id: row.get("project_id")?,
+            file_path: row.get("file_path")?,
+            name: row.get("name")?,
+            qualified_name: row.get("qualified_name")?,
+            kind: row.get("kind")?,
+            language: row.get("language")?,
+            byte_start: row.get::<_, i64>("byte_start")? as usize,
+            byte_end: row.get::<_, i64>("byte_end")? as usize,
+            line_start: row.get::<_, i64>("line_start")? as usize,
+            line_end: row.get::<_, i64>("line_end")? as usize,
+            signature: row.get("signature")?,
+            docstring: row.get("docstring")?,
+            parent_symbol_id: row.get("parent_symbol_id")?,
+            content_hash: row.get::<_, Option<String>>("content_hash")?.unwrap_or_default(),
+            summary: row.get("summary")?,
+            created_at: row.get::<_, Option<String>>("created_at")?.unwrap_or_default(),
+            updated_at: row.get::<_, Option<String>>("updated_at")?.unwrap_or_default(),
+        })
+    }
+
+    /// Brief dict-like representation for search results.
+    pub fn to_brief(&self) -> SearchResult {
+        SearchResult {
+            id: self.id.clone(),
+            name: self.name.clone(),
+            qualified_name: self.qualified_name.clone(),
+            kind: self.kind.clone(),
+            file_path: self.file_path.clone(),
+            line_start: self.line_start,
+            score: 0.0,
+            summary: self.summary.clone(),
+            signature: self.signature.clone(),
+        }
+    }
 }
 
 /// Metadata for an indexed file.
@@ -66,6 +106,26 @@ pub struct IndexedFile {
     pub indexed_at: String,
 }
 
+impl IndexedFile {
+    pub fn make_id(project_id: &str, file_path: &str) -> String {
+        let key = format!("{project_id}:{file_path}");
+        Uuid::new_v5(&CODE_INDEX_UUID_NAMESPACE, key.as_bytes()).to_string()
+    }
+
+    pub fn from_row(row: &Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            id: row.get("id")?,
+            project_id: row.get("project_id")?,
+            file_path: row.get("file_path")?,
+            language: row.get("language")?,
+            content_hash: row.get::<_, Option<String>>("content_hash")?.unwrap_or_default(),
+            symbol_count: row.get::<_, i64>("symbol_count")? as usize,
+            byte_size: row.get::<_, i64>("byte_size")? as usize,
+            indexed_at: row.get::<_, Option<String>>("indexed_at")?.unwrap_or_default(),
+        })
+    }
+}
+
 /// A chunk of file content for FTS search.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContentChunk {
@@ -78,6 +138,13 @@ pub struct ContentChunk {
     pub content: String,
     pub language: String,
     pub created_at: String,
+}
+
+impl ContentChunk {
+    pub fn make_id(project_id: &str, file_path: &str, chunk_index: usize) -> String {
+        let key = format!("{project_id}:{file_path}:chunk:{chunk_index}");
+        Uuid::new_v5(&CODE_INDEX_UUID_NAMESPACE, key.as_bytes()).to_string()
+    }
 }
 
 /// Import relationship extracted from AST.
@@ -136,6 +203,35 @@ pub struct GraphResult {
     pub relation: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub distance: Option<usize>,
+}
+
+/// Result of parsing a single file.
+pub struct ParseResult {
+    pub symbols: Vec<Symbol>,
+    pub imports: Vec<ImportRelation>,
+    pub calls: Vec<CallRelation>,
+}
+
+/// Aggregate result of indexing a directory.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndexResult {
+    pub project_id: String,
+    pub files_indexed: usize,
+    pub files_skipped: usize,
+    pub symbols_found: usize,
+    pub errors: Vec<String>,
+    pub duration_ms: u64,
+}
+
+/// Content search hit from FTS.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContentSearchHit {
+    pub file_path: String,
+    pub line_start: usize,
+    pub line_end: usize,
+    pub snippet: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
 }
 
 #[cfg(test)]

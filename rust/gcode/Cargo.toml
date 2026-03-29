@@ -45,6 +45,9 @@ tree-sitter-json = "0.23"
 tree-sitter-yaml = "0.7"
 tree-sitter-md = "0.5"
 
+# Iterator
+streaming-iterator = "0.1"
+
 # Utilities
 sha2 = "0.10"
 uuid = { version = "1", features = ["v5"] }
