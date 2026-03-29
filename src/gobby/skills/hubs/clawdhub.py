@@ -319,13 +319,16 @@ class ClawdHubProvider(HubProvider):
                 error="ClawHub CLI not installed. Install with: npm i -g clawhub",
             )
 
+        import tempfile
+
         args = [slug]
 
         if version:
             args.extend(["--version", version])
 
-        if target_dir:
-            args.extend(["--dir", target_dir])
+        # Always use a known target directory so we can return a path
+        install_dir = target_dir or tempfile.mkdtemp(prefix="clawdhub_")
+        args.extend(["--dir", install_dir])
 
         # Use --force to overwrite existing without prompts
         args.append("--force")
@@ -335,6 +338,7 @@ class ClawdHubProvider(HubProvider):
             return DownloadResult(
                 success=True,
                 slug=slug,
+                path=install_dir,
                 version=version,
             )
         except RuntimeError as e:

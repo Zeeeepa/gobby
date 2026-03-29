@@ -86,9 +86,10 @@ def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
                             "error": f"Failed to download from hub: {download_result.error or 'Unknown error'}",
                         }
 
-                    # Load the skill from the downloaded path
+                    # Load the skill from the downloaded path — skip dir name
+                    # check since hub downloads use temp directories
                     skill_path = Path(download_result.path)
-                    parsed_skill = ctx.loader.load_skill(skill_path)
+                    parsed_skill = ctx.loader.load_skill(skill_path, check_dir_name=False)
                     source_type = "hub"
 
                 except Exception as e:

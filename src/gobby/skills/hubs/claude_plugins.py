@@ -208,11 +208,13 @@ class ClaudePluginsProvider(HubProvider):
         Returns:
             Detailed skill info, or None if not found
         """
-        # Search for the specific skill by name
+        # Search for the specific skill by name — replace hyphens with spaces
+        # because the API is keyword-based and returns empty for hyphenated queries
         try:
+            search_query = slug.replace("-", " ")
             result = await self._make_request(
                 endpoint="/api/skills",
-                params={"q": slug, "limit": 10},
+                params={"q": search_query, "limit": 10},
             )
 
             skills = result.get("skills", [])
@@ -249,11 +251,14 @@ class ClaudePluginsProvider(HubProvider):
         Returns:
             DownloadResult with success status, path, or error
         """
-        # First, find the skill to get its metadata
+        # First, find the skill to get its metadata — replace hyphens with
+        # spaces because the API is keyword-based and returns empty for
+        # hyphenated queries like "python-testing-patterns"
         try:
+            search_query = slug.replace("-", " ")
             result = await self._make_request(
                 endpoint="/api/skills",
-                params={"q": slug, "limit": 10},
+                params={"q": search_query, "limit": 10},
             )
 
             skills = result.get("skills", [])
