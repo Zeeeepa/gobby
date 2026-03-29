@@ -183,6 +183,25 @@ def run_daemon_setup(project_path: Path) -> None:
     except Exception as e:
         click.echo(f"Warning: Failed to install gsqz: {e}")
 
+    # Install gcode binary (code index CLI for subagents)
+    try:
+        gcode_result = _install_gcode()
+        if gcode_result.get("installed"):
+            verb = "Upgraded" if gcode_result.get("upgraded") else "Installed"
+            click.echo(
+                f"{verb} gcode {gcode_result.get('version', '')} "
+                f"via {gcode_result.get('method', 'unknown')} (code index CLI)"
+            )
+        elif gcode_result.get("skipped"):
+            reason = gcode_result.get("reason", "")
+            suffix = f" ({reason})" if reason else ""
+            click.echo(f"gcode already installed and up to date{suffix}")
+        else:
+            reason = gcode_result.get("reason", "unknown error")
+            click.echo(f"Warning: Failed to install gcode: {reason}")
+    except Exception as e:
+        click.echo(f"Warning: Failed to install gcode: {e}")
+
     # Configure VS Code terminal title (any CLI may run inside VS Code's terminal)
     try:
         from .installers.ide_config import configure_ide_terminal_title
@@ -501,6 +520,189 @@ def _install_gsqz(force: bool = False) -> dict[str, Any]:
         click.echo(
             f"  Added ~/.gobby/bin to PATH in {path_result['rc_file']} (restart shell or source it)"
         )
+
+    is_upgrade = installed_version is not None and installed_version != resolved_version
+    return {
+        "installed": True,
+        "upgraded": is_upgrade,
+        "version": resolved_version,
+        "method": method,
+    }
+
+
+# ── gcode (code index CLI) ──────────────────────────────────────────
+
+_GCODE_RELEASE_URL = (
+    "https://github.com/GobbyAI/gobby-code/releases/latest/download/gcode-{target}.tar.gz"
+)
+_GCODE_VERSIONED_RELEASE_URL = (
+    "https://github.com/GobbyAI/gobby-code/releases/download/v{version}/gcode-{target}.tar.gz"
+)
+_GCODE_VERSION_STAMP = ".gcode-version"
+_GCODE_BIN_NAME = "gcode.exe" if sys.platform == "win32" else "gcode"
+_GCODE_TARGETS = _GSQZ_TARGETS  # Same platform mapping
+
+
+def _get_installed_gcode_version(bin_dir: Path) -> str | None:
+    """Read the installed gcode version from stamp file."""
+    stamp = bin_dir / _GCODE_VERSION_STAMP
+    try:
+        return stamp.read_text().strip() if stamp.exists() else None
+    except OSError:
+        return None
+
+
+def _write_gcode_version_stamp(bin_dir: Path, version: str) -> None:
+    """Atomically write gcode version stamp."""
+    stamp = str(bin_dir / _GCODE_VERSION_STAMP)
+    fd, tmp_path = tempfile.mkstemp(dir=str(bin_dir))
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(version + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, stamp)
+    except Exception:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise
+
+
+def _install_gcode_from_github(bin_dir: Path, target: str, version: str | None = None) -> bool:
+    """Download and extract gcode from GitHub Releases.
+
+    Args:
+        bin_dir: Target directory (e.g. ``~/.gobby/bin``).
+        target: Platform target triple (e.g. ``aarch64-apple-darwin``).
+        version: Specific version to download, or ``None`` for latest.
+
+    Returns:
+        ``True`` on success, ``False`` on any failure.
+    """
+    try:
+        if version:
+            url = _GCODE_VERSIONED_RELEASE_URL.format(version=version, target=target)
+        else:
+            url = _GCODE_RELEASE_URL.format(target=target)
+        logger.info("Downloading gcode from %s", url)
+        with urlopen(url, timeout=30) as resp:  # noqa: S310  # nosec B310
+            tarball = BytesIO(resp.read())
+
+        bin_dir.mkdir(parents=True, exist_ok=True)
+        with tarfile.open(fileobj=tarball, mode="r:gz") as tar:
+            for member in tar.getmembers():
+                if member.name.endswith(f"/{_GCODE_BIN_NAME}") or member.name == _GCODE_BIN_NAME:
+                    fileobj = tar.extractfile(member)
+                    if fileobj is None:
+                        continue
+                    dest = bin_dir / _GCODE_BIN_NAME
+                    dest.write_bytes(fileobj.read())
+                    dest.chmod(0o755)
+                    return True
+            logger.warning("gcode binary not found in release tarball")
+            return False
+    except (URLError, OSError, tarfile.TarError) as e:
+        logger.warning("gcode: GitHub download failed: %s", e)
+        return False
+
+
+def _install_gcode_from_cargo_git(bin_dir: Path) -> bool:
+    """Install gcode from source via ``cargo install --git``.
+
+    Fallback for dev environments where releases aren't published yet.
+
+    Returns:
+        ``True`` on success, ``False`` if cargo is unavailable or fails.
+    """
+    if not shutil.which("cargo"):
+        return False
+    try:
+        click.echo("  Compiling gcode from source (this may take 30-60 seconds)...")
+        result = subprocess.run(
+            [
+                "cargo",
+                "install",
+                "--git",
+                "https://github.com/GobbyAI/gobby-code",
+                "--root",
+                str(bin_dir.parent),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+        logger.warning("gcode: cargo install --git failed: %s", e)
+        return False
+
+
+def _install_gcode(force: bool = False) -> dict[str, Any]:
+    """Install or upgrade the gcode binary with a fallback chain.
+
+    Installation priority:
+      1. GitHub release download (fast, no deps)
+      2. ``cargo install --git`` (compiles from source)
+
+    Args:
+        force: Re-download even if the installed version is current.
+
+    Returns:
+        Dict with keys: ``installed``, ``skipped``, ``upgraded``,
+        ``version``, ``method``, ``reason``.
+    """
+    bin_dir = Path.home() / ".gobby" / "bin"
+    gcode_path = bin_dir / _GCODE_BIN_NAME
+
+    # Detect platform
+    os_name = sys.platform
+    machine = platform.machine().lower()
+    target = _GCODE_TARGETS.get((os_name, machine))
+    if target is None:
+        logger.warning("gcode: unsupported platform %s/%s", os_name, machine)
+        return {
+            "installed": False,
+            "skipped": True,
+            "reason": f"unsupported platform {os_name}/{machine}",
+        }
+
+    # Version check
+    installed_version = _get_installed_gcode_version(bin_dir)
+
+    if gcode_path.exists() and not force and installed_version:
+        return {"installed": False, "skipped": True, "version": installed_version}
+
+    # Fallback chain
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    method = None
+
+    if _install_gcode_from_github(bin_dir, target):
+        method = "github"
+    elif _install_gcode_from_cargo_git(bin_dir):
+        method = "cargo-git"
+    else:
+        return {"installed": False, "skipped": False, "reason": "all installation methods failed"}
+
+    gcode_path.chmod(0o755)
+
+    # Probe installed binary for version
+    resolved_version = "unknown"
+    try:
+        result = subprocess.run(
+            [str(gcode_path), "--version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            parts = result.stdout.strip().split()
+            resolved_version = parts[-1] if parts else "unknown"
+    except Exception:
+        pass
+    _write_gcode_version_stamp(bin_dir, resolved_version)
+
+    # Ensure ~/.gobby/bin is on PATH (shared with gsqz)
+    _ensure_gobby_bin_on_path()
 
     is_upgrade = installed_version is not None and installed_version != resolved_version
     return {
