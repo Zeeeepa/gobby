@@ -2194,7 +2194,7 @@ class TestCheckGeminiTipPrompts:
         handled = await monitor.check_gemini_tip_prompts()
 
         assert handled == 1
-        monitor._tmux.send_keys.assert_called_once_with("gobby-tip-test", "Escape")
+        monitor._tmux.send_keys.assert_called_once_with("gobby-tip-test", "Escape", literal=False)
 
     @pytest.mark.asyncio
     async def test_no_dismiss_on_normal_output(

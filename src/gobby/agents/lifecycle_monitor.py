@@ -289,7 +289,7 @@ class AgentLifecycleMonitor:
                 pane_output = await self._tmux.capture_pane(tmux_name, lines=15)
                 if pane_output and self._prompt_detector.detect_gemini_tip_prompt(pane_output):
                     sent = await self._tmux.send_keys(
-                        tmux_name, PromptDetector.GEMINI_TIP_DISMISS_KEYS
+                        tmux_name, PromptDetector.GEMINI_TIP_DISMISS_KEYS, literal=False
                     )
                     if sent:
                         logger.info(
