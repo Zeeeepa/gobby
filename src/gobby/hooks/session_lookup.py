@@ -76,6 +76,11 @@ class SessionLookupService:
         # Store platform session_id in event metadata for handlers
         event.metadata["_platform_session_id"] = platform_session_id
 
+        # Populate event.project_id (documented as "populated by HookManager")
+        if not event.project_id:
+            cwd = event.cwd or event.data.get("cwd")
+            event.project_id = self._resolve_project_id(event.data.get("project_id"), cwd)
+
         return platform_session_id
 
     def _resolve_session_id(self, external_id: str, event: HookEvent) -> str | None:
