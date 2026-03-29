@@ -67,9 +67,7 @@ class IdleDetector:
         re.compile(r"^\s*[─━▪▫]+"),  # Separator/divider lines
     )
 
-    REPROMPT_MESSAGE = (
-        "Continue working on your task. If you are done, call close_task and then kill_agent."
-    )
+    REPROMPT_MESSAGE = "Continue working on your task."
 
     def __init__(self) -> None:
         self._states: dict[str, IdleState] = {}
