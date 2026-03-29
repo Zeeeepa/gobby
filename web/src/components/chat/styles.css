@@ -3053,6 +3053,15 @@
   word-break: break-all;
 }
 
+@media (min-width: 768px) {
+  .session-pane-output {
+    max-height: 60vh;
+    min-height: 200px;
+    resize: both;
+    overflow: auto;
+  }
+}
+
 /* ============================================
    Activity Panel — Mobile full-screen overlay
    ============================================ */
