@@ -278,10 +278,14 @@ class EnforcementMixin:
                         variables[var_name] = var_value
                         vars_changed = True
 
+        # Skip transitions when tool failed and no error handlers modified state
+        if is_app_failure and not vars_changed:
+            return None
+
         # Evaluate transitions
         for transition in step.transitions:
             ctx = {"vars": {**instance.variables, **variables}}
-            if not transition.when or self._evaluate_condition(transition.when, ctx, "block"):
+            if not transition.when or self._evaluate_condition(transition.when, ctx, "transition"):
                 old_step = instance.current_step
                 new_step = transition.to
 
