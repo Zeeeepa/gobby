@@ -170,6 +170,7 @@ class AgentLifecycleMonitor:
                 await self.check_trust_prompts()  # Fast unblock before other checks
                 await self.check_loop_prompts()  # Dismiss loop detection prompts
                 await self.check_unhealthy_agents()
+                await self.check_initialization_timeout()
                 await self.check_idle_agents()
                 await self.check_provider_stalls()
 
@@ -501,11 +502,83 @@ class AgentLifecycleMonitor:
 
         return handled
 
+    async def check_initialization_timeout(self) -> int:
+        """Detect agents that never initialized (provider hung on connect).
+
+        If an agent has been running for > init_timeout_seconds and its
+        session was never updated (updated_at ≈ created_at), it likely
+        never got past the provider API call. Kill it with a provider-error
+        error message so rotation kicks in on re-dispatch.
+
+        Returns:
+            Number of agents killed.
+        """
+        from datetime import UTC, datetime
+
+        runs = await asyncio.to_thread(self._agent_run_manager.list_active)
+        now = datetime.now(UTC)
+        killed = 0
+
+        for run in runs:
+            if not run.started_at:
+                continue
+            try:
+                started = datetime.fromisoformat(run.started_at)
+                age = (now - started).total_seconds()
+                if age < self._tmux_config.init_timeout_seconds:
+                    continue
+
+                # Check if session was ever updated
+                session_id = run.child_session_id or run.parent_session_id
+                if not session_id or not self._session_manager:
+                    continue
+
+                session = await asyncio.to_thread(self._session_manager.get, session_id)
+                if not session or not session.updated_at or not session.created_at:
+                    continue
+
+                updated = datetime.fromisoformat(session.updated_at)
+                created = datetime.fromisoformat(session.created_at)
+                if (updated - created).total_seconds() > 5.0:
+                    continue  # Session was updated — agent initialized fine
+
+                # Agent never initialized. Kill it.
+                logger.warning(
+                    f"Agent {run.id} never initialized after {age:.0f}s "
+                    f"(provider={run.provider}) — killing for provider rotation"
+                )
+                if run.tmux_session_name:
+                    await self._tmux.kill_session(run.tmux_session_name)
+                elif run.pid:
+                    try:
+                        os.kill(run.pid, signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+
+                error_msg = (
+                    f"Provider connection timed out: agent never initialized "
+                    f"after {age:.0f}s (provider={run.provider})"
+                )
+                await self._cleanup_agent(run, error=error_msg, is_success=False)
+                killed += 1
+
+            except Exception as e:
+                logger.warning(f"Error checking init timeout for agent {run.id}: {e}")
+
+        if killed > 0:
+            logger.info(f"Killed {killed} uninitialized agent(s) for provider rotation")
+
+        return killed
+
     async def check_provider_stalls(self) -> int:
         """Check tmux agents for provider-side stalls (rate limits, outages).
 
+        When a stall is confirmed (2+ consecutive checks showing provider
+        errors), kills the agent and triggers the full cleanup chain so
+        provider rotation can kick in on re-dispatch.
+
         Returns:
-            Number of agents with confirmed provider stalls.
+            Number of agents killed due to provider stalls.
         """
         runs = await asyncio.to_thread(self._get_active_terminal_runs)
 
@@ -523,8 +596,23 @@ class AgentLifecycleMonitor:
 
                 if classification.status == StallStatus.PROVIDER_STALL:
                     logger.warning(
-                        f"Provider stall detected for agent {run.id}: {classification.reason} (consecutive={classification.consecutive_hits})",
+                        f"Provider stall confirmed for agent {run.id}: "
+                        f"{classification.reason} "
+                        f"(consecutive={classification.consecutive_hits}) — killing agent",
                     )
+
+                    # Kill the agent process
+                    if run.tmux_session_name:
+                        await self._tmux.kill_session(run.tmux_session_name)
+
+                    # Error message must match provider error patterns so
+                    # _recover_task_from_failed_agent classifies it correctly
+                    error_msg = (
+                        f"Provider stall: {classification.reason} "
+                        f"(provider={run.provider}, "
+                        f"consecutive_hits={classification.consecutive_hits})"
+                    )
+                    await self._cleanup_agent(run, error=error_msg, is_success=False)
                     stalled += 1
             except Exception as e:
                 logger.warning(f"Error checking provider stall for agent {run.id}: {e}")

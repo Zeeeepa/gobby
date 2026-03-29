@@ -1385,6 +1385,347 @@ class TestCheckProviderStalls:
         assert stalled == 0
 
 
+class TestCheckProviderStallsKillsAgent:
+    """Tests that check_provider_stalls kills agents on confirmed stall."""
+
+    @pytest.mark.asyncio
+    async def test_kills_agent_on_confirmed_stall(
+        self,
+        monitor: AgentLifecycleMonitor,
+        agent_run_manager: LocalAgentRunManager,
+        sample_session: dict,
+    ) -> None:
+        """Confirmed PROVIDER_STALL kills the agent and marks it failed."""
+        _make_terminal_run(
+            agent_run_manager,
+            sample_session,
+            run_id="run-stall-kill",
+            tmux_session_name="gobby-stall-kill",
+        )
+
+        rate_limit_output = "Error: 429 Too Many Requests - rate limit exceeded\n"
+
+        call_count = 0
+
+        async def capture_pane_side_effect(session_name: str, lines: int = 30) -> str:
+            nonlocal call_count
+            call_count += 1
+            return rate_limit_output
+
+        with (
+            patch.object(
+                monitor._tmux,
+                "capture_pane",
+                new_callable=AsyncMock,
+                side_effect=capture_pane_side_effect,
+            ),
+            patch.object(
+                monitor._tmux,
+                "has_session",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch.object(
+                monitor._tmux,
+                "kill_session",
+                new_callable=AsyncMock,
+            ) as mock_kill,
+        ):
+            # First check: sets consecutive_hits=1, returns UNKNOWN
+            stalled = await monitor.check_provider_stalls()
+            assert stalled == 0
+
+            # Advance stall classifier's internal clock past min interval
+            import time
+
+            state = monitor._stall_classifier._states.get("run-stall-kill")
+            assert state is not None
+            state.last_check_at = time.monotonic() - 35
+
+            # Second check: consecutive_hits=2, confirms PROVIDER_STALL → kill
+            stalled = await monitor.check_provider_stalls()
+            assert stalled == 1
+            mock_kill.assert_called_once_with("gobby-stall-kill")
+
+        updated = agent_run_manager.get("run-stall-kill")
+        assert updated is not None
+        assert updated.status == "error"
+        assert "Provider stall" in (updated.error or "")
+        assert "rate limit" in (updated.error or "").lower()
+
+    @pytest.mark.asyncio
+    async def test_stall_error_matches_provider_pattern(
+        self,
+        monitor: AgentLifecycleMonitor,
+        agent_run_manager: LocalAgentRunManager,
+        sample_session: dict,
+    ) -> None:
+        """Error message from stall kill matches StallClassifier.is_provider_error."""
+        from gobby.agents.stall_classifier import StallClassifier
+
+        _make_terminal_run(
+            agent_run_manager,
+            sample_session,
+            run_id="run-stall-pattern",
+            tmux_session_name="gobby-stall-pattern",
+        )
+
+        import time
+
+        with (
+            patch.object(
+                monitor._tmux,
+                "capture_pane",
+                new_callable=AsyncMock,
+                return_value="Error: 503 Service Unavailable overloaded\n",
+            ),
+            patch.object(
+                monitor._tmux,
+                "has_session",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch.object(
+                monitor._tmux,
+                "kill_session",
+                new_callable=AsyncMock,
+            ),
+        ):
+            await monitor.check_provider_stalls()
+            state = monitor._stall_classifier._states.get("run-stall-pattern")
+            assert state is not None
+            state.last_check_at = time.monotonic() - 35
+            await monitor.check_provider_stalls()
+
+        updated = agent_run_manager.get("run-stall-pattern")
+        assert updated is not None
+        classifier = StallClassifier()
+        assert classifier.is_provider_error(updated.error)
+
+
+class TestCheckInitializationTimeout:
+    """Tests for check_initialization_timeout."""
+
+    @pytest.mark.asyncio
+    async def test_kills_uninitialized_agent(
+        self,
+        monitor: AgentLifecycleMonitor,
+        agent_run_manager: LocalAgentRunManager,
+        session_manager: LocalSessionManager,
+        sample_session: dict,
+        sample_project: dict,
+    ) -> None:
+        """Agent that never initialized is killed after init_timeout_seconds."""
+        # Create a child session with updated_at == created_at
+        child = session_manager.register(
+            external_id="child-uninit",
+            machine_id="machine-1",
+            source="gemini",
+            project_id=sample_project["id"],
+        )
+
+        run = _make_terminal_run(
+            agent_run_manager,
+            sample_session,
+            run_id="run-uninit",
+            tmux_session_name="gobby-uninit",
+            child_session_id=child.id,
+        )
+
+        # Backdate started_at to exceed init_timeout
+        backdated = (datetime.now(UTC) - timedelta(seconds=200)).isoformat()
+        agent_run_manager.db.execute(
+            "UPDATE agent_runs SET started_at = ? WHERE id = ?",
+            (backdated, run.id),
+        )
+
+        monitor._session_manager = session_manager
+
+        with patch.object(
+            monitor._tmux,
+            "kill_session",
+            new_callable=AsyncMock,
+        ) as mock_kill:
+            killed = await monitor.check_initialization_timeout()
+
+        assert killed == 1
+        mock_kill.assert_called_once_with("gobby-uninit")
+
+        updated = agent_run_manager.get("run-uninit")
+        assert updated is not None
+        assert updated.status == "error"
+        assert "connection timed out" in (updated.error or "").lower()
+        assert "never initialized" in (updated.error or "").lower()
+
+    @pytest.mark.asyncio
+    async def test_skips_initialized_agent(
+        self,
+        monitor: AgentLifecycleMonitor,
+        agent_run_manager: LocalAgentRunManager,
+        session_manager: LocalSessionManager,
+        sample_session: dict,
+        sample_project: dict,
+    ) -> None:
+        """Agent whose session was updated is NOT killed."""
+        child = session_manager.register(
+            external_id="child-init",
+            machine_id="machine-1",
+            source="gemini",
+            project_id=sample_project["id"],
+        )
+
+        run = _make_terminal_run(
+            agent_run_manager,
+            sample_session,
+            run_id="run-init",
+            tmux_session_name="gobby-init",
+            child_session_id=child.id,
+        )
+
+        # Backdate started_at
+        backdated = (datetime.now(UTC) - timedelta(seconds=200)).isoformat()
+        agent_run_manager.db.execute(
+            "UPDATE agent_runs SET started_at = ? WHERE id = ?",
+            (backdated, run.id),
+        )
+
+        # Simulate agent activity: backdate created_at so the touch() delta > 5s
+        old_created = (datetime.now(UTC) - timedelta(seconds=30)).isoformat()
+        session_manager.db.execute(
+            "UPDATE sessions SET created_at = ? WHERE id = ?",
+            (old_created, child.id),
+        )
+        session_manager.touch(child.id)
+
+        monitor._session_manager = session_manager
+
+        with patch.object(
+            monitor._tmux,
+            "kill_session",
+            new_callable=AsyncMock,
+        ) as mock_kill:
+            killed = await monitor.check_initialization_timeout()
+
+        assert killed == 0
+        mock_kill.assert_not_called()
+
+        updated = agent_run_manager.get("run-init")
+        assert updated is not None
+        assert updated.status == "running"
+
+    @pytest.mark.asyncio
+    async def test_skips_young_agent(
+        self,
+        monitor: AgentLifecycleMonitor,
+        agent_run_manager: LocalAgentRunManager,
+        session_manager: LocalSessionManager,
+        sample_session: dict,
+        sample_project: dict,
+    ) -> None:
+        """Agent under init_timeout_seconds is NOT killed even if uninitialized."""
+        child = session_manager.register(
+            external_id="child-young",
+            machine_id="machine-1",
+            source="gemini",
+            project_id=sample_project["id"],
+        )
+
+        _make_terminal_run(
+            agent_run_manager,
+            sample_session,
+            run_id="run-young",
+            tmux_session_name="gobby-young",
+            child_session_id=child.id,
+        )
+        # started_at is "now" by default — well under 120s
+
+        monitor._session_manager = session_manager
+
+        with patch.object(
+            monitor._tmux,
+            "kill_session",
+            new_callable=AsyncMock,
+        ) as mock_kill:
+            killed = await monitor.check_initialization_timeout()
+
+        assert killed == 0
+        mock_kill.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_error_matches_provider_pattern(
+        self,
+        monitor: AgentLifecycleMonitor,
+        agent_run_manager: LocalAgentRunManager,
+        session_manager: LocalSessionManager,
+        sample_session: dict,
+        sample_project: dict,
+    ) -> None:
+        """Error message from init timeout matches StallClassifier.is_provider_error."""
+        from gobby.agents.stall_classifier import StallClassifier
+
+        child = session_manager.register(
+            external_id="child-pattern",
+            machine_id="machine-1",
+            source="gemini",
+            project_id=sample_project["id"],
+        )
+
+        run = _make_terminal_run(
+            agent_run_manager,
+            sample_session,
+            run_id="run-pattern",
+            tmux_session_name="gobby-pattern",
+            child_session_id=child.id,
+        )
+
+        backdated = (datetime.now(UTC) - timedelta(seconds=200)).isoformat()
+        agent_run_manager.db.execute(
+            "UPDATE agent_runs SET started_at = ? WHERE id = ?",
+            (backdated, run.id),
+        )
+
+        monitor._session_manager = session_manager
+
+        with patch.object(
+            monitor._tmux,
+            "kill_session",
+            new_callable=AsyncMock,
+        ):
+            await monitor.check_initialization_timeout()
+
+        updated = agent_run_manager.get("run-pattern")
+        assert updated is not None
+        classifier = StallClassifier()
+        assert classifier.is_provider_error(updated.error), (
+            f"Error '{updated.error}' should match provider error patterns"
+        )
+
+    @pytest.mark.asyncio
+    async def test_no_session_manager_skips(
+        self,
+        monitor: AgentLifecycleMonitor,
+        agent_run_manager: LocalAgentRunManager,
+        sample_session: dict,
+    ) -> None:
+        """Without session_manager, check is a no-op."""
+        run = _make_terminal_run(
+            agent_run_manager,
+            sample_session,
+            run_id="run-nosm",
+            tmux_session_name="gobby-nosm",
+        )
+
+        backdated = (datetime.now(UTC) - timedelta(seconds=200)).isoformat()
+        agent_run_manager.db.execute(
+            "UPDATE agent_runs SET started_at = ? WHERE id = ?",
+            (backdated, run.id),
+        )
+
+        monitor._session_manager = None
+        killed = await monitor.check_initialization_timeout()
+        assert killed == 0
+
+
 class TestCheckLoopPrompts:
     """Tests for loop prompt detection and auto-dismissal."""
 

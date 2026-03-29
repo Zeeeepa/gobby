@@ -56,3 +56,8 @@ class TmuxConfig(BaseModel):
         ge=1,
         description="Maximum reprompt attempts before failing an idle agent.",
     )
+    init_timeout_seconds: int = Field(
+        default=120,
+        ge=30,
+        description="Seconds before an uninitialized agent is killed as a provider failure.",
+    )
