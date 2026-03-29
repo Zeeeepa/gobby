@@ -177,7 +177,7 @@ if [ -n "$CHANGED_FILES" ]; then
 
         PROJECT_ID=""
         if [ -f .gobby/project.json ]; then
-            PROJECT_ID=$(python3 -c "import json; print(json.load(open('.gobby/project.json')).get('project_id',''))" 2>/dev/null || echo "")
+            PROJECT_ID=$(python3 -c "import json; d=json.load(open('.gobby/project.json')); print(d.get('id','') or d.get('project_id',''))" 2>/dev/null || echo "")
         fi
         if [ -n "$PROJECT_ID" ]; then
             FILES_JSON=$(echo "$CHANGED_FILES" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip().split('\\n')))" 2>/dev/null)
