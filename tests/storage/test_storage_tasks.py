@@ -981,10 +981,8 @@ class TestLocalTaskManager:
         assert "created_at" in brief
         assert "updated_at" in brief
 
-        # Should include description
-        assert brief["description"] == "Long description"
-
         # Should NOT include these fields
+        assert "description" not in brief
         assert "labels" not in brief
 
     # =========================================================================

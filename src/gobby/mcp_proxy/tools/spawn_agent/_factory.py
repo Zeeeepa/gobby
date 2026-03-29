@@ -382,8 +382,13 @@ def create_spawn_agent_registry(
         async def _spawn_one(suggestion: dict[str, Any]) -> dict[str, Any]:
             task_ref = suggestion.get("ref", suggestion.get("id", "unknown"))
             task_title = suggestion.get("title", "")
-            task_desc = suggestion.get("description", "")
             task_id = suggestion.get("id")
+            # Fetch full description via task_manager (to_brief() intentionally omits it)
+            task_desc = ""
+            if task_id and task_manager:
+                full_task = task_manager.get_task(task_id)
+                if full_task and full_task.description:
+                    task_desc = full_task.description
             desc_block = f"\n\nDescription:\n{task_desc}" if task_desc else ""
             try:
                 result = await spawn_agent(

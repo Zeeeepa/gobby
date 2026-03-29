@@ -247,13 +247,22 @@ steps:
         task_id: "${{ scan_needs_review.output.tasks[0].id }}"
         require_commits: false
 
+  - id: get_qa_task
+    condition: "${{ not done_check.output.orchestration_complete and len(scan_needs_review.output.tasks) > 0 and not (qa_gate.output and qa_gate.output.qa_already_running) }}"
+    mcp:
+      server: gobby-tasks
+      tool: get_task
+      arguments:
+        task_id: "${{ scan_needs_review.output.tasks[0].id }}"
+        brief: false
+
   - id: dispatch_qa
     condition: "${{ not done_check.output.orchestration_complete and len(scan_needs_review.output.tasks) > 0 and not (qa_gate.output and qa_gate.output.qa_already_running) }}"
     mcp:
       server: gobby-agents
       tool: spawn_agent
       arguments:
-        prompt: "${{ 'Review task ' + scan_needs_review.output.tasks[0].ref + ': ' + scan_needs_review.output.tasks[0].title + ('\n\nDescription:\n' + scan_needs_review.output.tasks[0].description if scan_needs_review.output.tasks[0].get('description') else '') }}"
+        prompt: "${{ 'Review task ' + scan_needs_review.output.tasks[0].ref + ': ' + scan_needs_review.output.tasks[0].title + ('\n\nDescription:\n' + get_qa_task.output.description if get_qa_task.output and get_qa_task.output.get('description') else '') }}"
         agent: "${{ inputs.qa_agent }}"
         task_id: "${{ scan_needs_review.output.tasks[0].id }}"
         clone_id: "${{ resolve_isolation_id.output.clone_id }}"

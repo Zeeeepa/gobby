@@ -277,7 +277,6 @@ class Task:
         return {
             "ref": f"#{self.seq_num}" if self.seq_num else self.id[:8],
             "title": self.title,
-            "description": self.description,
             "status": self.status,
             "priority": self.priority,
             "task_type": self.task_type,
