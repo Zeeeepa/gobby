@@ -10,6 +10,7 @@ Focuses on MCP client management operations including:
 """
 
 import asyncio
+import warnings
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 

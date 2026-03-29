@@ -210,6 +210,7 @@ __marimo__/
 # AI tool configurations (project-specific)
 .mcp.json
 .claude/
+.clawhub/
 .codex/
 .gemini/
 .agent/
