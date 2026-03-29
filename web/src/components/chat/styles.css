@@ -3061,6 +3061,32 @@
   }
 }
 
+.session-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 20px;
+  height: 20px;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.session-resize-handle::before {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  opacity: 0.5;
+}
+
+.session-resize-handle:hover::before {
+  opacity: 1;
+}
+
 /* ============================================
    Activity Panel — Mobile full-screen overlay
    ============================================ */
