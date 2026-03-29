@@ -6,7 +6,8 @@ import {
   TooltipContent,
 } from "../chat/ui/Tooltip";
 import { ResizeHandle } from "../chat/artifacts/ResizeHandle";
-import { ArtifactsTab } from "./ArtifactsTab";
+import { PlansTab } from "./PlansTab";
+import { FileChangesTab } from "./FileChangesTab";
 import { CanvasTab } from "./CanvasTab";
 import { SessionsTab } from "./SessionsTab";
 import { PipelinesTab } from "./PipelinesTab";
@@ -20,6 +21,7 @@ export type ActivityTab =
   | "pipelines"
   | "tasks"
   | "files"
+  | "plans"
   | "artifacts"
   | "canvas";
 
@@ -78,14 +80,25 @@ const TABS: Array<{ id: ActivityTab; label: string; icon: ReactNode }> = [
     ),
   },
   {
-    id: "artifacts",
-    label: "Artifacts",
+    id: "plans",
+    label: "Plans",
     icon: (
       <svg {...iconProps}>
-        <line x1="16.5" y1="9.4" x2="7.5" y2="4.21" />
-        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-        <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-        <line x1="12" y1="22.08" x2="12" y2="12" />
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
+        <polyline points="10 9 9 9 8 9" />
+      </svg>
+    ),
+  },
+  {
+    id: "artifacts",
+    label: "Changes",
+    icon: (
+      <svg {...iconProps}>
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
       </svg>
     ),
   },
@@ -130,6 +143,11 @@ interface ActivityPanelProps {
   // Clear callbacks
   onClearArtifacts?: () => void;
   onClearCanvas?: () => void;
+  // File changes tab
+  changedFiles?: { path: string; status: string }[];
+  isLoadingChanges?: boolean;
+  fetchDiff?: (path: string) => Promise<string>;
+  onRefreshChanges?: () => void;
   // Tasks tab
   projectId?: string | null;
   // Files tab
@@ -161,6 +179,10 @@ export function ActivityPanel({
   onCloseCanvas,
   onClearArtifacts,
   onClearCanvas,
+  changedFiles = [],
+  isLoadingChanges = false,
+  fetchDiff,
+  onRefreshChanges,
   projectId,
   onAddFileToChat,
   onKillAgent,
@@ -199,9 +221,9 @@ export function ActivityPanel({
         return <TasksTab projectId={projectId} />;
       case "files":
         return <FilesTab projectId={projectId} onAddToChat={onAddFileToChat} />;
-      case "artifacts":
+      case "plans":
         return (
-          <ArtifactsTab
+          <PlansTab
             artifacts={artifacts}
             artifact={activeArtifact}
             onOpenArtifact={onOpenArtifact}
@@ -215,6 +237,15 @@ export function ActivityPanel({
             onApprovePlan={onApprovePlan}
             onRequestPlanChanges={onRequestPlanChanges}
             onClearAll={onClearArtifacts}
+          />
+        );
+      case "artifacts":
+        return (
+          <FileChangesTab
+            changedFiles={changedFiles}
+            isLoading={isLoadingChanges}
+            fetchDiff={fetchDiff || (async () => '')}
+            onRefresh={onRefreshChanges}
           />
         );
       case "canvas":

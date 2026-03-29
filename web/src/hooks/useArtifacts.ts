@@ -33,6 +33,7 @@ export function useArtifacts() {
     content: string,
     language?: string,
     title?: string,
+    options?: { isPlan?: boolean },
   ): string => {
     const id = `artifact-${crypto.randomUUID()}`
     const artifact: Artifact = {
@@ -42,6 +43,7 @@ export function useArtifacts() {
       language,
       versions: [{ content, timestamp: new Date() }],
       currentVersionIndex: 0,
+      isPlan: options?.isPlan,
     }
     setArtifacts((prev) => {
       const next = new Map(prev)

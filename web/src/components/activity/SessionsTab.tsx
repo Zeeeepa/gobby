@@ -181,6 +181,16 @@ export const SessionsTab = memo(function SessionsTab({
     );
   }, [agents, cliSessions, expiringIds]);
 
+  // Auto-close watching view when the selected session disappears from the list
+  useEffect(() => {
+    if (selectedSessionId && !loading && entries.length >= 0) {
+      const stillPresent = entries.some((e) => e.id === selectedSessionId);
+      if (!stillPresent) {
+        setSelectedSessionId(null);
+      }
+    }
+  }, [entries, selectedSessionId, loading]);
+
   // Fetch selected session messages
   const { messages, isLoading } = useSessionDetail(selectedSessionId);
   const chatMessages: ChatMessage[] = useMemo(

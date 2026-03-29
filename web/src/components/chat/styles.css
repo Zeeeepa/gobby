@@ -3101,3 +3101,69 @@
 .activity-panel-close:hover {
   color: var(--text-primary);
 }
+
+/* ── File Changes Tab ── */
+.file-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  font-family: var(--font-mono, monospace);
+  border-radius: 0.25rem;
+  flex-shrink: 0;
+}
+
+.file-status-modified {
+  background: color-mix(in srgb, #eab308 20%, transparent);
+  color: #eab308;
+}
+
+.file-status-added {
+  background: color-mix(in srgb, #22c55e 20%, transparent);
+  color: #22c55e;
+}
+
+.file-status-deleted {
+  background: color-mix(in srgb, #ef4444 20%, transparent);
+  color: #ef4444;
+}
+
+.file-status-renamed {
+  background: color-mix(in srgb, #3b82f6 20%, transparent);
+  color: #3b82f6;
+}
+
+.file-status-untracked {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+/* ── Diff View ── */
+.diff-line {
+  padding: 0 0.75rem;
+  white-space: pre;
+  min-height: 1.25rem;
+}
+
+.diff-add {
+  background: color-mix(in srgb, #22c55e 12%, transparent);
+  color: #4ade80;
+}
+
+.diff-remove {
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  color: #f87171;
+}
+
+.diff-hunk {
+  background: color-mix(in srgb, #3b82f6 8%, transparent);
+  color: #60a5fa;
+}
+
+.diff-meta {
+  color: var(--text-muted);
+  font-style: italic;
+}

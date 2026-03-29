@@ -13,4 +13,5 @@ export interface Artifact {
   language?: string
   versions: ArtifactVersion[]
   currentVersionIndex: number
+  isPlan?: boolean
 }

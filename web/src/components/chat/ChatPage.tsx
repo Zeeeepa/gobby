@@ -18,6 +18,7 @@ import { CommandPalette, type CommandPaletteAction } from "./CommandPalette";
 import { ActiveSessionsModal } from "./ActiveSessionsModal";
 import { ActivityPanel, useActivityPanel } from "../activity/ActivityPanel";
 import { useCanvasPanel } from "../canvas/hooks/useCanvasPanel";
+import { useFileChanges } from "../../hooks/useFileChanges";
 
 interface ChatPageProps {
   chat: ChatState;
@@ -79,6 +80,7 @@ export function ChatPage({
   const isMobile = useIsMobile();
   const canvas = useCanvasPanel();
   const activity = useActivityPanel();
+  const fileChanges = useFileChanges(projectId ?? null);
 
   // Modals
   const [showCommandPalette, setShowCommandPalette] = useState(false);
@@ -112,7 +114,7 @@ export function ChatPage({
   const openCodeAsArtifact = useCallback(
     (language: string, content: string, title?: string) => {
       createArtifact("code", content, language, title);
-      activity.showTab("artifacts");
+      activity.showTab("plans");
     },
     [createArtifact, activity.showTab],
   );
@@ -120,7 +122,7 @@ export function ChatPage({
   const openFileAsArtifact = useCallback(
     (type: ArtifactType, language: string, content: string, title?: string) => {
       createArtifact(type, content, language, title);
-      activity.showTab("artifacts");
+      activity.showTab("plans");
     },
     [createArtifact, activity.showTab],
   );
@@ -138,11 +140,11 @@ export function ChatPage({
         updateArtifact(planArtifactIdRef.current, content);
         openArtifact(planArtifactIdRef.current);
       } else {
-        const id = createArtifact("text", content, "markdown", title);
+        const id = createArtifact("text", content, "markdown", title, { isPlan: true });
         planArtifactIdRef.current = id;
       }
       setPlanPendingLocal(true);
-      activity.showTab("artifacts");
+      activity.showTab("plans");
     },
     [createArtifact, updateArtifact, openArtifact, artifacts, activity.showTab],
   );
@@ -162,7 +164,7 @@ export function ChatPage({
     (type: string, content: string, language?: string, title?: string) => {
       if (validArtifactTypes.has(type)) {
         createArtifact(type as ArtifactType, content, language, title);
-        activity.showTab("artifacts");
+        activity.showTab("plans");
       }
     },
     [createArtifact, activity.showTab],
@@ -219,7 +221,7 @@ export function ChatPage({
       showPlanRef.current = () => {
         if (planArtifactIdRef.current) {
           openArtifact(planArtifactIdRef.current);
-          activity.showTab("artifacts");
+          activity.showTab("plans");
         }
       };
     }
@@ -378,6 +380,10 @@ export function ChatPage({
         onCloseCanvas={canvas.closeCanvas}
         onClearArtifacts={clearArtifacts}
         onClearCanvas={canvas.closeCanvas}
+        changedFiles={fileChanges.changedFiles}
+        isLoadingChanges={fileChanges.isLoading}
+        fetchDiff={fileChanges.fetchDiff}
+        onRefreshChanges={fileChanges.refresh}
         projectId={projectId}
         onKillAgent={conversations.onKillAgent}
         onExpireSession={conversations.onExpireSession}
