@@ -42,9 +42,9 @@ export const PlansTab = memo(function PlansTab({
     if (artifactList.length === 0) {
       return (
         <div className="activity-tab-empty">
-          <p>No artifacts yet</p>
+          <p>No plans yet</p>
           <p className="text-xs text-muted-foreground mt-1">
-            Plans and code artifacts appear here during the session
+            Plans appear here when the agent enters plan mode
           </p>
         </div>
       )
