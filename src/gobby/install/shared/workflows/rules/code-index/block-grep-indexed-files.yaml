@@ -2,22 +2,18 @@ tags: [code-index, gobby, default]
 
 rules:
   intercept-grep-with-code-index:
-    description: "Intercept Grep calls in indexed projects — proxy through gobby-code and inject results"
+    description: "Intercept Grep calls in indexed projects — steer to gcode CLI"
     event: before_tool
     enabled: true
     priority: 50
     when: >
       event.data.get('tool_name', '').lower() in ('grep_search', 'grep')
     effects:
-      - type: mcp_call
-        server: gobby-code
-        tool: search_content
-        arguments:
-          query: "{{ tool_input.get('pattern', tool_input.get('query', '')) }}"
-          file_path: "{{ tool_input.get('path', '') }}"
-        inject_result: true
       - type: block
         message: >
           Grep is blocked — this project has a code index.
-          Use gobby-code tools instead: search_content (text search),
-          search_symbols (symbol search), get_file_outline, get_file_tree.
+          Use gcode via Bash instead:
+          - `gcode search-content "query"` — full-text search across file content
+          - `gcode search "query"` — hybrid symbol search (FTS + semantic + graph)
+          - `gcode outline path/to/file.py` — symbol outline for a file
+          - `gcode tree` — file tree with symbol counts

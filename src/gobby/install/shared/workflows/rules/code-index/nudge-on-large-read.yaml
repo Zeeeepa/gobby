@@ -2,7 +2,7 @@ tags: [code-index, gobby, default]
 
 rules:
   code-index-nudge-on-read:
-    description: "After reading a large indexed file, nudge agent toward gobby-code"
+    description: "After reading a large indexed file, nudge agent toward gcode CLI"
     event: after_tool
     enabled: false
     priority: 50
@@ -11,12 +11,11 @@ rules:
       and len(event.data.get('tool_output', '')) > 10000
     conditions:
       - "variables.get('code_index_available', False)"
-      - "variables.get('servers_listed', False)"
     effects:
       - type: inject_context
         template: |
-          Tip: This file is indexed in gobby-code. For targeted retrieval:
-          - `get_file_outline("{{ event.data.get('tool_input', {}).get('file_path', '') }}")` — symbol map
-          - `search_symbols("query")` — find specific symbols
-          - `get_symbol(id)` — retrieve just the symbol you need
+          Tip: This file is indexed. For targeted retrieval via gcode:
+          - `gcode outline "{{ event.data.get('tool_input', {}).get('file_path', '') }}"` — symbol map
+          - `gcode search "query"` — find specific symbols
+          - `gcode symbol <id>` — retrieve just the symbol you need
           This saves 90%+ tokens vs reading the full file.

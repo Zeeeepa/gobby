@@ -25,9 +25,10 @@ Discover skills with progressive discovery too:
 </skills>
 
 <code_search>
-If the project has a code index, `gobby-code` provides symbol-level search and retrieval.
-Key tools: `search_symbols(query)`, `get_file_outline(file_path)`, `get_symbol(symbol_id)`.
+If the project has a code index, use `gcode` via Bash for fast symbol-level search and retrieval.
+Key commands: `gcode search "query"`, `gcode outline path/to/file`, `gcode symbol <id>`.
 Use these instead of reading entire files — saves 90%+ tokens on large files.
+Run `gcode --help` for all available commands.
 </code_search>
 
 <caching>
