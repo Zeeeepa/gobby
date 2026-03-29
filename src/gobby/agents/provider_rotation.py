@@ -22,6 +22,10 @@ logger = logging.getLogger(__name__)
 def parse_provider_list(provider_string: str | None) -> list[str]:
     """Parse a comma-separated provider string into a list.
 
+    .. deprecated::
+        Use ``fallback_agent`` on agent definitions instead of comma-separated
+        provider strings. Kept for backward compatibility.
+
     Args:
         provider_string: e.g. "gemini,claude" or "claude"
 

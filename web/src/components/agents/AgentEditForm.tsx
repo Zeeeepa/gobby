@@ -23,6 +23,7 @@ export interface AgentFormData {
   timeout: number
   max_turns: number
   pipeline: string
+  fallback_agent: string
 }
 
 export interface AgentItemForPanel {
@@ -35,6 +36,7 @@ export interface AgentItemForPanel {
     instructions: string | null
     provider: string
     model: string | null
+    fallback_agent: string | null
     mode: string
     isolation: string | null
     base_branch: string
@@ -103,6 +105,7 @@ interface AgentEditFormProps {
   onBlockedToolsChange?: (tools: string[]) => void
   blockedMcpTools?: string[]
   onBlockedMcpToolsChange?: (tools: string[]) => void
+  agentNames?: string[]
 }
 
 function FormInput({ label, value, onChange, placeholder, required }: {
@@ -168,6 +171,7 @@ export function AgentEditForm({
   steps, onStepsChange,
   blockedTools, onBlockedToolsChange,
   blockedMcpTools, onBlockedMcpToolsChange,
+  agentNames = [],
 }: AgentEditFormProps) {
   const [customModelInput, setCustomModelInput] = useState(false)
   const [customBranchInput, setCustomBranchInput] = useState(false)
@@ -253,6 +257,9 @@ export function AgentEditForm({
           <div className="agent-edit-meta">
             <MetaRow label="Provider"><span>{rd.provider}</span></MetaRow>
             <MetaRow label="Model"><span>{rd.model || '(default)'}</span></MetaRow>
+            {rd.fallback_agent && (
+              <MetaRow label="Fallback"><span>{rd.fallback_agent}</span></MetaRow>
+            )}
             <MetaRow label="Mode"><span>{rd.mode}</span></MetaRow>
             <MetaRow label="Isolation"><span>{rd.isolation || 'none'}</span></MetaRow>
             <MetaRow label="Base branch"><span>{rd.base_branch}</span></MetaRow>
@@ -492,6 +499,28 @@ export function AgentEditForm({
                   {models?.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                   {!isInheritProvider && <option value="__custom__">Custom...</option>}
                 </select>
+              )}
+            </MetaRow>
+
+            <MetaRow label="Fallback">
+              {form.fallback_agent ? (
+                <div className="agent-edit-model-field">
+                  <select className="agent-edit-input" value={form.fallback_agent} onChange={e => {
+                    onChange({ ...form, fallback_agent: e.target.value || '' })
+                  }}>
+                    {agentNames.filter(n => n !== form.name).map(n => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                  <button type="button" className="agent-edit-model-toggle" onClick={() => onChange({ ...form, fallback_agent: '' })}>&times;</button>
+                </div>
+              ) : (
+                <button type="button" className="agent-edit-link-btn" onClick={() => {
+                  const first = agentNames.find(n => n !== form.name)
+                  if (first) onChange({ ...form, fallback_agent: first })
+                }}>
+                  + Add fallback agent
+                </button>
               )}
             </MetaRow>
 

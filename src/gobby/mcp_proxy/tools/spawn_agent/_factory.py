@@ -257,31 +257,33 @@ def create_spawn_agent_registry(
             else:
                 logger.warning(f"Workflow {effective_workflow!r} not found for agent spawn")
 
-        # Provider rotation: if spawning for a task, check if previous attempts
-        # failed with provider errors and skip those providers
-        effective_provider = provider
-        if task_id and db and effective_provider:
+        # Fallback agent: if this agent's provider has failed on this task,
+        # load the fallback agent definition and use it instead.
+        if task_id and db and agent_body and agent_body.fallback_agent and not provider:
             try:
-                from gobby.agents.provider_rotation import (
-                    get_failed_providers_for_task,
-                    parse_provider_list,
-                )
+                from gobby.agents.provider_rotation import get_failed_providers_for_task
                 from gobby.storage.agents import LocalAgentRunManager
 
                 arm = LocalAgentRunManager(db)
-                provider_list = parse_provider_list(effective_provider)
-                if len(provider_list) > 1:
-                    # Multi-provider list — pick the first untried one
-                    failed = get_failed_providers_for_task(task_id, arm)
-                    for p in provider_list:
-                        if p not in failed:
-                            effective_provider = p
-                            break
-                    else:
-                        # All exhausted — use the first one as fallback
-                        effective_provider = provider_list[0]
+                failed_providers = get_failed_providers_for_task(task_id, arm)
+
+                agent_provider = agent_body.provider
+                if agent_provider in (None, "inherit"):
+                    agent_provider = "claude"
+
+                if agent_provider in failed_providers:
+                    fallback_body = _load_agent_body(
+                        agent_body.fallback_agent, db, project_id=project_id
+                    )
+                    if fallback_body:
+                        logger.info(
+                            f"Provider {agent_provider} failed for task {task_id}, "
+                            f"falling back from {agent_body.name} to {fallback_body.name}"
+                        )
+                        agent_body = fallback_body
+                        agent = agent_body.name
             except Exception as e:
-                logger.debug(f"Provider rotation check failed: {e}")
+                logger.debug(f"Fallback agent check failed: {e}")
 
         # Delegate to spawn_agent_impl
         result = await spawn_agent_impl(
@@ -303,7 +305,7 @@ def create_spawn_agent_registry(
             workflow=effective_workflow,
             mode=mode,
             initial_step=initial_step,
-            provider=effective_provider,
+            provider=provider,
             model=model,
             timeout=timeout,
             max_turns=max_turns,

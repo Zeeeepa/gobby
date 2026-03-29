@@ -1,7 +1,7 @@
 ---
 name: orchestrate
 description: "Production orchestration wizard. Sets up cron-driven pipelines to process epics with dev+QA agents. Supports multiple concurrent named orchestrations. Subcommands: setup (default), status, list, pause, resume, cleanup."
-version: "1.0.0"
+version: "1.1.0"
 category: orchestration
 triggers: orchestrate, orchestration, run orchestrator, set up orchestration, dispatch agents
 metadata:
@@ -123,20 +123,54 @@ Ask: "Agent isolation mode? (default: worktree)"
 - **none** — Agents work in the main directory (no isolation, use for debugging)
 - Default: `isolation="worktree"`
 
-#### Prompt 6: Developer Provider/Model/Mode
+#### Prompt 6: Developer Agent
 
-Ask: "Developer agent provider and model? (default: gemini / provider-default)"
-- Parse as `provider / model` or just `provider`
+First, fetch available agent definitions:
+```python
+defs = call_tool("gobby-workflows", "list_agent_definitions", {"enabled": true})
+```
+
+Filter to developer-class agents (exclude agents whose name contains "qa", "reviewer", "conductor", "merge", "expander", "expansion", "default", "pipeline", "web-chat", "codex", "nightly"). Show the filtered list:
+
+```
+Available developer agents:
+  1. developer        — Developer agent: implements tasks, writes tests, commits
+  2. python-dev       — Python developer agent with hub skills for testing, perf, best practices
+  ...
+```
+
+Ask: "Developer agent definition? (default: developer)"
+- Accept number or name
+- Default: `developer_agent="developer"`
+
+Then ask: "Developer provider/model override? (default: inherit from agent definition)"
+- Parse as `provider / model`, just `provider`, or empty for inherit
+- If the chosen agent already has a provider/model set in its definition, show it: "python-dev defines no provider — override? (default: gemini / provider-default)"
 - Default: `developer_provider="gemini"`, `developer_model=null`
+- If user enters "inherit" or empty: `developer_provider=null`, `developer_model=null`
 
 Then ask: "Developer agent mode? (default: terminal)"
 - **terminal** — Agent runs in a tmux terminal session (visible, interactive)
 - **background** — Agent runs as a background process (headless)
 - Default: `developer_mode="terminal"`
 
-#### Prompt 7: QA Provider/Model/Mode
+#### Prompt 7: QA Agent
 
-Ask: "QA agent provider and model? (default: claude / opus)"
+Show QA-class agents from the same definitions list (include agents whose name contains "qa" or "reviewer"):
+
+```
+Available QA agents:
+  1. qa-reviewer  — Reviews code, approves/rejects
+  2. qa-dev       — Reviews code AND fixes issues (claude)
+  ...
+```
+
+Ask: "QA agent definition? (default: qa-reviewer)"
+- Accept number or name
+- Default: `qa_agent="qa-reviewer"`
+
+Then ask: "QA provider/model override? (default: claude / opus)"
+- Same parsing as Prompt 6
 - Default: `qa_provider="claude"`, `qa_model="opus"`
 
 Then ask: "QA agent mode? (default: terminal)"
@@ -168,8 +202,8 @@ Then display the full configuration:
 Epic:           #{N} "{title}"
 Subtasks:       {count} tasks
 Isolation:      {worktree|clone|none}
-Dev Agent:      {provider} / {model} ({mode})
-QA Agent:       {provider} / {model} ({mode})
+Dev Agent:      {agent_name} → {provider} / {model} ({mode})
+QA Agent:       {agent_name} → {provider} / {model} ({mode})
 Timeout:        {N}s
 Cron Interval:  {N}s ({N}m)
 Max Concurrent: {N}
@@ -195,8 +229,8 @@ job = call_tool("gobby-cron", "create_cron_job", {
         "pipeline_name": "orchestrator",
         "inputs": {
             "task_id": "<epic_id>",
-            "developer_agent": "developer",
-            "qa_agent": "qa-reviewer",
+            "developer_agent": "<developer_agent>",
+            "qa_agent": "<qa_agent>",
             "developer_provider": "<dev_provider>",
             "developer_mode": "<dev_mode>",
             "qa_provider": "<qa_provider>",
@@ -545,8 +579,8 @@ Create as `.gobby/orchestrations/{slug}.md` during Phase 2:
 - **Cron Job ID**: {cron_job_id}
 - **Current Branch**: {branch}
 - **Merge Target**: {branch}
-- **Dev Provider/Model**: {provider} / {model} ({mode})
-- **QA Provider/Model**: {provider} / {model} ({mode})
+- **Dev Agent**: {agent_name} → {provider} / {model} ({mode})
+- **QA Agent**: {agent_name} → {provider} / {model} ({mode})
 - **Agent Timeout**: {N}s
 - **Cron Interval**: {N}s
 - **Max Concurrent**: {N}

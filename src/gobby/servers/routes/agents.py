@@ -32,6 +32,7 @@ class CreateAgentDefinitionRequest(BaseModel):
     instructions: str | None = None
     provider: str = "inherit"
     model: str | None = None
+    fallback_agent: str | None = None
     mode: str = "inherit"
     isolation: str | None = "inherit"
     base_branch: str = "inherit"
@@ -58,6 +59,7 @@ class UpdateAgentDefinitionRequest(BaseModel):
     instructions: str | None = None
     provider: str | None = None
     model: str | None = None
+    fallback_agent: str | None = None
     mode: str | None = None
     isolation: str | None = None
     base_branch: str | None = None
@@ -262,6 +264,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                 instructions=request.instructions,
                 provider=request.provider,
                 model=request.model,
+                fallback_agent=request.fallback_agent,
                 mode=request.mode,
                 isolation=request.isolation,
                 base_branch=request.base_branch,
@@ -315,6 +318,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                 "instructions",
                 "provider",
                 "model",
+                "fallback_agent",
                 "mode",
                 "isolation",
                 "base_branch",

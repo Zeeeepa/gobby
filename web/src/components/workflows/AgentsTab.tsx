@@ -21,6 +21,7 @@ interface AgentDefInfo {
     instructions: string | null
     provider: string
     model: string | null
+    fallback_agent: string | null
     mode: string
     isolation: string | null
     base_branch: string
@@ -87,7 +88,7 @@ const ISOLATION_COLORS: Record<string, string> = {
 
 const DEFAULT_FORM: AgentFormData = {
   name: '', description: '', role: '', goal: '', personality: '', instructions: '',
-  provider: 'inherit', model: '', mode: 'inherit', isolation: 'inherit',
+  provider: 'inherit', model: '', fallback_agent: '', mode: 'inherit', isolation: 'inherit',
   base_branch: 'inherit', timeout: 0, max_turns: 0, pipeline: '',
 }
 
@@ -115,6 +116,7 @@ function agentDefToYaml(d: AgentDefInfo['definition']): string {
   if (d.instructions) obj.instructions = d.instructions
   obj.provider = d.provider
   if (d.model) obj.model = d.model
+  if (d.fallback_agent) obj.fallback_agent = d.fallback_agent
   obj.mode = d.mode
   if (d.isolation) obj.isolation = d.isolation
   obj.base_branch = d.base_branch
@@ -188,6 +190,19 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
 
   // Pipeline list for selector
   const [pipelineList, setPipelineList] = useState<{ id: string; name: string }[]>([])
+
+  // Installed/project agent names for fallback dropdown (deduplicated, project wins)
+  const agentNames = useMemo(() => {
+    const nameMap = new Map<string, string>()
+    for (const d of definitions) {
+      if (d.deleted_at) continue
+      if (d.source !== 'installed' && d.source !== 'project') continue
+      if (!nameMap.has(d.definition.name) || d.source === 'project') {
+        nameMap.set(d.definition.name, d.source)
+      }
+    }
+    return Array.from(nameMap.keys()).sort()
+  }, [definitions])
 
   const fetchDefinitions = useCallback(async (includeDeleted = false) => {
     setLoading(true)
@@ -365,6 +380,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       if (createForm.personality) body.personality = createForm.personality
       if (createForm.instructions) body.instructions = createForm.instructions
       if (createForm.model) body.model = createForm.model
+      if (createForm.fallback_agent) body.fallback_agent = createForm.fallback_agent
       // Nest rules, rule_selectors, variables, pipeline under workflows
       const workflows: Record<string, unknown> = {}
       if (editRules.length > 0) workflows.rules = editRules
@@ -409,6 +425,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
       instructions: d.instructions || '',
       provider: d.provider,
       model: d.model || '',
+      fallback_agent: d.fallback_agent || '',
       mode: d.mode,
       isolation: d.isolation || 'inherit',
       base_branch: d.base_branch,
@@ -451,6 +468,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         instructions: createForm.instructions || null,
         provider: createForm.provider,
         model: createForm.model || null,
+        fallback_agent: createForm.fallback_agent || null,
         mode: createForm.mode,
         isolation: createForm.isolation,
         base_branch: createForm.base_branch,
@@ -542,6 +560,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
     if (d.personality) body.personality = d.personality
     if (d.instructions) body.instructions = d.instructions
     if (d.model) body.model = d.model
+    if (d.fallback_agent) body.fallback_agent = d.fallback_agent
     if (d.isolation) body.isolation = d.isolation
     if (d.workflows) body.workflows = d.workflows
     try {
@@ -1006,6 +1025,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         onBlockedToolsChange={setEditBlockedTools}
         blockedMcpTools={editBlockedMcpTools}
         onBlockedMcpToolsChange={setEditBlockedMcpTools}
+        agentNames={agentNames}
       />
     </div>
   )

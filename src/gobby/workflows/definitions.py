@@ -257,6 +257,7 @@ class AgentDefinitionBody(BaseModel):
     # Execution
     provider: str = "inherit"
     model: str | None = None
+    fallback_agent: str | None = None
     api_base: str | None = Field(
         default=None,
         description="API base URL for the model endpoint (e.g., http://localhost:1234/v1 for LM Studio)",
