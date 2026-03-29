@@ -556,3 +556,167 @@ class TestEnsureProjectInDb:
             MockPM.return_value.ensure_exists.side_effect = ValueError("DB error")
             # Should not raise
             manager._ensure_project_in_db({"id": "proj-1", "name": "test"})
+
+
+# ─── Tests for _resolve_session_refs_in_tool_input ─────────────────────
+
+
+class TestResolveSessionRefsInToolInput:
+    """Tests for #N → UUID resolution at the hook boundary."""
+
+    def test_resolves_top_level_session_id(
+        self, manager_with_mocks: HookManager, make_event: Callable
+    ) -> None:
+        """#N in tool_input.session_id is resolved to UUID."""
+        manager = manager_with_mocks
+        manager._session_manager.resolve_session_reference.return_value = "uuid-abc-123"
+
+        event = make_event(
+            event_type=HookEventType.BEFORE_TOOL,
+            data={
+                "tool_name": "mcp__gobby__set_variable",
+                "tool_input": {"name": "flag", "value": True, "session_id": "#3"},
+            },
+        )
+        event.project_id = "proj-1"
+
+        manager._resolve_session_refs_in_tool_input(event)
+
+        assert event.data["tool_input"]["session_id"] == "uuid-abc-123"
+        assert event.metadata.get("_session_refs_resolved") is True
+        manager._session_manager.resolve_session_reference.assert_called_once_with("#3", "proj-1")
+
+    def test_resolves_nested_call_tool_arguments(
+        self, manager_with_mocks: HookManager, make_event: Callable
+    ) -> None:
+        """#N inside call_tool arguments.session_id is resolved."""
+        manager = manager_with_mocks
+        manager._session_manager.resolve_session_reference.return_value = "uuid-def-456"
+
+        event = make_event(
+            event_type=HookEventType.BEFORE_TOOL,
+            data={
+                "tool_name": "mcp__gobby__call_tool",
+                "tool_input": {
+                    "server_name": "gobby-tasks",
+                    "tool_name": "close_task",
+                    "arguments": {"task_id": "#4", "session_id": "#3"},
+                },
+            },
+        )
+        event.project_id = "proj-1"
+
+        manager._resolve_session_refs_in_tool_input(event)
+
+        assert event.data["tool_input"]["arguments"]["session_id"] == "uuid-def-456"
+        assert event.metadata.get("_session_refs_resolved") is True
+
+    def test_uuid_passthrough_no_rewrite(
+        self, manager_with_mocks: HookManager, make_event: Callable
+    ) -> None:
+        """UUID session_id is not rewritten."""
+        manager = manager_with_mocks
+
+        event = make_event(
+            event_type=HookEventType.BEFORE_TOOL,
+            data={
+                "tool_name": "mcp__gobby__set_variable",
+                "tool_input": {
+                    "name": "flag",
+                    "value": True,
+                    "session_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                },
+            },
+        )
+        event.project_id = "proj-1"
+
+        manager._resolve_session_refs_in_tool_input(event)
+
+        assert event.data["tool_input"]["session_id"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        assert "_session_refs_resolved" not in event.metadata
+        manager._session_manager.resolve_session_reference.assert_not_called()
+
+    def test_skips_non_mcp_tools(
+        self, manager_with_mocks: HookManager, make_event: Callable
+    ) -> None:
+        """Non-MCP tools are not touched."""
+        manager = manager_with_mocks
+
+        event = make_event(
+            event_type=HookEventType.BEFORE_TOOL,
+            data={
+                "tool_name": "Bash",
+                "tool_input": {"command": "echo hello", "session_id": "#3"},
+            },
+        )
+        event.project_id = "proj-1"
+
+        manager._resolve_session_refs_in_tool_input(event)
+
+        assert event.data["tool_input"]["session_id"] == "#3"
+        manager._session_manager.resolve_session_reference.assert_not_called()
+
+    def test_skips_non_before_tool_events(
+        self, manager_with_mocks: HookManager, make_event: Callable
+    ) -> None:
+        """Only BEFORE_TOOL events trigger resolution."""
+        manager = manager_with_mocks
+
+        event = make_event(
+            event_type=HookEventType.AFTER_TOOL,
+            data={
+                "tool_name": "mcp__gobby__set_variable",
+                "tool_input": {"session_id": "#3"},
+            },
+        )
+        event.project_id = "proj-1"
+
+        manager._resolve_session_refs_in_tool_input(event)
+
+        assert event.data["tool_input"]["session_id"] == "#3"
+        manager._session_manager.resolve_session_reference.assert_not_called()
+
+    def test_resolution_error_is_swallowed(
+        self, manager_with_mocks: HookManager, make_event: Callable
+    ) -> None:
+        """Resolution errors are logged and don't crash the hook."""
+        manager = manager_with_mocks
+        manager._session_manager.resolve_session_reference.side_effect = ValueError(
+            "Session #99 not found"
+        )
+
+        event = make_event(
+            event_type=HookEventType.BEFORE_TOOL,
+            data={
+                "tool_name": "mcp__gobby__set_variable",
+                "tool_input": {"session_id": "#99"},
+            },
+        )
+        event.project_id = "proj-1"
+
+        manager._resolve_session_refs_in_tool_input(event)
+
+        # session_id unchanged on error
+        assert event.data["tool_input"]["session_id"] == "#99"
+        assert "_session_refs_resolved" not in event.metadata
+
+    def test_numeric_string_without_hash(
+        self, manager_with_mocks: HookManager, make_event: Callable
+    ) -> None:
+        """Plain numeric string '3' is also resolved (agents sometimes omit #)."""
+        manager = manager_with_mocks
+        manager._session_manager.resolve_session_reference.return_value = "uuid-789"
+
+        event = make_event(
+            event_type=HookEventType.BEFORE_TOOL,
+            data={
+                "tool_name": "mcp__gobby__get_variable",
+                "tool_input": {"session_id": "3"},
+            },
+        )
+        event.project_id = "proj-1"
+
+        manager._resolve_session_refs_in_tool_input(event)
+
+        assert event.data["tool_input"]["session_id"] == "uuid-789"
+        assert event.metadata.get("_session_refs_resolved") is True
