@@ -89,6 +89,7 @@ impl Symbol {
             score: 0.0,
             summary: self.summary.clone(),
             signature: self.signature.clone(),
+            sources: None,
         }
     }
 }
@@ -190,6 +191,8 @@ pub struct SearchResult {
     pub summary: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signature: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sources: Option<Vec<String>>,
 }
 
 /// Graph query result (callers, usages).

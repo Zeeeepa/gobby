@@ -60,6 +60,12 @@ fernet = "0.2"
 pbkdf2 = { version = "0.12", features = ["simple"] }
 hmac = "0.12"
 
+# Embeddings (GGUF model loading for semantic search)
+llama-cpp-2 = { version = "0.1", features = ["metal"] }
+
+# Temp files (for tests)
+tempfile = "3"
+
 [profile.release]
 opt-level = 3
 lto = true

@@ -13,6 +13,7 @@ use crate::index::languages;
 use crate::index::parser;
 use crate::index::walker;
 use crate::models::{IndexResult, IndexedFile, IndexedProject};
+use crate::neo4j::Neo4jClient;
 
 /// Default exclude patterns (matching Python CodeIndexConfig defaults).
 const DEFAULT_EXCLUDES: &[&str] = &[
@@ -27,6 +28,7 @@ pub fn index_directory(
     root_path: &Path,
     project_id: &str,
     incremental: bool,
+    neo4j: Option<&Neo4jClient>,
 ) -> anyhow::Result<IndexResult> {
     let start = Instant::now();
     let mut result = IndexResult {
@@ -60,7 +62,7 @@ pub fn index_directory(
     if incremental && !current_hashes.is_empty() {
         let orphans = get_orphan_files(conn, project_id, &current_hashes);
         for orphan in &orphans {
-            delete_file_data(conn, project_id, orphan);
+            delete_file_data(conn, project_id, orphan, neo4j);
         }
     }
 
@@ -78,7 +80,7 @@ pub fn index_directory(
             }
         }
 
-        match index_file(conn, path, project_id, root_path, &excludes) {
+        match index_file(conn, path, project_id, root_path, &excludes, neo4j) {
             Some(count) => {
                 result.files_indexed += 1;
                 result.symbols_found += count;
@@ -127,6 +129,7 @@ pub fn index_files(
     root_path: &Path,
     project_id: &str,
     file_paths: &[String],
+    neo4j: Option<&Neo4jClient>,
 ) -> anyhow::Result<IndexResult> {
     let start = Instant::now();
     let mut result = IndexResult {
@@ -149,11 +152,11 @@ pub fn index_files(
 
         if !abs.exists() {
             // File deleted — clean up
-            delete_file_data(conn, project_id, fp);
+            delete_file_data(conn, project_id, fp, neo4j);
             continue;
         }
 
-        match index_file(conn, &abs, project_id, root_path, &excludes) {
+        match index_file(conn, &abs, project_id, root_path, &excludes, neo4j) {
             Some(count) => {
                 result.files_indexed += 1;
                 result.symbols_found += count;
@@ -173,11 +176,12 @@ fn index_file(
     project_id: &str,
     root_path: &Path,
     exclude_patterns: &[String],
+    neo4j: Option<&Neo4jClient>,
 ) -> Option<usize> {
     let rel = relative_path(file_path, root_path).ok()?;
 
     // Clear old data first
-    delete_file_data(conn, project_id, &rel);
+    delete_file_data(conn, project_id, &rel, neo4j);
 
     let parse_result = parser::parse_file(file_path, project_id, root_path, exclude_patterns)?;
 
@@ -187,8 +191,15 @@ fn index_file(
 
     let count = parse_result.symbols.len();
 
-    // Upsert symbols
+    // Upsert symbols to SQLite
     upsert_symbols(conn, &parse_result.symbols);
+
+    // Write graph edges to Neo4j
+    if let Some(client) = neo4j {
+        crate::neo4j::write_defines(client, project_id, &rel, &parse_result.symbols);
+        crate::neo4j::write_calls(client, project_id, &parse_result.calls);
+        crate::neo4j::write_imports(client, project_id, &parse_result.imports);
+    }
 
     // Upsert file record
     let language = languages::detect_language(&file_path.to_string_lossy()).unwrap_or("unknown");
@@ -392,7 +403,12 @@ fn upsert_project_stats(conn: &Connection, project: &IndexedProject) {
     );
 }
 
-fn delete_file_data(conn: &Connection, project_id: &str, file_path: &str) {
+fn delete_file_data(conn: &Connection, project_id: &str, file_path: &str, neo4j: Option<&Neo4jClient>) {
+    // Delete graph data first
+    if let Some(client) = neo4j {
+        crate::neo4j::delete_file_graph(client, project_id, file_path);
+    }
+
     let _ = conn.execute(
         "DELETE FROM code_symbols WHERE project_id = ?1 AND file_path = ?2",
         rusqlite::params![project_id, file_path],
