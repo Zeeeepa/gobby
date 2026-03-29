@@ -382,10 +382,12 @@ def create_spawn_agent_registry(
         async def _spawn_one(suggestion: dict[str, Any]) -> dict[str, Any]:
             task_ref = suggestion.get("ref", suggestion.get("id", "unknown"))
             task_title = suggestion.get("title", "")
+            task_desc = suggestion.get("description", "")
             task_id = suggestion.get("id")
+            desc_block = f"\n\nDescription:\n{task_desc}" if task_desc else ""
             try:
                 result = await spawn_agent(
-                    prompt=f"Implement task {task_ref}: {task_title}",
+                    prompt=f"Implement task {task_ref}: {task_title}{desc_block}",
                     agent=agent,
                     task_id=task_id,
                     worktree_id=worktree_id,

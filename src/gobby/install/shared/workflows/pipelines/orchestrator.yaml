@@ -253,7 +253,7 @@ steps:
       server: gobby-agents
       tool: spawn_agent
       arguments:
-        prompt: "${{ 'Review task ' + scan_needs_review.output.tasks[0].ref + ': ' + scan_needs_review.output.tasks[0].title }}"
+        prompt: "${{ 'Review task ' + scan_needs_review.output.tasks[0].ref + ': ' + scan_needs_review.output.tasks[0].title + ('\n\nDescription:\n' + scan_needs_review.output.tasks[0].description if scan_needs_review.output.tasks[0].get('description') else '') }}"
         agent: "${{ inputs.qa_agent }}"
         task_id: "${{ scan_needs_review.output.tasks[0].id }}"
         clone_id: "${{ resolve_isolation_id.output.clone_id }}"
