@@ -145,9 +145,7 @@ interface ActivityPanelProps {
   onClearCanvas?: () => void;
   // File changes tab
   changedFiles?: { path: string; status: string }[];
-  isLoadingChanges?: boolean;
   fetchDiff?: (path: string) => Promise<string>;
-  onRefreshChanges?: () => void;
   // Tasks tab
   projectId?: string | null;
   // Files tab
@@ -180,9 +178,7 @@ export function ActivityPanel({
   onClearArtifacts,
   onClearCanvas,
   changedFiles = [],
-  isLoadingChanges = false,
   fetchDiff,
-  onRefreshChanges,
   projectId,
   onAddFileToChat,
   onKillAgent,
@@ -243,9 +239,7 @@ export function ActivityPanel({
         return (
           <FileChangesTab
             changedFiles={changedFiles}
-            isLoading={isLoadingChanges}
             fetchDiff={fetchDiff || (async () => '')}
-            onRefresh={onRefreshChanges}
           />
         );
       case "canvas":

@@ -80,7 +80,7 @@ export function ChatPage({
   const isMobile = useIsMobile();
   const canvas = useCanvasPanel();
   const activity = useActivityPanel();
-  const fileChanges = useFileChanges(projectId ?? null);
+  const fileChanges = useFileChanges(chat.messages, projectId ?? null);
 
   // Modals
   const [showCommandPalette, setShowCommandPalette] = useState(false);
@@ -381,9 +381,7 @@ export function ChatPage({
         onClearArtifacts={clearArtifacts}
         onClearCanvas={canvas.closeCanvas}
         changedFiles={fileChanges.changedFiles}
-        isLoadingChanges={fileChanges.isLoading}
         fetchDiff={fileChanges.fetchDiff}
-        onRefreshChanges={fileChanges.refresh}
         projectId={projectId}
         onKillAgent={conversations.onKillAgent}
         onExpireSession={conversations.onExpireSession}

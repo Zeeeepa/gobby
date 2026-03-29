@@ -5,18 +5,14 @@ import type { ChangedFile } from '../../hooks/useFileChanges'
 
 interface FileChangesTabProps {
   changedFiles: ChangedFile[]
-  isLoading: boolean
   fetchDiff: (path: string) => Promise<string>
-  onRefresh?: () => void
 }
 
 function statusBadge(status: string) {
   const map: Record<string, { label: string; className: string }> = {
-    M: { label: 'M', className: 'file-status-modified' },
-    A: { label: 'A', className: 'file-status-added' },
+    E: { label: 'E', className: 'file-status-modified' },
+    W: { label: 'W', className: 'file-status-added' },
     D: { label: 'D', className: 'file-status-deleted' },
-    R: { label: 'R', className: 'file-status-renamed' },
-    '??': { label: '?', className: 'file-status-untracked' },
   }
   const info = map[status] || { label: status, className: 'file-status-untracked' }
   return (
@@ -38,9 +34,7 @@ function fileDir(path: string): string {
 
 export const FileChangesTab = memo(function FileChangesTab({
   changedFiles,
-  isLoading,
   fetchDiff,
-  onRefresh,
 }: FileChangesTabProps) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [diff, setDiff] = useState<string>('')
@@ -62,14 +56,6 @@ export const FileChangesTab = memo(function FileChangesTab({
     },
     [selectedPath, fetchDiff]
   )
-
-  if (isLoading) {
-    return (
-      <div className="activity-tab-empty">
-        <p>Loading file changes...</p>
-      </div>
-    )
-  }
 
   if (changedFiles.length === 0) {
     return (
@@ -93,15 +79,6 @@ export const FileChangesTab = memo(function FileChangesTab({
           <span className="text-xs text-muted-foreground">
             {changedFiles.length} file{changedFiles.length !== 1 ? 's' : ''} changed
           </span>
-          {onRefresh && (
-            <button
-              onClick={onRefresh}
-              className="text-xs text-muted-foreground hover:text-foreground"
-              title="Refresh"
-            >
-              Refresh
-            </button>
-          )}
         </div>
         {changedFiles.map((file) => {
           const isSelected = file.path === selectedPath
