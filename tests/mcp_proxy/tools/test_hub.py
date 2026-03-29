@@ -126,8 +126,8 @@ class TestListAllProjects:
         result = asyncio.run(tool())
 
         assert result["success"] is True
-        alpha = next(p for p in result["projects"] if p["id"] == "project-alpha")
-        beta = next(p for p in result["projects"] if p["id"] == "project-beta")
+        alpha = next(p for p in result["projects"] if p["project_id"] == "project-alpha")
+        beta = next(p for p in result["projects"] if p["project_id"] == "project-beta")
 
         assert alpha["name"] == "Project Alpha"
         assert alpha["repo_path"] == "/path/alpha"

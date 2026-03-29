@@ -200,7 +200,9 @@ def test_verify_webhook_success(adapter: TeamsAdapter) -> None:
     mock_jwk_client.get_signing_key_from_jwt.return_value = mock_signing_key
 
     token = jwt.encode(
-        {"aud": "test-app-id", "iss": "https://api.botframework.com"}, "secret", algorithm="HS256"
+        {"aud": "test-app-id", "iss": "https://api.botframework.com"},
+        "test-secret-key-that-is-at-least-32-bytes-long",
+        algorithm="HS256",
     )
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -235,7 +237,9 @@ def test_verify_webhook_failure(adapter: TeamsAdapter) -> None:
     mock_jwk_client.get_signing_key_from_jwt.return_value = mock_signing_key
 
     token = jwt.encode(
-        {"aud": "test-app-id", "iss": "https://api.botframework.com"}, "secret", algorithm="HS256"
+        {"aud": "test-app-id", "iss": "https://api.botframework.com"},
+        "test-secret-key-that-is-at-least-32-bytes-long",
+        algorithm="HS256",
     )
 
     adapter._jwk_client = mock_jwk_client
