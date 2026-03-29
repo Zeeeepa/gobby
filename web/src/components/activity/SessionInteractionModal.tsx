@@ -302,7 +302,7 @@ export function SessionInteractionModal({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className={mode === "command" ? "max-w-lg" : mode === "pane" ? "max-w-md md:max-w-4xl" : "max-w-md md:max-w-2xl"}>
+      <DialogContent className={mode === "command" ? "max-w-lg" : mode === "pane" ? "max-w-md md:max-w-4xl md:h-[70vh] md:resize md:overflow-auto flex flex-col" : "max-w-md md:max-w-2xl"}>
         <DialogTitle>{config.title}</DialogTitle>
         <DialogDescription>
           {config.description}
@@ -313,7 +313,7 @@ export function SessionInteractionModal({
         </DialogDescription>
 
         {mode === "pane" ? (
-          <div className="mt-3">
+          <div className="mt-3 flex flex-col flex-1 min-h-0">
             {paneLoading ? (
               <div className="text-xs text-muted-foreground p-3">
                 Loading...
