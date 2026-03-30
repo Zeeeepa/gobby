@@ -70,7 +70,7 @@ _FIRE_AND_FORGET_HOOKS: frozenset[str] = frozenset({"session-end", "SessionEnd",
 CLI_CONFIGS: dict[str, CLIConfig] = {
     "claude": CLIConfig(
         source="claude",
-        critical_hooks=frozenset({"session-start", "session-end", "pre-compact", "pre-tool-use"}),
+        critical_hooks=frozenset({"session-start", "session-end", "pre-compact"}),
         session_start_hooks=frozenset({"session-start"}),
         json_error_exit_code=2,
         logger_name="gobby.hooks.dispatcher",
