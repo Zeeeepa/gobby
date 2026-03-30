@@ -51,9 +51,9 @@ def _patch_stdin():
 
 @pytest.fixture()
 def _patch_args():
-    """Patch argument parsing to return a stop hook for claude."""
+    """Patch argument parsing to return a pre-tool-use hook for claude."""
     args = MagicMock()
-    args.type = "stop"
+    args.type = "pre-tool-use"
     args.debug = False
     args.cli = "claude"
     with patch.object(hook_dispatcher, "parse_arguments", return_value=args):
@@ -65,13 +65,13 @@ def _patch_args():
 
 
 class TestFailClosedOnCriticalHooks:
-    """Critical hooks (stop, session-start, etc.) must return exit code 2 on errors."""
+    """Critical hooks (pre-tool-use, session-start, etc.) must return exit code 2 on errors."""
 
     @pytest.mark.asyncio
     async def test_daemon_http_error_blocks_critical_hook(
         self, _patch_daemon_running, _patch_stdin, _patch_args
     ) -> None:
-        """Daemon returns 500 on a stop hook → exit code 2 (block)."""
+        """Daemon returns 500 on a pre-tool-use hook → exit code 2 (block)."""
         mock_response = MagicMock()
         mock_response.status_code = 500
         mock_response.text = "Internal Server Error"
@@ -128,7 +128,7 @@ class TestFailClosedOnCriticalHooks:
     async def test_connect_error_blocks_critical_hook(
         self, _patch_daemon_running, _patch_stdin, _patch_args
     ) -> None:
-        """httpx.ConnectError on a stop hook → exit code 2."""
+        """httpx.ConnectError on a pre-tool-use hook → exit code 2."""
         import httpx
 
         mock_client = AsyncMock()
@@ -151,7 +151,7 @@ class TestFailClosedOnCriticalHooks:
     async def test_timeout_blocks_critical_hook(
         self, _patch_daemon_running, _patch_stdin, _patch_args
     ) -> None:
-        """httpx.TimeoutException on a stop hook → exit code 2."""
+        """httpx.TimeoutException on a pre-tool-use hook → exit code 2."""
         import httpx
 
         mock_client = AsyncMock()
@@ -174,7 +174,7 @@ class TestFailClosedOnCriticalHooks:
     async def test_generic_exception_blocks_critical_hook(
         self, _patch_daemon_running, _patch_stdin, _patch_args
     ) -> None:
-        """Generic exception on a stop hook → exit code 2."""
+        """Generic exception on a pre-tool-use hook → exit code 2."""
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(side_effect=RuntimeError("unexpected"))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
