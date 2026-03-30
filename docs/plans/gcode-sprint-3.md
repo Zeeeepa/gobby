@@ -103,8 +103,8 @@ _GCODE_BIN_NAME = "gcode.exe" if sys.platform == "win32" else "gcode"
 
 **New constants** (alongside gsqz constants):
 ```python
-_GCODE_RELEASE_URL = "https://github.com/GobbyAI/gobby/releases/latest/download/gcode-{target}.tar.gz"
-_GCODE_VERSIONED_RELEASE_URL = "https://github.com/GobbyAI/gobby/releases/download/v{version}/gcode-{target}.tar.gz"
+_GCODE_RELEASE_URL = "https://github.com/GobbyAI/gobby-cli/releases/latest/download/gcode-{target}.tar.gz"
+_GCODE_VERSIONED_RELEASE_URL = "https://github.com/GobbyAI/gobby-cli/releases/download/v{version}/gcode-{target}.tar.gz"
 _GCODE_TARGETS = _GSQZ_TARGETS  # Same platform mapping
 ```
 

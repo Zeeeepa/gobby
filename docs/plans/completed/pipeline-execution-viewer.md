@@ -105,7 +105,9 @@ Enhance existing hook:
 Existing debounce refetch on WS events stays as-is — it handles state sync on reconnect and keeps the run list fresh.
 
 ### 9. `web/src/App.tsx`
+
 - **Lazy import** (after line 89):
+
   ```typescript
   const PipelinesPage = lazy(() =>
     import("./components/pipelines/PipelinesPage").then((m) => ({
@@ -113,15 +115,20 @@ Existing debounce refetch on WS events stays as-is — it handles state sync on 
     })),
   );
   ```
+
 - **Nav item** (after "Cron Jobs" at line 910):
+
   ```typescript
   { id: "pipelines", label: "Pipelines", icon: <PipelinesIcon /> },
   ```
+
 - **Page branch** (after cron branch ~line 1114):
+
   ```typescript
   ) : activeTab === "pipelines" ? (
     <PipelinesPage projectId={effectiveProjectId} />
   ```
+
 - **PipelinesIcon** SVG (play-circle or workflow icon)
 
 ## Implementation Order

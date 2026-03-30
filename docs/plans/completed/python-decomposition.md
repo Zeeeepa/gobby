@@ -48,6 +48,7 @@ Split into a package:
 - `engine/enforcement.py` — agent/step tool enforcement logic
 
 Keep `rule_engine.py` as a thin re-export shim:
+
 ```python
 from gobby.workflows.engine.core import RuleEngine
 __all__ = ["RuleEngine"]

@@ -17,7 +17,7 @@ description: Python coding guidelines and best practices. Use when writing, revi
 
 ```bash
 # Syntax check (always)
-python -m py_compile *.py
+find . -name '*.py' -exec python -m py_compile {} +
 
 # Run tests if present
 python -m pytest tests/ -v 2>/dev/null || python -m unittest discover -v 2>/dev/null || echo "No tests found"
@@ -28,7 +28,7 @@ ruff check . --fix 2>/dev/null || python -m black --check . 2>/dev/null
 
 ## Python Version
 
-- **Minimum:** Python 3.10+ (3.9 EOL Oct 2025)
+- **Minimum:** Python 3.10+ (3.9 reached EOL Oct 2025)
 - **Target:** Python 3.11-3.13 for new projects
 - Never use Python 2 syntax or patterns
 - Use modern features: match statements, walrus operator, type hints
@@ -36,6 +36,7 @@ ruff check . --fix 2>/dev/null || python -m black --check . 2>/dev/null
 ## Dependency Management
 
 Check for uv first, fall back to pip:
+
 ```bash
 # Prefer uv if available
 if command -v uv &>/dev/null; then
@@ -103,7 +104,8 @@ for a, b in zip(list1, list2, strict=True):
 def bad(items=[]):  # Bug: shared across calls
     ...
 def good(items=None):
-    items = items or []
+    if items is None:
+        items = []
 
 # ❌ Bare except
 try:

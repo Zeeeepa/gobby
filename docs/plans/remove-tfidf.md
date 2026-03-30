@@ -19,6 +19,7 @@ Gobby has three search backends: Qdrant (vector/semantic), FTS5 (SQLite full-tex
 Add `_setup_tasks_fts(db)` and `_setup_skills_fts(db)` callable functions following the existing `_setup_code_symbols_fts` pattern.
 
 ### tasks_fts
+
 ```sql
 CREATE VIRTUAL TABLE IF NOT EXISTS tasks_fts USING fts5(
     title, description, labels, task_type, category,
@@ -30,15 +31,42 @@ CREATE VIRTUAL TABLE IF NOT EXISTS tasks_fts USING fts5(
 - JSON labels column works fine — FTS5 tokenizer strips brackets/quotes naturally
 
 ### skills_fts
+
 ```sql
 CREATE VIRTUAL TABLE IF NOT EXISTS skills_fts USING fts5(
     name, description, metadata,
     content='skills', content_rowid='rowid'
 );
+
+-- INSERT trigger: only index non-deleted rows
+CREATE TRIGGER IF NOT EXISTS skills_fts_insert AFTER INSERT ON skills
+WHEN NEW.deleted_at IS NULL
+BEGIN
+    INSERT INTO skills_fts(rowid, name, description, metadata)
+    VALUES (NEW.rowid, NEW.name, NEW.description, NEW.metadata);
+END;
+
+-- UPDATE trigger: remove old entry, re-insert only if not soft-deleted
+CREATE TRIGGER IF NOT EXISTS skills_fts_update AFTER UPDATE ON skills
+BEGIN
+    INSERT INTO skills_fts(skills_fts, rowid, name, description, metadata)
+    VALUES ('delete', OLD.rowid, OLD.name, OLD.description, OLD.metadata);
+    INSERT INTO skills_fts(rowid, name, description, metadata)
+    SELECT NEW.rowid, NEW.name, NEW.description, NEW.metadata
+    WHERE NEW.deleted_at IS NULL;
+END;
+
+-- DELETE trigger: remove from FTS
+CREATE TRIGGER IF NOT EXISTS skills_fts_delete AFTER DELETE ON skills
+BEGIN
+    INSERT INTO skills_fts(skills_fts, rowid, name, description, metadata)
+    VALUES ('delete', OLD.rowid, OLD.name, OLD.description, OLD.metadata);
+END;
 ```
-- Same trigger pattern
+
 - Index raw `metadata` JSON — tags/category words get tokenized naturally
-- Initial population excludes soft-deleted: `WHERE deleted_at IS NULL`
+- Initial population excludes soft-deleted: `INSERT ... SELECT ... FROM skills WHERE deleted_at IS NULL`
+- UPDATE trigger handles soft-delete transitions: removes FTS entry when `deleted_at` is set
 
 ### Migration entry
 - Add migration v177 (callable that runs both setup functions)
@@ -155,7 +183,7 @@ def fts5_query(query: str) -> str:
     if not tokens:
         return '""'
     # Strip quotes from tokens, then re-quote to escape FTS5 operators
-    return " ".join(f'"{t.replace(chr(34), "")}"' for t in tokens)
+    return " ".join(f'"{t.replace('"', "")}"' for t in tokens)
 ```
 
 Shared in a small utility, e.g. `src/gobby/search/fts5.py` or inline in each searcher.

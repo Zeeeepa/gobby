@@ -132,7 +132,7 @@ defs = call_tool("gobby-workflows", "list_agent_definitions", {"enabled": true})
 
 Filter to developer-class agents (exclude agents whose name contains "qa", "reviewer", "conductor", "merge", "expander", "expansion", "default", "pipeline", "web-chat", "codex", "nightly"). Show the filtered list:
 
-```
+```text
 Available developer agents:
   1. developer        — Developer agent: implements tasks, writes tests, commits
   2. python-dev       — Python developer agent with hub skills for testing, perf, best practices

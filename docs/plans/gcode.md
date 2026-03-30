@@ -24,7 +24,7 @@ Subagents (Claude Code Agent tool) can't use MCP — they only have Bash, Read, 
 
 ## CLI Design
 
-```
+```bash
 # Indexing (standalone — tree-sitter in Rust)
 gcode index [<path>]                      # full/incremental index
 gcode index --files <f1> <f2>             # index specific files
@@ -60,7 +60,7 @@ gcode repo-outline                        # directory-grouped stats
 
 ## Architecture
 
-```
+```text
 gcode CLI (Rust, ~9-15ms startup)
     │
     ├── Config
@@ -105,7 +105,7 @@ gcode **replaces** the gobby-code MCP server entirely. It becomes the sole acces
 
 ### Project Layout
 
-```
+```text
 rust/gcode/
   Cargo.toml
   src/
@@ -140,7 +140,7 @@ rust/gcode/
 
 ### Data Flow: Indexing
 
-```
+```text
 File System
   → walker.rs (ignore crate, .gitignore-aware)
   → hasher.rs (SHA256) → compare with code_indexed_files.content_hash
@@ -152,7 +152,7 @@ File System
 
 ### Data Flow: Search
 
-```
+```text
 Query string
   → fts.rs (sanitize, FTS5 MATCH on code_symbols_fts) → ranked results
   → semantic.rs (llama-cpp-2 query embedding → Qdrant vector search) → ranked results
@@ -192,10 +192,10 @@ Source: `src/gobby/storage/secrets.py`, `src/gobby/utils/machine_id.py`, `src/go
 
 | Service | Down | Behavior |
 |---------|------|----------|
-| Neo4j | Graph commands return `[]` with warning. Search loses graph boost. |
-| Qdrant storage | Search loses semantic boost. FTS5 + graph still works. |
-| GGUF model not downloaded | Search loses semantic boost. FTS5 + graph still works. Warning printed. |
-| SQLite has no index | `gcode search` returns nothing. `gcode index` creates it. |
+| Neo4j | Yes | Graph commands return `[]` with warning. Search loses graph boost. |
+| Qdrant storage | Yes | Search loses semantic boost. FTS5 + graph still works. |
+| GGUF model | Not downloaded | Search loses semantic boost. FTS5 + graph still works. Warning printed. |
+| SQLite | No index | `gcode search` returns nothing. `gcode index` creates it. |
 
 ### UUID5 Parity (Critical)
 
@@ -309,7 +309,7 @@ Binary installed to `~/.gobby/bin/gcode`. Version stamp at `~/.gobby/bin/.gcode-
 
 ### Re-indexing Flow (with gcode)
 
-```
+```text
 File edit (tool) → AFTER_TOOL hook → shell out: gcode index --files <path>
 Git commit       → post-commit hook → shell out: gcode index --files <changed_files>
 ```

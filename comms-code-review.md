@@ -31,7 +31,7 @@ Reviewed the communications module against platform API best practices and audit
 - Teams (`teams.py:99`): Uses `message.channel_id` as conversation_id + `metadata_json.get('service_url')`
 - Discord (`discord.py:152`): Uses `message.platform_thread_id or message.channel_id`
 
-No consistent contract exists. Should be standardized via a `resolve_destination()` method or always passing platform-specific config.
+No consistent contract exists. Destination resolution should be standardized via a `resolve_destination()` method or always passing platform-specific config.
 
 ### Bugs
 
@@ -70,6 +70,7 @@ No consistent contract exists. Should be standardized via a `resolve_destination
 **File**: `src/gobby/communications/adapters/slack.py` (281 lines)
 
 ### What We Got Right
+
 - HMAC-SHA256 verification follows the exact Slack signing secret spec
 - Replay attack prevention (5-minute timestamp window)
 - auth.test validation on initialization
