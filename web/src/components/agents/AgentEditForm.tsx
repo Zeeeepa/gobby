@@ -515,7 +515,7 @@ export function AgentEditForm({
                   <button type="button" className="agent-edit-model-toggle" onClick={() => onChange({ ...form, fallback_agent: '' })}>&times;</button>
                 </div>
               ) : (
-                <button type="button" className="agent-edit-link-btn" onClick={() => {
+                <button type="button" className="agent-edit-link-btn" disabled={!agentNames.some(n => n !== form.name)} onClick={() => {
                   const first = agentNames.find(n => n !== form.name)
                   if (first) onChange({ ...form, fallback_agent: first })
                 }}>

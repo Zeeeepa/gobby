@@ -92,6 +92,7 @@ export const FileChangesTab = memo(function FileChangesTab({
             <button
               key={file.path}
               onClick={() => handleSelect(file.path)}
+              aria-pressed={isSelected}
               className={`w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted transition-colors border-b border-border/50 ${isSelected ? 'bg-muted/50' : ''}`}
             >
               {statusBadge(file.status)}

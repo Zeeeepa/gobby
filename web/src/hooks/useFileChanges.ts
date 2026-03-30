@@ -76,7 +76,8 @@ export function useFileChanges(messages: ChatMessage[], projectId: string | null
         if (!res.ok) return ''
         const data = await res.json()
         return data.diff || ''
-      } catch {
+      } catch (error) {
+        if (process.env.NODE_ENV === 'development') console.error('fetchDiff failed:', error)
         return ''
       }
     },

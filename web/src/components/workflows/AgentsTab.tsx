@@ -191,7 +191,7 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
   // Pipeline list for selector
   const [pipelineList, setPipelineList] = useState<{ id: string; name: string }[]>([])
 
-  // Installed/project agent names for fallback dropdown (deduplicated, project wins)
+  // Installed/project agent names for fallback dropdown (deduplicated, project wins, excludes current agent)
   const agentNames = useMemo(() => {
     const nameMap = new Map<string, string>()
     for (const d of definitions) {
@@ -201,8 +201,9 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
         nameMap.set(d.definition.name, d.source)
       }
     }
-    return Array.from(nameMap.keys()).sort()
-  }, [definitions])
+    const currentName = createForm.name
+    return Array.from(nameMap.keys()).filter(n => n !== currentName).sort()
+  }, [definitions, createForm.name])
 
   const fetchDefinitions = useCallback(async (includeDeleted = false) => {
     setLoading(true)
