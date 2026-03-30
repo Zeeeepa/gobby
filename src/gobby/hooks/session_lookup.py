@@ -63,6 +63,12 @@ class SessionLookupService:
         Returns:
             Platform session ID or None if no external_id
         """
+        # Always resolve project_id, even if no session_id — downstream
+        # code (_resolve_session_refs_in_tool_input) needs it for #N lookups.
+        if not event.project_id:
+            cwd = event.cwd or event.data.get("cwd")
+            event.project_id = self._resolve_project_id(event.data.get("project_id"), cwd)
+
         external_id = event.session_id
         if not external_id:
             return None
@@ -75,11 +81,6 @@ class SessionLookupService:
 
         # Store platform session_id in event metadata for handlers
         event.metadata["_platform_session_id"] = platform_session_id
-
-        # Populate event.project_id (documented as "populated by HookManager")
-        if not event.project_id:
-            cwd = event.cwd or event.data.get("cwd")
-            event.project_id = self._resolve_project_id(event.data.get("project_id"), cwd)
 
         return platform_session_id
 
