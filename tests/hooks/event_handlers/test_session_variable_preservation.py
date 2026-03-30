@@ -100,9 +100,7 @@ class TestReturningSessionPreservesUserVariables:
     ) -> None:
         """The exact bug scenario: triaged=true gets reset to false on compact."""
         handlers = _make_event_handlers()
-        mock_resolve.return_value = _make_agent_body(
-            variables={"errors_resolved": False}
-        )
+        mock_resolve.return_value = _make_agent_body(variables={"errors_resolved": False})
 
         mock_svm = MagicMock()
         mock_svm_cls.return_value = mock_svm

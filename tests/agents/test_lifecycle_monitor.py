@@ -2162,4 +2162,3 @@ class TestCleanupAgentFdClose:
 
         # Should not raise
         await monitor._cleanup_agent(run, error="test cleanup", is_success=True)
-

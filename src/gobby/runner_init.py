@@ -287,28 +287,28 @@ def init_services(runner: GobbyRunner) -> None:
         try:
             # Create VectorStore (async initialize() called during startup)
             gobby_home = Path(os.environ.get("GOBBY_HOME", str(Path.home() / ".gobby")))
-            qdrant_path = runner.config.memory.qdrant_path or str(
-                gobby_home / "services" / "qdrant"
-            )
+            db_cfg = runner.config.databases
+            emb_cfg = runner.config.embeddings
+            qdrant_path = db_cfg.qdrant.path or str(gobby_home / "services" / "qdrant")
             runner.vector_store = VectorStore(
-                path=qdrant_path if not runner.config.memory.qdrant_url else None,
-                url=runner.config.memory.qdrant_url,
-                api_key=runner.config.memory.qdrant_api_key,
-                embedding_dim=runner.config.memory.embedding_dim,
+                path=qdrant_path if not db_cfg.qdrant.url else None,
+                url=db_cfg.qdrant.url,
+                api_key=db_cfg.qdrant.api_key,
+                embedding_dim=emb_cfg.dim,
             )
             embed_fn: Callable[..., Any] | None = None
             if runner.llm_service:
                 from functools import partial
 
-                _mem_api_key = runner.config.memory.embedding_api_key or resolve_embedding_api_key(
-                    runner.secret_store, runner.config.memory.embedding_model
+                _mem_api_key = emb_cfg.api_key or resolve_embedding_api_key(
+                    runner.secret_store, emb_cfg.model
                 )
                 _mem_embed_kwargs: dict[str, Any] = {
-                    "model": runner.config.memory.embedding_model,
+                    "model": emb_cfg.model,
                     "api_key": _mem_api_key,
                 }
-                if runner.config.memory.embedding_api_base:
-                    _mem_embed_kwargs["api_base"] = runner.config.memory.embedding_api_base
+                if emb_cfg.api_base:
+                    _mem_embed_kwargs["api_base"] = emb_cfg.api_base
                 embed_fn = partial(
                     generate_embedding,
                     **_mem_embed_kwargs,
@@ -354,22 +354,16 @@ def init_services(runner: GobbyRunner) -> None:
             if runner.llm_service and ci_config.embedding_enabled:
                 from functools import partial
 
-                _ci_model = (
-                    runner.config.memory.embedding_model
-                    if hasattr(runner.config, "memory")
-                    else "local/nomic-embed-text-v1.5"
-                )
-                _ci_api_key = (
-                    runner.config.memory.embedding_api_key
-                    if hasattr(runner.config, "memory") and runner.config.memory.embedding_api_key
-                    else resolve_embedding_api_key(runner.secret_store, _ci_model)
+                _ci_emb = runner.config.embeddings
+                _ci_api_key = _ci_emb.api_key or resolve_embedding_api_key(
+                    runner.secret_store, _ci_emb.model
                 )
                 _ci_embed_kwargs: dict[str, Any] = {
-                    "model": _ci_model,
+                    "model": _ci_emb.model,
                     "api_key": _ci_api_key,
                 }
-                if hasattr(runner.config, "memory") and runner.config.memory.embedding_api_base:
-                    _ci_embed_kwargs["api_base"] = runner.config.memory.embedding_api_base
+                if _ci_emb.api_base:
+                    _ci_embed_kwargs["api_base"] = _ci_emb.api_base
                 ci_embed_fn = partial(
                     generate_embedding,
                     **_ci_embed_kwargs,

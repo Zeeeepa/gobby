@@ -158,7 +158,10 @@ def test_stop_watchdog_stale_pid(tmp_path: Path) -> None:
 
     with (
         patch.dict(os.environ, {"GOBBY_TEST_PROTECT": ""}),
-        patch("gobby.cli.installers.service.get_service_status", return_value={"installed": False, "running": False}),
+        patch(
+            "gobby.cli.installers.service.get_service_status",
+            return_value={"installed": False, "running": False},
+        ),
         patch("gobby.cli.utils.kill_all_gobby_daemons", return_value=0),
         patch("gobby.cli.utils.get_gobby_home", return_value=tmp_path),
         patch("gobby.cli.utils._is_process_alive", return_value=False),
@@ -212,7 +215,10 @@ def test_stop_daemon_no_pid_file(tmp_path: Path) -> None:
 
     with (
         patch.dict(os.environ, {"GOBBY_TEST_PROTECT": ""}),
-        patch("gobby.cli.installers.service.get_service_status", return_value={"installed": False, "running": False}),
+        patch(
+            "gobby.cli.installers.service.get_service_status",
+            return_value={"installed": False, "running": False},
+        ),
         patch("gobby.cli.utils.kill_all_gobby_daemons", return_value=0),
         patch("gobby.cli.utils.get_gobby_home", return_value=tmp_path),
         patch("gobby.cli.utils.stop_ui_server") as mock_ui,
@@ -314,7 +320,10 @@ def test_stop_daemon_permission_error(tmp_path: Path) -> None:
 
     with (
         patch.dict(os.environ, {"GOBBY_TEST_PROTECT": ""}),
-        patch("gobby.cli.installers.service.get_service_status", return_value={"installed": False, "running": False}),
+        patch(
+            "gobby.cli.installers.service.get_service_status",
+            return_value={"installed": False, "running": False},
+        ),
         patch("gobby.cli.utils.kill_all_gobby_daemons", return_value=0),
         patch("gobby.cli.utils.get_gobby_home", return_value=tmp_path),
         patch("gobby.cli.utils.stop_ui_server"),
@@ -963,7 +972,10 @@ def test_stop_watchdog_running_graceful(tmp_path: Path) -> None:
 
     with (
         patch.dict(os.environ, {"GOBBY_TEST_PROTECT": ""}),
-        patch("gobby.cli.installers.service.get_service_status", return_value={"installed": False, "running": False}),
+        patch(
+            "gobby.cli.installers.service.get_service_status",
+            return_value={"installed": False, "running": False},
+        ),
         patch("gobby.cli.utils.kill_all_gobby_daemons", return_value=0),
         patch("gobby.cli.utils.get_gobby_home", return_value=tmp_path),
         patch("gobby.cli.utils._is_process_alive", side_effect=lambda pid: next(alive_calls)),
@@ -991,7 +1003,10 @@ def test_stop_watchdog_running_force_kill(tmp_path: Path) -> None:
 
     with (
         patch.dict(os.environ, {"GOBBY_TEST_PROTECT": ""}),
-        patch("gobby.cli.installers.service.get_service_status", return_value={"installed": False, "running": False}),
+        patch(
+            "gobby.cli.installers.service.get_service_status",
+            return_value={"installed": False, "running": False},
+        ),
         patch("gobby.cli.utils.kill_all_gobby_daemons", return_value=0),
         patch("gobby.cli.utils.get_gobby_home", return_value=tmp_path),
         patch("gobby.cli.utils._is_process_alive", side_effect=lambda pid: next(alive_iter, False)),
@@ -1032,7 +1047,10 @@ def test_stop_watchdog_generic_exception(tmp_path: Path) -> None:
 
     with (
         patch.dict(os.environ, {"GOBBY_TEST_PROTECT": ""}),
-        patch("gobby.cli.installers.service.get_service_status", return_value={"installed": False, "running": False}),
+        patch(
+            "gobby.cli.installers.service.get_service_status",
+            return_value={"installed": False, "running": False},
+        ),
         patch("gobby.cli.utils.kill_all_gobby_daemons", return_value=0),
         patch("gobby.cli.utils.get_gobby_home", return_value=tmp_path),
         patch("gobby.cli.utils._is_process_alive", return_value=True),
@@ -1175,7 +1193,10 @@ def test_stop_ui_server_running_graceful(tmp_path: Path) -> None:
 
     with (
         patch.dict(os.environ, {"GOBBY_TEST_PROTECT": ""}),
-        patch("gobby.cli.installers.service.get_service_status", return_value={"installed": False, "running": False}),
+        patch(
+            "gobby.cli.installers.service.get_service_status",
+            return_value={"installed": False, "running": False},
+        ),
         patch("gobby.cli.utils.kill_all_gobby_daemons", return_value=0),
         patch("gobby.cli.utils.get_gobby_home", return_value=tmp_path),
         patch(
@@ -1210,7 +1231,10 @@ def test_stop_ui_server_force_kill(tmp_path: Path) -> None:
 
     with (
         patch.dict(os.environ, {"GOBBY_TEST_PROTECT": ""}),
-        patch("gobby.cli.installers.service.get_service_status", return_value={"installed": False, "running": False}),
+        patch(
+            "gobby.cli.installers.service.get_service_status",
+            return_value={"installed": False, "running": False},
+        ),
         patch("gobby.cli.utils.kill_all_gobby_daemons", return_value=0),
         patch("gobby.cli.utils.get_gobby_home", return_value=tmp_path),
         patch("gobby.cli.utils._is_process_alive", side_effect=lambda pid: next(alive_iter, False)),
@@ -1253,7 +1277,10 @@ def test_stop_ui_server_generic_exception(tmp_path: Path) -> None:
 
     with (
         patch.dict(os.environ, {"GOBBY_TEST_PROTECT": ""}),
-        patch("gobby.cli.installers.service.get_service_status", return_value={"installed": False, "running": False}),
+        patch(
+            "gobby.cli.installers.service.get_service_status",
+            return_value={"installed": False, "running": False},
+        ),
         patch("gobby.cli.utils.kill_all_gobby_daemons", return_value=0),
         patch("gobby.cli.utils.get_gobby_home", return_value=tmp_path),
         patch("gobby.cli.utils._is_process_alive", return_value=True),
@@ -1274,7 +1301,10 @@ def test_stop_daemon_no_pid_file_not_quiet(tmp_path: Path) -> None:
 
     with (
         patch.dict(os.environ, {"GOBBY_TEST_PROTECT": ""}),
-        patch("gobby.cli.installers.service.get_service_status", return_value={"installed": False, "running": False}),
+        patch(
+            "gobby.cli.installers.service.get_service_status",
+            return_value={"installed": False, "running": False},
+        ),
         patch("gobby.cli.utils.kill_all_gobby_daemons", return_value=0),
         patch("gobby.cli.utils.get_gobby_home", return_value=tmp_path),
         patch("gobby.cli.utils.stop_ui_server"),
@@ -1296,7 +1326,10 @@ def test_stop_daemon_stale_pid_with_orphans(tmp_path: Path) -> None:
 
     with (
         patch.dict(os.environ, {"GOBBY_TEST_PROTECT": ""}),
-        patch("gobby.cli.installers.service.get_service_status", return_value={"installed": False, "running": False}),
+        patch(
+            "gobby.cli.installers.service.get_service_status",
+            return_value={"installed": False, "running": False},
+        ),
         patch("gobby.cli.utils.get_gobby_home", return_value=tmp_path),
         patch("gobby.cli.utils.stop_ui_server"),
         patch("gobby.cli.utils.stop_watchdog"),
@@ -1323,7 +1356,10 @@ def test_stop_daemon_not_gobby_with_orphans(tmp_path: Path) -> None:
 
     with (
         patch.dict(os.environ, {"GOBBY_TEST_PROTECT": ""}),
-        patch("gobby.cli.installers.service.get_service_status", return_value={"installed": False, "running": False}),
+        patch(
+            "gobby.cli.installers.service.get_service_status",
+            return_value={"installed": False, "running": False},
+        ),
         patch("gobby.cli.utils.get_gobby_home", return_value=tmp_path),
         patch("gobby.cli.utils.stop_ui_server"),
         patch("gobby.cli.utils.stop_watchdog"),
