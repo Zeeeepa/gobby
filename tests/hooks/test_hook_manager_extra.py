@@ -17,12 +17,12 @@ class TestReregisterActiveSessions:
         with patch("gobby.hooks.hook_manager.HookManagerFactory.create") as mock_create:
             mock_components = MagicMock()
             mock_create.return_value = mock_components
-            
+
             manager = HookManager()
-            
+
             # Reset mock to verify explicit call
             mock_components.session_coordinator.reregister_active_sessions.reset_mock()
-            
+
             manager._reregister_active_sessions()
             mock_components.session_coordinator.reregister_active_sessions.assert_called_once()
 
@@ -33,31 +33,31 @@ class TestResolveSummaryOutputPath:
         with patch("gobby.hooks.hook_manager.HookManagerFactory.create") as mock_create:
             mock_components = MagicMock()
             mock_create.return_value = mock_components
-            
+
             # Setup session
             mock_session = MagicMock()
             mock_session.project_id = "proj-1"
             mock_components.session_storage.get.return_value = mock_session
-            
+
             manager = HookManager()
-            
+
             with patch("gobby.storage.projects.LocalProjectManager") as mock_proj_mgr_cls:
                 mock_proj_mgr = MagicMock()
                 mock_proj = MagicMock()
                 mock_proj.repo_path = "/path/to/repo"
                 mock_proj_mgr.get.return_value = mock_proj
                 mock_proj_mgr_cls.return_value = mock_proj_mgr
-                
+
                 path = manager._resolve_summary_output_path("session-1")
                 assert path == "/path/to/repo/.gobby/session_summaries"
-                
+
     def test_fallback_no_session(self):
         """Test output path fallback when session is missing."""
         with patch("gobby.hooks.hook_manager.HookManagerFactory.create") as mock_create:
             mock_components = MagicMock()
             mock_components.session_storage.get.return_value = None
             mock_create.return_value = mock_components
-            
+
             manager = HookManager()
             path = manager._resolve_summary_output_path("session-not-exist")
             assert path == "~/.gobby/session_summaries"
@@ -68,7 +68,7 @@ class TestResolveSummaryOutputPath:
             mock_components = MagicMock()
             mock_components.session_storage.get.side_effect = ValueError("db error")
             mock_create.return_value = mock_components
-            
+
             manager = HookManager()
             path = manager._resolve_summary_output_path("session-error")
             assert path == "~/.gobby/session_summaries"
@@ -96,14 +96,16 @@ class TestDispatchSessionSummaries:
 
             # It should create a task on the running loop
             mock_loop.create_task.assert_called_once()
-            
-            # To test the side-effects of the coro, we'd have to execute it, 
+
+            # To test the side-effects of the coro, we'd have to execute it,
             # but we just verified the correct branch was taken.
 
     @patch("gobby.hooks.hook_manager.asyncio.get_running_loop")
     @patch("gobby.hooks.hook_manager.asyncio.run_coroutine_threadsafe")
     @patch("gobby.sessions.summarize.generate_session_summaries", new_callable=AsyncMock)
-    def test_dispatches_threadsafe_when_no_running_loop(self, mock_generate, mock_threadsafe, mock_get_loop):
+    def test_dispatches_threadsafe_when_no_running_loop(
+        self, mock_generate, mock_threadsafe, mock_get_loop
+    ):
         """Tests dispatch when no running loop, but manager has a running _loop."""
         # Force RuntimeError on get_running_loop
         mock_get_loop.side_effect = RuntimeError("no loop")
@@ -112,7 +114,7 @@ class TestDispatchSessionSummaries:
             mock_components = MagicMock()
             mock_create.return_value = mock_components
             manager = HookManager()
-            
+
             # Fake that the manager has an attached loop
             manager._loop = MagicMock()
             manager._loop.is_running.return_value = True
@@ -123,7 +125,7 @@ class TestDispatchSessionSummaries:
             manager._dispatch_session_summaries("sess-1", done_event=event)
 
             mock_threadsafe.assert_called_once()
-            
+
     @patch("gobby.hooks.hook_manager.asyncio.get_running_loop")
     @patch("threading.Thread")
     @patch("gobby.sessions.summarize.generate_session_summaries", new_callable=AsyncMock)
@@ -135,7 +137,7 @@ class TestDispatchSessionSummaries:
             mock_components = MagicMock()
             mock_create.return_value = mock_components
             manager = HookManager()
-            
+
             # Manager has no attached loop or it's not running
             manager._loop = None
 
@@ -150,3 +152,99 @@ class TestDispatchSessionSummaries:
             mock_thread.assert_called_once()
             assert mock_thread.call_args[1]["daemon"] is True
             mock_thread_instance.start.assert_called_once()
+
+
+class TestDedupMemoryResults:
+    """Tests for _dedup_memory_results filtering and ID tracking."""
+
+    def _make_manager(self, mock_components=None):
+        with patch("gobby.hooks.hook_manager.HookManagerFactory.create") as mock_create:
+            if mock_components is None:
+                mock_components = MagicMock()
+            mock_create.return_value = mock_components
+            return HookManager()
+
+    def _make_result(self, *ids):
+        return {
+            "success": True,
+            "memories": [{"id": mid, "content": f"Memory {mid}", "type": "fact"} for mid in ids],
+        }
+
+    @patch("gobby.workflows.state_manager.SessionVariableManager")
+    def test_filters_already_injected(self, MockSVM):
+        """Previously injected memories are excluded from results."""
+        mock_svm = MockSVM.return_value
+        mock_svm.get_variables.return_value = {"injected_memory_ids": ["a", "b"]}
+
+        manager = self._make_manager()
+        result = manager._dedup_memory_results(self._make_result("a", "b", "c"), "sess-1")
+
+        assert len(result["memories"]) == 1
+        assert result["memories"][0]["id"] == "c"
+        mock_svm.append_to_set_variable.assert_called_once_with(
+            "sess-1", "injected_memory_ids", ["c"]
+        )
+
+    @patch("gobby.workflows.state_manager.SessionVariableManager")
+    def test_first_prompt_no_filtering(self, MockSVM):
+        """First prompt (empty injected_memory_ids) injects all memories."""
+        mock_svm = MockSVM.return_value
+        mock_svm.get_variables.return_value = {"injected_memory_ids": []}
+
+        manager = self._make_manager()
+        result = manager._dedup_memory_results(self._make_result("a", "b"), "sess-1")
+
+        assert len(result["memories"]) == 2
+        mock_svm.append_to_set_variable.assert_called_once_with(
+            "sess-1", "injected_memory_ids", ["a", "b"]
+        )
+
+    @patch("gobby.workflows.state_manager.SessionVariableManager")
+    def test_no_variable_set_yet(self, MockSVM):
+        """Session with no injected_memory_ids variable injects all."""
+        mock_svm = MockSVM.return_value
+        mock_svm.get_variables.return_value = {}
+
+        manager = self._make_manager()
+        result = manager._dedup_memory_results(self._make_result("x"), "sess-1")
+
+        assert len(result["memories"]) == 1
+        mock_svm.append_to_set_variable.assert_called_once_with(
+            "sess-1", "injected_memory_ids", ["x"]
+        )
+
+    @patch("gobby.workflows.state_manager.SessionVariableManager")
+    def test_all_filtered_returns_empty(self, MockSVM):
+        """When all memories were already injected, returns empty list."""
+        mock_svm = MockSVM.return_value
+        mock_svm.get_variables.return_value = {"injected_memory_ids": ["a", "b"]}
+
+        manager = self._make_manager()
+        result = manager._dedup_memory_results(self._make_result("a", "b"), "sess-1")
+
+        assert result["memories"] == []
+        mock_svm.append_to_set_variable.assert_not_called()
+
+    @patch("gobby.workflows.state_manager.SessionVariableManager")
+    def test_db_error_fails_open(self, MockSVM):
+        """Database errors return unfiltered results."""
+        MockSVM.side_effect = RuntimeError("db unavailable")
+
+        manager = self._make_manager()
+        original = self._make_result("a", "b")
+        result = manager._dedup_memory_results(original, "sess-1")
+
+        assert result is original
+        assert len(result["memories"]) == 2
+
+    @patch("gobby.workflows.state_manager.SessionVariableManager")
+    def test_empty_memories_skips_tracking(self, MockSVM):
+        """Empty memory list doesn't call append_to_set_variable."""
+        mock_svm = MockSVM.return_value
+        mock_svm.get_variables.return_value = {}
+
+        manager = self._make_manager()
+        result = manager._dedup_memory_results({"success": True, "memories": []}, "sess-1")
+
+        assert result["memories"] == []
+        mock_svm.append_to_set_variable.assert_not_called()

@@ -566,8 +566,13 @@ class HookManager:
             extra_context: list[str] = []
             block_override: HookResponse | None = None
 
+            session_id = event.metadata.get("_platform_session_id")
+
             for dr in dispatch_results:
                 if dr.get("inject_result") and dr.get("result"):
+                    # Dedup memory injection — filter already-injected memories
+                    if dr.get("tool") == "search_memories" and session_id:
+                        dr["result"] = self._dedup_memory_results(dr["result"], session_id)
                     extra_context.append(self._format_discovery_result(dr))
                 if dr.get("block_on_failure") and not dr.get("success"):
                     result = dr.get("result") or {}
@@ -670,6 +675,39 @@ class HookManager:
     def _format_discovery_result(dr: dict[str, Any]) -> str:
         """Format a proxy discovery result for context injection."""
         return _format_discovery_result_impl(dr)
+
+    def _dedup_memory_results(self, result: dict[str, Any], session_id: str) -> dict[str, Any]:
+        """Filter already-injected memories and track newly-injected IDs.
+
+        Reads ``injected_memory_ids`` from session variables, removes memories
+        whose IDs are already present, then appends the remaining IDs back to
+        the variable for future dedup.  Fails open — returns unfiltered result
+        on any error.
+        """
+        try:
+            from gobby.workflows.state_manager import SessionVariableManager
+
+            sv_mgr = SessionVariableManager(self._database)
+            variables = sv_mgr.get_variables(session_id)
+            already_injected: set[str] = set(variables.get("injected_memory_ids", []))
+
+            memories = result.get("memories", [])
+            if not memories or not already_injected:
+                # Nothing to filter — but still track the IDs we're about to inject
+                new_ids = [m["id"] for m in memories if m.get("id")]
+                if new_ids:
+                    sv_mgr.append_to_set_variable(session_id, "injected_memory_ids", new_ids)
+                return result
+
+            filtered = [m for m in memories if m.get("id") not in already_injected]
+            new_ids = [m["id"] for m in filtered if m.get("id")]
+            if new_ids:
+                sv_mgr.append_to_set_variable(session_id, "injected_memory_ids", new_ids)
+
+            return {**result, "memories": filtered}
+        except Exception as e:
+            self.logger.debug(f"Memory injection dedup failed (fail-open): {e}")
+            return result
 
     def _resolve_summary_output_path(self, session_id: str) -> str:
         """Resolve session summary output directory from the session's project.
