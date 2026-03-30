@@ -209,11 +209,13 @@ def run_daemon_setup(project_path: Path) -> None:
 
 
 # GitHub release URL patterns for gsqz binaries
-_GSQZ_RELEASE_URL = "https://github.com/GobbyAI/gsqz/releases/latest/download/gsqz-{target}.tar.gz"
-_GSQZ_VERSIONED_RELEASE_URL = (
-    "https://github.com/GobbyAI/gsqz/releases/download/v{version}/gsqz-{target}.tar.gz"
+_GSQZ_RELEASE_URL = (
+    "https://github.com/GobbyAI/gobby-cli/releases/latest/download/gsqz-{target}.tar.gz"
 )
-_GSQZ_CRATES_API = "https://crates.io/api/v1/crates/gsqz"
+_GSQZ_VERSIONED_RELEASE_URL = (
+    "https://github.com/GobbyAI/gobby-cli/releases/download/v{version}/gsqz-{target}.tar.gz"
+)
+_GSQZ_CRATES_API = "https://crates.io/api/v1/crates/gobby-squeeze"
 _GSQZ_VERSION_STAMP = ".gsqz-version"
 _GSQZ_BIN_NAME = "gsqz.exe" if sys.platform == "win32" else "gsqz"
 
@@ -324,7 +326,7 @@ def _install_gsqz_from_cargo_binstall(bin_dir: Path, version: str | None = None)
     if not shutil.which("cargo-binstall"):
         return False
     try:
-        crate = f"gsqz@{version}" if version else "gsqz"
+        crate = f"gobby-squeeze@{version}" if version else "gobby-squeeze"
         result = subprocess.run(
             [
                 "cargo-binstall",
@@ -355,7 +357,7 @@ def _install_gsqz_from_cargo_install(bin_dir: Path, version: str | None = None) 
     if not shutil.which("cargo"):
         return False
     try:
-        cmd = ["cargo", "install", "gsqz", "--root", str(bin_dir.parent)]
+        cmd = ["cargo", "install", "gobby-squeeze", "--root", str(bin_dir.parent)]
         if version:
             cmd.extend(["--version", version])
         click.echo("  Compiling gsqz from source (this may take 30-60 seconds)...")
@@ -528,10 +530,10 @@ def _install_gsqz(force: bool = False) -> dict[str, Any]:
 # ── gcode (code index CLI) ──────────────────────────────────────────
 
 _GCODE_RELEASE_URL = (
-    "https://github.com/GobbyAI/gobby-code/releases/latest/download/gcode-{target}.tar.gz"
+    "https://github.com/GobbyAI/gobby-cli/releases/latest/download/gcode-{target}.tar.gz"
 )
 _GCODE_VERSIONED_RELEASE_URL = (
-    "https://github.com/GobbyAI/gobby-code/releases/download/v{version}/gcode-{target}.tar.gz"
+    "https://github.com/GobbyAI/gobby-cli/releases/download/v{version}/gcode-{target}.tar.gz"
 )
 _GCODE_VERSION_STAMP = ".gcode-version"
 _GCODE_BIN_NAME = "gcode.exe" if sys.platform == "win32" else "gcode"
@@ -602,7 +604,7 @@ def _install_gcode_from_github(bin_dir: Path, target: str, version: str | None =
 
 
 def _install_gcode_from_submodule(bin_dir: Path) -> bool:
-    """Build gcode from the deps/gobby-code submodule.
+    """Build gcode from the deps/gobby-cli submodule.
 
     Preferred for development — uses the pinned submodule commit for
     schema-compatible builds.
@@ -613,10 +615,10 @@ def _install_gcode_from_submodule(bin_dir: Path) -> bool:
     if not shutil.which("cargo"):
         return False
 
-    # Walk up from this file to find the repo root with deps/gobby-code/
+    # Walk up from this file to find the repo root with deps/gobby-cli/
     search = Path(__file__).resolve().parent
     for _ in range(10):
-        manifest = search / "deps" / "gobby-code" / "Cargo.toml"
+        manifest = search / "deps" / "gobby-cli" / "Cargo.toml"
         if manifest.exists():
             break
         search = search.parent
@@ -633,6 +635,8 @@ def _install_gcode_from_submodule(bin_dir: Path) -> bool:
                 "cargo",
                 "build",
                 "--release",
+                "-p",
+                "gcode",
                 "--manifest-path",
                 str(manifest),
             ],
@@ -676,7 +680,9 @@ def _install_gcode_from_cargo_git(bin_dir: Path) -> bool:
                 "cargo",
                 "install",
                 "--git",
-                "https://github.com/GobbyAI/gobby-code",
+                "https://github.com/GobbyAI/gobby-cli",
+                "-p",
+                "gcode",
                 "--root",
                 str(bin_dir.parent),
             ],
