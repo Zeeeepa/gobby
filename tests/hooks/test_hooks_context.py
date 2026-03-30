@@ -161,8 +161,11 @@ def test_session_start_context_injection(mock_hook_manager) -> None:
         metadata={"_task_title": task_title},
     )
 
-    # Execute real handler for session start (now on _event_handlers)
-    response = mock_hook_manager._event_handlers.handle_session_start(event)
+    # Mock project context so _resolve_project_id doesn't raise for /tmp
+    fake_project = {"id": "test-project-id", "name": "test-project"}
+    with patch("gobby.utils.project_context.get_project_context", return_value=fake_project):
+        # Execute real handler for session start (now on _event_handlers)
+        response = mock_hook_manager._event_handlers.handle_session_start(event)
 
     # Verify context injection
     assert response.metadata["task_id"] == task_id

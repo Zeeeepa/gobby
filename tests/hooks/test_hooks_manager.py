@@ -1357,12 +1357,10 @@ class TestHookManagerResolveProjectId:
         result = manager._resolve_project_id(None, str(temp_dir))
         assert result == "context-project-id"
 
-    def test_resolve_project_id_falls_back_to_personal(
+    def test_resolve_project_id_raises_without_project_json(
         self, hook_manager_with_mocks: HookManager, temp_dir: Path
     ) -> None:
-        """Test that personal workspace is used when no project.json exists."""
-        from gobby.storage.projects import PERSONAL_PROJECT_ID
-
+        """Test that ValueError is raised when no project.json exists."""
         manager = hook_manager_with_mocks
 
         # Create a new temp dir without project.json
@@ -1370,9 +1368,8 @@ class TestHookManagerResolveProjectId:
         new_dir.mkdir()
 
         with patch("gobby.utils.project_context.get_project_context", return_value=None):
-            result = manager._resolve_project_id(None, str(new_dir))
-
-        assert result == PERSONAL_PROJECT_ID
+            with pytest.raises(ValueError, match="gobby init"):
+                manager._resolve_project_id(None, str(new_dir))
 
 
 class TestHookManagerLogging:

@@ -816,8 +816,14 @@ class HookManager:
         if project_id:
             return project_id
 
-        # Get cwd or use current directory
-        working_dir = Path(cwd) if cwd else Path.cwd()
+        if not cwd:
+            # No CWD available (e.g. daemon startup, factory init).
+            # Fall back to personal workspace since there's no project context.
+            from gobby.storage.projects import PERSONAL_PROJECT_ID
+
+            return PERSONAL_PROJECT_ID
+
+        working_dir = Path(cwd)
 
         # Look up project from .gobby/project.json
         from gobby.utils.project_context import get_project_context
@@ -828,11 +834,10 @@ class HookManager:
             self._ensure_project_in_db(project_context)
             return str(project_context["id"])
 
-        # No project.json found - use personal workspace
-        from gobby.storage.projects import PERSONAL_PROJECT_ID
-
-        self.logger.info(f"No project context for {working_dir}, using personal workspace")
-        return PERSONAL_PROJECT_ID
+        raise ValueError(
+            f"No .gobby/project.json found in {working_dir}. "
+            f"Run 'gobby init' in your project directory first."
+        )
 
     def _ensure_project_in_db(self, project_context: dict[str, Any]) -> None:
         """

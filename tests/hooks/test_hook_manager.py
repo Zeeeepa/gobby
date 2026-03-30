@@ -377,16 +377,24 @@ class TestHookManagerHelpers:
 
         assert result == "proj-abc"
 
-    def test_resolve_project_id_personal_fallback(
+    def test_resolve_project_id_no_project_json_raises(
         self,
         manager_with_mocks: HookManager,
     ) -> None:
-        """_resolve_project_id falls back to personal workspace."""
+        """_resolve_project_id raises when no project.json found."""
         with patch("gobby.utils.project_context.get_project_context", return_value=None):
-            result = manager_with_mocks._resolve_project_id(None, "/some/path")
+            with pytest.raises(ValueError, match="gobby init"):
+                manager_with_mocks._resolve_project_id(None, "/some/path")
 
-        # Should be the PERSONAL_PROJECT_ID constant
-        assert result is not None
+    def test_resolve_project_id_no_cwd_returns_personal(
+        self,
+        manager_with_mocks: HookManager,
+    ) -> None:
+        """_resolve_project_id returns personal workspace when no cwd."""
+        from gobby.storage.projects import PERSONAL_PROJECT_ID
+
+        result = manager_with_mocks._resolve_project_id(None, None)
+        assert result == PERSONAL_PROJECT_ID
 
 
 class TestFormatDiscoveryResult:
