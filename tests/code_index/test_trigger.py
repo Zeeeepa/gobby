@@ -212,11 +212,13 @@ async def test_gcode_failure_does_not_propagate(trigger: CodeIndexTrigger, tmp_p
 @pytest.mark.asyncio
 async def test_no_gcode_warns_and_skips(trigger: CodeIndexTrigger, tmp_path: Path) -> None:
     """Missing gcode binary logs warning and skips indexing."""
+    # Remove the gcode binary that the trigger fixture created
+    (tmp_path / ".gobby" / "bin" / "gcode").unlink(missing_ok=True)
+
     with (
         patch("gobby.code_index.trigger.Path.home", return_value=tmp_path),
         patch("asyncio.create_subprocess_exec") as mock_exec,
     ):
-        # Don't create the gcode binary — it should be missing
         trigger._schedule_file("/src/foo.py", "proj-1", "/repo")
 
         await asyncio.sleep(0.1)

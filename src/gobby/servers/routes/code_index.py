@@ -26,6 +26,12 @@ class IncrementalIndexRequest(BaseModel):
     project_id: str = ""
 
 
+class InvalidateIndexRequest(BaseModel):
+    """Request body for POST /api/code-index/invalidate."""
+
+    project_id: str
+
+
 def create_code_index_router(server: HTTPServer) -> APIRouter:
     """Create code index router."""
     router = APIRouter(prefix="/api/code-index", tags=["code-index"])
@@ -75,6 +81,37 @@ def create_code_index_router(server: HTTPServer) -> APIRouter:
         )
 
         return JSONResponse(content=result)
+
+    @router.post("/invalidate")
+    async def invalidate_index(body: InvalidateIndexRequest) -> JSONResponse:
+        """Clear all index data for a project. Called by gcode invalidate."""
+        services = server.services
+        code_indexer = getattr(services, "code_indexer", None)
+
+        if code_indexer is None:
+            return JSONResponse(
+                status_code=503,
+                content={"error": "Code indexer not available"},
+            )
+
+        project_id = body.project_id
+        if not project_id:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "project_id is required"},
+            )
+
+        # Check project exists
+        stats = code_indexer.storage.get_project_stats(project_id)
+        if stats is None:
+            return JSONResponse(
+                status_code=404,
+                content={"error": f"No indexed project found for {project_id}"},
+            )
+
+        await code_indexer.invalidate(project_id)
+
+        return JSONResponse(content={"status": "ok", "project_id": project_id})
 
     @router.get("/status")
     async def index_status(project_id: str = "") -> JSONResponse:
