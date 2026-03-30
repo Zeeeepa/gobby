@@ -727,15 +727,14 @@ class MemoryManager:
                 report["qdrant"]["orphans_found"] = len(orphaned)
 
                 if not dry_run and orphaned:
-                    deleted = 0
-                    for oid in orphaned:
-                        try:
-                            await self._vector_store.delete(oid)
-                            deleted += 1
-                        except Exception as e:
-                            logger.warning(f"Failed to delete Qdrant orphan {oid}: {e}")
-                            report["qdrant"]["errors"] += 1
-                    report["qdrant"]["orphans_deleted"] = deleted
+                    try:
+                        await self._vector_store.delete_many(list(orphaned))
+                        report["qdrant"]["orphans_deleted"] = len(orphaned)
+                    except Exception as e:
+                        logger.warning(
+                            f"Batch delete of {len(orphaned)} Qdrant orphans failed: {e}"
+                        )
+                        report["qdrant"]["errors"] += len(orphaned)
             except Exception as e:
                 logger.error(f"Qdrant reconciliation failed: {e}")
                 report["qdrant"]["error"] = str(e)

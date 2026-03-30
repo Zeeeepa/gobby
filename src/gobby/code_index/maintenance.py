@@ -83,9 +83,11 @@ async def _run_maintenance(
                 stderr=asyncio.subprocess.PIPE,
             )
             _, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
-            if proc.returncode != 0 and stderr:
+            if proc.returncode != 0:
+                detail = stderr.decode().strip() if stderr else "<no stderr>"
                 logger.warning(
-                    f"Maintenance reindex failed for {project.id}: {stderr.decode().strip()}"
+                    f"Maintenance reindex failed for {project.id} "
+                    f"(exit code {proc.returncode}): {detail}"
                 )
         except TimeoutError:
             logger.warning(f"Maintenance reindex timed out for {project.id}")

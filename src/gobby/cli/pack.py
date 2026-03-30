@@ -18,17 +18,9 @@ from pathlib import Path
 import click
 
 from gobby.cli.installers.git_hooks import install_git_hooks
-from gobby.cli.utils import stop_daemon
+from gobby.cli.utils import get_gobby_home, stop_daemon
 
 DB_NAME = "gobby-hub.db"
-
-
-def _gobby_home() -> Path:
-    """Get gobby home directory, respecting GOBBY_HOME env var."""
-    gobby_home = os.environ.get("GOBBY_HOME")
-    if gobby_home:
-        return Path(gobby_home)
-    return Path.home() / ".gobby"
 
 
 # Directories to include in pack (relative to ~/.gobby/)
@@ -144,7 +136,7 @@ def _import_docker_volume(volume_name: str, archive_path: Path) -> bool:
 
 def _daemon_is_running() -> bool:
     """Check if the Gobby daemon is currently running."""
-    pid_file = _gobby_home() / "gobby.pid"
+    pid_file = get_gobby_home() / "gobby.pid"
     if not pid_file.exists():
         return False
     try:
@@ -178,7 +170,7 @@ def _stop_neo4j_container() -> bool:
 
 def _start_neo4j_container() -> None:
     """Start the Neo4j Docker container if a compose file exists."""
-    compose_dir = _gobby_home() / "services" / "neo4j"
+    compose_dir = get_gobby_home() / "services" / "neo4j"
     compose_file = compose_dir / "docker-compose.yml"
     if not compose_file.exists():
         return
@@ -217,11 +209,11 @@ def _get_pack_size_estimate() -> int:
     """Estimate total size of data to pack."""
     total = 0
     for f in PACK_FILES:
-        path = _gobby_home() / f
+        path = get_gobby_home() / f
         if path.exists():
             total += path.stat().st_size
     for d in PACK_DIRS:
-        path = _gobby_home() / d
+        path = get_gobby_home() / d
         if path.is_dir():
             for root, _, files in os.walk(path):
                 for name in files:
@@ -246,7 +238,7 @@ def pack(output: str | None, no_docker: bool, no_transcripts: bool, dry_run: boo
         gobby pack --no-docker              # Skip Neo4j volume export
         gobby pack --dry-run                # Preview what would be packed
     """
-    if not _gobby_home().exists():
+    if not get_gobby_home().exists():
         click.echo("No ~/.gobby directory found. Nothing to pack.", err=True)
         sys.exit(1)
 
@@ -261,7 +253,7 @@ def pack(output: str | None, no_docker: bool, no_transcripts: bool, dry_run: boo
     missing: list[str] = []
 
     for f in PACK_FILES:
-        path = _gobby_home() / f
+        path = get_gobby_home() / f
         if path.exists():
             items.append((f"gobby/{f}", path))
         else:
@@ -272,7 +264,7 @@ def pack(output: str | None, no_docker: bool, no_transcripts: bool, dry_run: boo
         pack_dirs = [d for d in pack_dirs if d != "session_transcripts"]
 
     for d in pack_dirs:
-        path = _gobby_home() / d
+        path = get_gobby_home() / d
         if path.is_dir():
             items.append((f"gobby/{d}", path))
         else:
@@ -434,8 +426,8 @@ def unpack(archive: str, no_docker: bool, dry_run: bool, force: bool) -> None:
             return
 
         # Safety check
-        if _gobby_home().exists() and not force:
-            existing_db = _gobby_home() / DB_NAME
+        if get_gobby_home().exists() and not force:
+            existing_db = get_gobby_home() / DB_NAME
             if existing_db.exists():
                 if not click.confirm(
                     f"Warning: {existing_db} already exists. "
@@ -460,15 +452,15 @@ def unpack(archive: str, no_docker: bool, dry_run: bool, force: bool) -> None:
             click.echo("  Stopped Neo4j container")
 
         # Backup existing DB if present
-        existing_db = _gobby_home() / DB_NAME
+        existing_db = get_gobby_home() / DB_NAME
         if existing_db.exists():
             backup_name = f"{DB_NAME}.pre-unpack-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}"
-            backup_path = _gobby_home() / backup_name
+            backup_path = get_gobby_home() / backup_name
             shutil.copy2(existing_db, backup_path)
             click.echo(f"  Backed up existing DB to {backup_name}")
 
         # Extract gobby/ contents to ~/.gobby/
-        _gobby_home().mkdir(parents=True, exist_ok=True)
+        get_gobby_home().mkdir(parents=True, exist_ok=True)
         docker_archives: list[tarfile.TarInfo] = []
 
         for member in members:
@@ -500,7 +492,7 @@ def unpack(archive: str, no_docker: bool, dry_run: bool, force: bool) -> None:
 
             if member.name.startswith("gobby/"):
                 rel = member.name.removeprefix("gobby/")
-                target = _gobby_home() / rel
+                target = get_gobby_home() / rel
                 if member.isdir():
                     target.mkdir(parents=True, exist_ok=True)
                 else:

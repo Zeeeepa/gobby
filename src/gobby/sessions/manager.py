@@ -413,7 +413,24 @@ class SessionManager:
         return None
 
     def resolve_session_reference(self, ref: str, project_id: str | None = None) -> str:
-        """Resolve a session reference (e.g., #N) to a session UUID."""
+        """Resolve a session reference to a session UUID.
+
+        Accepted formats: ``#N`` (seq_num shortref), bare integer ``N``,
+        UUID prefix (minimum 4 chars), or full UUID.
+
+        Args:
+            ref: The session reference string to resolve.
+            project_id: Project context required for ``#N`` / bare-integer
+                shortrefs. Ignored for UUID / prefix lookups.
+
+        Returns:
+            The resolved session UUID string.
+
+        Raises:
+            ValueError: If *ref* is empty/invalid, if *project_id* is
+                required but missing, if no session matches, or if a
+                prefix is ambiguous (matches multiple sessions).
+        """
         return self._storage.resolve_session_reference(ref, project_id)
 
     def update_terminal_pickup_metadata(

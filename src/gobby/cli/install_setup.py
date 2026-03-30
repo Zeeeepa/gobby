@@ -560,7 +560,7 @@ def _get_installed_gcode_version(bin_dir: Path) -> str | None:
 def _write_gcode_version_stamp(bin_dir: Path, version: str) -> None:
     """Atomically write gcode version stamp."""
     stamp = str(bin_dir / _GCODE_VERSION_STAMP)
-    fd, tmp_path = tempfile.mkstemp(dir=str(bin_dir))
+    fd, tmp_path = tempfile.mkstemp(dir=str(bin_dir), prefix=".gcode-version-", suffix=".tmp")
     try:
         with os.fdopen(fd, "w") as f:
             f.write(version + "\n")

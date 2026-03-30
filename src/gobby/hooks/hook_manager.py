@@ -527,8 +527,12 @@ class HookManager:
             if resolved != val:
                 d[field] = resolved
                 return True
-        except (ValueError, Exception) as e:
+        except ValueError as e:
             self.logger.debug(f"Could not resolve session ref '{val}': {e}")
+        except Exception as e:
+            self.logger.warning(
+                f"Unexpected error resolving session ref '{val}': {e}", exc_info=True
+            )
 
         return False
 

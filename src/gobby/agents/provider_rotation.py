@@ -9,6 +9,7 @@ by the spawn factory before dispatching.
 from __future__ import annotations
 
 import logging
+import warnings
 from typing import TYPE_CHECKING
 
 from gobby.agents.stall_classifier import StallClassifier
@@ -35,6 +36,13 @@ def parse_provider_list(provider_string: str | None) -> list[str]:
     """
     if not provider_string:
         return []
+    if "," in provider_string:
+        warnings.warn(
+            "Comma-separated provider strings are deprecated; "
+            "use fallback_agent on agent definitions instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
     return [p.strip().lower() for p in provider_string.split(",") if p.strip()]
 
 

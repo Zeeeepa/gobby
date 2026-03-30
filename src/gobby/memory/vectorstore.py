@@ -208,6 +208,22 @@ class VectorStore:
             points_selector=selector,
         )
 
+    async def delete_many(
+        self,
+        memory_ids: list[str],
+        collection_name: str | None = None,
+    ) -> None:
+        """Delete multiple points by memory ID in a single batch call."""
+        if not memory_ids:
+            return
+        client = self._ensure_client()
+        selector = PointIdsList(points=memory_ids)
+        await asyncio.to_thread(
+            client.delete,
+            collection_name=collection_name or self._collection_name,
+            points_selector=selector,
+        )
+
     async def batch_upsert(
         self,
         items: list[tuple[str, list[float], dict[str, Any]]],
