@@ -57,7 +57,12 @@ class TokenBucketRateLimiter:
             channel_id: The ID of the channel.
             duration_seconds: How long to back off in seconds.
         """
-        expiry = time.monotonic() + duration_seconds
+        now = time.monotonic()
+        # Prune expired entries to prevent unbounded growth
+        expired = [k for k, v in self._backoffs.items() if v <= now]
+        for k in expired:
+            del self._backoffs[k]
+        expiry = now + duration_seconds
         self._backoffs[channel_id] = max(self._backoffs.get(channel_id, 0), expiry)
 
     def _get_or_create_bucket(self, channel_id: str) -> _Bucket:

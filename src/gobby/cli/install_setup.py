@@ -133,8 +133,15 @@ def run_daemon_setup(project_path: Path) -> None:
             # (skill is now served exclusively through gobby-skills)
             legacy_skills = project_path / ".claude" / "skills" / "playwright-cli"
             if legacy_skills.exists():
-                shutil.rmtree(legacy_skills)
-                click.echo("Removed legacy .claude/skills/playwright-cli/ (now in gobby-skills)")
+                try:
+                    shutil.rmtree(legacy_skills)
+                    click.echo(
+                        "Removed legacy .claude/skills/playwright-cli/ (now in gobby-skills)"
+                    )
+                except OSError as e:
+                    click.secho(
+                        f"Warning: Could not remove legacy {legacy_skills}: {e}", fg="yellow"
+                    )
         else:
             click.echo(f"Warning: Failed to install Playwright CLI: {npm_result.stderr.strip()}")
     except FileNotFoundError:
@@ -296,7 +303,8 @@ def _install_gsqz_from_github(bin_dir: Path, target: str, version: str | None = 
         else:
             url = _GSQZ_RELEASE_URL.format(target=target)
         logger.info("Downloading gsqz from %s", url)
-        with urlopen(url, timeout=30) as resp:
+        req = Request(url, headers={"User-Agent": "gobby-installer/1.0"})
+        with urlopen(req, timeout=30) as resp:
             tarball = BytesIO(resp.read())
 
         bin_dir.mkdir(parents=True, exist_ok=True)
@@ -582,7 +590,8 @@ def _install_gcode_from_github(bin_dir: Path, target: str, version: str | None =
         else:
             url = _GCODE_RELEASE_URL.format(target=target)
         logger.info("Downloading gcode from %s", url)
-        with urlopen(url, timeout=30) as resp:
+        req = Request(url, headers={"User-Agent": "gobby-installer/1.0"})
+        with urlopen(req, timeout=30) as resp:
             tarball = BytesIO(resp.read())
 
         bin_dir.mkdir(parents=True, exist_ok=True)

@@ -857,7 +857,6 @@ DROP TABLE IF EXISTS code_content_chunks;
 DROP TABLE IF EXISTS code_symbols;
 DROP TABLE IF EXISTS code_indexed_files;
 DROP TABLE IF EXISTS code_indexed_projects;
-DROP TABLE IF EXISTS savings_ledger;
 DROP TABLE IF EXISTS gcode_schema;
 
 CREATE TABLE code_indexed_projects (

@@ -104,7 +104,7 @@ class SessionLookupService:
                     # Resolve context for lookup
                     machine_id = event.machine_id or self._get_machine_id()
                     cwd = event.data.get("cwd")
-                    project_id = self._resolve_project_id(event.data.get("project_id"), cwd)
+                    project_id = event.project_id
 
                     # Lookup with full composite key
                     platform_session_id = self._session_manager.lookup_session_id(

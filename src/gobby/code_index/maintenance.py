@@ -104,8 +104,10 @@ async def _run_maintenance(
                     def source_reader(fp: str, bs: int, be: int, _root: str = root) -> str | None:
                         full = Path(_root) / fp
                         try:
-                            return full.read_bytes()[bs:be].decode("utf-8", errors="replace")
-                        except (OSError, IndexError):
+                            with open(full, "rb") as f:
+                                f.seek(bs)
+                                return f.read(be - bs).decode("utf-8", errors="replace")
+                        except (OSError, ValueError):
                             return None
 
                     summaries = await summarizer.generate_summaries(unsummarized, source_reader)

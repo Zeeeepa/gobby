@@ -131,80 +131,81 @@ class DiscordAdapter(BaseChannelAdapter):
                         heartbeat_interval: float | None = None
                         heartbeat_task: asyncio.Task[Any] | None = None
 
-                        async for raw_message in ws:
-                            if not isinstance(raw_message, (str, bytes)):
-                                continue
-                            data = json.loads(raw_message)
-                            op = data.get("op")
+                        try:
+                            async for raw_message in ws:
+                                if not isinstance(raw_message, (str, bytes)):
+                                    continue
+                                data = json.loads(raw_message)
+                                op = data.get("op")
 
-                            # Track sequence number from all dispatches
-                            if data.get("s") is not None:
-                                self._sequence = data["s"]
+                                # Track sequence number from all dispatches
+                                if data.get("s") is not None:
+                                    self._sequence = data["s"]
 
-                            if op == 10:  # Hello — start heartbeating
-                                heartbeat_interval = data["d"]["heartbeat_interval"] / 1000.0
-                                if heartbeat_task and not heartbeat_task.done():
-                                    heartbeat_task.cancel()
-                                heartbeat_task = asyncio.create_task(
-                                    self._heartbeat_loop(ws, heartbeat_interval)
-                                )
-
-                            elif op == 11:  # Heartbeat ACK
-                                pass  # Acknowledged
-
-                            elif op == 9:  # Invalid Session
-                                resumable = data.get("d", False)
-                                if not resumable:
-                                    logger.warning(
-                                        "Discord gateway: invalid session (not resumable), re-identifying"
+                                if op == 10:  # Hello — start heartbeating
+                                    heartbeat_interval = data["d"]["heartbeat_interval"] / 1000.0
+                                    if heartbeat_task and not heartbeat_task.done():
+                                        heartbeat_task.cancel()
+                                    heartbeat_task = asyncio.create_task(
+                                        self._heartbeat_loop(ws, heartbeat_interval)
                                     )
-                                    self._session_id = None
-                                    self._resume_gateway_url = None
-                                    self._sequence = None
-                                    await asyncio.sleep(1 + 4 * random.random())
-                                    await self._send_identify(ws)
-                                else:
-                                    logger.info(
-                                        "Discord gateway: invalid session (resumable), re-sending RESUME"
-                                    )
-                                    await asyncio.sleep(1 + 4 * random.random())
-                                    await ws.send(
-                                        json.dumps(
-                                            {
-                                                "op": 6,
-                                                "d": {
-                                                    "token": self._bot_token,
-                                                    "session_id": self._session_id,
-                                                    "seq": self._sequence,
-                                                },
-                                            }
+
+                                elif op == 11:  # Heartbeat ACK
+                                    pass  # Acknowledged
+
+                                elif op == 9:  # Invalid Session
+                                    resumable = data.get("d", False)
+                                    if not resumable:
+                                        logger.warning(
+                                            "Discord gateway: invalid session (not resumable), re-identifying"
                                         )
-                                    )
+                                        self._session_id = None
+                                        self._resume_gateway_url = None
+                                        self._sequence = None
+                                        await asyncio.sleep(1 + 4 * random.random())
+                                        await self._send_identify(ws)
+                                    else:
+                                        logger.info(
+                                            "Discord gateway: invalid session (resumable), re-sending RESUME"
+                                        )
+                                        await asyncio.sleep(1 + 4 * random.random())
+                                        await ws.send(
+                                            json.dumps(
+                                                {
+                                                    "op": 6,
+                                                    "d": {
+                                                        "token": self._bot_token,
+                                                        "session_id": self._session_id,
+                                                        "seq": self._sequence,
+                                                    },
+                                                }
+                                            )
+                                        )
 
-                            elif op == 0:  # Dispatch
-                                event_type = data.get("t")
+                                elif op == 0:  # Dispatch
+                                    event_type = data.get("t")
 
-                                if event_type == "READY":
-                                    d = data.get("d", {})
-                                    self._session_id = d.get("session_id")
-                                    self._resume_gateway_url = d.get("resume_gateway_url")
-                                    logger.info(
-                                        "Discord gateway: READY (session=%s)",
-                                        self._session_id,
-                                    )
+                                    if event_type == "READY":
+                                        d = data.get("d", {})
+                                        self._session_id = d.get("session_id")
+                                        self._resume_gateway_url = d.get("resume_gateway_url")
+                                        logger.info(
+                                            "Discord gateway: READY (session=%s)",
+                                            self._session_id,
+                                        )
 
-                                elif event_type == "RESUMED":
-                                    logger.info("Discord gateway: RESUMED successfully")
+                                    elif event_type == "RESUMED":
+                                        logger.info("Discord gateway: RESUMED successfully")
 
-                                elif event_type == "MESSAGE_CREATE":
-                                    msg_data = data.get("d", {})
-                                    logger.debug(
-                                        "Discord gateway received MESSAGE_CREATE: %s",
-                                        msg_data.get("id"),
-                                    )
-
-                        if heartbeat_task and not heartbeat_task.done():
-                            heartbeat_task.cancel()
+                                    elif event_type == "MESSAGE_CREATE":
+                                        msg_data = data.get("d", {})
+                                        logger.debug(
+                                            "Discord gateway received MESSAGE_CREATE: %s",
+                                            msg_data.get("id"),
+                                        )
+                        finally:
+                            if heartbeat_task and not heartbeat_task.done():
+                                heartbeat_task.cancel()
 
                 except Exception as e:
                     logger.warning("Discord gateway connection error: %s", e)
