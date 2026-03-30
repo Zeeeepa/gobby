@@ -326,7 +326,9 @@ class ClawdHubProvider(HubProvider):
         if version:
             args.extend(["--version", version])
 
-        # Always use a known target directory so we can return a path
+        # Always use a known target directory so we can return a path.
+        # When target_dir is None, a temporary directory is created — the caller
+        # is responsible for cleaning it up after loading the skill content.
         install_dir = target_dir or tempfile.mkdtemp(prefix="clawdhub_")
         args.extend(["--dir", install_dir])
 

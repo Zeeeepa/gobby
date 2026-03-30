@@ -56,6 +56,11 @@ class ClaudePluginsProvider(HubProvider):
         """
         super().__init__(hub_name=hub_name, base_url=base_url, auth_token=auth_token)
 
+    @staticmethod
+    def _normalize_slug_for_search(slug: str) -> str:
+        """Normalize a slug for API keyword search (hyphens/underscores → spaces)."""
+        return slug.replace("-", " ").replace("_", " ")
+
     @property
     def provider_type(self) -> str:
         """Return the provider type identifier."""
@@ -211,7 +216,7 @@ class ClaudePluginsProvider(HubProvider):
         # Search for the specific skill by name — replace hyphens with spaces
         # because the API is keyword-based and returns empty for hyphenated queries
         try:
-            search_query = slug.replace("-", " ")
+            search_query = self._normalize_slug_for_search(slug)
             result = await self._make_request(
                 endpoint="/api/skills",
                 params={"q": search_query, "limit": 10},
@@ -255,7 +260,7 @@ class ClaudePluginsProvider(HubProvider):
         # spaces because the API is keyword-based and returns empty for
         # hyphenated queries like "python-testing-patterns"
         try:
-            search_query = slug.replace("-", " ")
+            search_query = self._normalize_slug_for_search(slug)
             result = await self._make_request(
                 endpoint="/api/skills",
                 params={"q": search_query, "limit": 10},
