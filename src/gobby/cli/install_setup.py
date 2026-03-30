@@ -634,9 +634,6 @@ def _install_gcode_from_submodule(bin_dir: Path) -> bool:
     else:
         return False
 
-    if not manifest.exists():
-        return False
-
     try:
         click.echo("  Building gcode from submodule (this may take 30-60 seconds)...")
         result = subprocess.run(

@@ -12,6 +12,7 @@ import asyncio
 import json
 import logging
 import re
+import tempfile
 from typing import Any
 
 from gobby.skills.hubs.base import DownloadResult, HubProvider, HubSkillDetails, HubSkillInfo
@@ -319,8 +320,6 @@ class ClawdHubProvider(HubProvider):
                 error="ClawHub CLI not installed. Install with: npm i -g clawhub",
             )
 
-        import tempfile
-
         args = [slug]
 
         if version:
@@ -329,6 +328,7 @@ class ClawdHubProvider(HubProvider):
         # Always use a known target directory so we can return a path.
         # When target_dir is None, a temporary directory is created — the caller
         # is responsible for cleaning it up after loading the skill content.
+        is_temp = target_dir is None
         install_dir = target_dir or tempfile.mkdtemp(prefix="clawdhub_")
         args.extend(["--dir", install_dir])
 
@@ -342,8 +342,13 @@ class ClawdHubProvider(HubProvider):
                 slug=slug,
                 path=install_dir,
                 version=version,
+                is_temp=is_temp,
             )
         except RuntimeError as e:
+            if is_temp:
+                import shutil
+
+                shutil.rmtree(install_dir, ignore_errors=True)
             return DownloadResult(
                 success=False,
                 slug=slug,

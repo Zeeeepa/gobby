@@ -24,6 +24,7 @@ class DownloadResult:
         path: Path to the extracted skill (if successful)
         version: The version that was downloaded
         error: Error message (if failed)
+        is_temp: Whether path is a temporary directory that the caller must clean up
     """
 
     success: bool
@@ -31,6 +32,7 @@ class DownloadResult:
     path: str | None = None
     version: str | None = None
     error: str | None = None
+    is_temp: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""

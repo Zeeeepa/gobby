@@ -538,7 +538,7 @@ def reconcile(ctx: click.Context, dry_run: bool) -> None:
             f"/api/memories/reconcile{params}", method="POST", timeout=600.0
         )
         result = response.json()
-    except Exception as e:
+    except (httpx.HTTPError, ConnectionError, OSError, ValueError) as e:
         click.echo(f"Error: Could not reach daemon — is it running? ({e})")
         raise SystemExit(1) from e
 
