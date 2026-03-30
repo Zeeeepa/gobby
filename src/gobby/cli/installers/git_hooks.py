@@ -182,9 +182,10 @@ if [ -n "$CHANGED_FILES" ]; then
         if [ -n "$PROJECT_ID" ]; then
             FILES_JSON=$(echo "$CHANGED_FILES" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip().split('\\n')))" 2>/dev/null)
             if [ -n "$FILES_JSON" ]; then
+                PAYLOAD=$(printf '{"project_id": "%s", "files": %s}' "$PROJECT_ID" "$FILES_JSON")
                 if curl -s -X POST "http://localhost:$GOBBY_PORT/api/code-index/incremental" \
                     -H "Content-Type: application/json" \
-                    -d "{\\\"project_id\\\": \\\"$PROJECT_ID\\\", \\\"files\\\": $FILES_JSON}" \
+                    -d "$PAYLOAD" \
                     >/dev/null 2>&1; then
                     INDEXED=true
                 fi

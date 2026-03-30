@@ -5,6 +5,7 @@ import urllib.parse
 from typing import TYPE_CHECKING
 
 import click
+import httpx
 
 from gobby.cli.utils import resolve_project_ref
 from gobby.config.app import DaemonConfig
@@ -499,7 +500,7 @@ def reindex_embeddings(ctx: click.Context) -> None:
             "/api/memories/embeddings/reindex", method="POST", timeout=300.0
         )
         result = response.json()
-    except Exception as e:
+    except (httpx.HTTPError, ConnectionError, OSError, ValueError) as e:
         click.echo(f"Error: Could not reach daemon — is it running? ({e})")
         raise SystemExit(1) from e
 
