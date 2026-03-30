@@ -188,7 +188,7 @@ async def test_auto_create_session_when_no_existing():
         external_id="comms:chan-1:ext-user-1",
         machine_id="comms",
         source="comms",
-        project_id="",
+        project_id=None,
         title="Comms: alice",
     )
     assert identity.session_id == "auto-sess-123"

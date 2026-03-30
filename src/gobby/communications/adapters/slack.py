@@ -183,6 +183,7 @@ class SlackAdapter(BaseChannelAdapter):
                 for share_list in channel_shares.values():
                     if share_list:
                         return str(share_list[0].get("ts"))
+        logger.warning("Failed to extract uploaded message ts from Slack response: %s", result)
         return None
 
     async def shutdown(self) -> None:

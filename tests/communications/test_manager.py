@@ -568,7 +568,7 @@ async def test_send_message_propagates_thread_id():
     with patch("gobby.communications.manager.get_adapter_class", return_value=mock_adapter_cls):
         await manager.start()
 
-    manager._thread_manager._thread_map["test-channel:session-123"] = "thread-456"
+    manager._thread_manager.track_thread("test-channel", "session-123", "thread-456")
 
     msg = await manager.send_message("test-channel", "Hello reply", session_id="session-123")
 
@@ -626,7 +626,7 @@ async def test_handle_inbound_populates_thread_map_and_handles_reactions():
 
     await manager.handle_inbound_messages("test-channel", [inbound_msg, rxn_msg])
 
-    assert manager._thread_manager._thread_map["test-channel:session-123"] == "thread-456"
+    assert manager._thread_manager._thread_map[("test-channel", "session-123")] == "thread-456"
 
     # reaction should have called handler
     manager.reaction_handler.handle_reaction.assert_awaited_once_with(

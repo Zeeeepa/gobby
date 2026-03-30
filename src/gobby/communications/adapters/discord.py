@@ -270,9 +270,17 @@ class DiscordAdapter(BaseChannelAdapter):
         # Post-request: parse rate limit headers
         headers = response.headers
         if "X-RateLimit-Remaining" in headers:
+            try:
+                remaining = int(headers["X-RateLimit-Remaining"])
+            except (ValueError, TypeError):
+                remaining = 0
+            try:
+                reset = float(headers.get("X-RateLimit-Reset", "0"))
+            except (ValueError, TypeError):
+                reset = 0.0
             self._route_buckets[route] = {
-                "remaining": int(headers["X-RateLimit-Remaining"]),
-                "reset": float(headers.get("X-RateLimit-Reset", "0")),
+                "remaining": remaining,
+                "reset": reset,
                 "bucket_id": headers.get("X-RateLimit-Bucket", ""),
             }
 

@@ -4,6 +4,7 @@ import asyncio
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -162,7 +163,9 @@ class BaseChannelAdapter(ABC):
                     except ValueError:
                         try:
                             dt = parsedate_to_datetime(retry_after)
-                            delay = max(0.0, (dt - dt.now(dt.tzinfo)).total_seconds())
+                            if dt.tzinfo is None:
+                                dt = dt.replace(tzinfo=UTC)
+                            delay = max(0.0, (dt - datetime.now(UTC)).total_seconds())
                         except (ValueError, TypeError):
                             pass  # keep exponential backoff default
                 logger.warning(
