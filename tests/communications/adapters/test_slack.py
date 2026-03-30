@@ -5,13 +5,14 @@ from __future__ import annotations
 import hashlib
 import hmac
 import time
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from gobby.communications.adapters.slack import SlackAdapter, SlackVerificationChallenge
-from gobby.communications.models import ChannelConfig, CommsMessage
+from gobby.communications.models import ChannelConfig, CommsAttachment, CommsMessage
 
 
 @pytest.fixture
@@ -294,10 +295,6 @@ async def test_send_attachment_three_step_upload(
     adapter: SlackAdapter, channel_config: ChannelConfig, secret_resolver: Any
 ) -> None:
     """Test the files.getUploadURLExternal 3-step upload flow."""
-    from pathlib import Path
-
-    from gobby.communications.models import CommsAttachment
-
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_auth_response = MagicMock()
         mock_auth_response.json.return_value = {"ok": True, "user_id": "U12345"}

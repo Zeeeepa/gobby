@@ -236,7 +236,7 @@ async def test_rate_limit_pre_wait(
         await adapter.send_message(message)
 
         # Should have slept before making the request
-        assert mock_sleep.await_count >= 1
+        assert mock_sleep.await_count == 1
 
 
 def test_gateway_resume_state(adapter: DiscordAdapter) -> None:

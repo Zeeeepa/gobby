@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -30,7 +30,7 @@ def _make_mock_proc(returncode: int = 0) -> AsyncMock:
 async def trigger(mock_indexer: AsyncMock, tmp_path: Path) -> CodeIndexTrigger:
     loop = asyncio.get_running_loop()
     # Create a fake gcode binary so the trigger finds it
-    gcode_bin = tmp_path / "bin" / "gcode"
+    gcode_bin = tmp_path / ".gobby" / "bin" / "gcode"
     gcode_bin.parent.mkdir(parents=True, exist_ok=True)
     gcode_bin.touch()
     gcode_bin.chmod(0o755)
@@ -51,9 +51,10 @@ async def test_single_file_triggers_gcode(trigger: CodeIndexTrigger, tmp_path: P
     """A single file notification triggers gcode index after debounce."""
     mock_proc = _make_mock_proc()
 
-    with patch("gobby.code_index.trigger.Path.home", return_value=tmp_path), patch(
-        "asyncio.create_subprocess_exec", return_value=mock_proc
-    ) as mock_exec:
+    with (
+        patch("gobby.code_index.trigger.Path.home", return_value=tmp_path),
+        patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec,
+    ):
         # Create the fake binary at the patched path
         gcode_bin = tmp_path / ".gobby" / "bin" / "gcode"
         gcode_bin.parent.mkdir(parents=True, exist_ok=True)
@@ -79,9 +80,10 @@ async def test_multiple_files_batched(trigger: CodeIndexTrigger, tmp_path: Path)
     """Multiple files in the same project are batched into one call."""
     mock_proc = _make_mock_proc()
 
-    with patch("gobby.code_index.trigger.Path.home", return_value=tmp_path), patch(
-        "asyncio.create_subprocess_exec", return_value=mock_proc
-    ) as mock_exec:
+    with (
+        patch("gobby.code_index.trigger.Path.home", return_value=tmp_path),
+        patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec,
+    ):
         gcode_bin = tmp_path / ".gobby" / "bin" / "gcode"
         gcode_bin.parent.mkdir(parents=True, exist_ok=True)
         gcode_bin.touch()
@@ -104,9 +106,10 @@ async def test_same_file_deduped(trigger: CodeIndexTrigger, tmp_path: Path) -> N
     """Editing the same file multiple times results in one file in the batch."""
     mock_proc = _make_mock_proc()
 
-    with patch("gobby.code_index.trigger.Path.home", return_value=tmp_path), patch(
-        "asyncio.create_subprocess_exec", return_value=mock_proc
-    ) as mock_exec:
+    with (
+        patch("gobby.code_index.trigger.Path.home", return_value=tmp_path),
+        patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec,
+    ):
         gcode_bin = tmp_path / ".gobby" / "bin" / "gcode"
         gcode_bin.parent.mkdir(parents=True, exist_ok=True)
         gcode_bin.touch()
@@ -131,9 +134,10 @@ async def test_debounce_timer_resets(trigger: CodeIndexTrigger, tmp_path: Path) 
     """New edits reset the debounce timer, delaying the flush."""
     mock_proc = _make_mock_proc()
 
-    with patch("gobby.code_index.trigger.Path.home", return_value=tmp_path), patch(
-        "asyncio.create_subprocess_exec", return_value=mock_proc
-    ) as mock_exec:
+    with (
+        patch("gobby.code_index.trigger.Path.home", return_value=tmp_path),
+        patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec,
+    ):
         gcode_bin = tmp_path / ".gobby" / "bin" / "gcode"
         gcode_bin.parent.mkdir(parents=True, exist_ok=True)
         gcode_bin.touch()
@@ -160,15 +164,14 @@ async def test_debounce_timer_resets(trigger: CodeIndexTrigger, tmp_path: Path) 
 
 
 @pytest.mark.asyncio
-async def test_different_projects_independent(
-    trigger: CodeIndexTrigger, tmp_path: Path
-) -> None:
+async def test_different_projects_independent(trigger: CodeIndexTrigger, tmp_path: Path) -> None:
     """Different projects flush independently."""
     mock_proc = _make_mock_proc()
 
-    with patch("gobby.code_index.trigger.Path.home", return_value=tmp_path), patch(
-        "asyncio.create_subprocess_exec", return_value=mock_proc
-    ) as mock_exec:
+    with (
+        patch("gobby.code_index.trigger.Path.home", return_value=tmp_path),
+        patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec,
+    ):
         gcode_bin = tmp_path / ".gobby" / "bin" / "gcode"
         gcode_bin.parent.mkdir(parents=True, exist_ok=True)
         gcode_bin.touch()
@@ -185,14 +188,13 @@ async def test_different_projects_independent(
 
 
 @pytest.mark.asyncio
-async def test_gcode_failure_does_not_propagate(
-    trigger: CodeIndexTrigger, tmp_path: Path
-) -> None:
+async def test_gcode_failure_does_not_propagate(trigger: CodeIndexTrigger, tmp_path: Path) -> None:
     """gcode failure is logged but doesn't raise."""
     mock_proc = _make_mock_proc(returncode=1)
 
-    with patch("gobby.code_index.trigger.Path.home", return_value=tmp_path), patch(
-        "asyncio.create_subprocess_exec", return_value=mock_proc
+    with (
+        patch("gobby.code_index.trigger.Path.home", return_value=tmp_path),
+        patch("asyncio.create_subprocess_exec", return_value=mock_proc),
     ):
         gcode_bin = tmp_path / ".gobby" / "bin" / "gcode"
         gcode_bin.parent.mkdir(parents=True, exist_ok=True)
@@ -210,9 +212,10 @@ async def test_gcode_failure_does_not_propagate(
 @pytest.mark.asyncio
 async def test_no_gcode_warns_and_skips(trigger: CodeIndexTrigger, tmp_path: Path) -> None:
     """Missing gcode binary logs warning and skips indexing."""
-    with patch("gobby.code_index.trigger.Path.home", return_value=tmp_path), patch(
-        "asyncio.create_subprocess_exec"
-    ) as mock_exec:
+    with (
+        patch("gobby.code_index.trigger.Path.home", return_value=tmp_path),
+        patch("asyncio.create_subprocess_exec") as mock_exec,
+    ):
         # Don't create the gcode binary — it should be missing
         trigger._schedule_file("/src/foo.py", "proj-1", "/repo")
 

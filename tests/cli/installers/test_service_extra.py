@@ -1,7 +1,5 @@
 """Extra tests for OS-level service coverage."""
 
-import sys
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -22,6 +20,7 @@ from gobby.cli.installers.service import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestLinuxEnableDisableRestart:
     @patch("gobby.cli.installers.service.subprocess.run")
     @patch("gobby.cli.installers.service._systemd_unit_path")
@@ -29,7 +28,7 @@ class TestLinuxEnableDisableRestart:
         unit_file = tmp_path / "gobby-daemon.service"
         unit_file.write_text("dummy")
         mock_unit_path.return_value = unit_file
-        
+
         mock_run.return_value = MagicMock(returncode=0)
         res = enable_service_linux()
         assert res["success"] is True
@@ -46,7 +45,7 @@ class TestLinuxEnableDisableRestart:
         unit_file = tmp_path / "gobby-daemon.service"
         unit_file.write_text("dummy")
         mock_unit_path.return_value = unit_file
-        
+
         mock_run.return_value = MagicMock(returncode=0)
         res = disable_service_linux()
         assert res["success"] is True
@@ -63,6 +62,7 @@ class TestLinuxEnableDisableRestart:
         res = _linux_restart()
         assert res["success"] is True
 
+
 class TestMacOSDisable:
     @patch("gobby.cli.installers.service._launchctl_bootout")
     @patch("gobby.cli.installers.service._plist_path")
@@ -70,7 +70,7 @@ class TestMacOSDisable:
         plist = tmp_path / "test.plist"
         plist.write_text("dummy")
         mock_plist.return_value = plist
-        
+
         res = disable_service_macos()
         assert res["success"] is True
         mock_bootout.assert_called_once()
@@ -92,7 +92,7 @@ class TestDirectStartStopCommands:
     def test_macos_stop(self, mock_disable):
         mock_disable.return_value = {"success": True}
         assert _macos_stop() == {"success": True}
-        
+
     @patch("gobby.cli.installers.service.enable_service_linux")
     def test_linux_start(self, mock_enable):
         mock_enable.return_value = {"success": True}
@@ -111,13 +111,13 @@ class TestServiceDispatchHelpers:
     def test_service_start(self, mock_ls, mock_ms, mock_sys):
         mock_ms.return_value = {"success": True, "p": "mac"}
         mock_ls.return_value = {"success": True, "p": "linux"}
-        
+
         mock_sys.platform = "darwin"
         assert service_start()["p"] == "mac"
-        
+
         mock_sys.platform = "linux"
         assert service_start()["p"] == "linux"
-        
+
         mock_sys.platform = "win32"
         assert service_start()["success"] is False
 
@@ -127,13 +127,13 @@ class TestServiceDispatchHelpers:
     def test_service_stop(self, mock_ls, mock_ms, mock_sys):
         mock_ms.return_value = {"success": True, "p": "mac"}
         mock_ls.return_value = {"success": True, "p": "linux"}
-        
+
         mock_sys.platform = "darwin"
         assert service_stop()["p"] == "mac"
-        
+
         mock_sys.platform = "linux"
         assert service_stop()["p"] == "linux"
-        
+
         mock_sys.platform = "win32"
         assert service_stop()["success"] is False
 
@@ -143,12 +143,12 @@ class TestServiceDispatchHelpers:
     def test_service_restart(self, mock_lr, mock_mr, mock_sys):
         mock_mr.return_value = {"success": True, "p": "mac"}
         mock_lr.return_value = {"success": True, "p": "linux"}
-        
+
         mock_sys.platform = "darwin"
         assert service_restart()["p"] == "mac"
-        
+
         mock_sys.platform = "linux"
         assert service_restart()["p"] == "linux"
-        
+
         mock_sys.platform = "win32"
         assert service_restart()["success"] is False

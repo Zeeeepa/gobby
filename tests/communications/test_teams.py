@@ -117,6 +117,9 @@ async def test_concurrent_refresh(adapter, mock_secret_resolver):
             adapter.send_message(msg), adapter.send_message(msg), adapter.send_message(msg)
         )
 
+    # 1 token refresh + 3 send_message posts = 4 total calls
+    assert call_count == 4
+
 
 @pytest.mark.asyncio
 async def test_send_message(adapter, mock_secret_resolver):

@@ -1,9 +1,6 @@
 """Tests for gobby.communications.adapters.email."""
 
-import asyncio
-import email
 from email.message import EmailMessage
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -34,7 +31,7 @@ def config():
         "imap_port": 993,
         "from_address": "bot@test.com",
         "to_address": "user@test.com",
-        "password": "fake-password"
+        "password": "fake-password",
     }
     return mock_config
 
@@ -47,28 +44,30 @@ class TestEmailAdapter:
         # Setup mocks
         mock_smtp_client = AsyncMock()
         mock_smtp.SMTP.return_value = mock_smtp_client
-        
+
         mock_imap_client = AsyncMock()
         mock_imap.IMAP4_SSL.return_value = mock_imap_client
 
         # Mock secret resolver
-        def resolver(ref):
+        def resolver(ref: str) -> str:
             return "secret-pass"
 
         # Apply settings
         config.config_json["password"] = "$secret:EMAIL_PASSWORD"
-        
+
         await adapter.initialize(config, resolver)
-        
+
         assert adapter._smtp_host == "smtp.test.com"
         assert adapter._imap_host == "imap.test.com"
         assert adapter._from_address == "bot@test.com"
         assert adapter._password == "secret-pass"
-        
-        mock_smtp.SMTP.assert_called_with(hostname="smtp.test.com", port=587, use_tls=False, start_tls=True)
+
+        mock_smtp.SMTP.assert_called_with(
+            hostname="smtp.test.com", port=587, use_tls=False, start_tls=True
+        )
         mock_smtp_client.connect.assert_called_once()
         mock_smtp_client.login.assert_called_once_with("bot@test.com", "secret-pass")
-        
+
         mock_imap.IMAP4_SSL.assert_called_with(host="imap.test.com", port=993)
         mock_imap_client.wait_hello_from_server.assert_called_once()
         mock_imap_client.login.assert_called_once_with("bot@test.com", "secret-pass")
@@ -76,8 +75,10 @@ class TestEmailAdapter:
     @pytest.mark.asyncio
     async def test_initialize_missing_password(self, adapter, config):
         config.config_json["password"] = "$secret:MISSING"
-        def resolver(ref): return None
-        
+
+        def resolver(ref):
+            return None
+
         with pytest.raises(ValueError, match="Could not resolve Email password"):
             await adapter.initialize(config, resolver)
 
@@ -86,7 +87,7 @@ class TestEmailAdapter:
     async def test_ensure_smtp_connected_already_connected(self, mock_smtp, adapter):
         adapter._smtp_client = AsyncMock()
         adapter._smtp_client.is_connected = True
-        
+
         await adapter._ensure_smtp_connected()
         adapter._smtp_client.noop.assert_called_once()
 
@@ -100,12 +101,12 @@ class TestEmailAdapter:
         adapter._smtp_port = 587
         adapter._from_address = "bot"
         adapter._password = "pass"
-        
+
         new_client = AsyncMock()
         mock_smtp.SMTP.return_value = new_client
-        
+
         await adapter._ensure_smtp_connected()
-        
+
         old_client.close.assert_called_once()
         mock_smtp.SMTP.assert_called_once()
         new_client.connect.assert_called_once()
@@ -125,19 +126,19 @@ class TestEmailAdapter:
         adapter._smtp_client.is_connected = True
         adapter._from_address = "bot@test.com"
         adapter._default_destination = "user@test.com"
-        
+
         msg = MagicMock()
         msg.content = "hello world"
         msg.metadata_json = {"subject": "Test Subj"}
         msg.platform_thread_id = None
         msg.content_type = "text"
-        
+
         msg_id = await adapter.send_message(msg)
-        
+
         assert msg_id is not None
         assert "@test.com" in msg_id
         adapter._smtp_client.send_message.assert_called_once()
-        
+
         # Check email message was constructed correctly
         sent_email = adapter._smtp_client.send_message.call_args[0][0]
         assert isinstance(sent_email, EmailMessage)
@@ -152,15 +153,15 @@ class TestEmailAdapter:
         adapter._smtp_client.is_connected = True
         adapter._from_address = "bot@test.com"
         adapter._default_destination = "user@test.com"
-        
+
         msg = MagicMock()
         msg.content = "<b>html</b>"
         msg.metadata_json = {}
         msg.platform_thread_id = "thread-123"
         msg.content_type = "html"
-        
+
         await adapter.send_message(msg)
-        
+
         sent_email = adapter._smtp_client.send_message.call_args[0][0]
         assert sent_email["In-Reply-To"] == "thread-123"
         assert sent_email["References"] == "thread-123"
@@ -172,25 +173,25 @@ class TestEmailAdapter:
         adapter._smtp_client.is_connected = True
         adapter._from_address = "bot@test.com"
         adapter._default_destination = "user@test.com"
-        
+
         file_path = tmp_path / "test.txt"
         file_path.write_bytes(b"attachment content")
-        
+
         msg = MagicMock()
         msg.content = "see attached"
         msg.metadata_json = {}
         msg.platform_thread_id = None
-        
+
         attachment = MagicMock()
         attachment.filename = "test.txt"
         attachment.content_type = "text/plain"
-        
+
         msg_id = await adapter.send_attachment(msg, attachment, file_path)
         assert msg_id is not None
-        
+
         adapter._smtp_client.send_message.assert_called_once()
         sent_email = adapter._smtp_client.send_message.call_args[0][0]
-        
+
         # Verify multipart
         assert sent_email.is_multipart()
         parts = list(sent_email.iter_parts())
@@ -204,7 +205,7 @@ class TestEmailAdapter:
         adapter._imap_client = AsyncMock()
         # Mock search to return empty response
         adapter._imap_client.search.return_value = ("OK", [b""])
-        
+
         messages = await adapter.poll()
         assert messages == []
         adapter._imap_client.search.assert_called_with("UNSEEN")
@@ -213,44 +214,44 @@ class TestEmailAdapter:
     @patch("gobby.communications.adapters.email.aioimaplib", create=True)
     async def test_poll_with_messages(self, mock_imap, adapter):
         adapter._imap_client = AsyncMock()
-        
+
         # Mock search to return msg number 1
         adapter._imap_client.search.return_value = ("OK", [b"1 2"])
-        
+
         # Craft two raw RFC822 emails
         msg1 = EmailMessage()
         msg1["Message-ID"] = "msg1@test"
         msg1["From"] = "user@test.com"
         msg1["Subject"] = "Test 1"
         msg1.set_content("plain text content")
-        
+
         msg2 = EmailMessage()
         msg2["Message-ID"] = "msg2@test"
         msg2["From"] = "other@test.com"
         msg2.add_alternative("<b>HTML</b>", subtype="html")
-        
+
         def fetch_side_effect(num, query):
             if num == b"1":
                 return ("OK", [("1 (RFC822)", bytes(msg1))])
             if num == b"2":
                 return ("OK", [("2 (RFC822)", bytes(msg2))])
             return ("BAD", [])
-            
+
         adapter._imap_client.fetch = AsyncMock(side_effect=fetch_side_effect)
         adapter._imap_client.store = AsyncMock(return_value=("OK", []))
-        
+
         messages = await adapter.poll()
         assert len(messages) == 2
-        
+
         assert messages[0].platform_message_id == "msg1@test"
         assert messages[0].content.strip() == "plain text content"
         assert messages[0].content_type == "text"
         assert messages[0].identity_id == "user@test.com"
         assert messages[0].metadata_json["subject"] == "Test 1"
-        
+
         assert messages[1].platform_message_id == "msg2@test"
         assert "HTML" in messages[1].content
-        
+
         assert adapter._imap_client.store.call_count == 2
         adapter._imap_client.store.assert_any_call(b"1", "+FLAGS", "(\\Seen)")
 
@@ -258,13 +259,13 @@ class TestEmailAdapter:
     async def test_shutdown(self, adapter):
         adapter._smtp_client = AsyncMock()
         adapter._imap_client = AsyncMock()
-        
+
         await adapter.shutdown()
-        
+
         adapter._smtp_client.quit.assert_called_once()
         adapter._imap_client.close.assert_called_once()
         adapter._imap_client.logout.assert_called_once()
-        
+
         assert adapter._smtp_client is None
         assert adapter._imap_client is None
 

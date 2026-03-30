@@ -121,7 +121,7 @@ async def test_router_caches_rules_with_ttl():
 @pytest.mark.asyncio
 async def test_router_cache_expires_after_ttl():
     """Router should re-query store after TTL expires."""
-    import time
+    import asyncio
 
     store = MagicMock()
     rules = [
@@ -138,7 +138,7 @@ async def test_router_cache_expires_after_ttl():
     assert store.list_routing_rules.call_count == 1
 
     # Wait for cache to expire
-    time.sleep(0.02)
+    await asyncio.sleep(0.02)
 
     await router.match_channels("task.updated")
     assert store.list_routing_rules.call_count == 2

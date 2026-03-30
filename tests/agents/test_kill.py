@@ -1,9 +1,6 @@
 """Tests for gobby.agents.kill module."""
 
-import asyncio
-import os
 import signal
-import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -38,7 +35,7 @@ class TestRunSubprocess:
 
         with pytest.raises(TimeoutError):
             await _run_subprocess("sleep", "10", timeout=0.1)
-        
+
         mock_proc.kill.assert_called_once()
         mock_proc.wait.assert_called_once()
 
@@ -114,11 +111,11 @@ class TestCloseTerminalWindow:
 
 class TestKillAgent:
     @pytest.fixture
-    def mock_db(self):
+    def mock_db(self) -> MagicMock:
         return MagicMock()
 
     @pytest.fixture
-    def agent_run(self):
+    def agent_run(self) -> AgentRun:
         return AgentRun(
             id="run1",
             parent_session_id="parent1",
@@ -189,7 +186,9 @@ class TestKillAgent:
     @pytest.mark.asyncio
     @patch("gobby.agents.kill._run_subprocess")
     @patch("gobby.agents.kill.os.kill")
-    async def test_kill_pid_from_pgrep_disambiguation(self, mock_kill, mock_run, agent_run, mock_db):
+    async def test_kill_pid_from_pgrep_disambiguation(
+        self, mock_kill, mock_run, agent_run, mock_db
+    ):
         agent_run.pid = None
         agent_run.provider = "claude"
 
@@ -238,8 +237,8 @@ class TestKillAgent:
         with patch("gobby.agents.kill.asyncio.get_running_loop") as mock_loop_getter:
             mock_loop = MagicMock()
             # simulate time passing
-            time_returns = [0.0, 0.0, 10.0]  # Start, Loop 1 check, Exceeded deadline
-            mock_loop.time.side_effect = time_returns
+            # Start, Loop 1 check, Exceeded deadline + extras to avoid StopIteration
+            mock_loop.time.side_effect = [0.0, 0.0, 10.0, 10.0, 10.0, 10.0]
             mock_loop_getter.return_value = mock_loop
 
             res = await kill_agent(agent_run, mock_db, timeout=2.0)

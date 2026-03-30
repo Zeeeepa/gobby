@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from websockets.exceptions import ConnectionClosed
 
-from gobby.servers.websocket.chat._messaging import ChatMessagingMixin
 from gobby.hooks.events import HookEventType
 from gobby.llm.claude_models import (
     DoneEvent,
@@ -16,8 +15,10 @@ from gobby.llm.claude_models import (
     ToolCallEvent,
     ToolResultEvent,
 )
+from gobby.servers.websocket.chat._messaging import ChatMessagingMixin
 
 pytestmark = pytest.mark.unit
+
 
 class DummyMessagingMixin(ChatMessagingMixin):
     def __init__(self):
@@ -46,9 +47,11 @@ class DummyMessagingMixin(ChatMessagingMixin):
     async def broadcast_session_event(self, event, sid, **kwargs):
         pass
 
+
 @pytest.fixture
 def mixin() -> DummyMessagingMixin:
     return DummyMessagingMixin()
+
 
 @pytest.fixture
 def ws() -> AsyncMock:
@@ -72,6 +75,7 @@ class TestClassifyChatError:
         msg, code = mixin._classify_chat_error(RuntimeError("unknown issue"))
         assert code == "INTERNAL_ERROR"
 
+
 class TestInjectPendingMessages:
     def test_inject_wrong_event(self, mixin: DummyMessagingMixin):
         assert mixin._inject_pending_messages("1", HookEventType.SESSION_START) is None
@@ -82,32 +86,33 @@ class TestInjectPendingMessages:
 
     def test_inject_success(self, mixin: DummyMessagingMixin):
         mixin.inter_session_msg_manager = MagicMock()
-        
+
         msg1 = MagicMock()
         msg1.id = "1"
         msg1.message_type = "web_chat"
         msg1.from_session = "1234567890"
         msg1.content = "hello"
-        
+
         msg2 = MagicMock()
         msg2.id = "2"
         msg2.message_type = "p2p"
         msg2.priority = "urgent"
         msg2.from_session = None
         msg2.content = "help me"
-        
+
         mixin.inter_session_msg_manager.get_undelivered_messages.return_value = [msg1, msg2]
-        
+
         res = mixin._inject_pending_messages("sid", HookEventType.BEFORE_AGENT)
-        
+
         assert res is not None
         assert "Pending messages from web chat user" in res
         assert "- Session 12345678: hello" in res
         assert "Pending P2P messages from other sessions" in res
         assert "- [URGENT] help me" in res
-        
+
         mixin.inter_session_msg_manager.mark_delivered.assert_any_call("1")
         mixin.inter_session_msg_manager.mark_delivered.assert_any_call("2")
+
 
 class TestHandleChatMessage:
     @pytest.mark.asyncio
@@ -126,13 +131,13 @@ class TestHandleChatMessage:
     @pytest.mark.asyncio
     async def test_success_dispatch(self, mixin: DummyMessagingMixin, ws: AsyncMock):
         mixin.clients[ws] = {}
-        
+
         with patch.object(mixin, "_stream_chat_response", new_callable=AsyncMock) as mock_stream:
             await mixin._handle_chat_message(ws, {"content": "hi", "conversation_id": "c1"})
-            
+
             # Since task runs async, let event loop tick
             await asyncio.sleep(0.01)
-            
+
             mock_stream.assert_awaited_once_with(
                 ws, "c1", "hi", None, "", None, inject_context=None
             )
@@ -147,14 +152,16 @@ class TestStreamChatResponse:
         session = AsyncMock()
         session.model = "opus"
         mixin._chat_sessions["c1"] = session
-        
+
         async def dummy_generator(text):
-            yield DoneEvent(sdk_session_id="sdk", input_tokens=10, output_tokens=5, tool_calls_count=0)
-            
+            yield DoneEvent(
+                sdk_session_id="sdk", input_tokens=10, output_tokens=5, tool_calls_count=0
+            )
+
         session.send_message.return_value = dummy_generator("hi")
-        
+
         await mixin._stream_chat_response(ws, "c1", "hi", "sonnet")
-        
+
         session.switch_model.assert_awaited_once_with("sonnet")
         # Validate model switch message sent
         messages = [call[0][0] for call in ws.send.call_args_list]
@@ -165,27 +172,31 @@ class TestStreamChatResponse:
         mixin.clients[ws] = {"conversation_id": "c1"}
         session = AsyncMock()
         mixin._chat_sessions["c1"] = session
-        
+
         async def mock_stream(content):
             yield ThinkingEvent(content="hmm")
             yield TextChunk(content="text block")
-            yield ToolCallEvent(tool_call_id="call1", tool_name="read", server_name="srv", arguments={"p": 1})
+            yield ToolCallEvent(
+                tool_call_id="call1", tool_name="read", server_name="srv", arguments={"p": 1}
+            )
             yield ToolResultEvent(tool_call_id="call1", result="ok", success=True)
-            yield DoneEvent(sdk_session_id="sdk", input_tokens=10, output_tokens=5, tool_calls_count=1)
-        
+            yield DoneEvent(
+                sdk_session_id="sdk", input_tokens=10, output_tokens=5, tool_calls_count=1
+            )
+
         session.send_message.return_value = mock_stream("hi")
-        
+
         await mixin._stream_chat_response(ws, "c1", "hi", None)
-        
+
         msgs = []
         for call in ws.send.call_args_list:
             msgs.append(json.loads(call[0][0]))
-            
+
         types = [m.get("type") for m in msgs]
         assert "chat_thinking" in types
         assert "chat_stream" in types
         assert "tool_status" in types
-        
+
         # Verify done event handling rekeys the session dict
         assert "c1" not in mixin._chat_sessions
         assert "sdk" in mixin._chat_sessions
@@ -195,15 +206,15 @@ class TestStreamChatResponse:
         mixin.clients[ws] = {"conversation_id": "c1"}
         session = AsyncMock()
         mixin._chat_sessions["c1"] = session
-        
+
         async def canceling_stream(content):
             raise asyncio.CancelledError()
-            yield None
-            
+            yield  # noqa: unreachable — required to make this an async generator
+
         session.send_message.return_value = canceling_stream("hi")
-        
+
         await mixin._stream_chat_response(ws, "c1", "hi", None)
-        
+
         msgs = [json.loads(c[0][0]) for c in ws.send.call_args_list]
         done_msg = [m for m in msgs if m.get("done") is True]
         assert len(done_msg) == 1
@@ -214,13 +225,13 @@ class TestStreamChatResponse:
         mixin.clients[ws] = {"conversation_id": "c1"}
         session = AsyncMock()
         mixin._chat_sessions["c1"] = session
-        
+
         async def dummy_stream(content):
             yield ThinkingEvent(content="hmm")
-            
+
         session.send_message.return_value = dummy_stream("hi")
-        
+
         ws.send.side_effect = ConnectionClosed(None, None)
-        
+
         # Should catch gracefully and not propagate
         await mixin._stream_chat_response(ws, "c1", "hi", None)

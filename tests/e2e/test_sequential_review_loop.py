@@ -300,7 +300,6 @@ class TestSequentialReviewLoopE2E:
         )
         subtask2_result = unwrap_result(raw_result)
         subtask2_id = subtask2_result["id"]
-        _subtask2_ref = subtask2_result.get("ref", f"#{subtask2_result.get('seq_num', '')}")
 
         # Add explicit dependency: subtask2 depends on subtask1
         # Use full task IDs (not #N refs) to avoid project_id lookup requirement
