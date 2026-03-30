@@ -4,6 +4,7 @@ import asyncio
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -22,6 +23,9 @@ logger = logging.getLogger(__name__)
 
 class BaseChannelAdapter(ABC):
     """Abstract base class for all communication channel adapters."""
+
+    def __init__(self) -> None:
+        self._rate_limit_callback: Callable[[float, bool], None] | None = None
 
     @property
     @abstractmethod
@@ -148,11 +152,19 @@ class BaseChannelAdapter(ABC):
             last_response = response
 
             if response.status_code == 429:
+                if attempt >= max_retries:
+                    break
                 retry_after = response.headers.get("Retry-After")
+                delay = backoff_base * (2**attempt)  # default fallback
                 if retry_after:
-                    delay = float(retry_after)
-                else:
-                    delay = backoff_base * (2**attempt)
+                    try:
+                        delay = float(retry_after)
+                    except ValueError:
+                        try:
+                            dt = parsedate_to_datetime(retry_after)
+                            delay = max(0.0, (dt - dt.now(dt.tzinfo)).total_seconds())
+                        except (ValueError, TypeError):
+                            pass  # keep exponential backoff default
                 logger.warning(
                     "%s rate limited (429), retrying in %.1fs (attempt %d/%d)",
                     self.channel_type,

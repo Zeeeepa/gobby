@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import logging
 from collections import OrderedDict
-
-logger = logging.getLogger(__name__)
 
 
 class ThreadManager:

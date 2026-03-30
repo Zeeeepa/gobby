@@ -6,9 +6,10 @@ import asyncio
 import fnmatch
 import logging
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from gobby.communications.models import CommsRoutingRule
     from gobby.storage.communications import LocalCommunicationsStore
 
 
@@ -25,7 +26,7 @@ class MessageRouter:
             store: Communications storage manager.
         """
         self.store = store
-        self._rules_cache: list[Any] | None = None
+        self._rules_cache: list[CommsRoutingRule] | None = None
         self._cache_expires_at: float = 0
         self._cache_ttl: float = 30.0  # seconds
 

@@ -125,15 +125,16 @@ class EmailAdapter(BaseChannelAdapter):
         async def _check_and_reconnect() -> None:
             nonlocal smtp_client
             try:
-                assert smtp_client is not None
+                if smtp_client is None:
+                    raise RuntimeError("SMTP client not initialized")
                 if not smtp_client.is_connected:
                     raise RuntimeError("SMTP not connected")
                 await smtp_client.noop()
-            except Exception:
+            except (OSError, RuntimeError):
                 if smtp_client:
                     try:
                         smtp_client.close()
-                    except Exception:
+                    except OSError:
                         pass
 
                 self._smtp_client = aiosmtplib.SMTP(
@@ -143,7 +144,8 @@ class EmailAdapter(BaseChannelAdapter):
                     start_tls=self._smtp_port == 587,
                 )
                 smtp_client = self._smtp_client
-                assert smtp_client is not None
+                if smtp_client is None:
+                    raise RuntimeError("SMTP client not initialized after re-creation") from None
                 await smtp_client.connect()
                 await smtp_client.login(self._from_address, self._password)
 
@@ -159,17 +161,19 @@ class EmailAdapter(BaseChannelAdapter):
             nonlocal imap_client
             try:
                 # No robust is_connected check in aioimaplib besides trying a command
-                assert imap_client is not None
+                if imap_client is None:
+                    raise RuntimeError("IMAP client not initialized")
                 await imap_client.noop()
-            except Exception:
+            except (TimeoutError, OSError, RuntimeError):
                 try:
                     if imap_client:
                         await imap_client.logout()
-                except Exception:
+                except (TimeoutError, OSError):
                     pass
                 self._imap_client = aioimaplib.IMAP4_SSL(host=self._imap_host, port=self._imap_port)
                 imap_client = self._imap_client
-                assert imap_client is not None
+                if imap_client is None:
+                    raise RuntimeError("IMAP client not initialized after re-creation") from None
                 await imap_client.wait_hello_from_server()
                 await imap_client.login(self._from_address, self._password)
 

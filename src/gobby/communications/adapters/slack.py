@@ -147,14 +147,16 @@ class SlackAdapter(BaseChannelAdapter):
         upload_url = result["upload_url"]
         file_id = result["file_id"]
 
-        # Step 2: PUT file bytes to the upload URL
+        # Step 2: PUT file bytes to the upload URL (with retry)
         async with httpx.AsyncClient(timeout=60.0) as upload_client:
-            upload_resp = await upload_client.put(
-                upload_url,
-                content=file_bytes,
-                headers={"Content-Type": attachment.content_type},
+            await self._retry_request(
+                functools.partial(
+                    upload_client.put,
+                    upload_url,
+                    content=file_bytes,
+                    headers={"Content-Type": attachment.content_type},
+                )
             )
-            upload_resp.raise_for_status()
 
         # Step 3: Complete the upload
         complete_payload: dict[str, Any] = {

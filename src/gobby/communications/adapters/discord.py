@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import random
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -218,6 +219,9 @@ class DiscordAdapter(BaseChannelAdapter):
     async def _heartbeat_loop(self, ws: Any, interval: float) -> None:
         """Send periodic heartbeats to keep the gateway connection alive."""
         try:
+            # Discord expects a jittered first heartbeat (random fraction of interval)
+            await asyncio.sleep(random.random() * interval)
+            await ws.send(json.dumps({"op": 1, "d": self._sequence}))
             while True:
                 await asyncio.sleep(interval)
                 await ws.send(json.dumps({"op": 1, "d": self._sequence}))

@@ -339,6 +339,8 @@ async def test_slack_send_attachment(tmp_path: Path) -> None:
     # Mock the httpx.AsyncClient used for the PUT upload in step 2
     mock_upload_client = AsyncMock()
     mock_upload_resp = MagicMock()
+    mock_upload_resp.status_code = 200
+    mock_upload_resp.headers = {}
     mock_upload_resp.raise_for_status = MagicMock()
     mock_upload_client.put = AsyncMock(return_value=mock_upload_resp)
     mock_upload_client.__aenter__ = AsyncMock(return_value=mock_upload_client)

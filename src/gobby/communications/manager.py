@@ -291,7 +291,7 @@ class CommunicationsManager:
 
         platform_thread_id = None
         if session_id:
-            platform_thread_id = self._thread_manager.get_thread_id(channel_name, session_id)
+            platform_thread_id = self._get_thread_id(channel_name, session_id)
 
         display_name = filename or file_path.name
 
