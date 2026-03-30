@@ -1,0 +1,181 @@
+"""Tests for WebSocket ChatSessionMixin (lifecycle of chat sessions)."""
+
+import asyncio
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from gobby.servers.websocket.chat._session import (
+    ChatSessionMixin,
+    _resolve_git_branch,
+)
+from gobby.hooks.events import HookEventType
+from gobby.storage.projects import PERSONAL_PROJECT_ID
+
+pytestmark = pytest.mark.unit
+
+class DummyMixin(ChatSessionMixin):
+    def __init__(self):
+        self.clients = {}
+        self._chat_sessions = {}
+        self._active_chat_tasks = {}
+        self._pending_modes = {}
+        self._pending_worktree_paths = {}
+        self._pending_agents = {}
+        self._session_create_locks = {}
+        self.session_manager = None
+        self.daemon_config = None
+
+    async def _fire_lifecycle(self, cid, event_type, data):
+        pass
+
+
+@pytest.fixture
+def mixin() -> DummyMixin:
+    return DummyMixin()
+
+class TestResolveGitBranch:
+    @pytest.mark.asyncio
+    async def test_resolve_git_branch_none(self):
+        branch, path = await _resolve_git_branch(None)
+        assert branch is None
+        assert path is None
+
+    @pytest.mark.asyncio
+    async def test_resolve_git_branch_success(self):
+        async def mock_communicate():
+            return b"main\n", b""
+            
+        proc = MagicMock()
+        proc.communicate = mock_communicate
+        
+        with patch("asyncio.create_subprocess_exec", return_value=proc):
+            branch, path = await _resolve_git_branch("/test/path")
+            assert branch == "main"
+            assert path == "/test/path"
+
+    @pytest.mark.asyncio
+    async def test_resolve_git_branch_detached(self):
+        # First call (branch --show-current) returns empty string (detached HEAD)
+        async def mock_communicate_1():
+            return b"\n", b""
+            
+        # Second call (rev-parse --short HEAD) returns sha
+        async def mock_communicate_2():
+            return b"a1b2c3d\n", b""
+
+        # We need a side_effect to return different procs
+        proc1 = MagicMock(); proc1.communicate = mock_communicate_1
+        proc2 = MagicMock(); proc2.communicate = mock_communicate_2
+        
+        with patch("asyncio.create_subprocess_exec", side_effect=[proc1, proc2]):
+            branch, path = await _resolve_git_branch("/test/path")
+            assert branch == "detached:a1b2c3d"
+
+    @pytest.mark.asyncio
+    async def test_resolve_git_branch_error(self):
+        with patch("asyncio.create_subprocess_exec", side_effect=ValueError("git not found")):
+            branch, path = await _resolve_git_branch("/test/path")
+            assert branch is None
+            assert path is None
+
+class TestCancelActiveChat:
+    @pytest.mark.asyncio
+    async def test_cancel_active_chat_no_session(self, mixin: DummyMixin):
+        await mixin._cancel_active_chat("conv-xyz")
+        # should pass silently
+
+    @pytest.mark.asyncio
+    async def test_cancel_active_chat_with_session(self, mixin: DummyMixin):
+        session = AsyncMock()
+        mixin._chat_sessions["conv-xyz"] = session
+        
+        task = asyncio.create_task(asyncio.sleep(10))
+        mixin._active_chat_tasks["conv-xyz"] = task
+        
+        # Add TTS cancel mock to test that branch too
+        mixin._cancel_tts = AsyncMock()
+
+        with patch("asyncio.sleep", new_callable=AsyncMock):
+            await mixin._cancel_active_chat("conv-xyz")
+            
+        session.interrupt.assert_awaited_once()
+        assert task.cancelled()
+        session.drain_pending_response.assert_awaited_once()
+        mixin._cancel_tts.assert_awaited_once_with("conv-xyz")
+
+class TestCreateChatSessionInner:
+    @pytest.mark.asyncio
+    async def test_create_chat_session_no_db(self, mixin: DummyMixin):
+        with patch("gobby.servers.websocket.chat._session.ChatSession") as MockSessionClass:
+            mock_session = AsyncMock()
+            MockSessionClass.return_value = mock_session
+            
+            # Fire lifecycle needs to be awaited inside the method so we mock it
+            mixin._fire_lifecycle = AsyncMock()
+
+            session = await mixin._create_chat_session_inner("conv-abc", model="opus")
+            
+            assert session == mock_session
+            mock_session.start.assert_awaited_once_with(model="opus")
+            # Fire session start
+            mixin._fire_lifecycle.assert_awaited_once_with(
+                "conv-abc", HookEventType.SESSION_START, {}
+            )
+
+    @pytest.mark.asyncio
+    async def test_create_chat_session_with_pending_websocket_broadcast(self, mixin: DummyMixin):
+        """Test chat mode, plan ready, and mode change hooks are wired and behave as expected."""
+        with patch("gobby.servers.websocket.chat._session.ChatSession") as MockSessionClass:
+            mock_session = AsyncMock()
+            MockSessionClass.return_value = mock_session
+            
+            # Add a mock websocket client to the mixin to test broadcast
+            mock_ws = AsyncMock()
+            mixin.clients[mock_ws] = {"conversation_id": "conv-1"}
+            
+            session = await mixin._create_chat_session_inner("conv-1")
+            
+            # Emulate the mode changed hook firing
+            await session._on_mode_changed("accept_edits", "testing")
+            mock_ws.send.assert_called()
+            call_args = mock_ws.send.call_args[0][0]
+            assert "mode_changed" in call_args
+            assert "accept_edits" in call_args
+
+            # Check that plan ready is broadcast
+            await session._on_plan_ready("plan data", {"allowedPrompts": ["y"]})
+            call_args_plan = mock_ws.send.call_args[0][0]
+            assert "plan_pending_approval" in call_args_plan
+
+    @pytest.mark.asyncio
+    async def test_create_chat_session_auto_resume(self, mixin: DummyMixin):
+        """Test that a DB session with prior usage automatically sets resume_session_id."""
+        with patch("gobby.servers.websocket.chat._session.ChatSession") as MockSessionClass, \
+             patch("gobby.servers.websocket.chat._session.get_machine_id", return_value="mach1"):
+             
+            mock_session = AsyncMock()
+            MockSessionClass.return_value = mock_session
+            
+            # Mock DB
+            mock_db_sess = MagicMock()
+            mock_db_sess.id = "db-id-123"
+            mock_db_sess.usage_output_tokens = 500  # Will trigger auto-resume
+            mock_db_sess.chat_mode = "accept_edits"
+            
+            mixin.session_manager = MagicMock()
+            mixin.session_manager.register.return_value = mock_db_sess
+            
+            await mixin._create_chat_session_inner("conv-res", model="sonnet")
+            
+            assert mock_session.resume_session_id == "conv-res"
+            assert mock_session.chat_mode == "accept_edits"
+            assert mock_session._accumulated_output_tokens == 500
+
+    @pytest.mark.asyncio
+    async def test_fire_session_end(self, mixin: DummyMixin):
+        mixin._fire_lifecycle = AsyncMock()
+        await mixin._fire_session_end("conv-end")
+        mixin._fire_lifecycle.assert_awaited_once_with("conv-end", HookEventType.SESSION_END, {})
+
