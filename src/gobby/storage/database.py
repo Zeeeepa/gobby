@@ -114,8 +114,17 @@ class DatabaseProtocol(Protocol):
         ...
 
 
-# Default database path
-DEFAULT_DB_PATH = Path.home() / ".gobby" / "gobby-hub.db"
+# Production database path (constant for comparison in safety checks)
+_PRODUCTION_DB_PATH = (Path.home() / ".gobby" / "gobby-hub.db").resolve()
+
+
+def _default_db_path() -> Path:
+    """Compute default DB path, respecting GOBBY_HOME env var at runtime."""
+    gobby_home = os.environ.get("GOBBY_HOME")
+    if gobby_home:
+        return Path(gobby_home) / "gobby-hub.db"
+    return Path.home() / ".gobby" / "gobby-hub.db"
+
 
 # SQL identifier validation pattern (alphanumeric + underscore only)
 # Used by safe_update to prevent SQL injection via column/table names
@@ -136,13 +145,24 @@ class LocalDatabase:
         Args:
             db_path: Path to SQLite database file. Defaults to ~/.gobby/gobby-hub.db
         """
-        # SAFETY SWITCH: During tests, override with safe path from environment
-        if db_path is None and os.environ.get("GOBBY_TEST_PROTECT") == "1":
+        # SAFETY SWITCH: During tests, prevent any access to the production database.
+        # Catches both db_path=None (default) and explicit paths that resolve to production.
+        if os.environ.get("GOBBY_TEST_PROTECT") == "1":
             safe_path = os.environ.get("GOBBY_DATABASE_PATH")
-            if safe_path:
-                db_path = safe_path
+            if db_path is None:
+                if safe_path:
+                    db_path = safe_path
+            else:
+                resolved = Path(db_path).expanduser().resolve()
+                if resolved == _PRODUCTION_DB_PATH:
+                    if safe_path:
+                        db_path = safe_path
+                    else:
+                        raise RuntimeError(
+                            f"Test attempted to open production database: {resolved}"
+                        )
 
-        self.db_path = Path(db_path) if db_path else DEFAULT_DB_PATH
+        self.db_path = Path(db_path) if db_path else _default_db_path()
         self._local = threading.local()
         # Track all connections for proper cleanup across threads
         self._all_connections: set[sqlite3.Connection] = set()
@@ -169,6 +189,10 @@ class LocalDatabase:
             conn.row_factory = sqlite3.Row
             # Enable foreign keys
             conn.execute("PRAGMA foreign_keys = ON")
+            # Last-resort safety: if test somehow connects to production DB, block writes
+            if os.environ.get("GOBBY_TEST_PROTECT") == "1":
+                if self.db_path.resolve() == _PRODUCTION_DB_PATH:
+                    conn.execute("PRAGMA query_only = ON")
             # Use default DELETE journal mode (more reliable than WAL for dual-write)
             self._local.connection = conn
             # Track for cleanup in close()

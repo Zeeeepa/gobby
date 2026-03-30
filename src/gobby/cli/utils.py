@@ -487,6 +487,9 @@ def stop_watchdog(quiet: bool = False) -> bool:
     Returns:
         True if watchdog was stopped successfully or wasn't running, False on error
     """
+    if os.environ.get("GOBBY_TEST_PROTECT") == "1":
+        return True
+
     pid_file = get_gobby_home() / "watchdog.pid"
 
     if not pid_file.exists():
@@ -731,6 +734,9 @@ def stop_ui_server(quiet: bool = False) -> bool:
     Returns:
         True if UI server was stopped successfully or wasn't running, False on error
     """
+    if os.environ.get("GOBBY_TEST_PROTECT") == "1":
+        return True
+
     pid_file = get_gobby_home() / "ui.pid"
 
     if not pid_file.exists():
@@ -810,6 +816,11 @@ def stop_daemon(quiet: bool = False) -> bool:
     Returns:
         True if daemon was stopped successfully or wasn't running, False on error
     """
+    # SAFETY: Never stop the real daemon during tests
+    if os.environ.get("GOBBY_TEST_PROTECT") == "1":
+        logger.warning("stop_daemon called during test - skipping")
+        return True
+
     # Stop UI server first
     stop_ui_server(quiet=True)
 

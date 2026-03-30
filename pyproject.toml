@@ -258,6 +258,7 @@ dev = [
     "types-PyYAML>=6.0.12.12",
     "aiosmtplib>=2.0",
     "aioimaplib>=1.0",
+    "pytest-timeout>=2.4.0",
 ]
 
 [tool.coverage.run]
