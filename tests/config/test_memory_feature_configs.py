@@ -4,34 +4,9 @@ import pytest
 
 from gobby.config.features import (
     KnowledgeGraphQueueConfig,
-    MemoryExtractionConfig,
 )
 
 pytestmark = pytest.mark.unit
-
-
-class TestMemoryExtractionConfig:
-    """Tests for MemoryExtractionConfig."""
-
-    def test_exists(self) -> None:
-        config = MemoryExtractionConfig()
-        assert config is not None
-
-    def test_defaults(self) -> None:
-        config = MemoryExtractionConfig()
-        assert config.enabled is True
-        assert config.provider == "claude"
-        assert config.model == "haiku"
-
-    def test_overridable(self) -> None:
-        config = MemoryExtractionConfig(
-            enabled=False,
-            provider="gemini",
-            model="gemini-2.0-flash",
-        )
-        assert config.enabled is False
-        assert config.provider == "gemini"
-        assert config.model == "gemini-2.0-flash"
 
 
 class TestKnowledgeGraphQueueConfig:
@@ -64,14 +39,6 @@ class TestDaemonConfigIntegration:
         config = DaemonConfig()
         assert hasattr(config, "knowledge_graph_queue")
         assert isinstance(config.knowledge_graph_queue, KnowledgeGraphQueueConfig)
-
-    def test_memory_extraction_on_daemon_config(self) -> None:
-        from gobby.config.app import DaemonConfig
-
-        config = DaemonConfig()
-        assert hasattr(config, "memory_extraction")
-        assert isinstance(config.memory_extraction, MemoryExtractionConfig)
-        assert config.memory_extraction.enabled is True
 
     def test_no_memory_entity_extraction_on_daemon_config(self) -> None:
         from gobby.config.app import DaemonConfig

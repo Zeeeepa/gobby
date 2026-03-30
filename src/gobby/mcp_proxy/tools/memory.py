@@ -25,7 +25,6 @@ from gobby.memory.digest import (
     build_turn_and_digest as _build_turn_and_digest,
 )
 from gobby.memory.digest import (
-    memory_extract_from_session,
     memory_sync_export,
     memory_sync_import,
 )
@@ -658,40 +657,6 @@ def create_memory_registry(
             if "error" in result:
                 return {"success": False, "error": result["error"]}
             return {"success": True, "exported": result["exported"]["memories"]}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-    @registry.tool(
-        name="extract_from_session",
-        description="Extract memories from a session transcript using LLM analysis. Safety net for capturing memories the agent didn't save.",
-    )
-    async def extract_from_session(
-        session_id: str = "",
-        max_memories: int = 5,
-    ) -> dict[str, Any]:
-        """
-        Extract memories from a session transcript.
-
-        Args:
-            session_id: Session to extract from
-            max_memories: Maximum memories to extract (default: 5)
-        """
-        if not session_id:
-            return {"success": False, "error": "session_id is required"}
-        try:
-            result = await memory_extract_from_session(
-                memory_manager=memory_manager,
-                session_manager=session_manager,
-                llm_service=llm_service,
-                transcript_processor=None,
-                session_id=session_id,
-                max_memories=max_memories,
-            )
-            if result is None:
-                return {"success": False, "error": "Memory manager disabled"}
-            if "error" in result:
-                return {"success": False, "error": result["error"]}
-            return {"success": True, **result}
         except Exception as e:
             return {"success": False, "error": str(e)}
 

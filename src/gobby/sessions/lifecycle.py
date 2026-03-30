@@ -50,7 +50,6 @@ class SessionLifecycleManager:
         self.memory_manager = memory_manager
         self.llm_service = llm_service
         self.memory_sync_manager = memory_sync_manager
-        self._memory_extraction_config: Any = None
         self._kg_queue_config = kg_queue_config
 
         self._running = False
@@ -307,24 +306,17 @@ class SessionLifecycleManager:
                 processed += 1
                 logger.debug(
                     f"Processed transcript for {source} session {session.id} "
-                    f"(depth={agent_depth}, skipped memory/summary)"
+                    f"(depth={agent_depth}, skipped summary)"
                 )
                 continue
 
-            # Step 2: Extract memories (best-effort, independent of transcript success)
-            try:
-                await self._extract_memories_if_needed(session.id)
-            except Exception as e:
-                logger.warning(f"Memory extraction failed for {session.id}: {e}")
-
-            # Step 3: Generate summaries (best-effort, independent of transcript success)
+            # Step 2: Generate summaries (best-effort)
             try:
                 await self._generate_summaries_if_needed(session.id)
             except Exception as e:
                 logger.warning(f"Summary generation failed for {session.id}: {e}")
 
-            # Step 4: Only mark as processed if summaries succeeded or LLM is unavailable.
-            # This allows retry on the next cycle if summary generation failed.
+            # Step 3: Only mark as processed if summaries succeeded or LLM is unavailable.
             refreshed = self.session_manager.get(session.id)
             if refreshed and (refreshed.summary_markdown or not self.llm_service):
                 self.session_manager.mark_transcript_processed(session.id)
@@ -335,7 +327,7 @@ class SessionLifecycleManager:
                     f"Deferring transcript_processed for {session.id} — summaries not yet generated"
                 )
 
-            # Step 5: Best-effort backup of the transcript archive
+            # Step 4: Best-effort backup of the transcript archive
             # On success, purge DB messages (gzip is now the source of truth)
             if session.transcript_path and session.external_id:
                 try:
@@ -359,55 +351,6 @@ class SessionLifecycleManager:
             logger.info(f"Processed {processed} session transcripts")
 
         return processed
-
-    async def _extract_memories_if_needed(self, session_id: str) -> None:
-        """Extract memories from a processed session transcript.
-
-        Safety net for ungraceful exits — if on_session_end never fired,
-        this catches memories during background transcript processing.
-        """
-        if not self.memory_manager or not self.llm_service:
-            return
-
-        if not getattr(self.memory_manager, "config", None):
-            return
-
-        if not self.memory_manager.config.enabled:
-            return
-
-        # Check if extraction feature is enabled
-        extraction_config = getattr(self, "_memory_extraction_config", None)
-        if (
-            extraction_config
-            and hasattr(extraction_config, "enabled")
-            and not extraction_config.enabled
-        ):
-            return
-
-        try:
-            from gobby.memory.extractor import SessionMemoryExtractor
-
-            extractor = SessionMemoryExtractor(
-                memory_manager=self.memory_manager,
-                session_manager=self.session_manager,
-                llm_service=self.llm_service,
-                config=extraction_config,
-            )
-
-            candidates = await extractor.extract(
-                session_id=session_id,
-                max_memories=5,
-            )
-
-            if candidates:
-                logger.info(
-                    f"Extracted {len(candidates)} memories from expired session {session_id}"
-                )
-                # NOTE: JSONL export removed to avoid git noise (#10198).
-                # Memories are in DB; pre-commit hook exports at commit time.
-
-        except Exception as e:
-            logger.warning(f"Memory extraction failed for session {session_id}: {e}")
 
     async def _generate_summaries_if_needed(self, session_id: str) -> None:
         """Generate summaries for a session that's missing them.

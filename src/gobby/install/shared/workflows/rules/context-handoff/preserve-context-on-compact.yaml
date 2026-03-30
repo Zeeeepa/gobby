@@ -17,8 +17,3 @@ rules:
       - type: set_variable
         variable: handoff_source
         value: "compact"
-      - type: mcp_call
-        server: gobby-memory
-        tool: extract_from_session
-        arguments:
-          max_memories: 5

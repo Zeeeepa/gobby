@@ -7,8 +7,7 @@ Verifies context handoff rules sync correctly and have proper structure:
 - inject-compact-handoff: inject_context on session_start
 - inject-task-context-on-start: inject_context on session_start
 - inject-error-triage-policy: inject_context on session_start
-- preserve-context-on-end: mcp_call on session_end (extract memories)
-- preserve-context-on-compact: set_variable+mcp_call on pre_compact (reset + extract)
+- preserve-context-on-compact: set_variable on pre_compact (reset tracking vars)
 
 """
 
@@ -33,7 +32,6 @@ CONTEXT_HANDOFF_RULES = {
     "inject-compact-handoff",
     "inject-task-context-on-start",
     "inject-error-triage-policy",
-    "preserve-context-on-end",
     "preserve-context-on-compact",
 }
 
@@ -248,46 +246,12 @@ class TestInjectErrorTriagePolicy:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# preserve-context-on-end (multi-effect)
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestPreserveContextOnEnd:
-    """Extract memories on session_end."""
-
-    def test_event_is_session_end(self, db, manager) -> None:
-        _sync_bundled(db)
-        row = manager.get_by_name("preserve-context-on-end")
-        assert row is not None
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "session_end"
-
-    def test_has_one_effect(self, db, manager) -> None:
-        """Should have 1 mcp_call effect (extract_from_session only)."""
-        _sync_bundled(db)
-        row = manager.get_by_name("preserve-context-on-end")
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        effects = body.resolved_effects
-        assert len(effects) == 1
-        assert effects[0].type == "mcp_call"
-        assert effects[0].server == "gobby-memory"
-        assert effects[0].tool == "extract_from_session"
-
-    def test_no_when_condition(self, db, manager) -> None:
-        """Should fire unconditionally on session_end."""
-        _sync_bundled(db)
-        row = manager.get_by_name("preserve-context-on-end")
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.when is None
-
-
-# ═══════════════════════════════════════════════════════════════════════
 # preserve-context-on-compact (multi-effect)
 # ═══════════════════════════════════════════════════════════════════════
 
 
 class TestPreserveContextOnCompact:
-    """Reset tracking and extract context before compaction."""
+    """Reset tracking variables before compaction."""
 
     def test_event_is_pre_compact(self, db, manager) -> None:
         _sync_bundled(db)
@@ -296,19 +260,14 @@ class TestPreserveContextOnCompact:
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "pre_compact"
 
-    def test_has_four_effects(self, db, manager) -> None:
-        """Should have 4 effects (3 set_variable + 1 mcp_call extract)."""
+    def test_has_three_effects(self, db, manager) -> None:
+        """Should have 3 set_variable effects."""
         _sync_bundled(db)
         row = manager.get_by_name("preserve-context-on-compact")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         effects = body.resolved_effects
-        assert len(effects) == 4
-        set_var_effects = [e for e in effects if e.type == "set_variable"]
-        mcp_effects = [e for e in effects if e.type == "mcp_call"]
-        assert len(set_var_effects) == 3
-        assert len(mcp_effects) == 1
-        assert mcp_effects[0].server == "gobby-memory"
-        assert mcp_effects[0].tool == "extract_from_session"
+        assert len(effects) == 3
+        assert all(e.type == "set_variable" for e in effects)
 
     def test_has_gemini_filter(self, db, manager) -> None:
         """Should filter out automatic gemini compactions."""

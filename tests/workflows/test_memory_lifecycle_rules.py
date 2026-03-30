@@ -1,8 +1,8 @@
 """Tests for memory-lifecycle rules.
 
 Verifies memory lifecycle rules sync correctly and have proper structure.
-Rules that were merged into context-handoff (preserve-context-on-compact,
-preserve-context-on-end) are tested there instead.
+Rules that were merged into context-handoff (preserve-context-on-compact)
+are tested there instead.
 
 Active memory-lifecycle rules:
 - reset-memory-tracking-on-start: set_variable on session_start

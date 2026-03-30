@@ -28,7 +28,6 @@ from gobby.config.features import (
     ChatConfig,
     ImportMCPServerConfig,
     KnowledgeGraphQueueConfig,
-    MemoryExtractionConfig,
     MergeResolutionConfig,
     MetricsConfig,
     OutputCompressionConfig,
@@ -446,10 +445,6 @@ class DaemonConfig(BaseModel):
     session_title: SessionTitleConfig = Field(
         default_factory=SessionTitleConfig,
         description="Session title synthesis LLM configuration",
-    )
-    memory_extraction: MemoryExtractionConfig = Field(
-        default_factory=MemoryExtractionConfig,
-        description="Session memory extraction LLM configuration",
     )
     merge_resolution: MergeResolutionConfig = Field(
         default_factory=MergeResolutionConfig,

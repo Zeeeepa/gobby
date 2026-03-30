@@ -148,22 +148,18 @@ class TestSessionLifecycleManager:
         with (
             patch.object(manager, "_process_session_transcript", new_callable=AsyncMock),
             patch.object(
-                manager, "_extract_memories_if_needed", new_callable=AsyncMock
-            ) as mock_mem,
-            patch.object(
                 manager, "_generate_summaries_if_needed", new_callable=AsyncMock
             ) as mock_sum,
         ):
             processed = await manager._process_pending_transcripts()
 
             assert processed == 1
-            mock_mem.assert_not_awaited()
             mock_sum.assert_not_awaited()
             manager.session_manager.mark_transcript_processed.assert_called_once_with("s-sub")
 
     @pytest.mark.asyncio
     async def test_process_pending_transcripts_skips_pipeline_sessions(self, tmp_path, manager):
-        """Pipeline sessions skip memory extraction and summary generation."""
+        """Pipeline sessions skip summary generation."""
         session = MagicMock(spec=Session)
         session.id = "s-pipe"
         session.transcript_path = str(tmp_path / "transcript.jsonl")
@@ -179,16 +175,12 @@ class TestSessionLifecycleManager:
         with (
             patch.object(manager, "_process_session_transcript", new_callable=AsyncMock),
             patch.object(
-                manager, "_extract_memories_if_needed", new_callable=AsyncMock
-            ) as mock_mem,
-            patch.object(
                 manager, "_generate_summaries_if_needed", new_callable=AsyncMock
             ) as mock_sum,
         ):
             processed = await manager._process_pending_transcripts()
 
             assert processed == 1
-            mock_mem.assert_not_awaited()
             mock_sum.assert_not_awaited()
             manager.session_manager.mark_transcript_processed.assert_called_once_with("s-pipe")
 
@@ -288,7 +280,6 @@ class TestSessionLifecycleManager:
             patch.object(
                 manager, "_process_session_transcript", new_callable=AsyncMock
             ) as mock_proc,
-            patch.object(manager, "_extract_memories_if_needed", new_callable=AsyncMock),
             patch.object(manager, "_generate_summaries_if_needed", new_callable=AsyncMock),
         ):
             mock_proc.side_effect = [Exception("Fail"), None]
@@ -447,70 +438,6 @@ class TestPromptFileCleanup:
             await manager._expire_stale_sessions()
 
         mock_cleanup.assert_called_once()
-
-
-class TestExtractMemoriesIfNeeded:
-    """Tests for _extract_memories_if_needed."""
-
-    @pytest.mark.asyncio
-    async def test_no_memory_manager(self, manager):
-        """Skips when memory_manager is None."""
-        manager.memory_manager = None
-        manager.llm_service = MagicMock()
-        await manager._extract_memories_if_needed("sess-1")
-        # Should just return without error
-
-    @pytest.mark.asyncio
-    async def test_no_llm_service(self, manager):
-        """Skips when llm_service is None."""
-        manager.memory_manager = MagicMock()
-        manager.llm_service = None
-        await manager._extract_memories_if_needed("sess-1")
-
-    @pytest.mark.asyncio
-    async def test_memory_disabled(self, manager):
-        """Skips when memory config is disabled."""
-        mock_mm = MagicMock()
-        mock_mm.config = MagicMock()
-        mock_mm.config.enabled = False
-        manager.memory_manager = mock_mm
-        manager.llm_service = MagicMock()
-        await manager._extract_memories_if_needed("sess-1")
-
-    @pytest.mark.asyncio
-    async def test_no_config_attr(self, manager):
-        """Skips when memory_manager has no config attribute."""
-        mock_mm = MagicMock(spec=[])  # No attributes
-        manager.memory_manager = mock_mm
-        manager.llm_service = MagicMock()
-        await manager._extract_memories_if_needed("sess-1")
-
-    @pytest.mark.asyncio
-    async def test_extraction_exception_handled(self, manager):
-        """Extraction errors are caught and logged."""
-        mock_mm = MagicMock()
-        mock_mm.config = MagicMock()
-        mock_mm.config.enabled = True
-        manager.memory_manager = mock_mm
-        manager.llm_service = MagicMock()
-
-        with patch("gobby.memory.extractor.SessionMemoryExtractor") as MockExtractor:
-            MockExtractor.return_value.extract = AsyncMock(side_effect=RuntimeError("LLM error"))
-            # Should not raise
-            await manager._extract_memories_if_needed("sess-1")
-
-    @pytest.mark.asyncio
-    async def test_extraction_success_with_candidates(self, manager):
-        """Successful extraction logs candidate count."""
-        mock_mm = MagicMock()
-        mock_mm.config = MagicMock()
-        mock_mm.config.enabled = True
-        manager.memory_manager = mock_mm
-        manager.llm_service = MagicMock()
-
-        with patch("gobby.memory.extractor.SessionMemoryExtractor") as MockExtractor:
-            MockExtractor.return_value.extract = AsyncMock(return_value=["memory1", "memory2"])
-            await manager._extract_memories_if_needed("sess-1")
 
 
 class TestGenerateSummariesIfNeeded:

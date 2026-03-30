@@ -245,7 +245,7 @@ class TestDispatchMcpCallsNoEventLoop:
         calls = [
             {
                 "server": "gobby-memory",
-                "tool": "extract_from_session",
+                "tool": "sync_export",
                 "arguments": {"max_memories": 5},
                 "background": True,
             }
@@ -289,7 +289,7 @@ class TestDispatchMcpCallsNoEventLoop:
             },
             {
                 "server": "gobby-memory",
-                "tool": "extract_from_session",
+                "tool": "sync_export",
                 "arguments": {"max_memories": 5},
             },
             {"server": "gobby-tasks", "tool": "sync_export", "arguments": {}},

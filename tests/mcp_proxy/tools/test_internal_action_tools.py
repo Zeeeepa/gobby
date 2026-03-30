@@ -1,7 +1,7 @@
 """Tests for internal action MCP tools.
 
 Verifies that workflow action functions are exposed as MCP tools:
-- gobby-memory: sync_import, sync_export, extract_from_session
+- gobby-memory: sync_import, sync_export
 - gobby-tasks: sync_import, sync_export
 - gobby-sessions: set_handoff_context, get_handoff_context, capture_baseline_dirty_files
 """
@@ -166,39 +166,6 @@ class TestMemorySyncExport:
         assert result["success"] is True
         assert result["exported"] == 3
         mock_memory_sync_manager.export_to_files.assert_awaited_once()
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# gobby-memory: extract_from_session
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestMemoryExtractFromSession:
-    """Verify extract_from_session is registered on gobby-memory and callable."""
-
-    def test_tool_registered(self, memory_registry) -> None:
-        assert "extract_from_session" in memory_registry._tools
-
-    @pytest.mark.asyncio
-    async def test_calls_extract_function(self, memory_registry) -> None:
-        with patch(
-            "gobby.mcp_proxy.tools.memory.memory_extract_from_session",
-            new_callable=AsyncMock,
-        ) as mock_fn:
-            mock_fn.return_value = {"extracted": 2, "memories": []}
-            result = await memory_registry.call(
-                "extract_from_session",
-                {"session_id": "sess-1", "max_memories": 3},
-            )
-            assert result["success"] is True
-            assert result["extracted"] == 2
-            mock_fn.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    async def test_requires_session_id(self, memory_registry) -> None:
-        """extract_from_session should fail gracefully without session_id."""
-        result = await memory_registry.call("extract_from_session", {})
-        assert result["success"] is False
 
 
 # ═══════════════════════════════════════════════════════════════════════

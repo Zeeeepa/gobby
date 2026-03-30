@@ -12,7 +12,6 @@ from gobby.memory.digest import (
     _read_last_turn_from_transcript,
     _read_undigested_turns,
     build_turn_and_digest,
-    memory_extract_from_session,
     memory_sync_export,
     memory_sync_import,
 )
@@ -60,118 +59,6 @@ class TestMemorySyncExportDirect:
 
         assert result == {"exported": {"memories": 7}}
         mock_manager.export_to_files.assert_awaited_once()
-
-
-class TestMemoryExtractFromSession:
-    """Tests for memory_extract_from_session function."""
-
-    @pytest.mark.asyncio
-    @patch("gobby.memory.extractor.SessionMemoryExtractor")
-    async def test_extracts_memories(self, mock_extractor_cls):
-        """Test successful memory extraction from session."""
-        mock_mm = MagicMock()
-        mock_mm.config.enabled = True
-
-        mock_sm = MagicMock()
-        mock_llm = MagicMock()
-
-        from gobby.memory.extractor import MemoryCandidate
-
-        candidates = [
-            MemoryCandidate(
-                content="Use uv run for development",
-                memory_type="fact",
-                tags=["development"],
-            ),
-        ]
-
-        mock_extractor = AsyncMock()
-        mock_extractor.extract.return_value = candidates
-        mock_extractor_cls.return_value = mock_extractor
-
-        result = await memory_extract_from_session(
-            memory_manager=mock_mm,
-            session_manager=mock_sm,
-            llm_service=mock_llm,
-            transcript_processor=None,
-            session_id="test-session",
-        )
-
-        assert result is not None
-        assert result["extracted"] == 1
-        assert len(result["memories"]) == 1
-
-    @pytest.mark.asyncio
-    async def test_returns_error_without_memory_manager(self):
-        """Test returns error when memory_manager is None."""
-        result = await memory_extract_from_session(
-            memory_manager=None,
-            session_manager=MagicMock(),
-            llm_service=MagicMock(),
-            transcript_processor=None,
-            session_id="test-session",
-        )
-
-        assert result is not None
-        assert "error" in result
-
-    @pytest.mark.asyncio
-    async def test_returns_none_when_disabled(self):
-        """Test returns None when memory is disabled."""
-        mock_mm = MagicMock()
-        mock_mm.config.enabled = False
-
-        result = await memory_extract_from_session(
-            memory_manager=mock_mm,
-            session_manager=MagicMock(),
-            llm_service=MagicMock(),
-            transcript_processor=None,
-            session_id="test-session",
-        )
-
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_returns_error_without_llm(self):
-        """Test returns error when llm_service is None."""
-        mock_mm = MagicMock()
-        mock_mm.config.enabled = True
-
-        result = await memory_extract_from_session(
-            memory_manager=mock_mm,
-            session_manager=MagicMock(),
-            llm_service=None,
-            transcript_processor=None,
-            session_id="test-session",
-        )
-
-        assert result is not None
-        assert "error" in result
-
-    @pytest.mark.asyncio
-    @patch("gobby.memory.extractor.SessionMemoryExtractor")
-    async def test_handles_extraction_error(self, mock_extractor_cls):
-        """Test graceful handling of extraction errors."""
-        mock_mm = MagicMock()
-        mock_mm.config.enabled = True
-
-        mock_sm = MagicMock()
-        mock_llm = MagicMock()
-
-        mock_extractor = AsyncMock()
-        mock_extractor.extract.side_effect = Exception("LLM error")
-        mock_extractor_cls.return_value = mock_extractor
-
-        result = await memory_extract_from_session(
-            memory_manager=mock_mm,
-            session_manager=mock_sm,
-            llm_service=mock_llm,
-            transcript_processor=None,
-            session_id="test-session",
-        )
-
-        assert result is not None
-        assert "error" in result
 
 
 # =============================================================================

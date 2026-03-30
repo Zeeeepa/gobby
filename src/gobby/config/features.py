@@ -23,7 +23,6 @@ __all__ = [
     "ToolSummarizerConfig",
     "RecommendToolsConfig",
     "ImportMCPServerConfig",
-    "MemoryExtractionConfig",
     "MergeResolutionConfig",
     "MetricsConfig",
     "OutputCompressionConfig",
@@ -113,23 +112,6 @@ class TaskDescriptionConfig(BaseModel):
         if v < 0:
             raise ValueError("min_structured_length must be non-negative")
         return v
-
-
-class MemoryExtractionConfig(BaseModel):
-    """Configuration for session memory extraction LLM calls."""
-
-    enabled: bool = Field(
-        default=True,
-        description="Enable session memory extraction pipeline",
-    )
-    provider: str = Field(
-        default="claude",
-        description="LLM provider to use for memory extraction",
-    )
-    model: str = Field(
-        default="haiku",
-        description="Model to use for memory extraction (fast/cheap recommended)",
-    )
 
 
 class MergeResolutionConfig(BaseModel):

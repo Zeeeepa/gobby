@@ -658,9 +658,6 @@ def init_orchestration(runner: GobbyRunner) -> None:
         llm_service=runner.llm_service,
         memory_sync_manager=runner.memory_sync_manager,
     )
-    runner.lifecycle_manager._memory_extraction_config = (
-        runner.config.memory_extraction if hasattr(runner.config, "memory_extraction") else None
-    )
 
     # Conductor manager (persistent tick-based orchestration agent)
     runner.conductor_manager = None
