@@ -28,6 +28,7 @@ async def run_daemon(runner: GobbyRunner) -> None:
         cleanup_pid_file,
         cleanup_zombie_messages_loop,
         expire_approval_timeouts_loop,
+        memory_reconcile_loop,
         metric_snapshot_loop,
         metrics_archive_loop,
         metrics_cleanup_loop,
@@ -175,6 +176,13 @@ async def run_daemon(runner: GobbyRunner) -> None:
             ),
             name="span-cleanup",
         )
+
+        # Start periodic memory store reconciliation (every 24 hours)
+        if runner.memory_manager:
+            runner._memory_reconcile_task = asyncio.create_task(
+                memory_reconcile_loop(runner.memory_manager, lambda: runner._shutdown_requested),
+                name="memory-reconcile",
+            )
 
         # Start periodic zombie message cleanup (every 6 hours)
         runner._zombie_messages_task = asyncio.create_task(

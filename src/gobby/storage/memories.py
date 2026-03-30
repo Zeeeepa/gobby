@@ -330,6 +330,11 @@ class LocalMemoryManager:
             if cursor.rowcount == 0:
                 raise ValueError(f"Memory not found: {memory_id}")
 
+    def list_all_ids(self) -> list[str]:
+        """Return all memory IDs from the database."""
+        rows = self.db.fetchall("SELECT id FROM memories")
+        return [row["id"] for row in rows]
+
     def get_pending_graph_memories(self, limit: int = 20) -> list[Memory]:
         """Get memories pending KG graph processing."""
         rows = self.db.fetchall(

@@ -511,6 +511,52 @@ def reindex_embeddings(ctx: click.Context) -> None:
         click.echo(f"Error: {result.get('error', 'Unknown error')}")
 
 
+@memory.command("reconcile")
+@click.option("--dry-run", is_flag=True, help="Report orphans without deleting")
+@click.pass_context
+def reconcile(ctx: click.Context, dry_run: bool) -> None:
+    """Reconcile Qdrant and Neo4j with SQLite source of truth.
+
+    Finds orphaned vectors and graph nodes whose memory IDs no longer
+    exist in SQLite, and optionally deletes them.
+
+    Requires the Gobby daemon to be running (delegates via HTTP API).
+
+    Examples:
+
+        gobby memory reconcile --dry-run
+
+        gobby memory reconcile
+    """
+    client = _get_daemon_client(ctx)
+    mode = "Dry-run: scanning" if dry_run else "Reconciling"
+    click.echo(f"{mode} memory stores...")
+    try:
+        params = f"?dry_run={str(dry_run).lower()}"
+        response = client.call_http_api(
+            f"/api/memories/reconcile{params}", method="POST", timeout=600.0
+        )
+        result = response.json()
+    except Exception as e:
+        click.echo(f"Error: Could not reach daemon — is it running? ({e})")
+        raise SystemExit(1) from e
+
+    qdrant = result.get("qdrant", {})
+    neo4j = result.get("neo4j", {})
+    click.echo(f"SQLite memories: {result.get('sqlite_count', '?')}")
+    click.echo(
+        f"Qdrant: {qdrant.get('orphans_found', 0)} orphans found, "
+        f"{qdrant.get('orphans_deleted', 0)} deleted"
+    )
+    click.echo(
+        f"Neo4j: {neo4j.get('orphan_memories_found', 0)} orphan memories, "
+        f"{neo4j.get('orphan_memories_deleted', 0)} deleted; "
+        f"{neo4j.get('orphan_entities_deleted', 0)} orphan entities cleaned"
+    )
+    if dry_run:
+        click.echo("(dry run — no changes made)")
+
+
 def _get_daemon_client(ctx: click.Context) -> DaemonClient:
     """Get a DaemonClient for calling daemon HTTP API."""
     from gobby.utils.daemon_client import DaemonClient

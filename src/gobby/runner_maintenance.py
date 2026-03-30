@@ -108,6 +108,31 @@ async def rebuild_vector_store(
         logger.error(f"VectorStore rebuild failed: {e}")
 
 
+async def memory_reconcile_loop(
+    memory_manager: Any,
+    is_shutdown_requested: Callable[[], bool],
+    interval_seconds: int = 24 * 60 * 60,
+) -> None:
+    """Background loop for periodic Qdrant/Neo4j orphan reconciliation (every 24 hours)."""
+    while not is_shutdown_requested():
+        try:
+            await asyncio.sleep(interval_seconds)
+            report = await memory_manager.reconcile_stores(dry_run=False)
+            qdrant_orphans = report.get("qdrant", {}).get("orphans_deleted", 0)
+            neo4j_orphans = report.get("neo4j", {}).get("orphan_memories_deleted", 0)
+            neo4j_entities = report.get("neo4j", {}).get("orphan_entities_deleted", 0)
+            if qdrant_orphans or neo4j_orphans or neo4j_entities:
+                logger.info(
+                    f"Memory reconciliation: {qdrant_orphans} Qdrant orphans, "
+                    f"{neo4j_orphans} Neo4j memory orphans, "
+                    f"{neo4j_entities} Neo4j entity orphans cleaned"
+                )
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Error in memory reconcile loop: {e}")
+
+
 async def cleanup_zombie_messages_loop(
     db: Any,
     is_shutdown_requested: Callable[[], bool],

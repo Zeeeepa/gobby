@@ -328,6 +328,39 @@ class KnowledgeGraphService:
         except Exception as e:
             logger.warning(f"Failed to delete Memory node {memory_id} from graph: {e}")
 
+    async def get_all_memory_node_ids(self) -> set[str]:
+        """Return all memory_id values from Memory nodes in Neo4j."""
+        try:
+            records = await self._neo4j.query(
+                "MATCH (m:Memory) RETURN m.memory_id AS id",
+                {},
+            )
+            return {r["id"] for r in records if r.get("id")}
+        except Neo4jConnectionError as e:
+            logger.warning(f"Neo4j unreachable during memory node enumeration: {e}")
+            return set()
+        except Exception as e:
+            logger.warning(f"Failed to enumerate Memory nodes: {e}")
+            return set()
+
+    async def remove_orphaned_entities(self) -> int:
+        """Delete Entity nodes with no MENTIONED_IN edges. Return count deleted."""
+        try:
+            records = await self._neo4j.query(
+                "MATCH (e:_Entity) WHERE NOT (e)-[:MENTIONED_IN]->(:Memory) "
+                "DETACH DELETE e RETURN count(e) AS deleted",
+                {},
+            )
+            if records and records[0].get("deleted") is not None:
+                return int(records[0]["deleted"])
+            return 0
+        except Neo4jConnectionError as e:
+            logger.warning(f"Neo4j unreachable during orphan entity cleanup: {e}")
+            return 0
+        except Exception as e:
+            logger.warning(f"Failed to remove orphaned entities: {e}")
+            return 0
+
     async def _link_entities_to_code(
         self,
         entities: list[Entity],

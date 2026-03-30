@@ -699,6 +699,75 @@ class MemoryManager:
                 logger.warning(f"Graph delete failed for {memory_id}: {e}")
         return result
 
+    async def reconcile_stores(self, dry_run: bool = False) -> dict[str, Any]:
+        """Reconcile Qdrant and Neo4j with SQLite source of truth.
+
+        Finds orphaned vectors and graph nodes whose memory IDs no longer
+        exist in SQLite, and deletes them.
+        """
+        sqlite_ids = set(self.storage.list_all_ids())
+        report: dict[str, Any] = {
+            "dry_run": dry_run,
+            "sqlite_count": len(sqlite_ids),
+            "qdrant": {"orphans_found": 0, "orphans_deleted": 0, "errors": 0},
+            "neo4j": {
+                "orphan_memories_found": 0,
+                "orphan_memories_deleted": 0,
+                "orphan_entities_deleted": 0,
+                "errors": 0,
+            },
+        }
+
+        # Reconcile Qdrant
+        if self._vector_store:
+            try:
+                qdrant_ids = set(await self._vector_store.scroll_ids())
+                orphaned = qdrant_ids - sqlite_ids
+                report["qdrant"]["total"] = len(qdrant_ids)
+                report["qdrant"]["orphans_found"] = len(orphaned)
+
+                if not dry_run and orphaned:
+                    deleted = 0
+                    for oid in orphaned:
+                        try:
+                            await self._vector_store.delete(oid)
+                            deleted += 1
+                        except Exception as e:
+                            logger.warning(f"Failed to delete Qdrant orphan {oid}: {e}")
+                            report["qdrant"]["errors"] += 1
+                    report["qdrant"]["orphans_deleted"] = deleted
+            except Exception as e:
+                logger.error(f"Qdrant reconciliation failed: {e}")
+                report["qdrant"]["error"] = str(e)
+
+        # Reconcile Neo4j
+        if self._kg_service:
+            try:
+                neo4j_ids = await self._kg_service.get_all_memory_node_ids()
+                orphaned = neo4j_ids - sqlite_ids
+                report["neo4j"]["total"] = len(neo4j_ids)
+                report["neo4j"]["orphan_memories_found"] = len(orphaned)
+
+                if not dry_run and orphaned:
+                    deleted = 0
+                    for oid in orphaned:
+                        try:
+                            await self._kg_service.remove_memory_from_graph(oid)
+                            deleted += 1
+                        except Exception as e:
+                            logger.warning(f"Failed to delete Neo4j orphan {oid}: {e}")
+                            report["neo4j"]["errors"] += 1
+                    report["neo4j"]["orphan_memories_deleted"] = deleted
+
+                    # Clean orphaned entities after removing memory nodes
+                    entities_deleted = await self._kg_service.remove_orphaned_entities()
+                    report["neo4j"]["orphan_entities_deleted"] = entities_deleted
+            except Exception as e:
+                logger.error(f"Neo4j reconciliation failed: {e}")
+                report["neo4j"]["error"] = str(e)
+
+        return report
+
     def count_memories(self, project_id: str | None = None) -> int:
         """Return the total number of memories using COUNT(*)."""
         return self.storage.count_memories(project_id=project_id)

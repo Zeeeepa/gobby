@@ -247,6 +247,17 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Failed to rebuild knowledge graph: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    @router.post("/reconcile")
+    async def reconcile_memory_stores(
+        dry_run: bool = Query(False, description="Report orphans without deleting"),
+    ) -> dict[str, Any]:
+        """Reconcile Qdrant and Neo4j with SQLite source of truth."""
+        try:
+            return await server.memory_manager.reconcile_stores(dry_run=dry_run)
+        except Exception as e:
+            logger.error(f"Failed to reconcile memory stores: {e}")
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
     @router.post("/embeddings/reindex")
     async def reindex_embeddings() -> dict[str, Any]:
         """Regenerate embedding vectors for all stored memories."""

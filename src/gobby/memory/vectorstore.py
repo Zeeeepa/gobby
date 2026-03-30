@@ -335,6 +335,28 @@ class VectorStore:
         await self.batch_upsert(items)
         logger.info(f"Rebuilt {len(items)} vectors in '{self._collection_name}'")
 
+    async def scroll_ids(self, batch_size: int = 1000) -> list[str]:
+        """Return all point IDs in the collection."""
+        client = self._ensure_client()
+        all_ids: list[str] = []
+        offset = None
+
+        while True:
+            points, next_offset = await asyncio.to_thread(
+                client.scroll,
+                collection_name=self._collection_name,
+                limit=batch_size,
+                offset=offset,
+                with_payload=False,
+                with_vectors=False,
+            )
+            all_ids.extend(str(p.id) for p in points)
+            if next_offset is None:
+                break
+            offset = next_offset
+
+        return all_ids
+
     async def close(self) -> None:
         """Close the Qdrant client connection."""
         if self._client is not None:
