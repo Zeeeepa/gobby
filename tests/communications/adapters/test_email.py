@@ -1,7 +1,6 @@
 """Tests for gobby.communications.adapters.email."""
 
 from email.message import EmailMessage
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -15,7 +14,7 @@ except ImportError:
 
 
 @pytest.fixture
-def adapter() -> Any:
+def adapter() -> "EmailAdapter":
     if not EmailAdapter:
         pytest.skip("EmailAdapter not available")
     adapter = EmailAdapter()
@@ -41,7 +40,7 @@ class TestEmailAdapter:
     @pytest.mark.asyncio
     @patch("gobby.communications.adapters.email.aiosmtplib", create=True)
     @patch("gobby.communications.adapters.email.aioimaplib", create=True)
-    async def test_initialize_success(self, mock_imap, mock_smtp, adapter, config):
+    async def test_initialize_success(self, mock_imap, mock_smtp, adapter, config) -> None:
         # Setup mocks
         mock_smtp_client = AsyncMock()
         mock_smtp.SMTP.return_value = mock_smtp_client
@@ -74,7 +73,7 @@ class TestEmailAdapter:
         mock_imap_client.login.assert_called_once_with("bot@test.com", "secret-pass")
 
     @pytest.mark.asyncio
-    async def test_initialize_missing_password(self, adapter, config):
+    async def test_initialize_missing_password(self, adapter, config) -> None:
         config.config_json["password"] = "$secret:MISSING"
 
         def resolver(ref):
@@ -85,7 +84,7 @@ class TestEmailAdapter:
 
     @pytest.mark.asyncio
     @patch("gobby.communications.adapters.email.aiosmtplib", create=True)
-    async def test_ensure_smtp_connected_already_connected(self, mock_smtp, adapter):
+    async def test_ensure_smtp_connected_already_connected(self, mock_smtp, adapter) -> None:
         adapter._smtp_client = AsyncMock()
         adapter._smtp_client.is_connected = True
 
@@ -94,7 +93,7 @@ class TestEmailAdapter:
 
     @pytest.mark.asyncio
     @patch("gobby.communications.adapters.email.aiosmtplib", create=True)
-    async def test_ensure_smtp_connected_reconnects(self, mock_smtp, adapter):
+    async def test_ensure_smtp_connected_reconnects(self, mock_smtp, adapter) -> None:
         old_client = AsyncMock()
         old_client.is_connected = False
         adapter._smtp_client = old_client
@@ -114,7 +113,7 @@ class TestEmailAdapter:
         new_client.login.assert_called_with("bot", "pass")
 
     @pytest.mark.asyncio
-    async def test_send_message_uninitialized(self, adapter):
+    async def test_send_message_uninitialized(self, adapter) -> None:
         adapter._smtp_client = None
         msg = MagicMock()
         with pytest.raises(RuntimeError):
@@ -122,7 +121,7 @@ class TestEmailAdapter:
 
     @pytest.mark.asyncio
     @patch("gobby.communications.adapters.email.aiosmtplib", create=True)
-    async def test_send_message_success(self, mock_smtp, adapter):
+    async def test_send_message_success(self, mock_smtp, adapter) -> None:
         adapter._smtp_client = AsyncMock()
         adapter._smtp_client.is_connected = True
         adapter._from_address = "bot@test.com"
@@ -149,7 +148,7 @@ class TestEmailAdapter:
 
     @pytest.mark.asyncio
     @patch("gobby.communications.adapters.email.aiosmtplib", create=True)
-    async def test_send_message_with_html_and_reply(self, mock_smtp, adapter):
+    async def test_send_message_with_html_and_reply(self, mock_smtp, adapter) -> None:
         adapter._smtp_client = AsyncMock()
         adapter._smtp_client.is_connected = True
         adapter._from_address = "bot@test.com"
@@ -169,7 +168,7 @@ class TestEmailAdapter:
 
     @pytest.mark.asyncio
     @patch("gobby.communications.adapters.email.aiosmtplib", create=True)
-    async def test_send_attachment(self, mock_smtp, adapter, tmp_path):
+    async def test_send_attachment(self, mock_smtp, adapter, tmp_path) -> None:
         adapter._smtp_client = AsyncMock()
         adapter._smtp_client.is_connected = True
         adapter._from_address = "bot@test.com"
@@ -202,7 +201,7 @@ class TestEmailAdapter:
 
     @pytest.mark.asyncio
     @patch("gobby.communications.adapters.email.aioimaplib", create=True)
-    async def test_poll_no_messages(self, mock_imap, adapter):
+    async def test_poll_no_messages(self, mock_imap, adapter) -> None:
         adapter._imap_client = AsyncMock()
         # Mock search to return empty response
         adapter._imap_client.search.return_value = ("OK", [b""])
@@ -213,7 +212,7 @@ class TestEmailAdapter:
 
     @pytest.mark.asyncio
     @patch("gobby.communications.adapters.email.aioimaplib", create=True)
-    async def test_poll_with_messages(self, mock_imap, adapter):
+    async def test_poll_with_messages(self, mock_imap, adapter) -> None:
         adapter._imap_client = AsyncMock()
 
         # Mock search to return msg number 1
@@ -257,7 +256,7 @@ class TestEmailAdapter:
         adapter._imap_client.store.assert_any_call(b"1", "+FLAGS", "(\\Seen)")
 
     @pytest.mark.asyncio
-    async def test_shutdown(self, adapter):
+    async def test_shutdown(self, adapter) -> None:
         adapter._smtp_client = AsyncMock()
         adapter._imap_client = AsyncMock()
 
@@ -270,16 +269,16 @@ class TestEmailAdapter:
         assert adapter._smtp_client is None
         assert adapter._imap_client is None
 
-    def test_capabilities(self, adapter):
+    def test_capabilities(self, adapter) -> None:
         caps = adapter.capabilities()
         assert caps.threading is True
         assert caps.reactions is False
         assert caps.files is True
         assert caps.max_message_length == 100000
 
-    def test_parse_webhook_raises(self, adapter):
+    def test_parse_webhook_raises(self, adapter) -> None:
         with pytest.raises(NotImplementedError):
             adapter.parse_webhook(b"", {})
 
-    def test_verify_webhook(self, adapter):
+    def test_verify_webhook(self, adapter) -> None:
         assert adapter.verify_webhook(b"", {}, "") is False

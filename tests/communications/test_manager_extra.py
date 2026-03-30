@@ -14,22 +14,22 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-def mock_store():
+def mock_store() -> MagicMock:
     return MagicMock()
 
 
 @pytest.fixture
-def mock_secret_store():
+def mock_secret_store() -> MagicMock:
     return MagicMock()
 
 
 @pytest.fixture
-def mock_session_store():
+def mock_session_store() -> MagicMock:
     return MagicMock()
 
 
 @pytest.fixture
-def manager(mock_store, mock_secret_store, mock_session_store):
+def manager(mock_store, mock_secret_store, mock_session_store) -> CommunicationsManager:
     config = MagicMock()
     config.channel_defaults.rate_limit_per_minute = 60
     config.channel_defaults.burst = 10

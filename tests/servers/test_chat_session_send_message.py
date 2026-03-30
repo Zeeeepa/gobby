@@ -50,7 +50,7 @@ class TestChatSessionSendMessage:
     async def test_send_message_plain_string(self, session: ChatSession) -> None:
         """Test send_message correctly formats a plain string input and yields text."""
         # Setup mock receive_response to yield a TextBlock then Done
-        session._client.receive_response.return_value = self._mock_stream(
+        session._client.receive_response.return_value = TestChatSessionSendMessage._mock_stream(
             [
                 AssistantMessage(
                     id="msg_1",
@@ -76,7 +76,7 @@ class TestChatSessionSendMessage:
     @pytest.mark.asyncio
     async def test_send_message_handles_list_content(self, session: ChatSession) -> None:
         """Test list content is reformatted for exact SDK input mapping."""
-        session._client.receive_response.return_value = self._mock_stream(
+        session._client.receive_response.return_value = TestChatSessionSendMessage._mock_stream(
             [ResultMessage(session_id="sdk-123", result="fallback")]
         )
 
@@ -106,7 +106,7 @@ class TestChatSessionSendMessage:
     @pytest.mark.asyncio
     async def test_send_message_parses_usage_streamevent(self, session: ChatSession) -> None:
         """Test stream event usage parsing (the message_start wrapper)."""
-        session._client.receive_response.return_value = self._mock_stream(
+        session._client.receive_response.return_value = TestChatSessionSendMessage._mock_stream(
             [
                 StreamEvent(
                     event={
@@ -139,7 +139,7 @@ class TestChatSessionSendMessage:
     @pytest.mark.asyncio
     async def test_send_message_handles_tools(self, session: ChatSession) -> None:
         """Test parsing of tool uses and tool results."""
-        session._client.receive_response.return_value = self._mock_stream(
+        session._client.receive_response.return_value = TestChatSessionSendMessage._mock_stream(
             [
                 AssistantMessage(
                     id="msg_2",
@@ -178,7 +178,7 @@ class TestChatSessionSendMessage:
 
     @pytest.mark.asyncio
     async def test_send_message_thinking_block(self, session: ChatSession) -> None:
-        session._client.receive_response.return_value = self._mock_stream(
+        session._client.receive_response.return_value = TestChatSessionSendMessage._mock_stream(
             [
                 AssistantMessage(
                     id="m1",
@@ -243,7 +243,8 @@ class TestChatSessionSendMessage:
         session._client.set_model.assert_awaited_once_with("new-model")
         assert session.model == "new-model"
 
-    async def _mock_stream(self, items):
+    @staticmethod
+    async def _mock_stream(items):
         """Helper to yield items as an async generator."""
         for item in items:
             yield item
