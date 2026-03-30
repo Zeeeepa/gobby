@@ -354,6 +354,11 @@ def create_app(server: "HTTPServer") -> FastAPI:
 
     app.add_middleware(TelemetryMiddleware)
 
+    # Add project context middleware (sets ContextVar from X-Gobby-Project-Id header)
+    from gobby.servers.middleware.project_context import ProjectContextMiddleware
+
+    app.add_middleware(ProjectContextMiddleware, server=server)
+
     # Add auth middleware (checks after CORS, before routes)
     from gobby.servers.middleware.auth import AuthMiddleware
 

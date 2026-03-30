@@ -29,61 +29,6 @@ HOOK_EVENT_NAME_MAP: dict[str, str] = {
 }
 
 
-def _set_project_context_from_headers(request: Request) -> Any:
-    """Set project ContextVar from hook dispatcher headers.
-
-    The hook dispatcher (hook_dispatcher.py) runs in the CLI's project directory
-    and injects X-Gobby-Project-Id and X-Gobby-Session-Id headers. Without this,
-    rule evaluation can't resolve #N session references after the CWD fallback
-    was removed from get_project_context().
-
-    Returns a context var token for reset, or None.
-    """
-    from gobby.utils.project_context import set_project_context
-
-    session_id = request.headers.get("x-gobby-session-id")
-    if session_id:
-        try:
-            from gobby.utils.project_context import set_project_context_from_session
-
-            session_manager = getattr(request.app.state, "session_manager", None)
-            if session_manager:
-                token = set_project_context_from_session(
-                    session_id, session_manager, session_manager.db
-                )
-                if token is not None:
-                    return token
-        except Exception as e:
-            logger.debug("Failed to set project context from session %s: %s", session_id, e)
-
-    project_id = request.headers.get("x-gobby-project-id")
-    if project_id:
-        try:
-            from gobby.storage.projects import LocalProjectManager
-
-            session_manager = getattr(request.app.state, "session_manager", None)
-            if session_manager:
-                pm = LocalProjectManager(session_manager.db)
-                project = pm.get(project_id)
-                if project:
-                    return set_project_context(
-                        {"id": project.id, "name": project.name, "project_path": project.repo_path}
-                    )
-        except Exception as e:
-            logger.debug("Failed to resolve project %s: %s", project_id, e)
-        return set_project_context({"id": project_id})
-
-    return None
-
-
-def _reset_project_context(token: Any) -> None:
-    """Reset project context var if a token was set."""
-    if token is not None:
-        from gobby.utils.project_context import reset_project_context
-
-        reset_project_context(token)
-
-
 def _graceful_error_response(hook_type: str, error_msg: str) -> dict[str, Any]:
     """
     Create a graceful degradation response for hook errors.
@@ -156,10 +101,8 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
             if not source:
                 raise HTTPException(status_code=400, detail="source required")
 
-            # Set project context from headers (injected by hook_dispatcher.py).
-            # Without this, rule evaluation can't resolve #N session references
-            # because get_project_context() no longer falls back to daemon CWD.
-            ctx_token = _set_project_context_from_headers(request)
+            # Project context is set by ProjectContextMiddleware from
+            # X-Gobby-Project-Id / X-Gobby-Session-Id headers.
 
             # Get HookManager from app.state
             if not hasattr(request.app.state, "hook_manager"):
@@ -246,9 +189,6 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
                 )
                 return _graceful_error_response(hook_type, str(e))
 
-            finally:
-                _reset_project_context(ctx_token)
-
         except HTTPException:
             # Re-raise 400 errors (bad request) - these are client errors
             raise
@@ -256,7 +196,6 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
             # Outer exception - return graceful response to prevent CLI warning
             inc_counter("hooks_failed_total")
             logger.error("Hook endpoint error", exc_info=True)
-            _reset_project_context(ctx_token)
             if hook_type:
                 return _graceful_error_response(hook_type, str(e))
             # Fallback: return basic success to prevent CLI hook failure
