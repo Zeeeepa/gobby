@@ -219,8 +219,8 @@ _GSQZ_CRATES_API = "https://crates.io/api/v1/crates/gobby-squeeze"
 _GSQZ_VERSION_STAMP = ".gsqz-version"
 _GSQZ_BIN_NAME = "gsqz.exe" if sys.platform == "win32" else "gsqz"
 
-# Platform → target triple mapping
-_GSQZ_TARGETS: dict[tuple[str, str], str] = {
+# Platform → target triple mapping (shared by both gcode and gsqz)
+_PLATFORM_TARGETS: dict[tuple[str, str], str] = {
     ("darwin", "arm64"): "aarch64-apple-darwin",
     ("darwin", "x86_64"): "x86_64-apple-darwin",
     ("linux", "x86_64"): "x86_64-unknown-linux-gnu",
@@ -237,8 +237,8 @@ def _get_latest_gsqz_version() -> str | None:
         Version string (e.g. ``"0.1.0"``) or ``None`` on failure.
     """
     try:
-        req = Request(_GSQZ_CRATES_API, headers={"User-Agent": "gobby-installer/1.0"})  # noqa: S310  # nosec B310
-        with urlopen(req, timeout=10) as resp:  # noqa: S310  # nosec B310
+        req = Request(_GSQZ_CRATES_API, headers={"User-Agent": "gobby-installer/1.0"})
+        with urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read())
         return str(data["crate"]["max_version"])
     except (URLError, json.JSONDecodeError, KeyError, OSError) as e:
@@ -296,7 +296,7 @@ def _install_gsqz_from_github(bin_dir: Path, target: str, version: str | None = 
         else:
             url = _GSQZ_RELEASE_URL.format(target=target)
         logger.info("Downloading gsqz from %s", url)
-        with urlopen(url, timeout=30) as resp:  # noqa: S310  # nosec B310
+        with urlopen(url, timeout=30) as resp:
             tarball = BytesIO(resp.read())
 
         bin_dir.mkdir(parents=True, exist_ok=True)
@@ -450,7 +450,7 @@ def _install_gsqz(force: bool = False) -> dict[str, Any]:
     # Detect platform
     os_name = sys.platform
     machine = platform.machine().lower()
-    target = _GSQZ_TARGETS.get((os_name, machine))
+    target = _PLATFORM_TARGETS.get((os_name, machine))
     if target is None:
         logger.warning("gsqz: unsupported platform %s/%s", os_name, machine)
         return {
@@ -489,26 +489,9 @@ def _install_gsqz(force: bool = False) -> dict[str, Any]:
         return {"installed": False, "skipped": False, "reason": "all installation methods failed"}
 
     gsqz_path.chmod(0o755)
-    # Probe the installed binary for its actual version
-    resolved_version = target_version
-    if not resolved_version:
-        import subprocess
-
-        try:
-            result = subprocess.run(
-                [str(gsqz_path), "--version"],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                # Output is typically "gsqz X.Y.Z" — extract version
-                parts = result.stdout.strip().split()
-                resolved_version = parts[-1] if parts else "unknown"
-            else:
-                resolved_version = "unknown"
-        except Exception:
-            resolved_version = "unknown"
+    # gsqz is a command wrapper — it has no --version flag.
+    # Use the crates.io version we already fetched, or fall back to "unknown".
+    resolved_version = target_version or "unknown"
     _write_gsqz_version_stamp(bin_dir, resolved_version)
 
     # Ensure ~/.gobby/bin is on PATH
@@ -537,7 +520,24 @@ _GCODE_VERSIONED_RELEASE_URL = (
 )
 _GCODE_VERSION_STAMP = ".gcode-version"
 _GCODE_BIN_NAME = "gcode.exe" if sys.platform == "win32" else "gcode"
-_GCODE_TARGETS = _GSQZ_TARGETS  # Same platform mapping
+_GCODE_TARGETS = _PLATFORM_TARGETS  # Same platform mapping
+_GCODE_CRATES_API = "https://crates.io/api/v1/crates/gobby-code"
+
+
+def _get_latest_gcode_version() -> str | None:
+    """Query crates.io for the latest gcode version.
+
+    Returns:
+        Version string (e.g. ``"0.2.3"``) or ``None`` on failure.
+    """
+    try:
+        req = Request(_GCODE_CRATES_API, headers={"User-Agent": "gobby-installer/1.0"})
+        with urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+        return str(data["crate"]["max_version"])
+    except (URLError, json.JSONDecodeError, KeyError, OSError) as e:
+        logger.debug("gcode: could not check latest version: %s", e)
+        return None
 
 
 def _get_installed_gcode_version(bin_dir: Path) -> str | None:
@@ -582,7 +582,7 @@ def _install_gcode_from_github(bin_dir: Path, target: str, version: str | None =
         else:
             url = _GCODE_RELEASE_URL.format(target=target)
         logger.info("Downloading gcode from %s", url)
-        with urlopen(url, timeout=30) as resp:  # noqa: S310  # nosec B310
+        with urlopen(url, timeout=30) as resp:
             tarball = BytesIO(resp.read())
 
         bin_dir.mkdir(parents=True, exist_ok=True)
@@ -696,13 +696,71 @@ def _install_gcode_from_cargo_git(bin_dir: Path) -> bool:
         return False
 
 
+def _install_gcode_from_cargo_binstall(bin_dir: Path, version: str | None = None) -> bool:
+    """Install gcode via cargo-binstall (pre-built binary download).
+
+    Returns:
+        ``True`` on success, ``False`` if cargo-binstall is unavailable or fails.
+    """
+    if not shutil.which("cargo-binstall"):
+        return False
+    try:
+        crate = f"gobby-code@{version}" if version else "gobby-code"
+        result = subprocess.run(
+            [
+                "cargo-binstall",
+                crate,
+                "--install-path",
+                str(bin_dir),
+                "--no-confirm",
+                "--no-symlinks",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+        logger.warning("gcode: cargo-binstall failed: %s", e)
+        return False
+
+
+def _install_gcode_from_cargo_install(bin_dir: Path, version: str | None = None) -> bool:
+    """Compile and install gcode from source via ``cargo install gobby-code``.
+
+    Falls back to crates.io when GitHub releases and binstall aren't available.
+
+    Returns:
+        ``True`` on success, ``False`` if cargo is unavailable or fails.
+    """
+    if not shutil.which("cargo"):
+        return False
+    try:
+        cmd = ["cargo", "install", "gobby-code", "--root", str(bin_dir.parent)]
+        if version:
+            cmd.extend(["--version", version])
+        click.echo("  Compiling gcode from source (this may take 30-60 seconds)...")
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+        logger.warning("gcode: cargo install failed: %s", e)
+        return False
+
+
 def _install_gcode(force: bool = False) -> dict[str, Any]:
     """Install or upgrade the gcode binary with a fallback chain.
 
     Installation priority:
       1. Build from submodule (schema-compatible, for dev)
       2. GitHub release download (fast, no deps)
-      3. ``cargo install --git`` (compiles from source)
+      3. ``cargo-binstall`` (fast if available)
+      4. ``cargo install gobby-code`` (crates.io, compiles from source)
+      5. ``cargo install --git`` (compiles from git HEAD)
 
     Args:
         force: Re-download even if the installed version is current.
@@ -726,20 +784,34 @@ def _install_gcode(force: bool = False) -> dict[str, Any]:
             "reason": f"unsupported platform {os_name}/{machine}",
         }
 
-    # Version check
+    # Version check (mirrors gsqz pattern)
     installed_version = _get_installed_gcode_version(bin_dir)
+    latest_version = _get_latest_gcode_version()
 
-    if gcode_path.exists() and not force and installed_version:
-        return {"installed": False, "skipped": True, "version": installed_version}
+    if gcode_path.exists() and not force:
+        if installed_version and latest_version and installed_version == latest_version:
+            return {"installed": False, "skipped": True, "version": installed_version}
+        if installed_version and installed_version != "unknown" and latest_version is None:
+            return {
+                "installed": False,
+                "skipped": True,
+                "version": installed_version,
+                "reason": "version check failed, keeping current",
+            }
 
     # Fallback chain
+    target_version = latest_version
     bin_dir.mkdir(parents=True, exist_ok=True)
     method = None
 
     if _install_gcode_from_submodule(bin_dir):
         method = "submodule"
-    elif _install_gcode_from_github(bin_dir, target):
+    elif _install_gcode_from_github(bin_dir, target, target_version):
         method = "github"
+    elif _install_gcode_from_cargo_binstall(bin_dir, target_version):
+        method = "cargo-binstall"
+    elif _install_gcode_from_cargo_install(bin_dir, target_version):
+        method = "cargo-install"
     elif _install_gcode_from_cargo_git(bin_dir):
         method = "cargo-git"
     else:
@@ -748,19 +820,22 @@ def _install_gcode(force: bool = False) -> dict[str, Any]:
     gcode_path.chmod(0o755)
 
     # Probe installed binary for version
-    resolved_version = "unknown"
-    try:
-        result = subprocess.run(
-            [str(gcode_path), "--version"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            parts = result.stdout.strip().split()
-            resolved_version = parts[-1] if parts else "unknown"
-    except Exception:
-        pass
+    resolved_version = target_version
+    if not resolved_version:
+        try:
+            result = subprocess.run(
+                [str(gcode_path), "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                parts = result.stdout.strip().split()
+                resolved_version = parts[-1] if parts else "unknown"
+            else:
+                resolved_version = "unknown"
+        except Exception:
+            resolved_version = "unknown"
     _write_gcode_version_stamp(bin_dir, resolved_version)
 
     # Ensure ~/.gobby/bin is on PATH (shared with gsqz)

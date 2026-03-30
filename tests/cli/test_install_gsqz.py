@@ -203,7 +203,7 @@ class TestInstallGsqzFromCargoBinstall:
             mock_run.return_value = MagicMock(returncode=0)
             _install_gsqz_from_cargo_binstall(tmp_path, "0.1.0")
             cmd = mock_run.call_args[0][0]
-            assert "gsqz@0.1.0" in cmd
+            assert "gobby-squeeze@0.1.0" in cmd
 
     def test_not_available(self, tmp_path: Path) -> None:
         with (

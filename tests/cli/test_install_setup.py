@@ -1,13 +1,11 @@
 """Tests for gobby.cli.install_setup."""
 
 import json
-import os
-import shutil
-import sys
 import tarfile
 from io import BytesIO
 from pathlib import Path
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import MagicMock, patch
+from urllib.error import URLError
 
 import pytest
 
@@ -15,11 +13,11 @@ from gobby.cli.install_setup import (
     _ensure_gobby_bin_on_path,
     _get_installed_gcode_version,
     _get_installed_gsqz_version,
+    _get_latest_gcode_version,
     _get_latest_gsqz_version,
     _install_gcode,
-    _install_gcode_from_cargo_git,
-    _install_gcode_from_github,
-    _install_gcode_from_submodule,
+    _install_gcode_from_cargo_binstall,
+    _install_gcode_from_cargo_install,
     _install_gsqz,
     _install_gsqz_from_cargo_binstall,
     _install_gsqz_from_cargo_install,
@@ -32,6 +30,7 @@ from gobby.cli.install_setup import (
 
 pytestmark = pytest.mark.unit
 
+
 class TestEnsureDaemonConfig:
     @patch("gobby.cli.install_setup.Path.exists")
     @patch("gobby.cli.install_setup.Path.expanduser")
@@ -39,7 +38,7 @@ class TestEnsureDaemonConfig:
         mock_path = MagicMock()
         mock_path.exists.return_value = True
         mock_expand.return_value = mock_path
-        
+
         res = ensure_daemon_config()
         assert not res["created"]
 
@@ -49,14 +48,21 @@ class TestEnsureDaemonConfig:
     def test_copy_shared(self, mock_copy, mock_get_dir, mock_expand, tmp_path):
         target = tmp_path / "bootstrap.yaml"
         mock_expand.return_value = target
-        
+
         shared_dir = tmp_path / "shared"
         shared_file = shared_dir / "config" / "bootstrap.yaml"
         shared_file.parent.mkdir(parents=True)
         shared_file.touch()
-        
+
         mock_get_dir.return_value = tmp_path
-        
+
+        # copy2 is mocked so the file won't actually exist for chmod —
+        # make the side_effect create it so chmod succeeds
+        def fake_copy(src, dst):
+            Path(dst).touch()
+
+        mock_copy.side_effect = fake_copy
+
         res = ensure_daemon_config()
         assert res["created"]
         assert res["source"] == "shared"
@@ -67,9 +73,9 @@ class TestEnsureDaemonConfig:
     def test_fallback_generate(self, mock_get_dir, mock_expand, tmp_path):
         target = tmp_path / "bootstrap.yaml"
         mock_expand.return_value = target
-        
+
         mock_get_dir.return_value = tmp_path / "nonexistent"
-        
+
         res = ensure_daemon_config()
         assert res["created"]
         assert res["source"] == "generated"
@@ -85,7 +91,9 @@ class TestRunDaemonSetup:
     @patch("gobby.cli.install_setup._install_gsqz")
     @patch("gobby.cli.install_setup._install_gcode")
     @patch("gobby.cli.installers.ide_config.configure_ide_terminal_title")
-    def test_run_daemon_setup_success(self, mock_ide, mock_gcode, mock_gsqz, mock_run, mock_mcp, mock_sync, mock_init, tmp_path):
+    def test_run_daemon_setup_success(
+        self, mock_ide, mock_gcode, mock_gsqz, mock_run, mock_mcp, mock_sync, mock_init, tmp_path
+    ):
         mock_db = MagicMock()
         mock_init.return_value = mock_db
         mock_sync.return_value = {"total_synced": 5, "errors": []}
@@ -93,11 +101,11 @@ class TestRunDaemonSetup:
         mock_gsqz.return_value = {"installed": True, "version": "1.0", "method": "github"}
         mock_gcode.return_value = {"installed": True, "version": "1.0", "method": "github"}
         mock_ide.return_value = {"added": True}
-        
+
         mock_run.return_value = MagicMock(returncode=0)
-        
+
         run_daemon_setup(tmp_path)
-        
+
         mock_init.assert_called_once()
         mock_sync.assert_called_once_with(mock_db)
         mock_db.close.assert_called_once()
@@ -114,19 +122,19 @@ class TestGsqzHelpers:
         fake_resp.read.return_value = json.dumps({"crate": {"max_version": "1.2.3"}}).encode()
         fake_resp.__enter__.return_value = fake_resp
         mock_url.return_value = fake_resp
-        
+
         assert _get_latest_gsqz_version() == "1.2.3"
 
-    @patch("gobby.cli.install_setup.urlopen", side_effect=Exception)
+    @patch("gobby.cli.install_setup.urlopen", side_effect=URLError("timeout"))
     def test_get_latest_gsqz_version_fail(self, mock_url):
         assert _get_latest_gsqz_version() is None
 
     def test_get_installed_gsqz_version(self, tmp_path):
         assert _get_installed_gsqz_version(tmp_path) is None
-        
+
         (tmp_path / "gsqz").touch()
         assert _get_installed_gsqz_version(tmp_path) == "unknown"
-        
+
         (tmp_path / ".gsqz-version").write_text("0.5.0\n")
         assert _get_installed_gsqz_version(tmp_path) == "0.5.0"
 
@@ -142,13 +150,13 @@ class TestGsqzHelpers:
             info = tarfile.TarInfo(name="gsqz")
             info.size = 5
             tar.addfile(info, BytesIO(b"fake!"))
-        
+
         buf.seek(0)
         fake_resp = MagicMock()
         fake_resp.read.return_value = buf.read()
         fake_resp.__enter__.return_value = fake_resp
         mock_urlopen.return_value = fake_resp
-        
+
         res = _install_gsqz_from_github(tmp_path, "target-triple")
         assert res is True
         assert (tmp_path / "gsqz").exists()
@@ -173,17 +181,26 @@ class TestGsqzHelpers:
     @patch("gobby.cli.install_setup._get_latest_gsqz_version", return_value="1.0.0")
     @patch("gobby.cli.install_setup._get_installed_gsqz_version", return_value="0.9.0")
     @patch("gobby.cli.install_setup._install_gsqz_from_github", return_value=True)
-    def test_install_gsqz(self, mock_github, mock_installed, mock_latest, mock_machine, tmp_path):
+    @patch("gobby.cli.install_setup._ensure_gobby_bin_on_path", return_value={})
+    def test_install_gsqz(
+        self, mock_path, mock_github, mock_installed, mock_latest, mock_machine, tmp_path
+    ):
         with patch("gobby.cli.install_setup.Path.home", return_value=tmp_path):
+            # Create binary so chmod succeeds
+            bin_dir = tmp_path / ".gobby" / "bin"
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            (bin_dir / "gsqz").write_bytes(b"\x00")
+
             res = _install_gsqz()
             assert res["installed"] is True
             assert res["upgraded"] is True
             assert res["method"] == "github"
 
             mock_github.assert_called_once()
-            
+
             # Check version stamp
-            assert (tmp_path / ".gobby" / "bin" / ".gsqz-version").exists()
+            assert (bin_dir / ".gsqz-version").exists()
+
 
 class TestGcodeHelpers:
     def test_get_installed_gcode_version(self, tmp_path):
@@ -198,12 +215,71 @@ class TestGcodeHelpers:
     @patch("gobby.cli.install_setup.sys.platform", "darwin")
     @patch("gobby.cli.install_setup.platform.machine", return_value="arm64")
     @patch("gobby.cli.install_setup._get_installed_gcode_version", return_value=None)
+    @patch("gobby.cli.install_setup._get_latest_gcode_version", return_value="0.2.3")
     @patch("gobby.cli.install_setup._install_gcode_from_submodule", return_value=True)
-    def test_install_gcode(self, mock_sub, mock_installed, mock_machine, tmp_path):
+    @patch("gobby.cli.install_setup._ensure_gobby_bin_on_path", return_value={})
+    def test_install_gcode(
+        self, mock_path, mock_sub, mock_latest, mock_installed, mock_machine, tmp_path
+    ):
         with patch("gobby.cli.install_setup.Path.home", return_value=tmp_path):
+            # Create binary so chmod succeeds
+            bin_dir = tmp_path / ".gobby" / "bin"
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            (bin_dir / "gcode").write_bytes(b"\x00")
+
             res = _install_gcode()
             assert res["installed"] is True
             assert res["method"] == "submodule"
+
+    @patch("gobby.cli.install_setup.urlopen")
+    def test_get_latest_gcode_version(self, mock_url):
+        fake_resp = MagicMock()
+        fake_resp.read.return_value = json.dumps({"crate": {"max_version": "0.2.3"}}).encode()
+        fake_resp.__enter__.return_value = fake_resp
+        mock_url.return_value = fake_resp
+
+        assert _get_latest_gcode_version() == "0.2.3"
+
+    @patch("gobby.cli.install_setup.urlopen", side_effect=URLError("timeout"))
+    def test_get_latest_gcode_version_fail(self, mock_url):
+        assert _get_latest_gcode_version() is None
+
+    @patch("shutil.which", return_value="/usr/bin/cargo-binstall")
+    @patch("subprocess.run")
+    def test_install_gcode_from_cargo_binstall(self, mock_run, mock_which, tmp_path):
+        mock_run.return_value = MagicMock(returncode=0)
+        assert _install_gcode_from_cargo_binstall(tmp_path) is True
+        cmd = mock_run.call_args[0][0]
+        assert "gobby-code" in cmd
+
+    @patch("shutil.which", return_value="/usr/bin/cargo-binstall")
+    @patch("subprocess.run")
+    def test_install_gcode_from_cargo_binstall_with_version(self, mock_run, mock_which, tmp_path):
+        mock_run.return_value = MagicMock(returncode=0)
+        _install_gcode_from_cargo_binstall(tmp_path, "0.2.3")
+        cmd = mock_run.call_args[0][0]
+        assert "gobby-code@0.2.3" in cmd
+
+    @patch("shutil.which", return_value="/usr/bin/cargo")
+    @patch("subprocess.run")
+    @patch("gobby.cli.install_setup.click")
+    def test_install_gcode_from_cargo_install(self, mock_click, mock_run, mock_which, tmp_path):
+        mock_run.return_value = MagicMock(returncode=0)
+        assert _install_gcode_from_cargo_install(tmp_path) is True
+        cmd = mock_run.call_args[0][0]
+        assert "gobby-code" in cmd
+
+    @patch("shutil.which", return_value="/usr/bin/cargo")
+    @patch("subprocess.run")
+    @patch("gobby.cli.install_setup.click")
+    def test_install_gcode_from_cargo_install_with_version(
+        self, mock_click, mock_run, mock_which, tmp_path
+    ):
+        mock_run.return_value = MagicMock(returncode=0)
+        _install_gcode_from_cargo_install(tmp_path, "0.2.3")
+        cmd = mock_run.call_args[0][0]
+        assert "--version" in cmd
+        assert "0.2.3" in cmd
 
 
 class TestEnsurePath:
@@ -213,16 +289,16 @@ class TestEnsurePath:
     def test_ensure_gobby_bin_on_path(self, mock_home, mock_environ, tmp_path):
         mock_environ.get.side_effect = lambda k, default="": "/bin/bash" if k == "SHELL" else ""
         mock_home.return_value = tmp_path
-        
+
         res = _ensure_gobby_bin_on_path()
         assert res["added"] is True
         assert res["shell"] == "bash"
-        
+
         bashrc = tmp_path / ".bashrc"
         assert bashrc.exists()
         assert "export PATH=" in bashrc.read_text()
         assert "# gobby" in bashrc.read_text()
-        
+
         # Second run should skip
         res2 = _ensure_gobby_bin_on_path()
         assert res2["added"] is False
