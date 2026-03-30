@@ -10,6 +10,5 @@ rules:
     effects:
       - type: block
         reason: >-
-          Rule enforced by Gobby: [require-schema-before-call]
           Run get_tool_schema(server_name='{{ tool_input.get('server_name', '?') }}', tool_name='{{ tool_input.get('tool_name', '?') }}') first.
           You only need to do this once per tool.

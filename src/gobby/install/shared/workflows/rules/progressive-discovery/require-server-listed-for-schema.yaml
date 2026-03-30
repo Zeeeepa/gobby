@@ -10,6 +10,5 @@ rules:
     effects:
       - type: block
         reason: >-
-          Rule enforced by Gobby: [require-server-listed-for-schema]
           Run list_tools(server_name='{{ tool_input.get('server_name', '?') }}') first to see available tools.
           You only need to do this once per server.
