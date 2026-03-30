@@ -523,7 +523,7 @@ class HookManager:
             return False  # Already a UUID or prefix — no resolution needed
 
         try:
-            resolved = self._session_manager.resolve_session_reference(val, project_id)
+            resolved = self._session_manager._storage.resolve_session_reference(val, project_id)
             if resolved != val:
                 d[field] = resolved
                 return True

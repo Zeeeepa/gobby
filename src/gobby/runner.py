@@ -97,6 +97,7 @@ class GobbyRunner:
     _code_index_task: asyncio.Task[None] | None
     _code_index_shutdown: asyncio.Event | None
 
+    _memory_reconcile_task: asyncio.Task[None] | None
     _approval_timeout_task: asyncio.Task[None] | None
     _expired_isolation_task: asyncio.Task[None] | None
     database: LocalDatabase
@@ -116,6 +117,7 @@ class GobbyRunner:
     vector_store: VectorStore | None
     memory_manager: MemoryManager | None
     code_indexer: Any | None
+    symbol_summarizer: Any | None
     mcp_db_manager: LocalMCPManager
     metrics_event_store: MetricsEventStore
     metrics_manager: ToolMetricsManager

@@ -253,7 +253,9 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
     ) -> dict[str, Any]:
         """Reconcile Qdrant and Neo4j with SQLite source of truth."""
         try:
-            return await server.memory_manager.reconcile_stores(dry_run=dry_run)
+            return cast(
+                dict[str, Any], await server.memory_manager.reconcile_stores(dry_run=dry_run)
+            )
         except Exception as e:
             logger.error(f"Failed to reconcile memory stores: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e
