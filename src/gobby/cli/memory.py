@@ -98,11 +98,13 @@ def recall(
 
 @memory.command()
 @click.argument("memory_ref")
+@click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
 @click.pass_context
-def delete(ctx: click.Context, memory_ref: str) -> None:
+def delete(ctx: click.Context, memory_ref: str, project_ref: str | None = None) -> None:
     """Delete a memory by ID (UUID or prefix)."""
+    project_id = resolve_project_ref(project_ref) if project_ref else None
     manager = get_memory_manager(ctx)
-    memory_id = resolve_memory_id(manager, memory_ref)
+    memory_id = resolve_memory_id(manager, memory_ref, project_id=project_id)
     success = asyncio.run(manager.delete_memory(memory_id))
     if success:
         click.echo(f"Deleted memory: {memory_id}")
@@ -156,12 +158,14 @@ def list_memories(
 
 @memory.command("show")
 @click.argument("memory_ref")
+@click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
 @click.pass_context
-def show_memory(ctx: click.Context, memory_ref: str) -> None:
+def show_memory(ctx: click.Context, memory_ref: str, project_ref: str | None = None) -> None:
     """Show details of a specific memory (UUID or prefix)."""
+    project_id = resolve_project_ref(project_ref) if project_ref else None
     manager = get_memory_manager(ctx)
-    memory_id = resolve_memory_id(manager, memory_ref)
-    memory = manager.get_memory(memory_id)
+    memory_id = resolve_memory_id(manager, memory_ref, project_id=project_id)
+    memory = manager.get_memory(memory_id, project_id=project_id)
     if not memory:
         click.echo(f"Memory not found: {memory_id}")
         return
@@ -181,16 +185,19 @@ def show_memory(ctx: click.Context, memory_ref: str) -> None:
 @click.argument("memory_ref")
 @click.option("--content", "-c", help="New content")
 @click.option("--tags", "-t", help="New tags (comma-separated)")
+@click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
 @click.pass_context
 def update_memory(
     ctx: click.Context,
     memory_ref: str,
     content: str | None,
     tags: str | None,
+    project_ref: str | None = None,
 ) -> None:
     """Update an existing memory (UUID or prefix)."""
+    project_id = resolve_project_ref(project_ref) if project_ref else None
     manager = get_memory_manager(ctx)
-    memory_id = resolve_memory_id(manager, memory_ref)
+    memory_id = resolve_memory_id(manager, memory_ref, project_id=project_id)
 
     # Parse tags if provided
     tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else None
@@ -588,15 +595,23 @@ def rebuild_graph(ctx: click.Context, project_ref: str | None) -> None:
     )
 
 
-def resolve_memory_id(manager: MemoryManager, memory_ref: str) -> str:
-    """Resolve memory reference (UUID or prefix) to full ID."""
+def resolve_memory_id(
+    manager: MemoryManager, memory_ref: str, project_id: str | None = None
+) -> str:
+    """Resolve memory reference (UUID or prefix) to full ID.
+
+    Args:
+        manager: MemoryManager instance
+        memory_ref: UUID or prefix to resolve
+        project_id: If provided, scope lookup to this project
+    """
     # Try exact match first
     # Optimization: check 36 chars?
-    if len(memory_ref) == 36 and manager.get_memory(memory_ref):
+    if len(memory_ref) == 36 and manager.get_memory(memory_ref, project_id=project_id):
         return memory_ref
 
     # Try prefix match using MemoryManager method
-    memories = manager.find_by_prefix(memory_ref, limit=5)
+    memories = manager.find_by_prefix(memory_ref, limit=5, project_id=project_id)
 
     if not memories:
         raise click.ClickException(f"Memory not found: {memory_ref}")

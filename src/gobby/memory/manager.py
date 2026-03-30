@@ -748,26 +748,56 @@ class MemoryManager:
         """Check if a memory with identical content already exists (async)."""
         return await self._backend.content_exists(content, project_id)
 
-    def get_memory(self, memory_id: str) -> Memory | None:
-        """Get a specific memory by ID."""
+    def get_memory(self, memory_id: str, project_id: str | None = None) -> Memory | None:
+        """Get a specific memory by ID, optionally scoped to a project.
+
+        Args:
+            memory_id: The memory UUID to look up
+            project_id: If provided, only return if memory belongs to this project
+                or is global (project_id IS NULL)
+        """
         try:
-            return self.storage.get_memory(memory_id)
+            return self.storage.get_memory(memory_id, project_id=project_id)
         except ValueError:
             return None
 
-    async def aget_memory(self, memory_id: str) -> Memory | None:
-        """Get a specific memory by ID (async)."""
+    async def aget_memory(self, memory_id: str, project_id: str | None = None) -> Memory | None:
+        """Get a specific memory by ID (async).
+
+        Args:
+            memory_id: The memory UUID to look up
+            project_id: If provided, validates memory belongs to this project
+                after retrieval from backend
+        """
         record = await self._backend.get(memory_id)
         if record:
+            # Enforce project scoping if requested
+            if project_id and record.project_id and record.project_id != project_id:
+                return None
             return self._record_to_memory(record)
         return None
 
-    def find_by_prefix(self, prefix: str, limit: int = 5) -> list[Memory]:
-        """Find memories whose IDs start with the given prefix."""
-        rows = self.db.fetchall(
-            "SELECT * FROM memories WHERE id LIKE ? LIMIT ?",
-            (f"{prefix}%", limit),
-        )
+    def find_by_prefix(
+        self, prefix: str, limit: int = 5, project_id: str | None = None
+    ) -> list[Memory]:
+        """Find memories whose IDs start with the given prefix.
+
+        Args:
+            prefix: ID prefix to match
+            limit: Maximum results to return
+            project_id: If provided, only return memories belonging to this
+                project or global memories (project_id IS NULL)
+        """
+        if project_id:
+            rows = self.db.fetchall(
+                "SELECT * FROM memories WHERE id LIKE ? AND (project_id = ? OR project_id IS NULL) LIMIT ?",
+                (f"{prefix}%", project_id, limit),
+            )
+        else:
+            rows = self.db.fetchall(
+                "SELECT * FROM memories WHERE id LIKE ? LIMIT ?",
+                (f"{prefix}%", limit),
+            )
         return [Memory.from_row(row) for row in rows]
 
     async def update_memory(
@@ -921,6 +951,7 @@ class MemoryManager:
         memory_id: str,
         limit: int = DEFAULT_SEARCH_LIMIT,
         min_similarity: float = 0.0,
+        project_id: str | None = None,
     ) -> list[Memory]:
         """
         Get memories linked to this one via cross-references.
@@ -929,6 +960,8 @@ class MemoryManager:
             memory_id: The memory ID to find related memories for
             limit: Maximum number of results
             min_similarity: Minimum similarity threshold
+            project_id: If provided, only return related memories belonging
+                to this project or global memories
 
         Returns:
             List of related Memory objects, sorted by similarity
@@ -940,7 +973,7 @@ class MemoryManager:
         for ref in crossrefs:
             other_id = ref.target_id if ref.source_id == memory_id else ref.source_id
             try:
-                mem = self.storage.get_memory(other_id)
+                mem = self.storage.get_memory(other_id, project_id=project_id)
             except ValueError:
                 continue
             memories.append(mem)

@@ -188,8 +188,27 @@ class LocalMemoryManager:
         self._notify_listeners()
         return self.get_memory(memory_id)
 
-    def get_memory(self, memory_id: str) -> Memory:
-        row = self.db.fetchone("SELECT * FROM memories WHERE id = ?", (memory_id,))
+    def get_memory(self, memory_id: str, project_id: str | None = None) -> Memory:
+        """Get a memory by ID, optionally scoped to a project.
+
+        When project_id is provided, only returns the memory if it belongs to
+        that project or is a global memory (project_id IS NULL). This prevents
+        cross-project memory leakage.
+
+        Args:
+            memory_id: The memory UUID to look up
+            project_id: If provided, enforce project scoping
+
+        Raises:
+            ValueError: If memory not found or not accessible in the given project
+        """
+        if project_id:
+            row = self.db.fetchone(
+                "SELECT * FROM memories WHERE id = ? AND (project_id = ? OR project_id IS NULL)",
+                (memory_id, project_id),
+            )
+        else:
+            row = self.db.fetchone("SELECT * FROM memories WHERE id = ?", (memory_id,))
         if not row:
             raise ValueError(f"Memory {memory_id} not found")
         return Memory.from_row(row)

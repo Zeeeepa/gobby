@@ -463,6 +463,7 @@ class TestGetRelatedMemories:
             memory_id="mem-123",
             limit=5,
             min_similarity=0.3,
+            project_id=None,
         )
 
     @pytest.mark.asyncio

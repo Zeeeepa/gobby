@@ -279,7 +279,7 @@ def create_memory_registry(
             memory_id: The ID of the memory to retrieve
         """
         try:
-            memory = memory_manager.get_memory(memory_id)
+            memory = memory_manager.get_memory(memory_id, project_id=get_current_project_id())
             if memory:
                 return {
                     "success": True,
@@ -327,6 +327,7 @@ def create_memory_registry(
                 memory_id=memory_id,
                 limit=limit,
                 min_similarity=min_similarity,
+                project_id=get_current_project_id(),
             )
             return {
                 "success": True,

@@ -258,10 +258,13 @@ def create_memory_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.get("/{memory_id}")
-    def get_memory(memory_id: str) -> Any:
-        """Get a specific memory by ID."""
+    def get_memory(
+        memory_id: str,
+        project_id: str | None = Query(None, description="Project ID for scoping"),
+    ) -> Any:
+        """Get a specific memory by ID, optionally scoped to a project."""
         try:
-            memory = server.memory_manager.get_memory(memory_id)
+            memory = server.memory_manager.get_memory(memory_id, project_id=project_id)
         except Exception as e:
             logger.error(f"Failed to get memory {memory_id}: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e
