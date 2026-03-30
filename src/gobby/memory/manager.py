@@ -857,15 +857,16 @@ class MemoryManager:
             project_id: If provided, only return memories belonging to this
                 project or global memories (project_id IS NULL)
         """
+        escaped = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         if project_id:
             rows = self.db.fetchall(
-                "SELECT * FROM memories WHERE id LIKE ? AND (project_id = ? OR project_id IS NULL) LIMIT ?",
-                (f"{prefix}%", project_id, limit),
+                "SELECT * FROM memories WHERE id LIKE ? ESCAPE '\\' AND (project_id = ? OR project_id IS NULL) LIMIT ?",
+                (f"{escaped}%", project_id, limit),
             )
         else:
             rows = self.db.fetchall(
-                "SELECT * FROM memories WHERE id LIKE ? LIMIT ?",
-                (f"{prefix}%", limit),
+                "SELECT * FROM memories WHERE id LIKE ? ESCAPE '\\' LIMIT ?",
+                (f"{escaped}%", limit),
             )
         return [Memory.from_row(row) for row in rows]
 

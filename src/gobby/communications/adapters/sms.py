@@ -91,7 +91,9 @@ class SMSAdapter(BaseChannelAdapter):
         """Build the sender identification fields for Twilio API payloads."""
         if self._messaging_service_sid:
             return {"MessagingServiceSid": self._messaging_service_sid}
-        return {"From": self._from_number or ""}
+        if not self._from_number:
+            raise ValueError("SMS adapter requires either messaging_service_sid or from_number")
+        return {"From": self._from_number}
 
     async def send_message(self, message: CommsMessage) -> str | None:
         """Send message and return platform message ID."""

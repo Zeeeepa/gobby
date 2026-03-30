@@ -104,9 +104,15 @@ class CodeIndexTrigger:
             _, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
             if proc.returncode == 0:
                 logger.debug(f"gcode indexed {len(files)} files for project {project_id}")
-            elif stderr:
-                logger.warning(f"gcode index exited {proc.returncode}: {stderr.decode().strip()}")
+            else:
+                detail = stderr.decode().strip() if stderr else "(no stderr)"
+                logger.warning(f"gcode index exited {proc.returncode}: {detail}")
         except TimeoutError:
             logger.warning("gcode index timed out after 30s")
+            try:
+                proc.kill()
+                await proc.wait()
+            except ProcessLookupError:
+                pass
         except Exception as e:
             logger.warning(f"gcode index failed: {e}")

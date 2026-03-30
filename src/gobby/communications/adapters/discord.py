@@ -161,11 +161,24 @@ class DiscordAdapter(BaseChannelAdapter):
                                     self._session_id = None
                                     self._resume_gateway_url = None
                                     self._sequence = None
-                                    await asyncio.sleep(1 + 4 * asyncio.get_event_loop().time() % 1)
+                                    await asyncio.sleep(1 + 4 * random.random())
                                     await self._send_identify(ws)
                                 else:
                                     logger.info(
                                         "Discord gateway: invalid session (resumable), re-sending RESUME"
+                                    )
+                                    await asyncio.sleep(1 + 4 * random.random())
+                                    await ws.send(
+                                        json.dumps(
+                                            {
+                                                "op": 6,
+                                                "d": {
+                                                    "token": self._bot_token,
+                                                    "session_id": self._session_id,
+                                                    "seq": self._sequence,
+                                                },
+                                            }
+                                        )
                                     )
 
                             elif op == 0:  # Dispatch

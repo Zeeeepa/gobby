@@ -346,13 +346,18 @@ class KnowledgeGraphService:
     async def remove_orphaned_entities(self) -> int:
         """Delete Entity nodes with no MENTIONED_IN edges. Return count deleted."""
         try:
-            records = await self._neo4j.query(
-                "MATCH (e:_Entity) WHERE NOT (e)-[:MENTIONED_IN]->(:Memory) "
-                "DETACH DELETE e RETURN count(e) AS deleted",
+            # Count first, then delete — DETACH DELETE returns 0 for count(e)
+            count_records = await self._neo4j.query(
+                "MATCH (e:_Entity) WHERE NOT (e)-[:MENTIONED_IN]->(:Memory) RETURN count(e) AS total",
                 {},
             )
-            if records and records[0].get("deleted") is not None:
-                return int(records[0]["deleted"])
+            total = int(count_records[0]["total"]) if count_records else 0
+            if total > 0:
+                await self._neo4j.query(
+                    "MATCH (e:_Entity) WHERE NOT (e)-[:MENTIONED_IN]->(:Memory) DETACH DELETE e",
+                    {},
+                )
+            return total
             return 0
         except Neo4jConnectionError as e:
             logger.warning(f"Neo4j unreachable during orphan entity cleanup: {e}")

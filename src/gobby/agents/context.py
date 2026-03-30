@@ -343,13 +343,13 @@ def format_injected_prompt(context: str, prompt: str, template: str | None = Non
     Returns:
         Formatted prompt with context, or original prompt if context is empty.
     """
+    if not context or not context.strip():
+        return prompt
+
     # Prepend gcode hint if the binary exists
     gcode_path = Path.home() / ".gobby" / "bin" / "gcode"
     if gcode_path.exists():
-        context = GCODE_HINT + "\n\n" + (context or "")
-
-    if not context or not context.strip():
-        return prompt
+        context = GCODE_HINT + "\n\n" + context
 
     # Use default template if none provided
     effective_template = template or DEFAULT_CONTEXT_TEMPLATE

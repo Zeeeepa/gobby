@@ -56,6 +56,7 @@ class IdentityManager:
         external_user_id: str,
         external_username: str | None = None,
         metadata: dict[str, Any] | None = None,
+        project_id: str = "",
     ) -> CommsIdentity:
         """Resolve identity and auto-create/link session if needed.
 
@@ -81,7 +82,7 @@ class IdentityManager:
                 external_id=f"comms:{channel_id}:{external_user_id}",
                 machine_id="comms",
                 source="comms",
-                project_id="",
+                project_id=project_id,
                 title=f"Comms: {external_username or external_user_id}",
             )
             session_id = session.id
