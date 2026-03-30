@@ -412,6 +412,10 @@ class SessionManager:
             }
         return None
 
+    def resolve_session_reference(self, ref: str, project_id: str | None = None) -> str:
+        """Resolve a session reference (e.g., #N) to a session UUID."""
+        return self._storage.resolve_session_reference(ref, project_id)
+
     def update_terminal_pickup_metadata(
         self,
         session_id: str,

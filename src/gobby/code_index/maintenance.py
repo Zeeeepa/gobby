@@ -65,13 +65,12 @@ async def _run_maintenance(
     projects = indexer.storage.list_indexed_projects()
     gcode_bin = Path.home() / ".gobby" / "bin" / "gcode"
 
+    if not gcode_bin.exists():
+        logger.warning("gcode not installed — skipping maintenance index. Run `gobby install`.")
+        return
+
     for project in projects:
         if not project.root_path:
-            continue
-
-        # Index with gcode
-        if not gcode_bin.exists():
-            logger.warning("gcode not installed — skipping maintenance index. Run `gobby install`.")
             continue
 
         try:

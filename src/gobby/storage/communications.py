@@ -110,21 +110,12 @@ class LocalCommunicationsStore:
         comms_routing_rules.
         """
         with self.db.transaction() as conn:
-            # Get message IDs for attachment cleanup
-            msg_ids = [
-                r["id"]
-                for r in conn.execute(
-                    "SELECT id FROM comms_messages WHERE channel_id = ?", (channel_id,)
-                ).fetchall()
-            ]
-
-            # Delete attachments for those messages
-            if msg_ids:
-                placeholders = ",".join("?" * len(msg_ids))
-                conn.execute(
-                    f"DELETE FROM comms_attachments WHERE message_id IN ({placeholders})",
-                    msg_ids,
-                )
+            # Delete attachments for channel's messages via subquery
+            conn.execute(
+                "DELETE FROM comms_attachments WHERE message_id IN "
+                "(SELECT id FROM comms_messages WHERE channel_id = ?)",
+                (channel_id,),
+            )
 
             # Delete child records
             conn.execute("DELETE FROM comms_messages WHERE channel_id = ?", (channel_id,))
