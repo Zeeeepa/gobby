@@ -349,6 +349,32 @@ def _run_antigravity_install(
     click.echo("")
 
 
+def _run_qdrant_install(
+    installer: Callable[..., dict[str, Any]],
+    results: dict[str, dict[str, Any]],
+) -> None:
+    """Run install + echo for Qdrant (default, Docker-gated)."""
+    import shutil
+
+    if not shutil.which("docker"):
+        click.echo("Docker not found — Qdrant will run in embedded mode")
+        return
+
+    click.echo("-" * 40)
+    click.echo("Qdrant Vector Database")
+    click.echo("-" * 40)
+
+    result = installer()
+    results["qdrant"] = result
+
+    if result["success"]:
+        click.echo("Qdrant installed")
+        click.echo(f"  URL: {result['qdrant_url']}")
+    else:
+        click.echo(f"Failed: {result['error']}", err=True)
+    click.echo("")
+
+
 def _run_neo4j_install(
     installer: Callable[..., dict[str, Any]],
     neo4j_password: str | None,

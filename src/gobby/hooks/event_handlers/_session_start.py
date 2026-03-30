@@ -873,7 +873,7 @@ class SessionStartMixin(EventHandlersBase):
 
         # Don't overwrite existing session variables with defaults on compact/restart.
         # Internal keys reflect current agent config and are always re-applied.
-        # User-facing variables (pre_existing_errors_triaged, stop_attempts, etc.)
+        # User-facing variables (errors_resolved, stop_attempts, etc.)
         # are only set if not already present -- preserving agent-set values.
         existing = sv_mgr.get_variables(session_id)
         if existing:

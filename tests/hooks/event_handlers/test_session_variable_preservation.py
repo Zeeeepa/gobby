@@ -1,7 +1,7 @@
 """Tests for variable preservation across compact/restart in _activate_default_agent.
 
 On compact/restart, _activate_default_agent re-runs. It must NOT overwrite
-user-facing variables (e.g., pre_existing_errors_triaged) that were set during
+user-facing variables (e.g., errors_resolved) that were set during
 the session, but it MUST re-apply internal/metadata keys that reflect current
 agent configuration.
 """
@@ -69,7 +69,7 @@ class TestNewSessionGetsAllDefaults:
     ) -> None:
         handlers = _make_event_handlers()
         mock_resolve.return_value = _make_agent_body(
-            variables={"pre_existing_errors_triaged": False, "stop_attempts": 0}
+            variables={"errors_resolved": False, "stop_attempts": 0}
         )
 
         mock_svm = MagicMock()
@@ -85,8 +85,8 @@ class TestNewSessionGetsAllDefaults:
 
         changes = _get_merged_changes(mock_svm)
         assert "_agent_type" in changes
-        assert "pre_existing_errors_triaged" in changes
-        assert changes["pre_existing_errors_triaged"] is False
+        assert "errors_resolved" in changes
+        assert changes["errors_resolved"] is False
         assert changes["stop_attempts"] == 0
 
 
@@ -95,20 +95,20 @@ class TestReturningSessionPreservesUserVariables:
 
     @patch("gobby.workflows.state_manager.SessionVariableManager")
     @patch("gobby.workflows.agent_resolver.resolve_agent")
-    def test_preserves_pre_existing_errors_triaged(
+    def test_preserves_errors_resolved(
         self, mock_resolve: MagicMock, mock_svm_cls: MagicMock
     ) -> None:
         """The exact bug scenario: triaged=true gets reset to false on compact."""
         handlers = _make_event_handlers()
         mock_resolve.return_value = _make_agent_body(
-            variables={"pre_existing_errors_triaged": False}
+            variables={"errors_resolved": False}
         )
 
         mock_svm = MagicMock()
         mock_svm_cls.return_value = mock_svm
         mock_svm.get_variables.return_value = {
             "_agent_type": "default",
-            "pre_existing_errors_triaged": True,  # Set by agent during session
+            "errors_resolved": True,  # Set by agent during session
             "task_has_commits": True,
         }
 
@@ -120,8 +120,8 @@ class TestReturningSessionPreservesUserVariables:
         )
 
         changes = _get_merged_changes(mock_svm)
-        # pre_existing_errors_triaged already exists → must NOT be overwritten
-        assert "pre_existing_errors_triaged" not in changes
+        # errors_resolved already exists → must NOT be overwritten
+        assert "errors_resolved" not in changes
 
     @patch("gobby.workflows.state_manager.SessionVariableManager")
     @patch("gobby.workflows.agent_resolver.resolve_agent")
@@ -158,7 +158,7 @@ class TestReturningSessionPreservesUserVariables:
         handlers = _make_event_handlers()
         mock_resolve.return_value = _make_agent_body(
             variables={
-                "pre_existing_errors_triaged": False,
+                "errors_resolved": False,
                 "stop_attempts": 0,
                 "mode_level": 1,
             }
@@ -168,7 +168,7 @@ class TestReturningSessionPreservesUserVariables:
         mock_svm_cls.return_value = mock_svm
         mock_svm.get_variables.return_value = {
             "_agent_type": "default",
-            "pre_existing_errors_triaged": True,
+            "errors_resolved": True,
             "stop_attempts": 5,
             "mode_level": 3,
             "task_has_commits": True,  # Not in defaults, but exists
@@ -182,7 +182,7 @@ class TestReturningSessionPreservesUserVariables:
         )
 
         changes = _get_merged_changes(mock_svm)
-        for user_var in ("pre_existing_errors_triaged", "stop_attempts", "mode_level"):
+        for user_var in ("errors_resolved", "stop_attempts", "mode_level"):
             assert user_var not in changes, f"{user_var} should NOT be overwritten"
 
 
@@ -199,7 +199,7 @@ class TestReturningSessionReappliesInternalKeys:
         mock_svm_cls.return_value = mock_svm
         mock_svm.get_variables.return_value = {
             "_agent_type": "default",
-            "pre_existing_errors_triaged": True,
+            "errors_resolved": True,
         }
 
         handlers._activate_default_agent(
@@ -227,7 +227,7 @@ class TestReturningSessionReappliesInternalKeys:
             "_agent_type": "old-agent",
             "_active_rule_names": ["old-rule"],
             "is_spawned_agent": False,
-            "pre_existing_errors_triaged": True,
+            "errors_resolved": True,
         }
 
         handlers._activate_default_agent(
@@ -243,7 +243,7 @@ class TestReturningSessionReappliesInternalKeys:
         assert "_active_rule_names" in changes
         assert "is_spawned_agent" in changes
         # User variable preserved
-        assert "pre_existing_errors_triaged" not in changes
+        assert "errors_resolved" not in changes
 
 
 class TestMixedNewAndExistingVariables:
@@ -258,7 +258,7 @@ class TestMixedNewAndExistingVariables:
         handlers = _make_event_handlers()
         mock_resolve.return_value = _make_agent_body(
             variables={
-                "pre_existing_errors_triaged": False,  # Already exists → skip
+                "errors_resolved": False,  # Already exists → skip
                 "brand_new_variable": "hello",  # Not in session → apply
             }
         )
@@ -267,7 +267,7 @@ class TestMixedNewAndExistingVariables:
         mock_svm_cls.return_value = mock_svm
         mock_svm.get_variables.return_value = {
             "_agent_type": "default",
-            "pre_existing_errors_triaged": True,
+            "errors_resolved": True,
         }
 
         handlers._activate_default_agent(
@@ -280,4 +280,4 @@ class TestMixedNewAndExistingVariables:
         changes = _get_merged_changes(mock_svm)
         assert "brand_new_variable" in changes
         assert changes["brand_new_variable"] == "hello"
-        assert "pre_existing_errors_triaged" not in changes
+        assert "errors_resolved" not in changes

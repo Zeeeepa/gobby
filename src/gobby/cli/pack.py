@@ -147,42 +147,48 @@ def _daemon_is_running() -> bool:
         return False
 
 
-def _stop_neo4j_container() -> bool:
-    """Stop the Neo4j Docker container if running."""
+def _stop_services() -> bool:
+    """Stop Docker services (Qdrant, Neo4j) for consistent snapshots."""
+    services_dir = get_gobby_home() / "services"
+    compose_file = services_dir / "docker-compose.yml"
+
+    # Fall back to legacy Neo4j compose
+    if not compose_file.exists():
+        compose_file = services_dir / "neo4j" / "docker-compose.yml"
+        if not compose_file.exists():
+            return False
+
     try:
         result = subprocess.run(
-            ["docker", "ps", "-q", "--filter", "name=neo4j"],
+            [
+                "docker",
+                "compose",
+                "-f",
+                str(compose_file),
+                "--profile",
+                "all",
+                "down",
+            ],
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=60,
+            cwd=str(services_dir),
         )
-        if result.stdout.strip():
-            subprocess.run(
-                ["docker", "stop", "neo4j-neo4j-1"],
-                capture_output=True,
-                timeout=30,
-            )
-            return True
+        return result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
-        pass
-    return False
+        return False
 
 
-def _start_neo4j_container() -> None:
-    """Start the Neo4j Docker container if a compose file exists."""
-    compose_dir = get_gobby_home() / "services" / "neo4j"
-    compose_file = compose_dir / "docker-compose.yml"
-    if not compose_file.exists():
-        return
-    try:
-        subprocess.run(
-            ["docker", "compose", "up", "-d"],
-            capture_output=True,
-            cwd=str(compose_dir),
-            timeout=30,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        pass
+def _start_services() -> None:
+    """Start Docker services via daemon's lifecycle management."""
+    from gobby.cli.daemon import _services_start
+
+    _services_start(get_gobby_home())
+
+
+# Backwards-compatible aliases
+_stop_neo4j_container = _stop_services
+_start_neo4j_container = _start_services
 
 
 def _start_daemon() -> None:

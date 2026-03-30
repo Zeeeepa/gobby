@@ -107,5 +107,5 @@ On `BEFORE_AGENT` (new user turn), all stop-cycle state is cleared:
 | `consecutive_tool_blocks` | `0` |
 | `_last_blocked_tool` | `""` |
 | `tool_block_pending` | `False` |
-| `pre_existing_errors_triaged` | `False` |
+| `errors_resolved` | `False` |
 | `stop_attempts` | `0` |

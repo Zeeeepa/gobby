@@ -33,6 +33,7 @@ from ._install_prompts import (
     _run_git_hooks_install,
     _run_neo4j_install,
     _run_neo4j_uninstall,
+    _run_qdrant_install,
     _run_standard_cli_install,
     _run_standard_cli_uninstall,
 )
@@ -46,6 +47,7 @@ from .installers import (
     install_gemini,
     install_git_hooks,
     install_neo4j,
+    install_qdrant,
     install_windsurf,
     uninstall_claude,
     uninstall_codex_notify,
@@ -322,6 +324,9 @@ def install(
     # Antigravity
     if "antigravity" in clis_to_install:
         _run_antigravity_install(install_antigravity, project_path, results)
+
+    # Qdrant (installed by default if Docker available)
+    _run_qdrant_install(install_qdrant, results)
 
     # Neo4j
     if neo4j_flag:

@@ -210,7 +210,7 @@ variables:
             "task_claimed",
             "require_task_before_edit",
             "require_commit_before_status",
-            "pre_existing_errors_triaged",
+            "errors_resolved",
             "enforce_tool_schema_check",
             "auto_inject_handoff",
             "servers_listed",

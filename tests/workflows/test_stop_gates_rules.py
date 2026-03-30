@@ -2,7 +2,7 @@
 
 Tier 1 behaviors (hardcoded in RuleEngine.evaluate):
 - stop_attempts auto-increment on STOP
-- BEFORE_AGENT full reset (tool_block_pending, pre_existing_errors_triaged, stop_attempts, etc.)
+- BEFORE_AGENT full reset (tool_block_pending, errors_resolved, stop_attempts, etc.)
 - tool_block_pending stop gate, force_allow_stop bypass, consecutive tool block counter
 
 Tier 2 rules (YAML templates — configurable):
@@ -192,14 +192,14 @@ class TestRequireErrorTriage:
         assert "gobby-tasks:mark_task_review_approved" in mcp_tools
 
     def test_when_checks_triage_flag(self, db, manager) -> None:
-        """Should check pre_existing_errors_triaged."""
+        """Should check errors_resolved."""
         _sync_bundled(db)
 
         row = _get_rule(manager, "require-error-triage-before-status")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
         assert body.when is not None
-        assert "pre_existing_errors_triaged" in body.when
+        assert "errors_resolved" in body.when
 
 
 class TestRequireTaskClose:
@@ -262,9 +262,9 @@ class TestRequireTaskClose:
 
 
 class TestCompactPreservesTriagedState:
-    """Regression: compact must NOT reset pre_existing_errors_triaged.
+    """Regression: compact must NOT reset errors_resolved.
 
-    Bug scenario: agent sets pre_existing_errors_triaged=true during session,
+    Bug scenario: agent sets errors_resolved=true during session,
     then /compact fires SessionStart → _activate_default_agent re-applies
     defaults → overwrites triaged back to false → require-error-triage fires
     spuriously on next stop.
@@ -279,7 +279,7 @@ class TestCompactPreservesTriagedState:
 
         # State AFTER agent has triaged errors and committed
         variables: dict[str, object] = {
-            "pre_existing_errors_triaged": True,  # Set by agent
+            "errors_resolved": True,  # Set by agent
             "stop_attempts": 1,
         }
 
@@ -296,7 +296,7 @@ class TestCompactPreservesTriagedState:
             allowed_funcs={"len": len, "str": str, "int": int, "bool": bool},
         )
         assert not evaluator.evaluate(body.when), (
-            "require-error-triage-before-status should NOT fire when pre_existing_errors_triaged=true"
+            "require-error-triage-before-status should NOT fire when errors_resolved=true"
         )
 
 
@@ -305,7 +305,7 @@ class TestBeforeAgentResetsPlumbing:
 
     BEFORE_AGENT clears per-turn stop-cycle state: tool_block_pending,
     stop_attempts, consecutive_tool_blocks, _last_blocked_tool.
-    It does NOT reset pre_existing_errors_triaged (session-scoped).
+    It does NOT reset errors_resolved (session-scoped).
     """
 
     @pytest.mark.asyncio
@@ -320,23 +320,23 @@ class TestBeforeAgentResetsPlumbing:
         assert variables.get("tool_block_pending") is False
 
     @pytest.mark.asyncio
-    async def test_preserves_pre_existing_errors_triaged(self, db) -> None:
-        """BEFORE_AGENT should NOT reset pre_existing_errors_triaged (fix for infinite loop bug)."""
+    async def test_preserves_errors_resolved(self, db) -> None:
+        """BEFORE_AGENT should NOT reset errors_resolved (fix for infinite loop bug)."""
         engine = RuleEngine(db)
-        variables: dict[str, object] = {"pre_existing_errors_triaged": True}
+        variables: dict[str, object] = {"errors_resolved": True}
 
         event = _make_event(HookEventType.BEFORE_AGENT)
         await engine.evaluate(event, "sess-1", variables)
 
-        assert variables.get("pre_existing_errors_triaged") is True
+        assert variables.get("errors_resolved") is True
 
     @pytest.mark.asyncio
     async def test_full_reset_on_new_turn(self, db) -> None:
-        """BEFORE_AGENT should reset stop-cycle variables (but not pre_existing_errors_triaged)."""
+        """BEFORE_AGENT should reset stop-cycle variables (but not errors_resolved)."""
         engine = RuleEngine(db)
         variables: dict[str, object] = {
             "tool_block_pending": True,
-            "pre_existing_errors_triaged": True,
+            "errors_resolved": True,
             "stop_attempts": 5,
             "consecutive_tool_blocks": 2,
             "_last_blocked_tool": "Edit",
@@ -346,7 +346,7 @@ class TestBeforeAgentResetsPlumbing:
         await engine.evaluate(event, "sess-1", variables)
 
         assert variables["tool_block_pending"] is False
-        assert variables["pre_existing_errors_triaged"] is True
+        assert variables["errors_resolved"] is True
         assert variables["stop_attempts"] == 0
         assert variables["consecutive_tool_blocks"] == 0
         assert variables["_last_blocked_tool"] == ""

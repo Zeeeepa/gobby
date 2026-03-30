@@ -42,7 +42,7 @@ session_variables:
 
   # Pre-existing error triage - require agents to create tasks for
   # pre-existing issues (test failures, lint errors, etc.) before stopping
-  pre_existing_errors_triaged: false
+  errors_resolved: false
 
   # Stop attempt counter for escape hatch
   # After 3 consecutive failed stops, allow force-stop
@@ -72,13 +72,13 @@ triggers:
     # Only applies when commits were made (agent ran code and could have seen issues)
     # Uses same escape hatch as other stop gates (3+ consecutive stop attempts)
     - action: block_stop
-      when: "task_has_commits and not variables.get('pre_existing_errors_triaged') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
+      when: "task_has_commits and not variables.get('errors_resolved') and variables.get('stop_attempts', 0) < variables.get('max_stop_attempts', 3)"
       reason: |
         You must triage pre-existing issues before stopping.
         - If you found errors, warnings, or failures unrelated to your changes, create a task for each one.
         - If you found no pre-existing issues, confirm by calling
           set_variable on gobby-workflows:
-          set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
+          set_variable(name="errors_resolved", value=true, session_id="<session_id>")
 
     # Memory review nudge — only when significant work done since last review
     - action: memory_review_gate
@@ -194,7 +194,7 @@ triggers:
 
         After triaging all issues (or confirming none were found), call
         set_variable on gobby-workflows:
-        set_variable(name="pre_existing_errors_triaged", value=true, session_id="<session_id>")
+        set_variable(name="errors_resolved", value=true, session_id="<session_id>")
 
   on_before_agent:
     # Reset stop attempts counter on user activity
@@ -210,7 +210,7 @@ triggers:
     # Reset pre-existing error triage flag on each new user prompt
     # Agents must re-confirm triage status for each interaction
     - action: set_variable
-      name: pre_existing_errors_triaged
+      name: errors_resolved
       value: false
 
     # Title synthesis on first prompt (foreground)

@@ -44,65 +44,122 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 
-def _neo4j_start(gobby_home: Path) -> None:
-    """Start Neo4j Docker containers if installed.
+def _services_start(gobby_home: Path) -> None:
+    """Start Docker services (Qdrant, Neo4j) via unified compose file.
 
-    Resolves Neo4j auth from config and passes it to the Docker
-    subprocess environment.
+    Uses Docker Compose profiles to start only installed services.
+    Falls back to legacy per-service compose files during migration.
     """
-    compose_file = gobby_home / "services" / "neo4j" / "docker-compose.yml"
-    if not compose_file.exists():
+    import shutil
+
+    if not shutil.which("docker"):
         return
+
+    services_dir = gobby_home / "services"
+    compose_file = services_dir / "docker-compose.yml"
+
+    # Fall back to legacy Neo4j-only compose if unified file doesn't exist yet
+    if not compose_file.exists():
+        legacy_compose = services_dir / "neo4j" / "docker-compose.yml"
+        if legacy_compose.exists():
+            compose_file = legacy_compose
+        else:
+            return
 
     # Build subprocess env with config resolved from the store
     env = dict(os.environ)
+    profiles: list[str] = []
     try:
         from gobby.config.app import load_config
 
         config = load_config()
 
-        # Inject neo4j auth from config (format: "user:password")
+        # Neo4j auth
         if config.memory.neo4j_auth:
             parts = config.memory.neo4j_auth.split(":", 1)
             if len(parts) == 2:
                 env["GOBBY_NEO4J_PASSWORD"] = parts[1]
+
+        # Determine which profiles to start
+        if config.memory.neo4j_url:
+            profiles.append("neo4j")
+        if config.memory.qdrant_url:
+            profiles.append("qdrant")
     except Exception as e:
-        logger.warning(f"Could not resolve config for Neo4j: {e}")
+        logger.warning(f"Could not resolve config for services: {e}")
+        # Default: try starting all profiles
+        profiles = ["all"]
+
+    if not profiles:
+        return
+
+    cmd = ["docker", "compose", "-f", str(compose_file)]
+    for profile in profiles:
+        cmd.extend(["--profile", profile])
+    cmd.extend(["up", "-d"])
 
     try:
         result = subprocess.run(  # nosec B603 B607 # hardcoded docker command
-            ["docker", "compose", "-f", str(compose_file), "up", "-d"],
+            cmd,
             capture_output=True,
             text=True,
             timeout=120,
             env=env,
+            cwd=str(services_dir),
         )
         if result.returncode != 0:
-            logger.warning(f"Failed to start Neo4j containers: {result.stderr or result.stdout}")
+            logger.warning(f"Failed to start services: {result.stderr or result.stdout}")
     except subprocess.TimeoutExpired:
-        logger.warning("Timed out starting Neo4j containers")
+        logger.warning("Timed out starting Docker services")
     except Exception as e:
-        logger.warning(f"Failed to start Neo4j containers: {e}")
+        logger.warning(f"Failed to start Docker services: {e}")
 
 
-def _neo4j_stop(gobby_home: Path) -> None:
-    """Stop Neo4j Docker containers if installed."""
-    compose_file = gobby_home / "services" / "neo4j" / "docker-compose.yml"
-    if not compose_file.exists():
+def _services_stop(gobby_home: Path) -> None:
+    """Stop all Docker services via unified compose file."""
+    import shutil
+
+    if not shutil.which("docker"):
         return
+
+    services_dir = gobby_home / "services"
+    compose_file = services_dir / "docker-compose.yml"
+
+    # Fall back to legacy Neo4j-only compose
+    if not compose_file.exists():
+        legacy_compose = services_dir / "neo4j" / "docker-compose.yml"
+        if legacy_compose.exists():
+            compose_file = legacy_compose
+        else:
+            return
+
     try:
         result = subprocess.run(  # nosec B603 B607 # hardcoded docker command
-            ["docker", "compose", "-f", str(compose_file), "down"],
+            [
+                "docker",
+                "compose",
+                "-f",
+                str(compose_file),
+                "--profile",
+                "all",
+                "down",
+            ],
             capture_output=True,
             text=True,
             timeout=60,
+            cwd=str(services_dir),
         )
         if result.returncode != 0:
-            logger.warning(f"Failed to stop Neo4j containers: {result.stderr or result.stdout}")
+            logger.warning(f"Failed to stop services: {result.stderr or result.stdout}")
     except subprocess.TimeoutExpired:
-        logger.warning("Timed out stopping Neo4j containers")
+        logger.warning("Timed out stopping Docker services")
     except Exception as e:
-        logger.warning(f"Failed to stop Neo4j containers: {e}")
+        logger.warning(f"Failed to stop Docker services: {e}")
+
+
+# Backwards-compatible aliases
+_neo4j_start = _services_start
+_neo4j_stop = _services_stop
 
 
 def spawn_watchdog(daemon_port: int, verbose: bool, log_file: Path) -> int | None:

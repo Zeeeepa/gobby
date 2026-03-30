@@ -28,9 +28,9 @@ variables:
   require_commit_before_status:
     value: true
     description: Default require_commit_before_status to true
-  pre_existing_errors_triaged:
+  errors_resolved:
     value: false
-    description: Default pre_existing_errors_triaged to false
+    description: Default errors_resolved to false
   error_triage_blocks:
     value: 0
     description: "Count of times require-error-triage-before-status has blocked this session (circuit breaker at 3)"

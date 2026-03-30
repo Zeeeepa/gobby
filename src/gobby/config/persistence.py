@@ -2,8 +2,10 @@
 Persistence configuration module.
 
 Contains storage and sync-related Pydantic config models:
-- MemoryConfig: Memory system settings (injection, decay, search)
-- MemorySyncConfig: Memory file sync settings (debounce, export path)
+- DatabasesConfig: Shared database connections (Qdrant, Neo4j)
+- EmbeddingsConfig: Embedding model settings (shared by memory, tools, code index)
+- MemoryConfig: Memory-specific behavior (crossrefs, decay, search)
+- MemoryBackupConfig: Memory file sync settings (debounce, export path)
 
 Extracted from app.py using Strangler Fig pattern for code decomposition.
 """
@@ -16,13 +18,188 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "DatabasesConfig",
+    "EmbeddingsConfig",
     "MemoryConfig",
     "MemoryBackupConfig",
+    "Neo4jConfig",
+    "QdrantConfig",
 ]
 
 
+# ---------------------------------------------------------------------------
+# Database connection configs (shared infrastructure)
+# ---------------------------------------------------------------------------
+
+
+class QdrantConfig(BaseModel):
+    """Qdrant vector database connection configuration."""
+
+    model_config = {"extra": "ignore"}
+
+    url: str | None = Field(
+        default=None,
+        description=(
+            "URL for Qdrant server. "
+            "Set automatically by 'gobby install' when Docker is available. "
+            "Example: 'http://localhost:6333'"
+        ),
+    )
+    api_key: str | None = Field(
+        default=None,
+        description=(
+            "API key for Qdrant server (optional for local access). "
+            "Supports ${ENV_VAR} pattern for env var expansion at load time."
+        ),
+    )
+    port: int = Field(
+        default=6333,
+        description="HTTP port for Qdrant server",
+    )
+    path: str | None = Field(
+        default=None,
+        description=(
+            "Directory path for embedded Qdrant storage (on-disk, zero Docker). "
+            "Mutually exclusive with url. "
+            "Default set by runner to ~/.gobby/services/qdrant/"
+        ),
+    )
+    collection_prefix: str = Field(
+        default="code_symbols_",
+        description="Qdrant collection name prefix for code symbol embeddings",
+    )
+
+    @model_validator(mode="after")
+    def validate_exclusivity(self) -> "QdrantConfig":
+        """Validate path and url are mutually exclusive."""
+        if self.path and self.url:
+            raise ValueError(
+                "qdrant path and url are mutually exclusive. "
+                "Use path for embedded mode or url for remote/Docker mode."
+            )
+        return self
+
+
+class Neo4jConfig(BaseModel):
+    """Neo4j graph database connection configuration."""
+
+    model_config = {"extra": "ignore"}
+
+    url: str | None = Field(
+        default="http://localhost:8474",
+        description=(
+            "Neo4j HTTP API URL. "
+            "Uses port 8474 (mapped from 7474) to avoid conflicts. "
+            "Set automatically by 'gobby install'."
+        ),
+    )
+    auth: str | None = Field(
+        default="neo4j:gobbyneo4j",
+        description=(
+            "Neo4j authentication in 'user:password' format. "
+            "Supports ${ENV_VAR} pattern for env var expansion at load time."
+        ),
+    )
+    database: str = Field(
+        default="neo4j",
+        description="Neo4j database name",
+    )
+    graph_search: bool = Field(
+        default=True,
+        description="Enable graph-augmented search (entity vector search merged via RRF)",
+    )
+    graph_min_score: float = Field(
+        default=0.5,
+        description="Minimum entity vector similarity score for graph search (0.0-1.0)",
+    )
+    rrf_k: int = Field(
+        default=60,
+        description="RRF constant for merging Qdrant and graph results (higher = more uniform weighting)",
+    )
+
+    @field_validator("graph_min_score")
+    @classmethod
+    def validate_score(cls, v: float) -> float:
+        """Validate score is between 0.0 and 1.0."""
+        if not (0.0 <= v <= 1.0):
+            raise ValueError("Value must be between 0.0 and 1.0")
+        return v
+
+
+class DatabasesConfig(BaseModel):
+    """Shared database connection configuration for Qdrant and Neo4j."""
+
+    model_config = {"extra": "ignore"}
+
+    qdrant: QdrantConfig = Field(
+        default_factory=QdrantConfig,
+        description="Qdrant vector database connection",
+    )
+    neo4j: Neo4jConfig = Field(
+        default_factory=Neo4jConfig,
+        description="Neo4j graph database connection",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Embeddings config (shared by memory, tools, code index)
+# ---------------------------------------------------------------------------
+
+
+class EmbeddingsConfig(BaseModel):
+    """Embedding model configuration shared across all subsystems."""
+
+    model_config = {"extra": "ignore"}
+
+    model: str = Field(
+        default="local/nomic-embed-text-v1.5",
+        description="Embedding model for semantic search",
+    )
+    dim: int = Field(
+        default=768,
+        description=(
+            "Dimensionality of embedding vectors. Must match the model's output: "
+            "768 for nomic-embed-text (default), 1536 for text-embedding-3-small, 1024 for BGE-M3."
+        ),
+    )
+    api_base: str | None = Field(
+        default=None,
+        description=(
+            "API base URL for the embedding endpoint. "
+            "Use for local models (e.g., 'http://localhost:11434/v1' for Ollama). "
+            "When None, uses the provider's default endpoint."
+        ),
+    )
+    api_key: str | None = Field(
+        default=None,
+        description=(
+            "Explicit API key for the embedding endpoint. "
+            "Overrides auto-resolved key from secrets/env. "
+            "Supports ${ENV_VAR} pattern for env var expansion at load time."
+        ),
+    )
+
+    @field_validator("dim")
+    @classmethod
+    def validate_dim(cls, v: int) -> int:
+        """Validate dim is positive."""
+        if v < 1:
+            raise ValueError("dim must be at least 1")
+        return v
+
+
+# ---------------------------------------------------------------------------
+# Memory-specific behavior config
+# ---------------------------------------------------------------------------
+
+
 class MemoryConfig(BaseModel):
-    """Memory system configuration."""
+    """Memory system configuration.
+
+    Database connection settings (Qdrant, Neo4j) and embedding model settings
+    have been extracted to DatabasesConfig and EmbeddingsConfig respectively.
+    Legacy fields are preserved as deprecated aliases for backwards compatibility.
+    """
 
     model_config = {"extra": "ignore"}
 
@@ -37,77 +214,6 @@ class MemoryConfig(BaseModel):
             "'local' (default, direct SQLite via LocalMemoryManager), "
             "'null' (no persistence, for testing)"
         ),
-    )
-    embedding_model: str = Field(
-        default="local/nomic-embed-text-v1.5",
-        description="Embedding model for semantic search",
-    )
-    embedding_api_base: str | None = Field(
-        default=None,
-        description=(
-            "API base URL for the embedding endpoint. "
-            "Use for local models (e.g., 'http://localhost:11434/v1' for Ollama). "
-            "When None, uses the provider's default endpoint."
-        ),
-    )
-    embedding_api_key: str | None = Field(
-        default=None,
-        description=(
-            "Explicit API key for the embedding endpoint. "
-            "Overrides auto-resolved key from secrets/env. "
-            "Supports ${ENV_VAR} pattern for env var expansion at load time."
-        ),
-    )
-    embedding_dim: int = Field(
-        default=768,
-        description=(
-            "Dimensionality of embedding vectors. Must match the model's output: "
-            "768 for nomic-embed-text (default), 1536 for text-embedding-3-small, 1024 for BGE-M3."
-        ),
-    )
-    qdrant_path: str | None = Field(
-        default=None,
-        description=(
-            "Directory path for embedded Qdrant storage (on-disk, zero Docker). "
-            "Mutually exclusive with qdrant_url. "
-            "Default set by runner to ~/.gobby/services/qdrant/"
-        ),
-    )
-    qdrant_url: str | None = Field(
-        default=None,
-        description=(
-            "URL for remote Qdrant server. "
-            "Mutually exclusive with qdrant_path. "
-            "Example: 'http://localhost:6333'"
-        ),
-    )
-    qdrant_api_key: str | None = Field(
-        default=None,
-        description=(
-            "API key for remote Qdrant server. "
-            "Supports ${ENV_VAR} pattern for env var expansion at load time."
-        ),
-    )
-    neo4j_url: str | None = Field(
-        default="http://localhost:8474",
-        description=(
-            "Neo4j HTTP API URL for knowledge graph visualization. "
-            "Uses port 8474 (mapped from 7474) to avoid conflicts. "
-            "Set automatically by 'gobby install neo4j'."
-        ),
-    )
-    neo4j_auth: str | None = Field(
-        default="neo4j:gobbyneo4j",
-        description=(
-            "Neo4j authentication in 'user:password' format. "
-            "Default matches docker-compose.neo4j.yml fallback password. "
-            "Set automatically during 'gobby install neo4j'. "
-            "Supports ${ENV_VAR} pattern for env var expansion at load time."
-        ),
-    )
-    neo4j_database: str = Field(
-        default="neo4j",
-        description="Neo4j database name",
     )
     auto_crossref: bool = Field(
         default=False,
@@ -125,25 +231,72 @@ class MemoryConfig(BaseModel):
         default=60,
         description="Minimum seconds between access stat updates for the same memory",
     )
-    neo4j_graph_search: bool = Field(
-        default=True,
-        description="Enable graph-augmented search (Neo4j entity vector search merged with Qdrant via RRF)",
-    )
-    neo4j_graph_min_score: float = Field(
-        default=0.5,
-        description="Minimum entity vector similarity score for graph search (0.0-1.0)",
-    )
-    neo4j_rrf_k: int = Field(
-        default=60,
-        description="RRF constant for merging Qdrant and graph results (higher = more uniform weighting)",
-    )
     code_link_min_score: float = Field(
         default=0.82,
         description="Minimum cosine similarity for RELATES_TO_CODE edges between memory entities and code symbols",
     )
+
+    # -----------------------------------------------------------------------
+    # Deprecated fields — kept for backwards compatibility with existing
+    # config_store keys and code that reads config.memory.*
+    # These will be removed once all consumers migrate to config.databases.*
+    # and config.embeddings.*
+    # -----------------------------------------------------------------------
+    embedding_model: str = Field(
+        default="local/nomic-embed-text-v1.5",
+        description="DEPRECATED: Use embeddings.model instead",
+    )
+    embedding_api_base: str | None = Field(
+        default=None,
+        description="DEPRECATED: Use embeddings.api_base instead",
+    )
+    embedding_api_key: str | None = Field(
+        default=None,
+        description="DEPRECATED: Use embeddings.api_key instead",
+    )
+    embedding_dim: int = Field(
+        default=768,
+        description="DEPRECATED: Use embeddings.dim instead",
+    )
+    qdrant_path: str | None = Field(
+        default=None,
+        description="DEPRECATED: Use databases.qdrant.path instead",
+    )
+    qdrant_url: str | None = Field(
+        default=None,
+        description="DEPRECATED: Use databases.qdrant.url instead",
+    )
+    qdrant_api_key: str | None = Field(
+        default=None,
+        description="DEPRECATED: Use databases.qdrant.api_key instead",
+    )
+    neo4j_url: str | None = Field(
+        default="http://localhost:8474",
+        description="DEPRECATED: Use databases.neo4j.url instead",
+    )
+    neo4j_auth: str | None = Field(
+        default="neo4j:gobbyneo4j",
+        description="DEPRECATED: Use databases.neo4j.auth instead",
+    )
+    neo4j_database: str = Field(
+        default="neo4j",
+        description="DEPRECATED: Use databases.neo4j.database instead",
+    )
+    neo4j_graph_search: bool = Field(
+        default=True,
+        description="DEPRECATED: Use databases.neo4j.graph_search instead",
+    )
+    neo4j_graph_min_score: float = Field(
+        default=0.5,
+        description="DEPRECATED: Use databases.neo4j.graph_min_score instead",
+    )
+    neo4j_rrf_k: int = Field(
+        default=60,
+        description="DEPRECATED: Use databases.neo4j.rrf_k instead",
+    )
     code_symbol_collection_prefix: str = Field(
         default="code_symbols_",
-        description="Qdrant collection name prefix for code symbol embeddings (must match code_index.qdrant_collection_prefix)",
+        description="DEPRECATED: Use databases.qdrant.collection_prefix instead",
     )
 
     @field_validator("embedding_dim")
@@ -174,7 +327,6 @@ class MemoryConfig(BaseModel):
     @classmethod
     def validate_backend(cls, v: str) -> str:
         """Validate backend is a supported storage option."""
-        # Accept "sqlite" as backwards-compat alias for "local"
         if v == "sqlite":
             return "local"
         valid_backends = {"local", "null"}

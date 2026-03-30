@@ -39,7 +39,12 @@ from gobby.config.features import (
     ToolSummarizerConfig,
 )
 from gobby.config.llm_providers import LLMProvidersConfig
-from gobby.config.persistence import MemoryBackupConfig, MemoryConfig
+from gobby.config.persistence import (
+    DatabasesConfig,
+    EmbeddingsConfig,
+    MemoryBackupConfig,
+    MemoryConfig,
+)
 from gobby.config.pipelines import PipelineConfig
 from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
 from gobby.config.sessions import (
@@ -361,6 +366,14 @@ class DaemonConfig(BaseModel):
     workflow: WorkflowConfig = Field(
         default_factory=WorkflowConfig,
         description="Workflow engine configuration",
+    )
+    databases: DatabasesConfig = Field(
+        default_factory=DatabasesConfig,
+        description="Shared database connections (Qdrant, Neo4j)",
+    )
+    embeddings: EmbeddingsConfig = Field(
+        default_factory=EmbeddingsConfig,
+        description="Embedding model configuration (shared by memory, tools, code index)",
     )
     memory: MemoryConfig = Field(
         default_factory=MemoryConfig,

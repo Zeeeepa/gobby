@@ -155,7 +155,7 @@ Some variables are managed by the rule engine itself, not by declarative rules:
 | `tool_block_pending` | Set `true` on tool failure, cleared on tool success |
 | `_last_blocked_tool` | Tracks which tool was last blocked |
 | `force_allow_stop` | Set `true` on catastrophic failures (rate limit, billing) |
-| `pre_existing_errors_triaged` | Reset to `false` on `before_agent` |
+| `errors_resolved` | Reset to `false` on `before_agent` |
 
 ---
 
@@ -310,7 +310,7 @@ These are the bundled default variables (from `gobby-default-variables.yaml`):
 | `servers_listed` | `false` | bool | Whether `list_mcp_servers` has been called |
 | `listed_servers` | `[]` | list | Servers discovered via `list_mcp_servers` |
 | `unlocked_tools` | `[]` | list | Tools unlocked via `get_tool_schema` |
-| `pre_existing_errors_triaged` | `false` | bool | Whether pre-existing errors were triaged |
+| `errors_resolved` | `false` | bool | Whether all discovered errors have been fixed |
 
 ### Internal Variables (Set by Rules/Engine)
 

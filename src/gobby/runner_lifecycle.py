@@ -59,6 +59,17 @@ async def run_daemon(runner: GobbyRunner) -> None:
         except Exception as e:
             logger.error(f"MCP connection failed: {e}")
 
+        # Qdrant health check: disable vector features if unreachable
+        if hasattr(runner.config, "memory") and runner.config.memory.qdrant_url:
+            from gobby.cli.services import is_qdrant_healthy
+
+            qdrant_url = runner.config.memory.qdrant_url
+            if not await is_qdrant_healthy(qdrant_url):
+                logger.warning(
+                    f"Qdrant configured but unreachable at {qdrant_url} — vector features disabled"
+                )
+                runner.vector_store = None
+
         # Neo4j health check: disable KG features if unreachable
         if (
             runner.memory_manager

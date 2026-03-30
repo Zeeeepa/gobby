@@ -27,6 +27,7 @@ from .models import models
 from .pack import pack, unpack
 from .pipelines import pipelines
 from .projects import projects
+from .qdrant import qdrant
 from .rules import rules
 from .secrets import secrets
 from .service import service
@@ -90,6 +91,7 @@ cli.add_command(service)
 cli.add_command(export_cmd)
 cli.add_command(import_cmd)
 cli.add_command(code_index)
+cli.add_command(qdrant)
 cli.add_command(pack)
 cli.add_command(unpack)
 cli.add_command(models)
