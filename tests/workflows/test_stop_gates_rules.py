@@ -6,7 +6,7 @@ Tier 1 behaviors (hardcoded in RuleEngine.evaluate):
 - tool_block_pending stop gate, force_allow_stop bypass, consecutive tool block counter
 
 Tier 2 rules (YAML templates — configurable):
-- require-error-triage-before-close (task-enforcement), require-task-close
+- require-error-triage-before-status (task-enforcement), require-task-close
 """
 
 from __future__ import annotations
@@ -165,13 +165,13 @@ class TestStopAttemptsPlumbing:
 
 
 class TestRequireErrorTriage:
-    """Verify require-error-triage-before-close blocks close_task until triage confirmed."""
+    """Verify require-error-triage-before-status blocks status transitions until triage confirmed."""
 
     def test_blocks_on_before_tool(self, db, manager) -> None:
         """Should have a block effect on before_tool event."""
         _sync_bundled(db)
 
-        row = _get_rule(manager, "require-error-triage-before-close")
+        row = _get_rule(manager, "require-error-triage-before-status")
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
@@ -179,16 +179,27 @@ class TestRequireErrorTriage:
         effect_types = {e.type for e in body.resolved_effects}
         assert "block" in effect_types
 
-    def test_when_checks_triage_flag(self, db, manager) -> None:
-        """Should check pre_existing_errors_triaged and commit_sha."""
+    def test_blocks_all_status_transitions(self, db, manager) -> None:
+        """Should block close_task, mark_task_needs_review, and mark_task_review_approved."""
         _sync_bundled(db)
 
-        row = _get_rule(manager, "require-error-triage-before-close")
+        row = _get_rule(manager, "require-error-triage-before-status")
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+
+        mcp_tools = body.effects[0].mcp_tools
+        assert "gobby-tasks:close_task" in mcp_tools
+        assert "gobby-tasks:mark_task_needs_review" in mcp_tools
+        assert "gobby-tasks:mark_task_review_approved" in mcp_tools
+
+    def test_when_checks_triage_flag(self, db, manager) -> None:
+        """Should check pre_existing_errors_triaged."""
+        _sync_bundled(db)
+
+        row = _get_rule(manager, "require-error-triage-before-status")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
         assert body.when is not None
         assert "pre_existing_errors_triaged" in body.when
-        assert "commit_sha" in body.when
 
 
 class TestRequireTaskClose:
@@ -263,7 +274,7 @@ class TestCompactPreservesTriagedState:
         """After triaging errors, compact should NOT cause require-error-triage to fire."""
         _sync_bundled(db)
 
-        row = _get_rule(manager, "require-error-triage-before-close")
+        row = _get_rule(manager, "require-error-triage-before-status")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
         # State AFTER agent has triaged errors and committed
@@ -285,7 +296,7 @@ class TestCompactPreservesTriagedState:
             allowed_funcs={"len": len, "str": str, "int": int, "bool": bool},
         )
         assert not evaluator.evaluate(body.when), (
-            "require-error-triage-before-close should NOT fire when pre_existing_errors_triaged=true"
+            "require-error-triage-before-status should NOT fire when pre_existing_errors_triaged=true"
         )
 
 

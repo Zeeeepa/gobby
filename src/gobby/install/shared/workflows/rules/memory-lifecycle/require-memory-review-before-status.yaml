@@ -1,0 +1,31 @@
+tags: [memory-lifecycle, enforcement, gobby, default]
+
+rules:
+  require-memory-review-before-status:
+    description: "Gate task status transitions until agent reviews memories (when edits were made)"
+    event: before_tool
+    enabled: false
+    priority: 50
+    when: >
+      not variables.get('plan_mode')
+      and not variables.get('memory_review_completed')
+    effects:
+      - type: block
+        mcp_tools:
+          - "gobby-tasks:close_task"
+          - "gobby-tasks:mark_task_needs_review"
+          - "gobby-tasks:mark_task_review_approved"
+        reason: |
+          Consider saving any valuable memories from this task before closing.
+          Use `create_memory` (via gobby-memory MCP) for insights worth preserving.
+
+          Also verify any stale memories you encountered during this session were
+          cleaned up. Stale memories (outdated facts, references to fixed bugs,
+          superseded patterns) cause harmful feedback loops — future agents treat
+          them as current truth. Use `delete_memory` to remove them.
+
+          If nothing new was learned and no stale memories remain, clear the gate:
+          `set_variable(name="memory_review_completed", value=true, session_id="<your Gobby Session ID>")`
+
+          Do NOT create memories for bugs, errors, or issues you encounter.
+          Create tasks instead so they get fixed.

@@ -82,7 +82,7 @@ triggers:
 
     # Memory review nudge — only when significant work done since last review
     - action: memory_review_gate
-      when: "variables.get('pending_memory_review') and (variables.get('stop_attempts', 0) or 0) < 3"
+      when: "not variables.get('memory_review_completed') and (variables.get('stop_attempts', 0) or 0) < 3"
 
     # Task closure enforcement - block stop if task is still in_progress
     # Agents must close_task() or set to review before stopping
@@ -358,8 +358,8 @@ triggers:
     # Track significant work for memory review nudge on stop
     - action: set_variable
       when: "event.data.get('tool_name') in ['Edit', 'Write', 'NotebookEdit'] or event.data.get('mcp_tool') == 'close_task'"
-      name: pending_memory_review
-      value: true
+      name: memory_review_completed
+      value: false
 
     # Suggest memory extraction after closing a task with a commit
     # Soft nudge, not a blocking gate — agent can choose to skip

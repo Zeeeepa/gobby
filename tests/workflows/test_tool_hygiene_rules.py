@@ -130,15 +130,15 @@ class TestTrackPendingMemoryReview:
         assert body.event.value == "after_tool"
         assert body.effects[0].type == "set_variable"
 
-    def test_sets_pending_memory_review_variable(self, db, manager) -> None:
-        """Should set the pending_memory_review variable to true."""
+    def test_sets_memory_review_completed_variable(self, db, manager) -> None:
+        """Should set the memory_review_completed variable to false."""
         _sync_bundled(db)
 
         row = manager.get_by_name("track-pending-memory-review", include_templates=True)
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
-        assert body.effects[0].variable == "pending_memory_review"
-        assert body.effects[0].value is True
+        assert body.effects[0].variable == "memory_review_completed"
+        assert body.effects[0].value is False
 
     def test_has_when_condition_for_edit_tools(self, db, manager) -> None:
         """Should fire on Edit, Write, NotebookEdit, or close_task."""
