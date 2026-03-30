@@ -1,0 +1,20 @@
+tags: [tool-hygiene, enforcement, memory, gobby, default]
+
+rules:
+  block-claude-memory-search:
+    description: "Block file search in Claude Code memory directory — use gobby-memory MCP"
+    event: before_tool
+    enabled: false
+    priority: 10
+    when: >-
+      event.data.get('tool_name') in ('Glob', 'Grep')
+      and '.claude/' in tool_input.get('path', tool_input.get('pattern', ''))
+      and '/memory/' in tool_input.get('path', tool_input.get('pattern', ''))
+    effect:
+      type: block
+      tools: [Glob, Grep]
+      reason: |
+        Do not search Claude Code's file-based memory.
+        Use gobby-memory MCP instead:
+        - search_memories(query) — semantic search
+        - list_memories(tags_any=[...]) — filter by tags

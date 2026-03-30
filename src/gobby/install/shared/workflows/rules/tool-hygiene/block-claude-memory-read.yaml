@@ -1,0 +1,21 @@
+tags: [tool-hygiene, enforcement, memory, gobby, default]
+
+rules:
+  block-claude-memory-read:
+    description: "Block reads from Claude Code file-based memory — use gobby-memory MCP"
+    event: before_tool
+    enabled: false
+    priority: 10
+    when: >-
+      event.data.get('tool_name') == 'Read'
+      and '.claude/' in tool_input.get('file_path', '')
+      and '/memory/' in tool_input.get('file_path', '')
+    effect:
+      type: block
+      tools: [Read]
+      reason: |
+        Do not read from Claude Code's file-based memory.
+        Use gobby-memory MCP instead:
+        - search_memories(query) — semantic search
+        - list_memories() — browse all memories
+        - get_memory(memory_id) — get specific memory

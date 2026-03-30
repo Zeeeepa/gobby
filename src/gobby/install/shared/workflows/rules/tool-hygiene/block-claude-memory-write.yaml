@@ -1,0 +1,21 @@
+tags: [tool-hygiene, enforcement, memory, gobby, default]
+
+rules:
+  block-claude-memory-write:
+    description: "Block writes to Claude Code file-based memory — use gobby-memory MCP"
+    event: before_tool
+    enabled: false
+    priority: 10
+    when: >-
+      event.data.get('tool_name') in ('Write', 'Edit')
+      and '.claude/' in tool_input.get('file_path', '')
+      and '/memory/' in tool_input.get('file_path', '')
+    effect:
+      type: block
+      tools: [Write, Edit]
+      reason: |
+        Do not use Claude Code's file-based memory system.
+        Use gobby-memory MCP instead:
+        - create_memory(content, tags) — store new memory
+        - update_memory(memory_id, content) — update existing
+        - search_memories(query) — find relevant memories
