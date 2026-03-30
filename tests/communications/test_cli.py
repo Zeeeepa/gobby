@@ -207,11 +207,7 @@ def test_channels_add_telegram(runner: CliRunner, mock_client: MagicMock) -> Non
     assert "added successfully" in result.output
 
     call_args = mock_client.call_http_api.call_args
-    json_data = (
-        call_args[1].get("json_data") or call_args[0][1]
-        if len(call_args[0]) > 1
-        else call_args[1].get("json_data", {})
-    )
+    json_data = call_args.kwargs.get("json_data", {})
     assert json_data["channel_type"] == "telegram"
     assert json_data["name"] == "my-tg"
 

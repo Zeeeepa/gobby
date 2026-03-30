@@ -8,6 +8,7 @@ import pytest
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
 from gobby.hooks.hook_manager import HookManager
+from gobby.storage.projects import PERSONAL_PROJECT_ID
 
 pytestmark = pytest.mark.unit
 
@@ -391,8 +392,6 @@ class TestHookManagerHelpers:
         manager_with_mocks: HookManager,
     ) -> None:
         """_resolve_project_id returns personal workspace when no cwd."""
-        from gobby.storage.projects import PERSONAL_PROJECT_ID
-
         result = manager_with_mocks._resolve_project_id(None, None)
         assert result == PERSONAL_PROJECT_ID
 

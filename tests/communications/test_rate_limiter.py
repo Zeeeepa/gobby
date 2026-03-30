@@ -79,6 +79,7 @@ async def test_rate_limiter_reset_remove():
     assert limiter.check("chan-1") is True
 
 
+@pytest.mark.unit
 @pytest.mark.asyncio
 async def test_rate_limiter_backoff():
     limiter = TokenBucketRateLimiter(default_rate=60, default_burst=10)

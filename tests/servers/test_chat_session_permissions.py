@@ -60,10 +60,11 @@ class TestCanUseTool:
         async def delayed_approve():
             await asyncio.sleep(0.01)
             session.provide_plan_decision("approve")
-            
-        asyncio.create_task(delayed_approve())
+
+        task = asyncio.create_task(delayed_approve())
         result = await session._can_use_tool("ExitPlanMode", {}, ToolPermissionContext())
-        
+        await task
+
         assert isinstance(result, PermissionResultAllow)
         assert session.chat_mode == "accept_edits"
 
@@ -77,10 +78,11 @@ class TestCanUseTool:
         async def delayed_reject():
             await asyncio.sleep(0.01)
             session.provide_plan_decision("request_changes")
-            
-        asyncio.create_task(delayed_reject())
+
+        task = asyncio.create_task(delayed_reject())
         result = await session._can_use_tool("ExitPlanMode", {}, ToolPermissionContext())
-        
+        await task
+
         assert isinstance(result, PermissionResultDeny)
         assert "User requested changes" in result.message
         assert "too complex" in result.message
@@ -174,7 +176,7 @@ class TestDangerousPatterns:
     def test_is_write_bash(self, session: ChatSession) -> None:
         assert session._is_write_bash({"command": "echo hello > test.txt"})
         assert session._is_write_bash({"command": "npm install"})
-        assert session._is_write_bash({"command": "pytest"})  # Allowed generally, but maybe plan blocked? Actually wait, we're just testing the regex.
+        assert not session._is_write_bash({"command": "pytest"})
         assert not session._is_write_bash({"command": "cat test.txt"})
 
     def test_is_write_mcp_call(self, session: ChatSession) -> None:

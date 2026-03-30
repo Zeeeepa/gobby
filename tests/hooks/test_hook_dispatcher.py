@@ -65,7 +65,7 @@ def _patch_args():
 
 
 class TestFailClosedOnCriticalHooks:
-    """Critical hooks (pre-tool-use, session-start, etc.) must return exit code 2 on errors."""
+    """Critical hooks (session-start, session-end, pre-compact) must return exit code 2 on errors."""
 
     @pytest.mark.asyncio
     async def test_daemon_http_error_blocks_critical_hook(

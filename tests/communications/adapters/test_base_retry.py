@@ -7,6 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
+pytestmark = pytest.mark.unit
+
 from gobby.communications.adapters.base import BaseChannelAdapter
 from gobby.communications.models import ChannelCapabilities, CommsMessage
 

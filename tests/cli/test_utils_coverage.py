@@ -1175,7 +1175,6 @@ def test_stop_ui_server_running_graceful(tmp_path: Path) -> None:
 
     with (
         patch.dict(os.environ, {"GOBBY_TEST_PROTECT": ""}),
-        patch.dict(os.environ, {"GOBBY_TEST_PROTECT": ""}),
         patch("gobby.cli.installers.service.get_service_status", return_value={"installed": False, "running": False}),
         patch("gobby.cli.utils.kill_all_gobby_daemons", return_value=0),
         patch("gobby.cli.utils.get_gobby_home", return_value=tmp_path),
