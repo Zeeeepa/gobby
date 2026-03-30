@@ -13,15 +13,13 @@ would silently get None, causing #N resolution failures.
 
 from __future__ import annotations
 
+import contextvars
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
-
-if TYPE_CHECKING:
-    from gobby.servers.http import HTTPServer
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +38,8 @@ class ProjectContextMiddleware(BaseHTTPMiddleware):
     3. X-Gobby-Project-Id → set minimal context (id only) if DB lookup fails
     """
 
-    def __init__(self, app: Any, server: HTTPServer) -> None:
+    def __init__(self, app: Any, **kwargs: Any) -> None:
         super().__init__(app)
-        self._server = server
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         token = self._set_context(request)
@@ -54,7 +51,7 @@ class ProjectContextMiddleware(BaseHTTPMiddleware):
 
                 reset_project_context(token)
 
-    def _set_context(self, request: Request) -> Any:
+    def _set_context(self, request: Request) -> contextvars.Token[Any] | None:
         """Set project ContextVar from request headers.
 
         Returns a ContextVar token for reset, or None if no headers present.

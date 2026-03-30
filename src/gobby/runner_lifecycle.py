@@ -502,6 +502,18 @@ async def run_daemon(runner: GobbyRunner) -> None:
             except (asyncio.CancelledError, TimeoutError):
                 pass
 
+        # Cancel memory reconciliation task
+        if (
+            hasattr(runner, "_memory_reconcile_task")
+            and runner._memory_reconcile_task
+            and not runner._memory_reconcile_task.done()
+        ):
+            runner._memory_reconcile_task.cancel()
+            try:
+                await asyncio.wait_for(runner._memory_reconcile_task, timeout=2.0)
+            except (asyncio.CancelledError, TimeoutError):
+                pass
+
         # Stop UI dev server if we started it
         if runner.config.ui.enabled and runner.config.ui.mode == "dev":
             from gobby.cli.utils import stop_ui_server
