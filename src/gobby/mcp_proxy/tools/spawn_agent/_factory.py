@@ -258,7 +258,7 @@ def create_spawn_agent_registry(
                 logger.warning(f"Workflow {effective_workflow!r} not found for agent spawn")
 
         # Fallback agent: if this agent's provider has failed on this task,
-        # load the fallback agent definition and use it instead.
+        # walk the fallback chain to find a viable agent definition.
         if task_id and db and agent_body and agent_body.fallback_agent and not provider:
             try:
                 from gobby.agents.provider_rotation import get_failed_providers_for_task
@@ -272,9 +272,31 @@ def create_spawn_agent_registry(
                     agent_provider = "claude"
 
                 if agent_provider in failed_providers:
-                    fallback_body = _load_agent_body(
-                        agent_body.fallback_agent, db, project_id=project_id
-                    )
+                    visited: set[str] = {agent_body.name}
+                    candidate_name = agent_body.fallback_agent
+                    fallback_body = None
+                    max_depth = 5
+
+                    for _ in range(max_depth):
+                        if not candidate_name or candidate_name in visited:
+                            if candidate_name in visited:
+                                logger.warning(
+                                    f"Cycle detected in fallback chain: "
+                                    f"{candidate_name!r} already visited {visited}"
+                                )
+                            break
+                        visited.add(candidate_name)
+                        candidate = _load_agent_body(candidate_name, db, project_id=project_id)
+                        if not candidate:
+                            break
+                        candidate_provider = candidate.provider
+                        if candidate_provider in (None, "inherit"):
+                            candidate_provider = "claude"
+                        if candidate_provider not in failed_providers:
+                            fallback_body = candidate
+                            break
+                        candidate_name = candidate.fallback_agent
+
                     if fallback_body:
                         logger.info(
                             f"Provider {agent_provider} failed for task {task_id}, "
