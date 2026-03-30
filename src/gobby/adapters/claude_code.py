@@ -226,7 +226,7 @@ class ClaudeCodeAdapter(BaseAdapter):
                     context_lines = []
                     if session_ref:
                         context_lines.append(
-                            f"Gobby Session ID: {session_ref} (or {gobby_session_id})"
+                            f"Gobby Session ID: {session_ref} ({gobby_session_id})"
                         )
                     else:
                         context_lines.append(f"Gobby Session ID: {gobby_session_id}")

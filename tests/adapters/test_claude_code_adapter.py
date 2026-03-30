@@ -590,7 +590,7 @@ class TestResponseMetadata:
         result = adapter.translate_from_hook_response(response, hook_type="session-start")
         assert "hookSpecificOutput" in result
         ctx = result["hookSpecificOutput"]["additionalContext"]
-        assert "Gobby Session ID: #100 (or uuid-123)" in ctx
+        assert "Gobby Session ID: #100 (uuid-123)" in ctx
         assert "ext-id-456" in ctx
         assert "parent-uuid" in ctx
         assert "machine-abc" in ctx

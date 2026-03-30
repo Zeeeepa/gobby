@@ -303,7 +303,7 @@ class GeminiAdapter(BaseAdapter):
                     # First hook: inject full metadata (~60-100 tokens)
                     context_lines = []
                     if session_ref:
-                        context_lines.append(f"Gobby Session ID: {session_ref} (or {session_id})")
+                        context_lines.append(f"Gobby Session ID: {session_ref} ({session_id})")
                     else:
                         context_lines.append(f"Gobby Session ID: {session_id}")
                     if external_id:

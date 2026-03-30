@@ -162,8 +162,10 @@ def compose_session_response(
 
     # Build system message (terminal display)
     # Session ID: prefer #N, fallback to UUID only when no seq_num
-    system_message = f"\nGobby Session ID: {session_ref}"
-    system_message += " <- Use this for MCP tool calls (session_id parameter)"
+    if session_ref != session_id:
+        system_message = f"\nGobby Session ID: {session_ref} ({session_id})"
+    else:
+        system_message = f"\nGobby Session ID: {session_ref}"
 
     # Parent Session ID (before External ID, with handoff indicator)
     if parent_session_id and handler._session_storage:
