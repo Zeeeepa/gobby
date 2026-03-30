@@ -6,6 +6,7 @@ and graph visualization for the code explorer.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -102,7 +103,7 @@ def create_code_index_router(server: HTTPServer) -> APIRouter:
             )
 
         # Check project exists
-        stats = code_indexer.storage.get_project_stats(project_id)
+        stats = await asyncio.to_thread(code_indexer.storage.get_project_stats, project_id)
         if stats is None:
             return JSONResponse(
                 status_code=404,
@@ -127,10 +128,10 @@ def create_code_index_router(server: HTTPServer) -> APIRouter:
 
         pid = project_id or getattr(services, "project_id", "") or ""
         if not pid:
-            projects = code_indexer.storage.list_indexed_projects()
+            projects = await asyncio.to_thread(code_indexer.storage.list_indexed_projects)
             return JSONResponse(content={"projects": [p.to_dict() for p in projects]})
 
-        stats = code_indexer.storage.get_project_stats(pid)
+        stats = await asyncio.to_thread(code_indexer.storage.get_project_stats, pid)
         if stats is None:
             return JSONResponse(content={"indexed": False, "project_id": pid})
 
@@ -169,7 +170,7 @@ def create_code_index_router(server: HTTPServer) -> APIRouter:
         if indexer.graph is not None and indexer.graph.available:
             data = await indexer.graph.get_file_graph(pid, limit=limit)
         else:
-            data = indexer.storage.get_file_symbol_tree(pid, limit=limit)
+            data = await asyncio.to_thread(indexer.storage.get_file_symbol_tree, pid, limit=limit)
 
         return JSONResponse(content=data)
 
@@ -195,7 +196,7 @@ def create_code_index_router(server: HTTPServer) -> APIRouter:
             data = await indexer.graph.get_file_symbols(file_path, pid)
         else:
             # SQLite fallback: just return symbols for the file
-            symbols = indexer.storage.get_symbols_for_file(pid, file_path)
+            symbols = await asyncio.to_thread(indexer.storage.get_symbols_for_file, pid, file_path)
             nodes = [
                 {
                     "id": sym.id,
@@ -300,7 +301,9 @@ def create_code_index_router(server: HTTPServer) -> APIRouter:
         if not q.strip():
             return JSONResponse(content={"results": []})
 
-        results = indexer.storage.search_symbols_for_graph(q, pid, limit=limit)
+        results = await asyncio.to_thread(
+            indexer.storage.search_symbols_for_graph, q, pid, limit=limit
+        )
         return JSONResponse(content={"results": results})
 
     return router
