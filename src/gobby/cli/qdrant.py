@@ -38,7 +38,7 @@ def qdrant_status() -> None:
         from gobby.config.app import load_config
 
         config = load_config()
-        url = config.memory.qdrant_url
+        url = config.databases.qdrant.url
     except Exception:
         url = None
 

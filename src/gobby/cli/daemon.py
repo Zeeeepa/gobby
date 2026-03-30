@@ -75,15 +75,15 @@ def _services_start(gobby_home: Path) -> None:
         config = load_config()
 
         # Neo4j auth
-        if config.memory.neo4j_auth:
-            parts = config.memory.neo4j_auth.split(":", 1)
+        if config.databases.neo4j.auth:
+            parts = config.databases.neo4j.auth.split(":", 1)
             if len(parts) == 2:
                 env["GOBBY_NEO4J_PASSWORD"] = parts[1]
 
         # Determine which profiles to start
-        if config.memory.neo4j_url:
+        if config.databases.neo4j.url:
             profiles.append("neo4j")
-        if config.memory.qdrant_url:
+        if config.databases.qdrant.url:
             profiles.append("qdrant")
     except Exception as e:
         logger.warning(f"Could not resolve config for services: {e}")

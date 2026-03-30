@@ -60,28 +60,23 @@ async def run_daemon(runner: GobbyRunner) -> None:
             logger.error(f"MCP connection failed: {e}")
 
         # Qdrant health check: disable vector features if unreachable
-        if hasattr(runner.config, "memory") and runner.config.memory.qdrant_url:
+        db_cfg = runner.config.databases
+        if db_cfg.qdrant.url:
             from gobby.cli.services import is_qdrant_healthy
 
-            qdrant_url = runner.config.memory.qdrant_url
-            if not await is_qdrant_healthy(qdrant_url):
+            if not await is_qdrant_healthy(db_cfg.qdrant.url):
                 logger.warning(
-                    f"Qdrant configured but unreachable at {qdrant_url} — vector features disabled"
+                    f"Qdrant configured but unreachable at {db_cfg.qdrant.url} — vector features disabled"
                 )
                 runner.vector_store = None
 
         # Neo4j health check: disable KG features if unreachable
-        if (
-            runner.memory_manager
-            and hasattr(runner.config, "memory")
-            and runner.config.memory.neo4j_url
-        ):
+        if runner.memory_manager and db_cfg.neo4j.url:
             from gobby.cli.services import is_neo4j_healthy
 
-            neo4j_url = runner.config.memory.neo4j_url
-            if not await is_neo4j_healthy(neo4j_url):
+            if not await is_neo4j_healthy(db_cfg.neo4j.url):
                 logger.warning(
-                    f"Neo4j configured but unreachable at {neo4j_url} — graph features disabled"
+                    f"Neo4j configured but unreachable at {db_cfg.neo4j.url} — graph features disabled"
                 )
                 runner.memory_manager._neo4j_client = None
                 runner.memory_manager._kg_service = None
@@ -103,7 +98,7 @@ async def run_daemon(runner: GobbyRunner) -> None:
 
                 await runner.vector_store.ensure_collection(
                     SemanticToolSearch.TOOL_COLLECTION,
-                    runner.config.memory.embedding_dim,
+                    runner.config.embeddings.dim,
                 )
                 qdrant_count = await runner.vector_store.count()
                 if qdrant_count == 0 and runner.memory_manager:

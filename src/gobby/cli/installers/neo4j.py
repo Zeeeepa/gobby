@@ -36,8 +36,8 @@ def _resolve_neo4j_auth() -> str:
         from gobby.config.app import load_config
 
         config = load_config()
-        if config.memory.neo4j_auth:
-            return config.memory.neo4j_auth
+        if config.databases.neo4j.auth:
+            return config.databases.neo4j.auth
     except (OSError, ValueError, AttributeError):
         pass
     return f"neo4j:{_generate_password()}"
@@ -230,9 +230,13 @@ def _update_config(
         try:
             store = ConfigStore(db)
             if neo4j_url:
+                store.set("databases.neo4j.url", neo4j_url, source="install")
+                # Legacy key for backwards compatibility
                 store.set("memory.neo4j_url", neo4j_url, source="install")
             if neo4j_auth:
                 secret_store = SecretStore(db)
+                store.set_secret("databases.neo4j.auth", neo4j_auth, secret_store, source="install")
+                # Legacy key for backwards compatibility
                 store.set_secret("memory.neo4j_auth", neo4j_auth, secret_store, source="install")
         finally:
             db.close()
