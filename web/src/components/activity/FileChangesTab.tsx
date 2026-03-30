@@ -50,9 +50,15 @@ export const FileChangesTab = memo(function FileChangesTab({
       }
       setSelectedPath(path)
       setLoadingDiff(true)
-      const result = await fetchDiff(path)
-      setDiff(result)
-      setLoadingDiff(false)
+      try {
+        const result = await fetchDiff(path)
+        setDiff(result)
+      } catch (err) {
+        console.error('Failed to fetch diff:', err)
+        setDiff('')
+      } finally {
+        setLoadingDiff(false)
+      }
     },
     [selectedPath, fetchDiff]
   )

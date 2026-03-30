@@ -1,6 +1,7 @@
 """Tests for gobby.communications.adapters.email."""
 
 from email.message import EmailMessage
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -14,7 +15,7 @@ except ImportError:
 
 
 @pytest.fixture
-def adapter():
+def adapter() -> Any:
     if not EmailAdapter:
         pytest.skip("EmailAdapter not available")
     adapter = EmailAdapter()
@@ -22,7 +23,7 @@ def adapter():
 
 
 @pytest.fixture
-def config():
+def config() -> MagicMock:
     mock_config = MagicMock()
     mock_config.config_json = {
         "smtp_host": "smtp.test.com",

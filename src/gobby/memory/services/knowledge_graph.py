@@ -358,7 +358,6 @@ class KnowledgeGraphService:
                     {},
                 )
             return total
-            return 0
         except Neo4jConnectionError as e:
             logger.warning(f"Neo4j unreachable during orphan entity cleanup: {e}")
             return 0

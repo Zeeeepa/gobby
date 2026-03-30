@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import MagicMock
 
 import pytest
@@ -121,8 +122,6 @@ async def test_router_caches_rules_with_ttl():
 @pytest.mark.asyncio
 async def test_router_cache_expires_after_ttl():
     """Router should re-query store after TTL expires."""
-    import asyncio
-
     store = MagicMock()
     rules = [
         CommsRoutingRule(

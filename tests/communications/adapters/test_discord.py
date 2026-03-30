@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Callable
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -207,8 +208,6 @@ async def test_rate_limit_pre_wait(
     """Test that exhausted route bucket triggers pre-request sleep."""
     channel_config.config_json["enable_gateway"] = False
     await adapter.initialize(channel_config, secret_resolver)
-
-    import time
 
     # Pre-set an exhausted bucket
     route = "/channels/channel_123/messages"

@@ -1,7 +1,6 @@
 """Additional tests for AgentLifecycleMonitor."""
 
-import asyncio
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -15,7 +14,7 @@ class TestRecoverTaskFromFailedAgent:
     """Tests for _recover_task_from_failed_agent."""
 
     @pytest.mark.asyncio
-    async def test_recover_task_with_task_id(self):
+    async def test_recover_task_with_task_id(self) -> None:
         """Task recovered using explicit task_id."""
         mock_run_mgr = MagicMock()
         mock_task_mgr = MagicMock()
@@ -53,12 +52,10 @@ class TestRecoverTaskFromFailedAgent:
         await monitor._recover_task_from_failed_agent("run-1")
 
         mock_task_mgr.get_task.assert_called_once_with("task-123")
-        mock_task_mgr.update_task.assert_called_once_with(
-            "task-123", status="open", assignee=None
-        )
+        mock_task_mgr.update_task.assert_called_once_with("task-123", status="open", assignee=None)
 
     @pytest.mark.asyncio
-    async def test_recover_task_fallback_assignee(self):
+    async def test_recover_task_fallback_assignee(self) -> None:
         """Task recovered using child_session_id as fallback."""
         mock_run_mgr = MagicMock()
         mock_task_mgr = MagicMock()
@@ -96,16 +93,14 @@ class TestRecoverTaskFromFailedAgent:
 
         await monitor._recover_task_from_failed_agent("run-2")
 
-        mock_task_mgr.list_tasks.assert_called_once_with(
-            status="in_progress", assignee="child-123"
-        )
+        mock_task_mgr.list_tasks.assert_called_once_with(status="in_progress", assignee="child-123")
         mock_task_mgr.get_task.assert_called_once_with("task-fallback")
         mock_task_mgr.update_task.assert_called_once_with(
             "task-fallback", status="open", assignee=None
         )
 
     @pytest.mark.asyncio
-    async def test_recover_task_no_task_manager(self):
+    async def test_recover_task_no_task_manager(self) -> None:
         """Does nothing if no task_manager is configured."""
         monitor = AgentLifecycleMonitor(
             agent_run_manager=MagicMock(),
@@ -115,7 +110,7 @@ class TestRecoverTaskFromFailedAgent:
         # Should return safely
 
     @pytest.mark.asyncio
-    async def test_recover_task_not_in_progress(self):
+    async def test_recover_task_not_in_progress(self) -> None:
         """Does not recover task if it is not in_progress."""
         mock_run_mgr = MagicMock()
         mock_task_mgr = MagicMock()
@@ -144,16 +139,16 @@ class TestRecoverTaskFromFailedAgent:
         mock_task_mgr.update_task.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_cleanup_stale_pending_runs(self):
+    async def test_cleanup_stale_pending_runs(self) -> None:
         """Tests that cleanup_stale_pending_runs calls the manager method correctly."""
         mock_run_mgr = MagicMock()
         mock_run_mgr.cleanup_stale_pending_runs.return_value = 5
-        
+
         monitor = AgentLifecycleMonitor(
             agent_run_manager=mock_run_mgr,
             db=MagicMock(),
         )
-        
+
         cleaned = await monitor.cleanup_stale_pending_runs()
         assert cleaned == 5
         mock_run_mgr.cleanup_stale_pending_runs.assert_called_once()

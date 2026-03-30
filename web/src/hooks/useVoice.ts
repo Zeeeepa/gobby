@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { MicVAD, utils } from '@ricky0123/vad-web'
 
+const MAX_AUDIO_QUEUE_SIZE = 50
+
 interface VoiceState {
   voiceMode: boolean
   voiceAvailable: boolean
@@ -133,7 +135,6 @@ export function useVoice(
       const audioBuffer = ctx.createBuffer(1, float32.length, sampleRate)
       audioBuffer.getChannelData(0).set(float32)
 
-      const MAX_AUDIO_QUEUE_SIZE = 50
       while (audioQueueRef.current.length >= MAX_AUDIO_QUEUE_SIZE) {
         audioQueueRef.current.shift()
       }

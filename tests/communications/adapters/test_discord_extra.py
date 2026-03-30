@@ -14,7 +14,7 @@ except ImportError:
     DiscordAdapter = None
 
 
-def create_mock_message(**kwargs: Any) -> Any:
+def create_mock_message(**kwargs: Any) -> MagicMock:
     """Helper to mock CommsMessage without importing it (as it needs DB overhead setup or just pure mock)."""
     msg = MagicMock()
     msg.content = "content"
@@ -26,7 +26,7 @@ def create_mock_message(**kwargs: Any) -> Any:
 
 
 @pytest.fixture
-def adapter():
+def adapter() -> Any:
     if not DiscordAdapter:
         pytest.skip("Discord adapter unavailable")
     a = DiscordAdapter()

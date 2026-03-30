@@ -7,7 +7,7 @@ interface DiffViewProps {
 
 export const DiffView = memo(function DiffView({ diff, path }: DiffViewProps) {
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(diff)
+    navigator.clipboard.writeText(diff).catch(console.error)
   }, [diff])
 
   if (!diff) {

@@ -1,6 +1,5 @@
 """Extra tests for gobby.communications.manager."""
 
-import os
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -63,17 +62,14 @@ class TestAttachments:
         file_path.write_text("hello")
 
         msg, attachment = await manager.send_attachment(
-            "test_channel",
-            file_path,
-            filename="hello.txt",
-            content="Here is a file."
+            "test_channel", file_path, filename="hello.txt", content="Here is a file."
         )
 
         assert msg.status == "sent"
         assert msg.platform_message_id == "plat_attach_123"
         assert attachment.filename == "hello.txt"
         assert attachment.size_bytes == 5
-        
+
         manager._store.create_message.assert_called_once()
         manager._store.create_attachment.assert_called_once()
 
@@ -97,15 +93,15 @@ class TestAttachments:
     async def test_send_attachment_not_supported(self, manager, mock_adapter, tmp_path):
         file_path = tmp_path / "test.txt"
         file_path.write_text("hello")
-        
+
         mock_adapter.send_attachment.side_effect = NotImplementedError("no attachments")
         manager.event_callback = AsyncMock()
 
         msg, attachment = await manager.send_attachment("test_channel", file_path)
-        
+
         assert msg.status == "failed"
         assert "not support file attachments" in msg.error
-        
+
         # We still store failed message/attachment
         manager._store.create_attachment.assert_called_once()
         manager.event_callback.assert_called_once()
@@ -114,9 +110,9 @@ class TestAttachments:
     async def test_send_attachment_exception(self, manager, mock_adapter, tmp_path):
         file_path = tmp_path / "test.txt"
         file_path.write_text("hello")
-        
+
         mock_adapter.send_attachment.side_effect = Exception("network error")
-        
+
         msg, _ = await manager.send_attachment("test_channel", file_path)
         assert msg.status == "failed"
         assert "network error" in str(msg.error)
@@ -155,15 +151,16 @@ class TestWebChatAutoCreate:
             # We mock isinstance check internally actually by real type
             adapter_instance = WebChatCls()
             manager._adapters["web_chat"] = adapter_instance
-            
+
             mock_broadcast = MagicMock()
             manager.set_websocket_broadcast(mock_broadcast)
-            
+
             adapter_instance.set_broadcast.assert_called_once_with(mock_broadcast)
 
 
 class TestDelegates:
     """Test simple delegation methods to hit coverage lines."""
+
     def test_list_messages(self, manager):
         manager._store.list_messages.return_value = []
         res = manager.list_messages(limit=10)
@@ -175,7 +172,7 @@ class TestDelegates:
     def test_get_identity_by_external(self, manager):
         manager.get_identity_by_external("chan1", "ext1")
         manager._store.get_identity_by_external.assert_called_with("chan1", "ext1")
-        
+
     def test_list_identities(self, manager):
         manager.list_identities("chan1")
         manager._store.list_identities.assert_called_with(channel_id="chan1")

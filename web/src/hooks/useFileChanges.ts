@@ -4,7 +4,7 @@ import { classifyTool } from '../types/chat'
 
 export interface ChangedFile {
   path: string
-  status: string // E = edited, W = written (new), D = deleted
+  status: string // E = edited, W = written (new)
 }
 
 function getBaseUrl(): string {

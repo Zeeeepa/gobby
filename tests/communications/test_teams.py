@@ -77,14 +77,6 @@ async def test_concurrent_refresh(adapter, mock_secret_resolver):
     # Force expiration
     adapter._token_expires_at = 0
 
-    # Mock post with a small delay to simulate network I/O
-    async def slow_post(*args, **kwargs):
-        await asyncio.sleep(0.1)
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = {"access_token": "token_2", "expires_in": 3600}
-        mock_resp.raise_for_status.return_value = None
-        return mock_resp
-
     call_count = 0
 
     async def counting_post(*args, **kwargs):
