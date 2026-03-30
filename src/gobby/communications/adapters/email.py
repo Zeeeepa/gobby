@@ -181,6 +181,7 @@ class EmailAdapter(BaseChannelAdapter):
             raise RuntimeError("Email SMTP client not initialized or aiosmtplib missing")
 
         await self._ensure_smtp_connected()
+        smtp = self._smtp_client
 
         msg = EmailMessage()
         msg["Subject"] = message.metadata_json.get("subject", "Message from Gobby")
@@ -208,7 +209,7 @@ class EmailAdapter(BaseChannelAdapter):
         else:
             msg.set_content(message.content)
 
-        await self._retry(lambda: self._smtp_client.send_message(msg))  # type: ignore[union-attr]
+        await self._retry(lambda: smtp.send_message(msg))
         return msg_id
 
     async def send_attachment(
@@ -219,6 +220,7 @@ class EmailAdapter(BaseChannelAdapter):
             raise RuntimeError("Email SMTP client not initialized or aiosmtplib missing")
 
         await self._ensure_smtp_connected()
+        smtp = self._smtp_client
 
         msg = EmailMessage()
         msg["Subject"] = message.metadata_json.get("subject", "Message from Gobby")
@@ -252,7 +254,7 @@ class EmailAdapter(BaseChannelAdapter):
             file_data, maintype=maintype, subtype=subtype, filename=attachment.filename
         )
 
-        await self._retry(lambda: self._smtp_client.send_message(msg))  # type: ignore[union-attr]
+        await self._retry(lambda: smtp.send_message(msg))
         return msg_id
 
     async def poll(self) -> list[CommsMessage]:
@@ -261,10 +263,11 @@ class EmailAdapter(BaseChannelAdapter):
             return []
 
         await self._ensure_imap_connected()
+        imap = self._imap_client
 
         async def _search_unseen() -> tuple[str, list[bytes]]:
-            await self._imap_client.select("INBOX")  # type: ignore[union-attr]
-            status, response = await self._imap_client.search("UNSEEN")  # type: ignore[union-attr]
+            await imap.select("INBOX")
+            status, response = await imap.search("UNSEEN")
             return status, response
 
         status, response = await self._retry(_search_unseen)
@@ -275,9 +278,13 @@ class EmailAdapter(BaseChannelAdapter):
         msg_nums = response[0].split()
 
         for num in msg_nums:
-            status, fetch_data = await self._retry(
-                lambda n=num: self._imap_client.fetch(n.decode(), "(RFC822)")  # type: ignore[union-attr, misc]
-            )
+            num_str = num.decode()
+
+            async def _fetch_msg(n: str = num_str) -> tuple[str, list[Any]]:
+                result: tuple[str, list[Any]] = await imap.fetch(n, "(RFC822)")
+                return result
+
+            status, fetch_data = await self._retry(_fetch_msg)
             if status != "OK":
                 continue
 
@@ -332,9 +339,11 @@ class EmailAdapter(BaseChannelAdapter):
                         )
                     )
 
-            await self._retry(
-                lambda n=num: self._imap_client.store(n.decode(), "+FLAGS", "(\\Seen)")  # type: ignore[union-attr, misc]
-            )
+            async def _mark_seen(n: str = num_str) -> tuple[str, list[Any]]:
+                result: tuple[str, list[Any]] = await imap.store(n, "+FLAGS", "(\\Seen)")
+                return result
+
+            await self._retry(_mark_seen)
 
         return messages
 
