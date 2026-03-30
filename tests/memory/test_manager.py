@@ -850,8 +850,7 @@ class TestEntityGraph:
     @pytest.mark.asyncio
     async def test_get_entity_graph_no_neo4j(self, db, memory_config) -> None:
         """get_entity_graph returns None when no Neo4j configured."""
-        memory_config.neo4j_url = None
-        manager = MemoryManager(db=db, config=memory_config)
+        manager = MemoryManager(db=db, config=memory_config, neo4j_url=None)
         # Ensure no neo4j client
         assert manager._neo4j_client is None
         assert manager._kg_service is None
@@ -861,8 +860,7 @@ class TestEntityGraph:
     @pytest.mark.asyncio
     async def test_get_entity_neighbors_no_neo4j(self, db, memory_config) -> None:
         """get_entity_neighbors returns None when no Neo4j configured."""
-        memory_config.neo4j_url = None
-        manager = MemoryManager(db=db, config=memory_config)
+        manager = MemoryManager(db=db, config=memory_config, neo4j_url=None)
         assert manager._neo4j_client is None
         result = await manager.get_entity_neighbors("test-entity")
         assert result is None

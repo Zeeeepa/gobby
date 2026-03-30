@@ -873,7 +873,6 @@ class TestMemoryConfig:
         config = MemoryConfig()
         assert config.enabled is True
         assert config.backend == "local"
-        assert config.embedding_model == "local/nomic-embed-text-v1.5"
         assert config.crossref_threshold == 0.3
         assert config.access_debounce_seconds == 60
 

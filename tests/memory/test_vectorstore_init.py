@@ -23,15 +23,15 @@ class TestVectorStoreInitialization:
         from gobby.memory.vectorstore import VectorStore
 
         config = MagicMock()
-        config.memory.qdrant_path = "/tmp/test-qdrant"
-        config.memory.qdrant_url = None
-        config.memory.qdrant_api_key = None
-        config.memory.embedding_model = "text-embedding-3-small"
+        config.databases.qdrant.path = "/tmp/test-qdrant"
+        config.databases.qdrant.url = None
+        config.databases.qdrant.api_key = None
+        config.embeddings.model = "text-embedding-3-small"
 
         vs = VectorStore(
-            path=config.memory.qdrant_path,
-            url=config.memory.qdrant_url,
-            api_key=config.memory.qdrant_api_key,
+            path=config.databases.qdrant.path,
+            url=config.databases.qdrant.url,
+            api_key=config.databases.qdrant.api_key,
         )
         assert vs._path == "/tmp/test-qdrant"
         assert vs._url is None
@@ -161,8 +161,8 @@ class TestVectorStoreInitialization:
         vs.rebuild.assert_not_called()
 
     def test_default_qdrant_path_config_is_none(self) -> None:
-        """Config default for qdrant_path should be None (runner provides fallback)."""
-        from gobby.config.persistence import MemoryConfig
+        """Config default for qdrant path should be None (runner provides fallback)."""
+        from gobby.config.persistence import QdrantConfig
 
-        config = MemoryConfig()
-        assert config.qdrant_path is None
+        config = QdrantConfig()
+        assert config.path is None

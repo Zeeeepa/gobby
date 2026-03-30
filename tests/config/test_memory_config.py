@@ -1,55 +1,65 @@
-"""Tests for MemoryConfig Qdrant fields and removed legacy fields."""
+"""Tests for MemoryConfig, QdrantConfig, Neo4jConfig, and EmbeddingsConfig fields."""
 
 from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError
 
-from gobby.config.persistence import MemoryConfig
+from gobby.config.persistence import EmbeddingsConfig, MemoryConfig, Neo4jConfig, QdrantConfig
 
 pytestmark = pytest.mark.unit
 
 
+# ===========================================================================
+# QdrantConfig tests (fields moved from MemoryConfig)
+# ===========================================================================
+
+
 def test_qdrant_path_defaults_to_none() -> None:
-    """qdrant_path should default to None."""
-    config = MemoryConfig()
-    assert config.qdrant_path is None
+    """QdrantConfig.path should default to None."""
+    config = QdrantConfig()
+    assert config.path is None
 
 
 def test_qdrant_url_defaults_to_none() -> None:
-    """qdrant_url should default to None."""
-    config = MemoryConfig()
-    assert config.qdrant_url is None
+    """QdrantConfig.url should default to None."""
+    config = QdrantConfig()
+    assert config.url is None
 
 
 def test_qdrant_api_key_defaults_to_none() -> None:
-    """qdrant_api_key should default to None."""
-    config = MemoryConfig()
-    assert config.qdrant_api_key is None
+    """QdrantConfig.api_key should default to None."""
+    config = QdrantConfig()
+    assert config.api_key is None
 
 
 def test_qdrant_path_accepted() -> None:
-    """qdrant_path should accept a string path."""
-    config = MemoryConfig(qdrant_path="/tmp/qdrant")
-    assert config.qdrant_path == "/tmp/qdrant"
+    """QdrantConfig.path should accept a string path."""
+    config = QdrantConfig(path="/tmp/qdrant")
+    assert config.path == "/tmp/qdrant"
 
 
 def test_qdrant_url_accepted() -> None:
-    """qdrant_url should accept a URL string."""
-    config = MemoryConfig(qdrant_url="http://localhost:6333")
-    assert config.qdrant_url == "http://localhost:6333"
+    """QdrantConfig.url should accept a URL string."""
+    config = QdrantConfig(url="http://localhost:6333")
+    assert config.url == "http://localhost:6333"
 
 
 def test_qdrant_api_key_accepts_env_var_syntax() -> None:
-    """qdrant_api_key should accept ${ENV_VAR} syntax."""
-    config = MemoryConfig(qdrant_api_key="${qdrant_api_key}")
-    assert config.qdrant_api_key == "${qdrant_api_key}"
+    """QdrantConfig.api_key should accept ${ENV_VAR} syntax."""
+    config = QdrantConfig(api_key="${qdrant_api_key}")
+    assert config.api_key == "${qdrant_api_key}"
 
 
 def test_qdrant_path_and_url_mutual_exclusivity() -> None:
-    """Setting both qdrant_path and qdrant_url should raise an error."""
+    """Setting both path and url should raise an error."""
     with pytest.raises(ValidationError, match="mutually exclusive"):
-        MemoryConfig(qdrant_path="/tmp/qdrant", qdrant_url="http://localhost:6333")
+        QdrantConfig(path="/tmp/qdrant", url="http://localhost:6333")
+
+
+# ===========================================================================
+# MemoryConfig tests (remaining fields only)
+# ===========================================================================
 
 
 def test_removed_fields_no_longer_exist() -> None:
@@ -63,6 +73,16 @@ def test_removed_fields_no_longer_exist() -> None:
         "decay_enabled",
         "decay_rate",
         "decay_floor",
+        "qdrant_path",
+        "qdrant_url",
+        "qdrant_api_key",
+        "embedding_model",
+        "embedding_api_base",
+        "embedding_api_key",
+        "embedding_dim",
+        "neo4j_url",
+        "neo4j_auth",
+        "neo4j_database",
     ]
     for field_name in removed_fields:
         assert not hasattr(config, field_name), f"{field_name} should be removed"
@@ -73,13 +93,11 @@ def test_kept_fields_still_exist() -> None:
     config = MemoryConfig()
     assert hasattr(config, "enabled")
     assert hasattr(config, "backend")
-    assert hasattr(config, "embedding_model")
     assert hasattr(config, "auto_crossref")
     assert hasattr(config, "crossref_threshold")
     assert hasattr(config, "crossref_max_links")
-    assert hasattr(config, "neo4j_url")
-    assert hasattr(config, "neo4j_auth")
-    assert hasattr(config, "neo4j_database")
+    assert hasattr(config, "access_debounce_seconds")
+    assert hasattr(config, "code_link_min_score")
 
 
 def test_old_config_with_removed_fields_does_not_crash() -> None:
@@ -100,3 +118,37 @@ def test_old_config_with_removed_fields_does_not_crash() -> None:
     assert config.enabled is True
     # Removed fields should be silently ignored
     assert not hasattr(config, "search_backend")
+
+
+# ===========================================================================
+# Neo4jConfig tests (fields moved from MemoryConfig)
+# ===========================================================================
+
+
+def test_neo4j_url_defaults_to_docker_compose() -> None:
+    """Neo4jConfig.url should default to the gobby docker-compose port mapping."""
+    config = Neo4jConfig()
+    assert config.url == "http://localhost:8474"
+
+
+def test_neo4j_auth_defaults_to_docker_compose() -> None:
+    """Neo4jConfig.auth should default to the docker-compose fallback password."""
+    config = Neo4jConfig()
+    assert config.auth == "neo4j:gobbyneo4j"
+
+
+# ===========================================================================
+# EmbeddingsConfig tests (fields moved from MemoryConfig)
+# ===========================================================================
+
+
+def test_embedding_model_default() -> None:
+    """EmbeddingsConfig.model should default to local/nomic-embed-text-v1.5."""
+    config = EmbeddingsConfig()
+    assert config.model == "local/nomic-embed-text-v1.5"
+
+
+def test_embedding_dim_default() -> None:
+    """EmbeddingsConfig.dim should default to 768."""
+    config = EmbeddingsConfig()
+    assert config.dim == 768

@@ -328,13 +328,11 @@ class TestConfigModels:
         assert config.databases.qdrant.port == 6333
         assert config.embeddings.dim == 768
 
-    def test_memory_config_deprecated_fields_still_work(self) -> None:
-        """MemoryConfig deprecated fields still load for backwards compat."""
+    def test_memory_config_has_no_database_fields(self) -> None:
+        """MemoryConfig no longer contains database or embedding fields."""
         from gobby.config.persistence import MemoryConfig
 
-        config = MemoryConfig(
-            qdrant_url="http://localhost:6333",
-            embedding_model="local/nomic-embed-text-v1.5",
-        )
-        assert config.qdrant_url == "http://localhost:6333"
-        assert config.embedding_model == "local/nomic-embed-text-v1.5"
+        config = MemoryConfig()
+        assert not hasattr(config, "qdrant_url")
+        assert not hasattr(config, "neo4j_url")
+        assert not hasattr(config, "embedding_model")

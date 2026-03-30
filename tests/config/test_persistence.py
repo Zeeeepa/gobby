@@ -50,9 +50,6 @@ class TestMemoryConfigDefaults:
         config = MemoryConfig()
         assert config.enabled is True
         assert config.backend == "local"
-        assert config.embedding_model == "local/nomic-embed-text-v1.5"
-        assert config.qdrant_path is None
-        assert config.qdrant_url is None
         assert config.access_debounce_seconds == 60
         assert config.crossref_threshold == 0.3
 
@@ -74,12 +71,12 @@ class TestMemoryConfigCustom:
         config = MemoryConfig(backend="null")
         assert config.backend == "null"
 
-    def test_custom_qdrant_path(self) -> None:
-        """Test setting custom qdrant_path."""
+    def test_custom_access_debounce(self) -> None:
+        """Test setting custom access_debounce_seconds."""
         from gobby.config.persistence import MemoryConfig
 
-        config = MemoryConfig(qdrant_path="/tmp/qdrant")
-        assert config.qdrant_path == "/tmp/qdrant"
+        config = MemoryConfig(access_debounce_seconds=120)
+        assert config.access_debounce_seconds == 120
 
 
 class TestMemoryConfigValidation:
@@ -210,154 +207,154 @@ class TestMemoryBackupConfigValidation:
 # =============================================================================
 
 
-class TestMemoryConfigQdrantExclusivity:
-    """Test qdrant_path and qdrant_url mutual exclusivity."""
+class TestQdrantConfigExclusivity:
+    """Test QdrantConfig path and url mutual exclusivity."""
 
     def test_qdrant_path_only(self) -> None:
-        """Test setting qdrant_path without qdrant_url."""
-        from gobby.config.persistence import MemoryConfig
+        """Test setting path without url."""
+        from gobby.config.persistence import QdrantConfig
 
-        config = MemoryConfig(qdrant_path="/tmp/qdrant")
-        assert config.qdrant_path == "/tmp/qdrant"
-        assert config.qdrant_url is None
+        config = QdrantConfig(path="/tmp/qdrant")
+        assert config.path == "/tmp/qdrant"
+        assert config.url is None
 
     def test_qdrant_url_only(self) -> None:
-        """Test setting qdrant_url without qdrant_path."""
-        from gobby.config.persistence import MemoryConfig
+        """Test setting url without path."""
+        from gobby.config.persistence import QdrantConfig
 
-        config = MemoryConfig(qdrant_url="http://localhost:6333")
-        assert config.qdrant_url == "http://localhost:6333"
-        assert config.qdrant_path is None
+        config = QdrantConfig(url="http://localhost:6333")
+        assert config.url == "http://localhost:6333"
+        assert config.path is None
 
     def test_both_qdrant_rejected(self) -> None:
-        """Test that setting both qdrant_path and qdrant_url raises error."""
-        from gobby.config.persistence import MemoryConfig
+        """Test that setting both path and url raises error."""
+        from gobby.config.persistence import QdrantConfig
 
         with pytest.raises(ValidationError, match="mutually exclusive"):
-            MemoryConfig(qdrant_path="/tmp/qdrant", qdrant_url="http://localhost:6333")
+            QdrantConfig(path="/tmp/qdrant", url="http://localhost:6333")
 
 
-class TestMemoryConfigEmbeddingFields:
-    """Test embedding configuration fields."""
+class TestEmbeddingsConfigFields:
+    """Test EmbeddingsConfig fields (moved from MemoryConfig)."""
 
     def test_embedding_model_default(self) -> None:
-        """Test default embedding_model value."""
-        from gobby.config.persistence import MemoryConfig
+        """Test default model value."""
+        from gobby.config.persistence import EmbeddingsConfig
 
-        config = MemoryConfig()
-        assert config.embedding_model == "local/nomic-embed-text-v1.5"
+        config = EmbeddingsConfig()
+        assert config.model == "local/nomic-embed-text-v1.5"
 
     def test_embedding_model_custom(self) -> None:
         """Test setting a custom embedding model."""
-        from gobby.config.persistence import MemoryConfig
+        from gobby.config.persistence import EmbeddingsConfig
 
-        config = MemoryConfig(embedding_model="text-embedding-3-large")
-        assert config.embedding_model == "text-embedding-3-large"
+        config = EmbeddingsConfig(model="text-embedding-3-large")
+        assert config.model == "text-embedding-3-large"
 
     def test_embedding_api_base_default(self) -> None:
-        """Test default embedding_api_base is None."""
-        from gobby.config.persistence import MemoryConfig
+        """Test default api_base is None."""
+        from gobby.config.persistence import EmbeddingsConfig
 
-        config = MemoryConfig()
-        assert config.embedding_api_base is None
+        config = EmbeddingsConfig()
+        assert config.api_base is None
 
     def test_embedding_api_base_custom(self) -> None:
-        """Test setting custom embedding_api_base for local models."""
-        from gobby.config.persistence import MemoryConfig
+        """Test setting custom api_base for local models."""
+        from gobby.config.persistence import EmbeddingsConfig
 
-        config = MemoryConfig(embedding_api_base="http://localhost:11434/v1")
-        assert config.embedding_api_base == "http://localhost:11434/v1"
+        config = EmbeddingsConfig(api_base="http://localhost:11434/v1")
+        assert config.api_base == "http://localhost:11434/v1"
 
     def test_embedding_api_key_default(self) -> None:
-        """Test default embedding_api_key is None."""
-        from gobby.config.persistence import MemoryConfig
+        """Test default api_key is None."""
+        from gobby.config.persistence import EmbeddingsConfig
 
-        config = MemoryConfig()
-        assert config.embedding_api_key is None
+        config = EmbeddingsConfig()
+        assert config.api_key is None
 
     def test_embedding_api_key_custom(self) -> None:
-        """Test setting custom embedding_api_key."""
-        from gobby.config.persistence import MemoryConfig
+        """Test setting custom api_key."""
+        from gobby.config.persistence import EmbeddingsConfig
 
-        config = MemoryConfig(embedding_api_key="sk-custom-key")
-        assert config.embedding_api_key == "sk-custom-key"
+        config = EmbeddingsConfig(api_key="sk-custom-key")
+        assert config.api_key == "sk-custom-key"
 
     def test_embedding_dim_default(self) -> None:
-        """Test default embedding_dim is 768 (nomic-embed-text-v1.5)."""
-        from gobby.config.persistence import MemoryConfig
+        """Test default dim is 768 (nomic-embed-text-v1.5)."""
+        from gobby.config.persistence import EmbeddingsConfig
 
-        config = MemoryConfig()
-        assert config.embedding_dim == 768
+        config = EmbeddingsConfig()
+        assert config.dim == 768
 
     def test_embedding_dim_custom(self) -> None:
-        """Test setting custom embedding_dim for cloud models."""
-        from gobby.config.persistence import MemoryConfig
+        """Test setting custom dim for cloud models."""
+        from gobby.config.persistence import EmbeddingsConfig
 
-        config = MemoryConfig(embedding_dim=1536)
-        assert config.embedding_dim == 1536
+        config = EmbeddingsConfig(dim=1536)
+        assert config.dim == 1536
 
     def test_embedding_dim_must_be_positive(self) -> None:
-        """Test that embedding_dim must be at least 1."""
-        from gobby.config.persistence import MemoryConfig
+        """Test that dim must be at least 1."""
+        from gobby.config.persistence import EmbeddingsConfig
 
         with pytest.raises(ValidationError):
-            MemoryConfig(embedding_dim=0)
+            EmbeddingsConfig(dim=0)
 
         with pytest.raises(ValidationError):
-            MemoryConfig(embedding_dim=-1)
+            EmbeddingsConfig(dim=-1)
 
     def test_local_embedding_config_full(self) -> None:
         """Test full local embedding configuration (e.g., Ollama + nomic-embed-text)."""
-        from gobby.config.persistence import MemoryConfig
+        from gobby.config.persistence import EmbeddingsConfig
 
-        config = MemoryConfig(
-            embedding_model="openai/nomic-embed-text",
-            embedding_api_base="http://localhost:11434/v1",
-            embedding_dim=768,
+        config = EmbeddingsConfig(
+            model="openai/nomic-embed-text",
+            api_base="http://localhost:11434/v1",
+            dim=768,
         )
-        assert config.embedding_model == "openai/nomic-embed-text"
-        assert config.embedding_api_base == "http://localhost:11434/v1"
-        assert config.embedding_dim == 768
+        assert config.model == "openai/nomic-embed-text"
+        assert config.api_base == "http://localhost:11434/v1"
+        assert config.dim == 768
 
 
-class TestMemoryConfigNeo4jFields:
-    """Test neo4j_url and neo4j_auth fields on MemoryConfig."""
+class TestNeo4jConfigFields:
+    """Test Neo4jConfig fields (moved from MemoryConfig)."""
 
     def test_neo4j_url_defaults_to_docker_compose(self) -> None:
-        """neo4j_url should default to the gobby docker-compose port mapping."""
-        from gobby.config.persistence import MemoryConfig
+        """url should default to the gobby docker-compose port mapping."""
+        from gobby.config.persistence import Neo4jConfig
 
-        config = MemoryConfig()
-        assert config.neo4j_url == "http://localhost:8474"
+        config = Neo4jConfig()
+        assert config.url == "http://localhost:8474"
 
     def test_neo4j_auth_defaults_to_docker_compose(self) -> None:
-        """neo4j_auth should default to the docker-compose fallback password."""
-        from gobby.config.persistence import MemoryConfig
+        """auth should default to the docker-compose fallback password."""
+        from gobby.config.persistence import Neo4jConfig
 
-        config = MemoryConfig()
-        assert config.neo4j_auth == "neo4j:gobbyneo4j"
+        config = Neo4jConfig()
+        assert config.auth == "neo4j:gobbyneo4j"
 
     def test_neo4j_url_accepts_valid_url(self) -> None:
-        """Setting neo4j_url to a valid URL should work."""
-        from gobby.config.persistence import MemoryConfig
+        """Setting url to a valid URL should work."""
+        from gobby.config.persistence import Neo4jConfig
 
-        config = MemoryConfig(neo4j_url="http://localhost:8474")
-        assert config.neo4j_url == "http://localhost:8474"
+        config = Neo4jConfig(url="http://localhost:8474")
+        assert config.url == "http://localhost:8474"
 
     def test_neo4j_auth_stores_credentials(self) -> None:
-        """neo4j_auth stores user:password format."""
-        from gobby.config.persistence import MemoryConfig
+        """auth stores user:password format."""
+        from gobby.config.persistence import Neo4jConfig
 
-        config = MemoryConfig(neo4j_auth="neo4j:password")
-        assert config.neo4j_auth == "neo4j:password"
+        config = Neo4jConfig(auth="neo4j:password")
+        assert config.auth == "neo4j:password"
 
     def test_neo4j_url_with_auth(self) -> None:
-        """Both neo4j_url and neo4j_auth can be set together."""
-        from gobby.config.persistence import MemoryConfig
+        """Both url and auth can be set together."""
+        from gobby.config.persistence import Neo4jConfig
 
-        config = MemoryConfig(
-            neo4j_url="http://localhost:8474",
-            neo4j_auth="neo4j:gobbyneo4j",
+        config = Neo4jConfig(
+            url="http://localhost:8474",
+            auth="neo4j:gobbyneo4j",
         )
-        assert config.neo4j_url == "http://localhost:8474"
-        assert config.neo4j_auth == "neo4j:gobbyneo4j"
+        assert config.url == "http://localhost:8474"
+        assert config.auth == "neo4j:gobbyneo4j"

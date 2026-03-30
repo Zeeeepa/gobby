@@ -560,11 +560,11 @@ class DaemonConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_collection_prefix_consistency(self) -> DaemonConfig:
-        """Ensure memory and code_index collection prefixes match."""
-        if self.memory.code_symbol_collection_prefix != self.code_index.qdrant_collection_prefix:
+        """Ensure databases.qdrant and code_index collection prefixes match."""
+        if self.databases.qdrant.collection_prefix != self.code_index.qdrant_collection_prefix:
             raise ValueError(
-                f"memory.code_symbol_collection_prefix "
-                f"({self.memory.code_symbol_collection_prefix!r}) must match "
+                f"databases.qdrant.collection_prefix "
+                f"({self.databases.qdrant.collection_prefix!r}) must match "
                 f"code_index.qdrant_collection_prefix "
                 f"({self.code_index.qdrant_collection_prefix!r})"
             )

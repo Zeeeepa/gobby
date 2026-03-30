@@ -196,9 +196,9 @@ class EmbeddingsConfig(BaseModel):
 class MemoryConfig(BaseModel):
     """Memory system configuration.
 
-    Database connection settings (Qdrant, Neo4j) and embedding model settings
-    have been extracted to DatabasesConfig and EmbeddingsConfig respectively.
-    Legacy fields are preserved as deprecated aliases for backwards compatibility.
+    Database connections (Qdrant, Neo4j) live in DatabasesConfig.
+    Embedding model settings live in EmbeddingsConfig.
+    This config only contains memory-specific behavior settings.
     """
 
     model_config = {"extra": "ignore"}
@@ -236,77 +236,6 @@ class MemoryConfig(BaseModel):
         description="Minimum cosine similarity for RELATES_TO_CODE edges between memory entities and code symbols",
     )
 
-    # -----------------------------------------------------------------------
-    # Deprecated fields — kept for backwards compatibility with existing
-    # config_store keys and code that reads config.memory.*
-    # These will be removed once all consumers migrate to config.databases.*
-    # and config.embeddings.*
-    # -----------------------------------------------------------------------
-    embedding_model: str = Field(
-        default="local/nomic-embed-text-v1.5",
-        description="DEPRECATED: Use embeddings.model instead",
-    )
-    embedding_api_base: str | None = Field(
-        default=None,
-        description="DEPRECATED: Use embeddings.api_base instead",
-    )
-    embedding_api_key: str | None = Field(
-        default=None,
-        description="DEPRECATED: Use embeddings.api_key instead",
-    )
-    embedding_dim: int = Field(
-        default=768,
-        description="DEPRECATED: Use embeddings.dim instead",
-    )
-    qdrant_path: str | None = Field(
-        default=None,
-        description="DEPRECATED: Use databases.qdrant.path instead",
-    )
-    qdrant_url: str | None = Field(
-        default=None,
-        description="DEPRECATED: Use databases.qdrant.url instead",
-    )
-    qdrant_api_key: str | None = Field(
-        default=None,
-        description="DEPRECATED: Use databases.qdrant.api_key instead",
-    )
-    neo4j_url: str | None = Field(
-        default="http://localhost:8474",
-        description="DEPRECATED: Use databases.neo4j.url instead",
-    )
-    neo4j_auth: str | None = Field(
-        default="neo4j:gobbyneo4j",
-        description="DEPRECATED: Use databases.neo4j.auth instead",
-    )
-    neo4j_database: str = Field(
-        default="neo4j",
-        description="DEPRECATED: Use databases.neo4j.database instead",
-    )
-    neo4j_graph_search: bool = Field(
-        default=True,
-        description="DEPRECATED: Use databases.neo4j.graph_search instead",
-    )
-    neo4j_graph_min_score: float = Field(
-        default=0.5,
-        description="DEPRECATED: Use databases.neo4j.graph_min_score instead",
-    )
-    neo4j_rrf_k: int = Field(
-        default=60,
-        description="DEPRECATED: Use databases.neo4j.rrf_k instead",
-    )
-    code_symbol_collection_prefix: str = Field(
-        default="code_symbols_",
-        description="DEPRECATED: Use databases.qdrant.collection_prefix instead",
-    )
-
-    @field_validator("embedding_dim")
-    @classmethod
-    def validate_embedding_dim(cls, v: int) -> int:
-        """Validate embedding_dim is positive."""
-        if v < 1:
-            raise ValueError("embedding_dim must be at least 1")
-        return v
-
     @field_validator("crossref_threshold", "code_link_min_score")
     @classmethod
     def validate_probability(cls, v: float) -> float:
@@ -333,16 +262,6 @@ class MemoryConfig(BaseModel):
         if v not in valid_backends:
             raise ValueError(f"Invalid backend '{v}'. Must be one of: {sorted(valid_backends)}")
         return v
-
-    @model_validator(mode="after")
-    def validate_qdrant_exclusivity(self) -> "MemoryConfig":
-        """Validate qdrant_path and qdrant_url are mutually exclusive."""
-        if self.qdrant_path and self.qdrant_url:
-            raise ValueError(
-                "qdrant_path and qdrant_url are mutually exclusive. "
-                "Use qdrant_path for embedded mode or qdrant_url for remote mode."
-            )
-        return self
 
 
 class MemoryBackupConfig(BaseModel):

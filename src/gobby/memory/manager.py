@@ -53,6 +53,12 @@ class MemoryManager:
         llm_service: LLMService | None = None,
         vector_store: VectorStore | None = None,
         embed_fn: Callable[..., Any] | None = None,
+        *,
+        neo4j_url: str | None = None,
+        neo4j_auth: str | None = None,
+        neo4j_database: str = "neo4j",
+        embedding_dim: int = 768,
+        collection_prefix: str = "code_symbols_",
     ):
         self.db = db
         self.config = config
@@ -77,11 +83,11 @@ class MemoryManager:
         self._background_tasks: set[asyncio.Task[Any]] = set()
 
         # Neo4j knowledge graph: initialize client when neo4j_url is configured
-        if config.neo4j_url:
+        if neo4j_url:
             self._neo4j_client: Neo4jClient | None = Neo4jClient(
-                url=config.neo4j_url,
-                auth=config.neo4j_auth,
-                database=config.neo4j_database,
+                url=neo4j_url,
+                auth=neo4j_auth,
+                database=neo4j_database,
             )
         else:
             self._neo4j_client = None
@@ -116,8 +122,8 @@ class MemoryManager:
                     prompt_loader=prompt_loader,
                     vector_store=vector_store,
                     code_link_min_score=config.code_link_min_score,
-                    code_symbol_collection_prefix=config.code_symbol_collection_prefix,
-                    embedding_dim=config.embedding_dim,
+                    code_symbol_collection_prefix=collection_prefix,
+                    embedding_dim=embedding_dim,
                 )
                 logger.debug("KnowledgeGraphService initialized")
             except Exception as e:

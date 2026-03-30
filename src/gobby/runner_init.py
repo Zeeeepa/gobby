@@ -320,6 +320,11 @@ def init_services(runner: GobbyRunner) -> None:
                 llm_service=runner.llm_service,
                 vector_store=runner.vector_store,
                 embed_fn=embed_fn,
+                neo4j_url=db_cfg.neo4j.url,
+                neo4j_auth=db_cfg.neo4j.auth,
+                neo4j_database=db_cfg.neo4j.database,
+                embedding_dim=emb_cfg.dim,
+                collection_prefix=db_cfg.qdrant.collection_prefix,
             )
         except Exception as e:
             logger.error(f"Failed to initialize MemoryManager: {e}")

@@ -44,7 +44,7 @@ class TestNeo4jStart:
         compose.write_text("version: '3'")
 
         cfg = MagicMock()
-        cfg.memory.neo4j_auth = "neo4j:password123"
+        cfg.databases.neo4j.auth = "neo4j:password123"
         mock_config.return_value = cfg
         mock_run.return_value = MagicMock(returncode=0)
 
@@ -61,7 +61,7 @@ class TestNeo4jStart:
         compose.write_text("version: '3'")
 
         cfg = MagicMock()
-        cfg.memory.neo4j_auth = None
+        cfg.databases.neo4j.auth = None
         mock_config.return_value = cfg
         mock_run.return_value = MagicMock(returncode=1, stderr="err", stdout="")
 
