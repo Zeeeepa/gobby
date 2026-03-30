@@ -108,7 +108,7 @@ class TestAgentDefinitionBodyModel:
         assert body.enabled is False
 
     def test_field_count(self) -> None:
-        """AgentDefinitionBody has exactly 19 fields (extends and rule_definitions removed, steps/step_variables/exit_condition added)."""
+        """AgentDefinitionBody has exactly 24 fields."""
         from gobby.workflows.definitions import AgentDefinitionBody
 
         fields = AgentDefinitionBody.model_fields
