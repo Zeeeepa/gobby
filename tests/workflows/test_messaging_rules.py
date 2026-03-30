@@ -99,7 +99,7 @@ class TestDeliverPendingMessages:
 
         engine = RuleEngine(db)
         event = _make_event(HookEventType.BEFORE_AGENT)
-        variables: dict[str, Any] = {"is_spawned_agent": True}
+        variables: dict[str, Any] = {"is_spawned_agent": True, "servers_listed": True}
         response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
         assert response.decision == "allow"
@@ -114,7 +114,7 @@ class TestDeliverPendingMessages:
 
         engine = RuleEngine(db)
         event = _make_event(HookEventType.BEFORE_AGENT)
-        variables: dict[str, Any] = {"is_spawned_agent": True}
+        variables: dict[str, Any] = {"is_spawned_agent": True, "servers_listed": True}
         response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
         call = response.metadata["mcp_calls"][0]
@@ -129,7 +129,9 @@ class TestDeliverPendingMessages:
 
         engine = RuleEngine(db)
         event = _make_event(HookEventType.BEFORE_AGENT)
-        response = await engine.evaluate(event, session_id="sess-1", variables={})
+        response = await engine.evaluate(
+            event, session_id="sess-1", variables={"servers_listed": True}
+        )
 
         assert response.decision == "allow"
         mcp_calls = response.metadata.get("mcp_calls", [])
@@ -165,7 +167,11 @@ class TestActivatePendingCommand:
 
         engine = RuleEngine(db)
         event = _make_event(HookEventType.BEFORE_AGENT)
-        variables: dict[str, Any] = {"is_spawned_agent": True, "has_pending_command": True}
+        variables: dict[str, Any] = {
+            "is_spawned_agent": True,
+            "has_pending_command": True,
+            "servers_listed": True,
+        }
         response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
         assert response.decision == "allow"
@@ -181,7 +187,7 @@ class TestActivatePendingCommand:
 
         engine = RuleEngine(db)
         event = _make_event(HookEventType.BEFORE_AGENT)
-        variables: dict[str, Any] = {"is_spawned_agent": True}
+        variables: dict[str, Any] = {"is_spawned_agent": True, "servers_listed": True}
         response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
         assert response.decision == "allow"
@@ -196,7 +202,7 @@ class TestActivatePendingCommand:
 
         engine = RuleEngine(db)
         event = _make_event(HookEventType.BEFORE_AGENT)
-        variables: dict[str, Any] = {"has_pending_command": True}
+        variables: dict[str, Any] = {"has_pending_command": True, "servers_listed": True}
         response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
         assert response.decision == "allow"
@@ -272,7 +278,7 @@ class TestCommandToolRestriction:
 
         engine = RuleEngine(db)
         event = _make_event(HookEventType.BEFORE_TOOL, data={"tool_name": "Write"})
-        variables: dict[str, Any] = {"is_spawned_agent": True}
+        variables: dict[str, Any] = {"is_spawned_agent": True, "servers_listed": True}
         response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
         assert response.decision == "allow"
@@ -395,7 +401,7 @@ class TestCommandMcpToolRestriction:
             HookEventType.BEFORE_TOOL,
             data={"mcp_server": "gobby-tasks", "mcp_tool": "delete_task"},
         )
-        variables: dict[str, Any] = {"is_spawned_agent": True}
+        variables: dict[str, Any] = {"is_spawned_agent": True, "servers_listed": True}
         response = await engine.evaluate(event, session_id="sess-1", variables=variables)
 
         assert response.decision == "allow"

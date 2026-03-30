@@ -187,6 +187,88 @@ def test_underscore_prefixed_params_excluded_from_schema() -> None:
     assert "_context" not in schema["inputSchema"].get("required", [])
 
 
+# --- Brief generation tests ---
+
+
+def test_list_tools_auto_brief_with_required_params() -> None:
+    """list_tools should auto-generate brief with required params from schema."""
+    registry = InternalToolRegistry(name="test-registry")
+    registry.register(
+        name="create_item",
+        description="Create a new item in the store.",
+        input_schema={
+            "type": "object",
+            "properties": {"title": {"type": "string"}, "desc": {"type": "string"}},
+            "required": ["title"],
+        },
+        func=lambda title, desc=None: {},
+    )
+    tools = registry.list_tools()
+    assert len(tools) == 1
+    assert "Requires: title" in tools[0]["brief"]
+    assert tools[0]["brief"].startswith("Create a new item in the store.")
+
+
+def test_list_tools_custom_brief_override() -> None:
+    """Custom brief should override auto-generated brief."""
+    registry = InternalToolRegistry(name="test-registry")
+    registry.register(
+        name="my_tool",
+        description="A very long description that would normally be truncated.",
+        input_schema={
+            "type": "object",
+            "properties": {"x": {"type": "string"}},
+            "required": ["x"],
+        },
+        func=lambda x: {},
+        brief="Custom brief here",
+    )
+    tools = registry.list_tools()
+    assert tools[0]["brief"] == "Custom brief here"
+
+
+def test_list_tools_brief_no_required_params() -> None:
+    """Without required params, brief should be just the first sentence."""
+    registry = InternalToolRegistry(name="test-registry")
+    registry.register(
+        name="list_items",
+        description="List all items. Supports pagination.",
+        input_schema={"type": "object", "properties": {"limit": {"type": "integer"}}},
+        func=lambda limit=10: {},
+    )
+    tools = registry.list_tools()
+    assert tools[0]["brief"] == "List all items."
+
+
+def test_list_tools_brief_truncation() -> None:
+    """Brief should not exceed 100 characters."""
+    registry = InternalToolRegistry(name="test-registry")
+    registry.register(
+        name="complex_tool",
+        description="Do something complex.",
+        input_schema={
+            "type": "object",
+            "properties": {f"param_{i}": {"type": "string"} for i in range(20)},
+            "required": [f"param_{i}" for i in range(20)],
+        },
+        func=lambda **kw: {},
+    )
+    tools = registry.list_tools()
+    assert len(tools[0]["brief"]) <= 100
+
+
+def test_decorator_brief_param() -> None:
+    """The @tool decorator should accept and forward a brief parameter."""
+    registry = InternalToolRegistry(name="test-registry")
+
+    @registry.tool(name="my_tool", description="Some description", brief="My custom brief")
+    def my_tool(x: str) -> str:
+        return x
+
+    tools = registry.list_tools()
+    assert tools[0]["brief"] == "My custom brief"
+
+
 @pytest.mark.asyncio
 async def test_context_injected_as_simplenamespace() -> None:
     """When context dict is passed to call(), tools declaring _context receive a SimpleNamespace."""

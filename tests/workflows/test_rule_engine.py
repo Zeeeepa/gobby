@@ -633,7 +633,7 @@ class TestMcpCallEffect:
         )
 
         event = _make_event(HookEventType.BEFORE_AGENT)
-        response = await _assert_evaluation(db, event, "allow")
+        response = await _assert_evaluation(db, event, "allow", variables={"servers_listed": True})
         # mcp_calls should be recorded in metadata
         assert len(response.metadata.get("mcp_calls", [])) == 1
         call = response.metadata["mcp_calls"][0]

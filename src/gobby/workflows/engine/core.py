@@ -123,6 +123,10 @@ class RuleEngine(EffectsMixin, TemplatingMixin, EnforcementMixin):
                 if config_store.get("rules.enforcement_enabled") is False:
                     return HookResponse(decision="allow")
 
+                # Collect mcp_call effects from hardcoded rules and DB rules.
+                # Initialized early so hardcoded BEFORE_AGENT rules can append.
+                mcp_calls: list[dict[str, Any]] = []
+
                 # Auto-track consecutive tool blocks (universal safety — not configurable)
                 # Only escalate when the SAME tool is retried — different tools reset the counter
                 # so the agent can recover by using other tools (Read, Bash, etc.).
@@ -161,6 +165,20 @@ class RuleEngine(EffectsMixin, TemplatingMixin, EnforcementMixin):
                     variables["_last_blocked_tool"] = ""
                     variables["tool_block_pending"] = False
                     variables["stop_attempts"] = 0
+
+                    # [auto-discover-servers] — hardcoded, always-on
+                    # Seed progressive discovery on first prompt so agents
+                    # don't need to call list_mcp_servers() manually.
+                    if not variables.get("servers_listed"):
+                        mcp_calls.append(
+                            {
+                                "server": "_proxy",
+                                "tool": "list_mcp_servers",
+                                "arguments": {"name_filter": "gobby-*"},
+                                "inject_result": True,
+                            }
+                        )
+                        variables["servers_listed"] = True
 
                 # Auto-increment stop attempts (universal — not configurable)
                 if rule_event == RuleEvent.STOP:
@@ -293,16 +311,18 @@ class RuleEngine(EffectsMixin, TemplatingMixin, EnforcementMixin):
                     # Honour hardcoded override decisions (e.g. tool_block_pending stop gate)
                     # even when no declarative rules are installed for this event.
                     _no_rules_ctx = _step_transition_msg or None
+                    meta = {"mcp_calls": mcp_calls} if mcp_calls else {}
                     if override_decision == "block":
                         resp = HookResponse(
                             decision="block",
                             reason=override_reason or "",
                             context=_no_rules_ctx,
+                            metadata=meta,
                         )
                     elif override_decision == "allow":
-                        resp = HookResponse(decision="allow", context=_no_rules_ctx)
+                        resp = HookResponse(decision="allow", context=_no_rules_ctx, metadata=meta)
                     else:
-                        resp = HookResponse(decision="allow", context=_no_rules_ctx)
+                        resp = HookResponse(decision="allow", context=_no_rules_ctx, metadata=meta)
 
                     if span.is_recording():
                         span.set_attribute("final_decision", resp.decision)
@@ -342,7 +362,6 @@ class RuleEngine(EffectsMixin, TemplatingMixin, EnforcementMixin):
                 context_parts: list[str] = []
                 if _step_transition_msg:
                     context_parts.append(_step_transition_msg)
-                mcp_calls: list[dict[str, Any]] = []
                 block_reason: str | None = None
 
                 for _row, body in rules:

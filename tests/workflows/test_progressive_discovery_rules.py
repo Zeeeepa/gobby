@@ -1,8 +1,10 @@
 """Tests for progressive-discovery rules.
 
-Verifies auto-heal rules enforce progressive discovery
-(list_mcp_servers -> list_tools -> get_tool_schema -> call_tool), tracker rules
-record state, and reset rules clear state on context loss.
+Verifies:
+- Hardcoded auto-discover seeds servers_listed on BEFORE_AGENT
+- Block rules enforce list_tools -> get_tool_schema -> call_tool
+- Tracker rules record state on after_tool events
+- Reset rule clears state on context loss
 
 Includes integration tests that exercise the full RuleEngine.evaluate() flow
 to verify conditions like is_server_listed actually resolve correctly.
@@ -48,8 +50,7 @@ def _sync_bundled(db):
     return result
 
 
-PROGRESSIVE_DISCLOSURE_RULES = {
-    "require-servers-listed",
+PROGRESSIVE_DISCOVERY_RULES = {
     "require-server-listed-for-schema",
     "require-schema-before-call",
     "track-schema-lookup",
@@ -59,7 +60,7 @@ PROGRESSIVE_DISCLOSURE_RULES = {
 }
 
 
-class TestProgressiveDisclosureSync:
+class TestProgressiveDiscoverySync:
     """Test that progressive-discovery rules sync correctly."""
 
     def test_bundled_file_syncs_all_rules(self, db, manager) -> None:
@@ -69,9 +70,16 @@ class TestProgressiveDisclosureSync:
         rules = manager.list_all(workflow_type="rule")
         rule_names = {r.name for r in rules}
 
-        assert PROGRESSIVE_DISCLOSURE_RULES.issubset(rule_names), (
-            f"Missing: {PROGRESSIVE_DISCLOSURE_RULES - rule_names}"
+        assert PROGRESSIVE_DISCOVERY_RULES.issubset(rule_names), (
+            f"Missing: {PROGRESSIVE_DISCOVERY_RULES - rule_names}"
         )
+
+    def test_require_servers_listed_removed(self, db, manager) -> None:
+        """require-servers-listed was removed (replaced by hardcoded auto-discover)."""
+        _sync_bundled(db)
+
+        row = manager.get_by_name("require-servers-listed")
+        assert row is None
 
     def test_all_rules_have_progressive_discovery_tag(self, db, manager) -> None:
         """All rules should be tagged with 'progressive-discovery'."""
@@ -79,7 +87,7 @@ class TestProgressiveDisclosureSync:
 
         rules = manager.list_all(workflow_type="rule")
         for row in rules:
-            if row.name in PROGRESSIVE_DISCLOSURE_RULES:
+            if row.name in PROGRESSIVE_DISCOVERY_RULES:
                 assert row.tags and "progressive-discovery" in row.tags, (
                     f"{row.name} missing 'progressive-discovery' tag"
                 )
@@ -91,50 +99,17 @@ class TestProgressiveDisclosureSync:
         valid_types = {"block", "set_variable", "inject_context", "mcp_call"}
         rules = manager.list_all(workflow_type="rule")
         for row in rules:
-            if row.name in PROGRESSIVE_DISCLOSURE_RULES:
+            if row.name in PROGRESSIVE_DISCOVERY_RULES:
                 body = RuleDefinitionBody.model_validate_json(row.definition_json)
                 for effect in body.resolved_effects:
                     assert effect.type in valid_types
 
 
-class TestRequireServersListed:
-    """Verify require-servers-listed auto-heals list_tools without list_mcp_servers."""
-
-    def test_has_mcp_call_effect(self, db, manager) -> None:
-        """Should have mcp_call effect to auto-call list_mcp_servers."""
-        _sync_bundled(db)
-
-        row = manager.get_by_name("require-servers-listed")
-        assert row is not None
-
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "before_tool"
-        effects = body.resolved_effects
-        mcp_effects = [e for e in effects if e.type == "mcp_call"]
-        assert len(mcp_effects) == 1
-        assert mcp_effects[0].server == "_proxy"
-        assert mcp_effects[0].tool == "list_mcp_servers"
-        assert mcp_effects[0].inject_result is True
-        assert mcp_effects[0].block_on_failure is True
-
-    def test_when_checks_servers_listed(self, db, manager) -> None:
-        """Should check enforce_tool_schema_check, servers_listed, and tool name."""
-        _sync_bundled(db)
-
-        row = manager.get_by_name("require-servers-listed")
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-
-        assert body.when is not None
-        assert "servers_listed" in body.when
-        assert "enforce_tool_schema_check" in body.when
-        assert "list_tools" in body.when
-
-
 class TestRequireServerListedForSchema:
-    """Verify require-server-listed-for-schema auto-heals get_tool_schema."""
+    """Verify require-server-listed-for-schema blocks get_tool_schema."""
 
-    def test_has_auto_heal_effects(self, db, manager) -> None:
-        """Should have mcp_call effects for list_mcp_servers and list_tools."""
+    def test_has_block_effect(self, db, manager) -> None:
+        """Should have a block effect (not mcp_call auto-heal)."""
         _sync_bundled(db)
 
         row = manager.get_by_name("require-server-listed-for-schema")
@@ -143,11 +118,9 @@ class TestRequireServerListedForSchema:
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_tool"
         effects = body.resolved_effects
-        mcp_effects = [e for e in effects if e.type == "mcp_call"]
-        assert len(mcp_effects) == 2
-        assert mcp_effects[0].tool == "list_mcp_servers"
-        assert mcp_effects[1].tool == "list_tools"
-        assert mcp_effects[1].block_on_failure is True
+        block_effects = [e for e in effects if e.type == "block"]
+        assert len(block_effects) == 1
+        assert "list_tools" in block_effects[0].reason
 
     def test_when_checks_is_server_listed(self, db, manager) -> None:
         """Should use is_server_listed helper and check tool name."""
@@ -162,10 +135,10 @@ class TestRequireServerListedForSchema:
 
 
 class TestRequireSchemaBeforeCall:
-    """Verify require-schema-before-call auto-heals call_tool without schema."""
+    """Verify require-schema-before-call blocks call_tool without schema."""
 
-    def test_has_full_chain_effects(self, db, manager) -> None:
-        """Should have mcp_call effects for full discovery chain."""
+    def test_has_block_effect(self, db, manager) -> None:
+        """Should have a block effect (not mcp_call auto-heal)."""
         _sync_bundled(db)
 
         row = manager.get_by_name("require-schema-before-call")
@@ -174,14 +147,9 @@ class TestRequireSchemaBeforeCall:
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_tool"
         effects = body.resolved_effects
-        mcp_effects = [e for e in effects if e.type == "mcp_call"]
-        assert len(mcp_effects) == 3
-        assert mcp_effects[0].tool == "list_mcp_servers"
-        assert mcp_effects[1].tool == "list_tools"
-        assert mcp_effects[2].tool == "get_tool_schema"
-        # list_tools blocks on failure; get_tool_schema injects error as context
-        assert mcp_effects[1].block_on_failure is True
-        assert mcp_effects[2].block_on_failure is False
+        block_effects = [e for e in effects if e.type == "block"]
+        assert len(block_effects) == 1
+        assert "get_tool_schema" in block_effects[0].reason
 
     def test_when_checks_tool_unlocked(self, db, manager) -> None:
         """Should check is_tool_unlocked, is_discovery_tool, and call_tool."""
@@ -343,36 +311,33 @@ class TestRuleDefinitionBodyToolsField:
         )
         assert body.tools is None
 
-    def test_auto_heal_rules_have_mcp_call_effects(self, db, manager) -> None:
-        """Auto-heal rules should have mcp_call effects targeting _proxy."""
+    def test_enforcement_rules_use_block_effects(self, db, manager) -> None:
+        """Enforcement rules should use block effects, not mcp_call auto-heal."""
         _sync_bundled(db)
 
-        for rule_name, expected_tool in [
-            ("require-servers-listed", "list_mcp_servers"),
-            ("require-server-listed-for-schema", "list_tools"),
-            ("require-schema-before-call", "get_tool_schema"),
-        ]:
+        for rule_name in ["require-server-listed-for-schema", "require-schema-before-call"]:
             row = manager.get_by_name(rule_name)
             assert row is not None, f"{rule_name} not found"
             body = RuleDefinitionBody.model_validate_json(row.definition_json)
+            block_effects = [e for e in body.resolved_effects if e.type == "block"]
+            assert len(block_effects) == 1, f"{rule_name} should have exactly 1 block effect"
             mcp_effects = [e for e in body.resolved_effects if e.type == "mcp_call"]
-            tools = [e.tool for e in mcp_effects]
-            assert expected_tool in tools, f"{rule_name} missing mcp_call for {expected_tool}"
+            assert len(mcp_effects) == 0, f"{rule_name} should not have mcp_call effects"
 
 
 class TestPriorityOrdering:
     """Verify priority ordering within progressive-discovery group."""
 
-    def test_blocks_ordered_before_trackers(self, db, manager) -> None:
-        """Auto-heal rules should have lower or equal priority numbers to tracker rules."""
+    def test_enforcement_rules_ordered_correctly(self, db, manager) -> None:
+        """require-server-listed-for-schema should fire before require-schema-before-call."""
         _sync_bundled(db)
 
-        block_rule = manager.get_by_name("require-servers-listed")
-        tracker_rule = manager.get_by_name("track-schema-lookup")
+        schema_rule = manager.get_by_name("require-server-listed-for-schema")
+        call_rule = manager.get_by_name("require-schema-before-call")
 
-        assert block_rule is not None
-        assert tracker_rule is not None
-        assert block_rule.priority <= tracker_rule.priority
+        assert schema_rule is not None
+        assert call_rule is not None
+        assert schema_rule.priority <= call_rule.priority
 
 
 def _make_hook_event(
@@ -397,18 +362,17 @@ def _make_hook_event(
 class TestRuleEngineIntegration:
     """End-to-end tests: RuleEngine.evaluate() with progressive discovery rules.
 
-    These test the actual condition evaluation path including is_server_listed,
-    is_tool_unlocked, and is_discovery_tool. The auto-heal rules fire mcp_call
-    effects (returned in metadata) instead of blocking.
+    Tests the actual condition evaluation path including is_server_listed,
+    is_tool_unlocked, and is_discovery_tool. The enforcement rules now block
+    instead of auto-healing.
     """
 
     @pytest.fixture
     def engine(self, db) -> RuleEngine:
         _sync_bundled(db)
         # Disable all rules first, then enable only the progressive discovery rules
-        # (avoids interference from other rules that may have been synced as enabled)
         db.execute("UPDATE workflow_definitions SET enabled = 0")
-        for name in PROGRESSIVE_DISCLOSURE_RULES:
+        for name in PROGRESSIVE_DISCOVERY_RULES:
             db.execute(
                 "UPDATE workflow_definitions SET enabled = 1 WHERE name = ?",
                 (name,),
@@ -416,8 +380,32 @@ class TestRuleEngineIntegration:
         return RuleEngine(db)
 
     @pytest.mark.asyncio
-    async def test_get_tool_schema_auto_heals_when_server_not_listed(self, engine) -> None:
-        """get_tool_schema should trigger auto-heal mcp_calls when server not listed."""
+    async def test_hardcoded_auto_discover_on_before_agent(self, engine) -> None:
+        """BEFORE_AGENT should emit auto-discover mcp_call when servers_listed is false."""
+        variables: dict = {}
+        event = _make_hook_event(HookEventType.BEFORE_AGENT)
+        result = await engine.evaluate(event, "test-session", variables)
+        assert result.decision == "allow"
+        mcp_calls = (result.metadata or {}).get("mcp_calls", [])
+        assert len(mcp_calls) == 1
+        assert mcp_calls[0]["tool"] == "list_mcp_servers"
+        assert mcp_calls[0]["arguments"]["name_filter"] == "gobby-*"
+        assert mcp_calls[0]["inject_result"] is True
+        assert variables["servers_listed"] is True
+
+    @pytest.mark.asyncio
+    async def test_auto_discover_skips_when_already_listed(self, engine) -> None:
+        """BEFORE_AGENT should not emit auto-discover when servers_listed is true."""
+        variables: dict = {"servers_listed": True}
+        event = _make_hook_event(HookEventType.BEFORE_AGENT)
+        result = await engine.evaluate(event, "test-session", variables)
+        assert result.decision == "allow"
+        mcp_calls = (result.metadata or {}).get("mcp_calls", [])
+        assert len(mcp_calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_get_tool_schema_blocked_when_server_not_listed(self, engine) -> None:
+        """get_tool_schema should be blocked when list_tools not called for server."""
         variables = {"enforce_tool_schema_check": True, "listed_servers": []}
         event = _make_hook_event(
             HookEventType.BEFORE_TOOL,
@@ -425,13 +413,8 @@ class TestRuleEngineIntegration:
             tool_input={"server_name": "gobby-tasks", "tool_name": "create_task"},
         )
         result = await engine.evaluate(event, "test-session", variables)
-        # Auto-heal: allows with mcp_calls in metadata
-        assert result.decision == "allow"
-        mcp_calls = (result.metadata or {}).get("mcp_calls", [])
-        assert len(mcp_calls) > 0
-        mcp_tools = [c["tool"] for c in mcp_calls]
-        assert "list_mcp_servers" in mcp_tools
-        assert "list_tools" in mcp_tools
+        assert result.decision == "block"
+        assert "list_tools" in result.reason
 
     @pytest.mark.asyncio
     async def test_get_tool_schema_allowed_after_list_tools(self, engine) -> None:
@@ -447,13 +430,10 @@ class TestRuleEngineIntegration:
         )
         result = await engine.evaluate(event, "test-session", variables)
         assert result.decision == "allow"
-        # No auto-heal needed — no mcp_calls
-        mcp_calls = (result.metadata or {}).get("mcp_calls", [])
-        assert len(mcp_calls) == 0
 
     @pytest.mark.asyncio
-    async def test_call_tool_auto_heals_when_schema_missing(self, engine) -> None:
-        """call_tool should trigger auto-heal with full chain when schema not looked up."""
+    async def test_call_tool_blocked_when_schema_missing(self, engine) -> None:
+        """call_tool should be blocked when get_tool_schema not called for tool."""
         variables = {
             "enforce_tool_schema_check": True,
             "unlocked_tools": [],
@@ -468,11 +448,8 @@ class TestRuleEngineIntegration:
             },
         )
         result = await engine.evaluate(event, "test-session", variables)
-        assert result.decision == "allow"
-        mcp_calls = (result.metadata or {}).get("mcp_calls", [])
-        mcp_tools = [c["tool"] for c in mcp_calls]
-        assert "list_mcp_servers" in mcp_tools
-        assert "get_tool_schema" in mcp_tools
+        assert result.decision == "block"
+        assert "get_tool_schema" in result.reason
 
     @pytest.mark.asyncio
     async def test_call_tool_allowed_after_schema_lookup(self, engine) -> None:
@@ -513,99 +490,22 @@ class TestRuleEngineIntegration:
         assert result.decision == "allow"
 
     @pytest.mark.asyncio
-    async def test_auto_heal_renders_jinja_in_arguments(self, engine) -> None:
-        """Auto-heal mcp_call arguments should render Jinja templates from tool_input."""
-        variables = {"enforce_tool_schema_check": True, "listed_servers": []}
-        event = _make_hook_event(
-            HookEventType.BEFORE_TOOL,
-            tool_name="mcp__gobby__get_tool_schema",
-            tool_input={"server_name": "gobby-tasks", "tool_name": "create_task"},
-        )
-        result = await engine.evaluate(event, "test-session", variables)
-        mcp_calls = (result.metadata or {}).get("mcp_calls", [])
-        list_tools_calls = [c for c in mcp_calls if c["tool"] == "list_tools"]
-        assert len(list_tools_calls) == 1
-        assert list_tools_calls[0]["arguments"]["server_name"] == "gobby-tasks"
-
-    @pytest.mark.asyncio
-    async def test_full_auto_heal_flow(self, engine) -> None:
-        """Full flow: auto-heal fires mcp_calls, tracking rules still work."""
-        variables: dict = {
-            "enforce_tool_schema_check": True,
-            "listed_servers": [],
-            "unlocked_tools": [],
-        }
-
-        # Step 1: get_tool_schema triggers auto-heal (server not listed)
-        event = _make_hook_event(
-            HookEventType.BEFORE_TOOL,
-            tool_name="mcp__gobby__get_tool_schema",
-            tool_input={"server_name": "gobby-tasks", "tool_name": "create_task"},
-        )
-        result = await engine.evaluate(event, "test-session", variables)
-        assert result.decision == "allow"
-        mcp_calls = (result.metadata or {}).get("mcp_calls", [])
-        assert len(mcp_calls) > 0
-        # Auto-heal set_variable effects also fire, updating tracking
-        assert variables.get("servers_listed") is True
-        assert "gobby-tasks" in variables.get("listed_servers", [])
-
-        # Step 2: After tracking is set, get_tool_schema doesn't trigger auto-heal
-        result = await engine.evaluate(event, "test-session", variables)
-        assert result.decision == "allow"
-        mcp_calls = (result.metadata or {}).get("mcp_calls", [])
-        assert len(mcp_calls) == 0
-
-        # Step 3: call_tool triggers auto-heal (schema not looked up)
-        call_event = _make_hook_event(
-            HookEventType.BEFORE_TOOL,
-            tool_name="mcp__gobby__call_tool",
-            tool_input={
-                "server_name": "gobby-tasks",
-                "tool_name": "create_task",
-                "arguments": {"title": "test"},
-            },
-        )
-        result = await engine.evaluate(call_event, "test-session", variables)
-        assert result.decision == "allow"
-        mcp_calls = (result.metadata or {}).get("mcp_calls", [])
-        # Should include get_tool_schema but not list_tools (already listed)
-        mcp_tools = [c["tool"] for c in mcp_calls]
-        assert "get_tool_schema" in mcp_tools
-        # set_variable effect updates tracking
-        assert "gobby-tasks:create_task" in variables.get("unlocked_tools", [])
-
-        # Step 4: call_tool now passes without auto-heal
-        result = await engine.evaluate(call_event, "test-session", variables)
-        assert result.decision == "allow"
-        mcp_calls = (result.metadata or {}).get("mcp_calls", [])
-        assert len(mcp_calls) == 0
-
-    @pytest.mark.asyncio
     async def test_tracking_rules_set_variables_via_after_tool(self, engine) -> None:
-        """Tracking rules should set variables when after_tool events fire.
-
-        Regression test: previously, the tracking rules had truncated `when`
-        conditions that only checked `event.data.mcp_tool` (set by CLI adapters)
-        but not `event.data.tool_name` (set by the web chat SDK bridge). This
-        meant tracking never fired for web chat sessions.
-        """
+        """Tracking rules should set variables when after_tool events fire."""
         variables: dict = {
             "enforce_tool_schema_check": True,
         }
 
-        # Step 1: Fire after_tool for list_mcp_servers (native tool name)
+        # Step 1: Fire after_tool for list_mcp_servers
         after_list_servers = _make_hook_event(
             HookEventType.AFTER_TOOL,
             tool_name="mcp__gobby__list_mcp_servers",
         )
         result = await engine.evaluate(after_list_servers, "test-session", variables)
         assert result.decision == "allow"
-        assert variables.get("servers_listed") is True, (
-            "track-servers-listed should set servers_listed=True"
-        )
+        assert variables.get("servers_listed") is True
 
-        # Step 2: Fire after_tool for list_tools (native tool name)
+        # Step 2: Fire after_tool for list_tools
         after_list_tools = _make_hook_event(
             HookEventType.AFTER_TOOL,
             tool_name="mcp__gobby__list_tools",
@@ -613,11 +513,9 @@ class TestRuleEngineIntegration:
         )
         result = await engine.evaluate(after_list_tools, "test-session", variables)
         assert result.decision == "allow"
-        assert "gobby-tasks" in variables.get("listed_servers", []), (
-            "track-listed-servers should append server to listed_servers"
-        )
+        assert "gobby-tasks" in variables.get("listed_servers", [])
 
-        # Step 3: Fire after_tool for get_tool_schema (native tool name)
+        # Step 3: Fire after_tool for get_tool_schema
         after_schema = _make_hook_event(
             HookEventType.AFTER_TOOL,
             tool_name="mcp__gobby__get_tool_schema",
@@ -625,48 +523,44 @@ class TestRuleEngineIntegration:
         )
         result = await engine.evaluate(after_schema, "test-session", variables)
         assert result.decision == "allow"
-        assert "gobby-tasks:create_task" in variables.get("unlocked_tools", []), (
-            "track-schema-lookup should append server:tool to unlocked_tools"
-        )
+        assert "gobby-tasks:create_task" in variables.get("unlocked_tools", [])
 
     @pytest.mark.asyncio
-    async def test_full_round_trip_via_rule_engine(self, engine) -> None:
-        """Full round-trip: auto-heal fires on before_tool, tracking still works via after_tool.
+    async def test_full_discovery_flow_with_blocking(self, engine) -> None:
+        """Full flow: block → track → allow progression.
 
-        This is the end-to-end test that proves the YAML rules work. Auto-heal
-        rules fire mcp_call effects instead of blocking, and tracking rules
-        still update variables on after_tool events.
+        1. get_tool_schema blocked (server not listed)
+        2. After list_tools tracking, get_tool_schema allowed
+        3. call_tool blocked (schema not looked up)
+        4. After get_tool_schema tracking, call_tool allowed
         """
         variables: dict = {
             "enforce_tool_schema_check": True,
         }
 
-        # get_tool_schema triggers auto-heal (not yet tracked)
+        # Step 1: get_tool_schema blocked (server not listed)
         schema_event = _make_hook_event(
             HookEventType.BEFORE_TOOL,
             tool_name="mcp__gobby__get_tool_schema",
             tool_input={"server_name": "gobby-tasks", "tool_name": "create_task"},
         )
         result = await engine.evaluate(schema_event, "test-session", variables)
-        assert result.decision == "allow"
-        mcp_calls = (result.metadata or {}).get("mcp_calls", [])
-        assert len(mcp_calls) > 0  # Auto-heal fired
+        assert result.decision == "block"
 
-        # Simulate list_tools completing (after_tool fires tracking rule)
+        # Step 2: Simulate list_tools completing (tracking rule fires)
         after_list_tools = _make_hook_event(
             HookEventType.AFTER_TOOL,
             tool_name="mcp__gobby__list_tools",
             tool_input={"server_name": "gobby-tasks"},
         )
         await engine.evaluate(after_list_tools, "test-session", variables)
+        assert "gobby-tasks" in variables.get("listed_servers", [])
 
-        # Now get_tool_schema passes without auto-heal (server listed)
+        # Step 3: get_tool_schema now allowed (server listed)
         result = await engine.evaluate(schema_event, "test-session", variables)
         assert result.decision == "allow"
-        mcp_calls = (result.metadata or {}).get("mcp_calls", [])
-        assert len(mcp_calls) == 0
 
-        # call_tool triggers auto-heal (schema not looked up yet)
+        # Step 4: call_tool blocked (schema not looked up)
         call_event = _make_hook_event(
             HookEventType.BEFORE_TOOL,
             tool_name="mcp__gobby__call_tool",
@@ -677,55 +571,17 @@ class TestRuleEngineIntegration:
             },
         )
         result = await engine.evaluate(call_event, "test-session", variables)
-        assert result.decision == "allow"
-        mcp_calls = (result.metadata or {}).get("mcp_calls", [])
-        assert any(c["tool"] == "get_tool_schema" for c in mcp_calls)
+        assert result.decision == "block"
 
-        # Simulate get_tool_schema completing (after_tool fires tracking rule)
+        # Step 5: Simulate get_tool_schema completing (tracking rule fires)
         after_schema = _make_hook_event(
             HookEventType.AFTER_TOOL,
             tool_name="mcp__gobby__get_tool_schema",
             tool_input={"server_name": "gobby-tasks", "tool_name": "create_task"},
         )
         await engine.evaluate(after_schema, "test-session", variables)
+        assert "gobby-tasks:create_task" in variables.get("unlocked_tools", [])
 
-        # call_tool allowed without auto-heal (schema was looked up)
+        # Step 6: call_tool now allowed (schema was looked up)
         result = await engine.evaluate(call_event, "test-session", variables)
         assert result.decision == "allow"
-        mcp_calls = (result.metadata or {}).get("mcp_calls", [])
-        assert len(mcp_calls) == 0
-
-    @pytest.mark.asyncio
-    async def test_internal_server_auto_heals_without_list_tools(self, engine) -> None:
-        """Without tracking, internal servers trigger auto-heal like any other server."""
-        variables: dict = {
-            "enforce_tool_schema_check": True,
-            "listed_servers": [],
-            "unlocked_tools": [],
-        }
-
-        # get_tool_schema for an internal server triggers auto-heal
-        schema_event = _make_hook_event(
-            HookEventType.BEFORE_TOOL,
-            tool_name="mcp__gobby__get_tool_schema",
-            tool_input={"server_name": "gobby-tasks", "tool_name": "create_task"},
-        )
-        result = await engine.evaluate(schema_event, "test-session", variables)
-        assert result.decision == "allow"
-        mcp_calls = (result.metadata or {}).get("mcp_calls", [])
-        list_tools_calls = [c for c in mcp_calls if c["tool"] == "list_tools"]
-        assert len(list_tools_calls) == 1
-        assert list_tools_calls[0]["arguments"]["server_name"] == "gobby-tasks"
-
-        # get_tool_schema for an external server also triggers auto-heal
-        ext_event = _make_hook_event(
-            HookEventType.BEFORE_TOOL,
-            tool_name="mcp__gobby__get_tool_schema",
-            tool_input={"server_name": "context7", "tool_name": "get-library-docs"},
-        )
-        result = await engine.evaluate(ext_event, "test-session", variables)
-        assert result.decision == "allow"
-        mcp_calls = (result.metadata or {}).get("mcp_calls", [])
-        list_tools_calls = [c for c in mcp_calls if c["tool"] == "list_tools"]
-        assert len(list_tools_calls) == 1
-        assert list_tools_calls[0]["arguments"]["server_name"] == "context7"

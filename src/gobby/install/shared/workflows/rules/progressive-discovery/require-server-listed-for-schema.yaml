@@ -2,28 +2,14 @@ tags: [progressive-discovery, enforcement, mcp, gobby, default]
 
 rules:
   require-server-listed-for-schema:
-    description: "Auto-heal: run list_mcp_servers + list_tools before get_tool_schema if not yet called"
+    description: "Block get_tool_schema if list_tools has not been called for this server"
     event: before_tool
     enabled: false
     priority: 21
     when: "event.data.get('tool_name') in ('get_tool_schema', 'mcp__gobby__get_tool_schema') and variables.get('enforce_tool_schema_check') and not is_server_listed(tool_input)"
     effects:
-      - type: mcp_call
-        when: "not variables.get('servers_listed')"
-        server: _proxy
-        tool: list_mcp_servers
-        inject_result: true
-      - type: set_variable
-        when: "not variables.get('servers_listed')"
-        variable: servers_listed
-        value: true
-      - type: mcp_call
-        server: _proxy
-        tool: list_tools
-        arguments:
-          server_name: "{{ tool_input.get('server_name', '') }}"
-        inject_result: true
-        block_on_failure: true
-      - type: set_variable
-        variable: listed_servers
-        value: "variables.get('listed_servers', []) + [tool_input.get('server_name', '')]"
+      - type: block
+        reason: >-
+          Rule enforced by Gobby: [require-server-listed-for-schema]
+          Run list_tools(server_name='{{ tool_input.get('server_name', '?') }}') first to see available tools.
+          You only need to do this once per server.

@@ -66,7 +66,8 @@ async def proxy_self_call(
     """
     result: dict[str, Any]
     if tool == "list_mcp_servers":
-        result = await proxy.list_servers()
+        name_filter = args.get("name_filter") or args.get("filter")
+        result = await proxy.list_servers(name_filter=name_filter)
         return result
     elif tool == "list_tools":
         server_name = args.get("server_name", "")

@@ -2,40 +2,14 @@ tags: [progressive-discovery, enforcement, mcp, gobby, default]
 
 rules:
   require-schema-before-call:
-    description: "Auto-heal: run full discovery chain before call_tool if schema not fetched"
+    description: "Block call_tool if get_tool_schema has not been called for this tool"
     event: before_tool
     enabled: false
     priority: 22
     when: "event.data.get('tool_name') in ('call_tool', 'mcp__gobby__call_tool') and variables.get('enforce_tool_schema_check') and not is_discovery_tool(tool_input.get('tool_name')) and not is_tool_unlocked(tool_input)"
     effects:
-      - type: mcp_call
-        when: "not variables.get('servers_listed')"
-        server: _proxy
-        tool: list_mcp_servers
-        inject_result: true
-      - type: set_variable
-        when: "not variables.get('servers_listed')"
-        variable: servers_listed
-        value: true
-      - type: mcp_call
-        when: "not is_server_listed(tool_input)"
-        server: _proxy
-        tool: list_tools
-        arguments:
-          server_name: "{{ tool_input.get('server_name', '') }}"
-        inject_result: true
-        block_on_failure: true
-      - type: set_variable
-        when: "not is_server_listed(tool_input)"
-        variable: listed_servers
-        value: "variables.get('listed_servers', []) + [tool_input.get('server_name', '')]"
-      - type: mcp_call
-        server: _proxy
-        tool: get_tool_schema
-        arguments:
-          server_name: "{{ tool_input.get('server_name', '') }}"
-          tool_name: "{{ tool_input.get('tool_name', '') }}"
-        inject_result: true
-      - type: set_variable
-        variable: unlocked_tools
-        value: "variables.get('unlocked_tools', []) + [tool_input.get('server_name', '') + ':' + tool_input.get('tool_name', '')]"
+      - type: block
+        reason: >-
+          Rule enforced by Gobby: [require-schema-before-call]
+          Run get_tool_schema(server_name='{{ tool_input.get('server_name', '?') }}', tool_name='{{ tool_input.get('tool_name', '?') }}') first.
+          You only need to do this once per tool.

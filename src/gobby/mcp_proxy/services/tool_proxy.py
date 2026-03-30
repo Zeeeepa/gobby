@@ -569,12 +569,17 @@ class ToolProxyService:
 
         return None
 
-    async def list_servers(self) -> dict[str, Any]:
+    async def list_servers(self, name_filter: str | None = None) -> dict[str, Any]:
         """List all available MCP servers (internal + external).
 
         Mirrors GobbyDaemonTools.list_mcp_servers() but lives on ToolProxyService
         so the hook dispatch code can reach it without the full server instance.
+
+        Args:
+            name_filter: Optional glob pattern to filter server names (e.g., "gobby-*").
         """
+        import fnmatch
+
         server_list: list[dict[str, Any]] = []
         connected = 0
         if self._internal_manager:
@@ -597,6 +602,11 @@ class ToolProxyService:
             if not config.enabled:
                 entry["enabled"] = False
             server_list.append(entry)
+
+        if name_filter:
+            server_list = [s for s in server_list if fnmatch.fnmatch(s["name"], name_filter)]
+            connected = sum(1 for s in server_list if s.get("state") == "connected")
+
         return {
             "success": True,
             "servers": server_list,

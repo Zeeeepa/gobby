@@ -81,6 +81,7 @@ class InternalTool:
     description: str
     input_schema: dict[str, Any]
     func: Callable[..., Any]
+    brief: str | None = None
 
 
 class InternalToolRegistry:
@@ -109,6 +110,7 @@ class InternalToolRegistry:
         description: str,
         input_schema: dict[str, Any],
         func: Callable[..., Any],
+        brief: str | None = None,
     ) -> None:
         """
         Register a tool with the registry.
@@ -118,12 +120,14 @@ class InternalToolRegistry:
             description: Tool description (for progressive discovery)
             input_schema: JSON Schema for the tool's input parameters
             func: The callable that implements the tool (sync or async)
+            brief: Optional custom brief for list_tools (overrides auto-generation)
         """
         self._tools[name] = InternalTool(
             name=name,
             description=description,
             input_schema=input_schema,
             func=func,
+            brief=brief,
         )
         logger.debug(f"Registered internal tool '{name}' on '{self.name}'")
 
@@ -131,6 +135,7 @@ class InternalToolRegistry:
         self,
         name: str | None = None,
         description: str | None = None,
+        brief: str | None = None,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """
         Decorator to register a function as a tool.
@@ -138,6 +143,7 @@ class InternalToolRegistry:
         Args:
             name: Optional tool name (defaults to function name)
             description: Optional description (defaults to docstring)
+            brief: Optional custom brief for list_tools (overrides auto-generation)
 
         Returns:
             Decorator function
@@ -180,6 +186,7 @@ class InternalToolRegistry:
                 description=tool_desc.strip(),
                 input_schema=input_schema,
                 func=func,
+                brief=brief,
             )
             return func
 
@@ -275,6 +282,38 @@ class InternalToolRegistry:
             return await tool.func(**coerced_arguments)
         return tool.func(**coerced_arguments)
 
+    @staticmethod
+    def _generate_brief(tool: InternalTool, max_len: int = 100) -> str:
+        """Generate a smart brief for progressive discovery.
+
+        Uses custom brief if set, otherwise combines the first sentence
+        of the description with required parameter names from the schema.
+        """
+        if tool.brief:
+            return tool.brief[:max_len]
+
+        desc = tool.description or "No description"
+        # Extract first sentence
+        dot_idx = desc.find(".")
+        first_sentence = (desc[: dot_idx + 1] if dot_idx >= 0 else desc).strip()
+
+        required = tool.input_schema.get("required", [])
+        if not required:
+            return first_sentence[:max_len]
+
+        requires_str = "Requires: " + ", ".join(required)
+        combined = f"{first_sentence} {requires_str}"
+
+        if len(combined) <= max_len:
+            return combined
+
+        # Truncate: fit first sentence + as many params as possible
+        base = f"{first_sentence} Requires: "
+        if len(base) >= max_len:
+            return first_sentence[:max_len]
+
+        return (base + ", ".join(required))[: max_len - 3] + "..."
+
     def list_tools(self) -> list[dict[str, str]]:
         """
         List all tools with lightweight metadata.
@@ -285,7 +324,7 @@ class InternalToolRegistry:
         return [
             {
                 "name": tool.name,
-                "brief": tool.description[:100] if tool.description else "No description",
+                "brief": self._generate_brief(tool),
             }
             for tool in self._tools.values()
         ]

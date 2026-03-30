@@ -217,6 +217,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
     registry.register(
         name="create_task",
         description="Create a new task in the current project.",
+        brief="Create a new task. Requires: title, session_id, category, validation_criteria (if category='code')",
         input_schema={
             "type": "object",
             "properties": {

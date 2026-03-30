@@ -79,8 +79,14 @@ class GobbyDaemonTools:
             "uptime_seconds": round(uptime, 2),
         }
 
-    async def list_mcp_servers(self) -> dict[str, Any]:
-        """List configured MCP servers."""
+    async def list_mcp_servers(self, name_filter: str | None = None) -> dict[str, Any]:
+        """List configured MCP servers.
+
+        Args:
+            name_filter: Optional glob pattern to filter server names (e.g., "gobby-*").
+        """
+        import fnmatch
+
         server_list: list[dict[str, Any]] = []
         connected_count = 0
 
@@ -108,6 +114,11 @@ class GobbyDaemonTools:
             if not config.enabled:
                 entry["enabled"] = False
             server_list.append(entry)
+
+        # Apply name filter if provided
+        if name_filter:
+            server_list = [s for s in server_list if fnmatch.fnmatch(s["name"], name_filter)]
+            connected_count = sum(1 for s in server_list if s.get("state") == "connected")
 
         return {
             "success": True,
