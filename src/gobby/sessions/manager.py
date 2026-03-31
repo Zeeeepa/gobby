@@ -79,7 +79,7 @@ class SessionManager:
         external_id: str,
         machine_id: str,
         source: str,
-        project_id: str,
+        project_id: str | None,
         parent_session_id: str | None = None,
         transcript_path: str | None = None,
         title: str | None = None,
@@ -96,7 +96,7 @@ class SessionManager:
             external_id: External session identifier (e.g., Claude Code session ID)
             machine_id: Machine identifier
             source: CLI source identifier (e.g., "claude", "gemini", "codex", "cursor", "windsurf", "copilot") - REQUIRED
-            project_id: Project ID (required - sessions must belong to a project)
+            project_id: Project ID (None if project context unavailable)
             parent_session_id: Optional parent session ID for handoff
             transcript_path: Optional path to session transcript JSONL file
             title: Optional session title/summary
@@ -271,7 +271,7 @@ class SessionManager:
             return False
 
     def lookup_session_id(
-        self, external_id: str, source: str, machine_id: str, project_id: str
+        self, external_id: str, source: str, machine_id: str, project_id: str | None
     ) -> str | None:
         """
         Look up session_id from database by full composite key.

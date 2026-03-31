@@ -28,7 +28,7 @@ class LocalSessionManager:
         external_id: str,
         machine_id: str,
         source: str,
-        project_id: str,
+        project_id: str | None,
         title: str | None = None,
         transcript_path: str | None = None,
         git_branch: str | None = None,
@@ -49,7 +49,7 @@ class LocalSessionManager:
             external_id: External session identifier (e.g., Claude Code session ID)
             machine_id: Machine identifier
             source: CLI source (claude, gemini, codex, cursor, windsurf, copilot)
-            project_id: Project ID (required - sessions must belong to a project)
+            project_id: Project ID (None if project context unavailable)
             title: Optional session title
             transcript_path: Path to transcript file
             git_branch: Git branch name
@@ -175,7 +175,7 @@ class LocalSessionManager:
         self,
         external_id: str,
         machine_id: str,
-        project_id: str,
+        project_id: str | None,
         source: str,
     ) -> Session | None:
         """

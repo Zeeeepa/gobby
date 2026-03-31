@@ -20,6 +20,7 @@ from typing import Any
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
+from starlette.types import ASGIApp
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ class ProjectContextMiddleware(BaseHTTPMiddleware):
     3. X-Gobby-Project-Id → set minimal context (id only) if DB lookup fails
     """
 
-    def __init__(self, app: Any, **kwargs: Any) -> None:
+    def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:

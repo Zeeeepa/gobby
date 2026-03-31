@@ -273,7 +273,7 @@ def create_spawn_agent_registry(
 
                 if agent_provider in failed_providers:
                     visited: set[str] = {agent_body.name}
-                    candidate_name = agent_body.fallback_agent
+                    candidate_name: str | None = agent_body.fallback_agent
                     fallback_body = None
                     max_depth = 5
 
