@@ -231,13 +231,9 @@ def _update_config(
             store = ConfigStore(db)
             if neo4j_url:
                 store.set("databases.neo4j.url", neo4j_url, source="install")
-                # Legacy key for backwards compatibility
-                store.set("memory.neo4j_url", neo4j_url, source="install")
             if neo4j_auth:
                 secret_store = SecretStore(db)
                 store.set_secret("databases.neo4j.auth", neo4j_auth, secret_store, source="install")
-                # Legacy key for backwards compatibility
-                store.set_secret("memory.neo4j_auth", neo4j_auth, secret_store, source="install")
         finally:
             db.close()
     except (ImportError, OSError, ValueError) as e:

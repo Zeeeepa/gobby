@@ -186,11 +186,7 @@ def _update_config(
     qdrant_url: str | None = None,
     qdrant_port: int | None = None,
 ) -> None:
-    """Update daemon config with Qdrant settings via ConfigStore.
-
-    Writes both new (databases.qdrant.*) and legacy (memory.qdrant_url) keys
-    so gcode can discover the URL until its config.rs is updated.
-    """
+    """Update daemon config with Qdrant settings via ConfigStore."""
     try:
         from gobby.config.app import load_config
         from gobby.storage.config_store import ConfigStore
@@ -202,17 +198,12 @@ def _update_config(
         try:
             store = ConfigStore(db)
             if qdrant_url:
-                # New canonical keys
                 store.set("databases.qdrant.url", qdrant_url, source="install")
                 if qdrant_port:
                     store.set("databases.qdrant.port", str(qdrant_port), source="install")
-                # Legacy key for gcode compatibility
-                store.set("memory.qdrant_url", qdrant_url, source="install")
             else:
-                # Clearing — remove both old and new keys
                 store.delete("databases.qdrant.url")
                 store.delete("databases.qdrant.port")
-                store.delete("memory.qdrant_url")
         finally:
             db.close()
     except (ImportError, OSError, ValueError) as e:
