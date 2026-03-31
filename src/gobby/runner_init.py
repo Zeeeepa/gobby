@@ -286,12 +286,9 @@ def init_services(runner: GobbyRunner) -> None:
     if hasattr(runner.config, "memory"):
         try:
             # Create VectorStore (async initialize() called during startup)
-            gobby_home = Path(os.environ.get("GOBBY_HOME", str(Path.home() / ".gobby")))
             db_cfg = runner.config.databases
             emb_cfg = runner.config.embeddings
-            qdrant_path = db_cfg.qdrant.path or str(gobby_home / "services" / "qdrant")
             runner.vector_store = VectorStore(
-                path=qdrant_path if not db_cfg.qdrant.url else None,
                 url=db_cfg.qdrant.url,
                 api_key=db_cfg.qdrant.api_key,
                 embedding_dim=emb_cfg.dim,
