@@ -27,7 +27,7 @@ DB_NAME = "gobby-hub.db"
 PACK_DIRS = [
     "session_transcripts",
     "session_summaries",
-    "services/neo4j/conf",
+    "services",
     "hooks",
     "certs",
     "canvas",
