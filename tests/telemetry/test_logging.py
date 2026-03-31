@@ -27,7 +27,6 @@ def telemetry_config(temp_log_dir):
         log_file_hook_manager=str(temp_log_dir / "hook-manager.log"),
         log_file_mcp_server=str(temp_log_dir / "mcp-server.log"),
         log_file_mcp_client=str(temp_log_dir / "mcp-client.log"),
-        log_file_watchdog=str(temp_log_dir / "watchdog.log"),
         log_level="debug",
         log_format="text",
     )
@@ -95,15 +94,12 @@ def test_setup_otel_logging_creates_files(telemetry_config):
     logging.getLogger("gobby.hooks").info("Hook message")
     logging.getLogger("gobby.mcp.server").info("MCP server message")
     logging.getLogger("gobby.mcp.client").info("MCP client message")
-    logging.getLogger("gobby.watchdog").info("Watchdog message")
-
     # Verify files exist
     assert Path(telemetry_config.log_file).exists()
     assert Path(telemetry_config.log_file_error).exists()
     assert Path(telemetry_config.log_file_hook_manager).exists()
     assert Path(telemetry_config.log_file_mcp_server).exists()
     assert Path(telemetry_config.log_file_mcp_client).exists()
-    assert Path(telemetry_config.log_file_watchdog).exists()
 
     # Verify content
     content = Path(telemetry_config.log_file).read_text()
@@ -155,7 +151,7 @@ def test_setup_otel_logging_json_format(telemetry_config):
 def test_setup_otel_logging_sub_loggers(telemetry_config):
     setup_otel_logging(telemetry_config)
 
-    for name in ["gobby.hooks", "gobby.mcp.server", "gobby.mcp.client", "gobby.watchdog"]:
+    for name in ["gobby.hooks", "gobby.mcp.server", "gobby.mcp.client"]:
         logger = logging.getLogger(name)
         assert not logger.propagate
         assert len(logger.handlers) >= 1

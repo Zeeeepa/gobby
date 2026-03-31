@@ -10,10 +10,9 @@ import pytest
 from click.testing import CliRunner
 
 from gobby.cli.daemon import (
-    _neo4j_start,
-    _neo4j_stop,
+    _services_start,
+    _services_stop,
     get_merge_status,
-    spawn_watchdog,
     status,
     stop,
 )
@@ -27,12 +26,12 @@ def runner() -> CliRunner:
 
 
 # ---------------------------------------------------------------------------
-# _neo4j_start / _neo4j_stop
+# _services_start / _services_stop
 # ---------------------------------------------------------------------------
-class TestNeo4jStart:
+class TestServicesStart:
     def test_no_compose_file(self, tmp_path: Path) -> None:
         """No compose file → early return, no error."""
-        _neo4j_start(tmp_path)  # Should not raise
+        _services_start(tmp_path)  # Should not raise
 
     @patch("gobby.cli.daemon.subprocess.run")
     @patch("gobby.config.app.load_config")
@@ -48,7 +47,7 @@ class TestNeo4jStart:
         mock_config.return_value = cfg
         mock_run.return_value = MagicMock(returncode=0)
 
-        _neo4j_start(tmp_path)
+        _services_start(tmp_path)
         mock_run.assert_called_once()
 
     @patch("gobby.cli.daemon.subprocess.run")
@@ -65,7 +64,7 @@ class TestNeo4jStart:
         mock_config.return_value = cfg
         mock_run.return_value = MagicMock(returncode=1, stderr="err", stdout="")
 
-        _neo4j_start(tmp_path)  # Should not raise
+        _services_start(tmp_path)  # Should not raise
 
     @patch("gobby.cli.daemon.subprocess.run")
     @patch("gobby.config.app.load_config")
@@ -78,7 +77,7 @@ class TestNeo4jStart:
 
         mock_config.return_value = MagicMock(memory=MagicMock(neo4j_auth=None))
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="docker", timeout=120)
-        _neo4j_start(tmp_path)  # Should not raise
+        _services_start(tmp_path)  # Should not raise
 
     @patch("gobby.config.app.load_config")
     def test_config_error(self, mock_config: MagicMock, tmp_path: Path) -> None:
@@ -90,12 +89,12 @@ class TestNeo4jStart:
         # Should still try to run docker compose even on config error
         with patch("gobby.cli.daemon.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
-            _neo4j_start(tmp_path)
+            _services_start(tmp_path)
 
 
-class TestNeo4jStop:
+class TestServicesStop:
     def test_no_compose_file(self, tmp_path: Path) -> None:
-        _neo4j_stop(tmp_path)  # no-op
+        _services_stop(tmp_path)  # no-op
 
     @patch("gobby.cli.daemon.subprocess.run")
     def test_stop_success(self, mock_run: MagicMock, tmp_path: Path) -> None:
@@ -103,7 +102,7 @@ class TestNeo4jStop:
         compose.parent.mkdir(parents=True)
         compose.write_text("version: '3'")
         mock_run.return_value = MagicMock(returncode=0)
-        _neo4j_stop(tmp_path)
+        _services_stop(tmp_path)
         mock_run.assert_called_once()
 
     @patch("gobby.cli.daemon.subprocess.run")
@@ -112,7 +111,7 @@ class TestNeo4jStop:
         compose.parent.mkdir(parents=True)
         compose.write_text("version: '3'")
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="docker", timeout=60)
-        _neo4j_stop(tmp_path)  # Should not raise
+        _services_stop(tmp_path)  # Should not raise
 
     @patch("gobby.cli.daemon.subprocess.run")
     def test_stop_exception(self, mock_run: MagicMock, tmp_path: Path) -> None:
@@ -120,32 +119,7 @@ class TestNeo4jStop:
         compose.parent.mkdir(parents=True)
         compose.write_text("version: '3'")
         mock_run.side_effect = FileNotFoundError("docker not found")
-        _neo4j_stop(tmp_path)  # Should not raise
-
-
-# ---------------------------------------------------------------------------
-# spawn_watchdog
-# ---------------------------------------------------------------------------
-class TestSpawnWatchdog:
-    @patch("gobby.cli.daemon.subprocess.Popen")
-    def test_spawn_success(self, mock_popen: MagicMock, tmp_path: Path) -> None:
-        mock_popen.return_value.pid = 9876
-        log_file = tmp_path / "watchdog.log"
-        pid = spawn_watchdog(60888, False, log_file)
-        assert pid == 9876
-
-    @patch("gobby.cli.daemon.subprocess.Popen")
-    def test_spawn_verbose(self, mock_popen: MagicMock, tmp_path: Path) -> None:
-        mock_popen.return_value.pid = 5555
-        log_file = tmp_path / "logs" / "watchdog.log"
-        pid = spawn_watchdog(60888, True, log_file)
-        assert pid == 5555
-
-    @patch("gobby.cli.daemon.subprocess.Popen", side_effect=OSError("fail"))
-    def test_spawn_failure(self, _popen: MagicMock, tmp_path: Path) -> None:
-        log_file = tmp_path / "watchdog.log"
-        pid = spawn_watchdog(60888, False, log_file)
-        assert pid is None
+        _services_stop(tmp_path)  # Should not raise
 
 
 # ---------------------------------------------------------------------------
@@ -158,22 +132,28 @@ class TestStopCommand:
         result = runner.invoke(stop, [], obj={"config": config}, catch_exceptions=False)
         assert result.exit_code == 0
 
+    @patch(
+        "gobby.cli.daemon.get_service_status",
+        return_value={"installed": False, "running": False},
+    )
     @patch("gobby.cli.daemon.stop_daemon_util", return_value=False)
-    def test_stop_failure(self, _stop: MagicMock, runner: CliRunner) -> None:
+    def test_stop_failure(
+        self, _stop: MagicMock, _svc: MagicMock, runner: CliRunner
+    ) -> None:
         config = MagicMock()
         result = runner.invoke(stop, [], obj={"config": config}, catch_exceptions=False)
         assert result.exit_code == 1
 
-    @patch("gobby.cli.daemon._neo4j_stop")
+    @patch("gobby.cli.daemon._services_stop")
     @patch("gobby.cli.daemon.get_gobby_home", return_value=Path("/fake"))
     @patch("gobby.cli.daemon.stop_daemon_util", return_value=True)
-    def test_stop_with_neo4j(
-        self, _stop: MagicMock, _home: MagicMock, mock_neo4j: MagicMock, runner: CliRunner
+    def test_stop_with_docker(
+        self, _stop: MagicMock, _home: MagicMock, mock_services: MagicMock, runner: CliRunner
     ) -> None:
         config = MagicMock()
-        result = runner.invoke(stop, ["--neo4j"], obj={"config": config}, catch_exceptions=False)
+        result = runner.invoke(stop, ["--docker"], obj={"config": config}, catch_exceptions=False)
         assert result.exit_code == 0
-        mock_neo4j.assert_called_once()
+        mock_services.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

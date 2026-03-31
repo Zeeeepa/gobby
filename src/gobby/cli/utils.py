@@ -299,15 +299,14 @@ def wait_for_port_available(port: int, host: str = "localhost", timeout: float =
 
 def kill_all_gobby_daemons() -> int:
     """
-    Find and kill all gobby DAEMON and WATCHDOG processes (not CLI commands).
+    Find and kill all gobby DAEMON processes (not CLI commands).
 
-    Only kills processes that are actually running daemon servers or watchdogs,
+    Only kills processes that are actually running daemon servers,
     not CLI invocations or other tools.
 
     Detection methods:
     1. Matches gobby.runner (the main daemon process)
-    2. Matches gobby.watchdog (the watchdog process)
-    3. Matches processes listening on daemon ports (60887/60888)
+    2. Matches processes listening on daemon ports (60887/60888)
 
     Returns:
         Number of processes killed
@@ -351,15 +350,13 @@ def kill_all_gobby_daemons() -> int:
             cmdline = proc.cmdline()
             cmdline_str = " ".join(cmdline)
 
-            # Match gobby.runner and gobby.watchdog processes
-            # Started via: python -m gobby.runner / python -m gobby.watchdog
+            # Match gobby.runner processes
+            # Started via: python -m gobby.runner
             is_gobby_daemon = (
                 "python" in cmdline_str.lower()
                 and (
                     # Match gobby.runner (the main daemon process)
                     "gobby.runner" in cmdline_str
-                    # Match gobby.watchdog (the watchdog process)
-                    or "gobby.watchdog" in cmdline_str
                     # Also match legacy gobby_client.runner if it exists
                     or "gobby_client.runner" in cmdline_str
                 )
@@ -475,77 +472,6 @@ def _is_process_alive(pid: int) -> bool:
         proc = psutil.Process(pid)
         return bool(proc.status() != psutil.STATUS_ZOMBIE)
     except (psutil.NoSuchProcess, psutil.AccessDenied):
-        return False
-
-
-def stop_watchdog(quiet: bool = False) -> bool:
-    """Stop the watchdog process. Returns True on success, False on failure.
-
-    Args:
-        quiet: If True, suppress output messages
-
-    Returns:
-        True if watchdog was stopped successfully or wasn't running, False on error
-    """
-    if os.environ.get("GOBBY_TEST_PROTECT", "").lower() in ("1", "true", "yes"):
-        logger.warning("stop_watchdog called during test - skipping")
-        return True
-
-    pid_file = get_gobby_home() / "watchdog.pid"
-
-    if not pid_file.exists():
-        if not quiet:
-            logger.debug("Watchdog not running (no PID file)")
-        return True
-
-    try:
-        with open(pid_file) as f:
-            pid = int(f.read().strip())
-    except Exception as e:
-        if not quiet:
-            logger.debug(f"Error reading watchdog PID file: {e}")
-        pid_file.unlink(missing_ok=True)
-        return True
-
-    # Check if process is actually running
-    if not _is_process_alive(pid):
-        if not quiet:
-            logger.debug(f"Watchdog not running (stale PID file with PID {pid})")
-        pid_file.unlink(missing_ok=True)
-        return True
-
-    try:
-        # Send SIGTERM for graceful shutdown
-        os.kill(pid, signal.SIGTERM)
-        if not quiet:
-            click.echo(f"Stopping watchdog (PID {pid})")
-
-        # Wait for graceful shutdown (watchdog should stop quickly)
-        max_wait = 5
-        for _ in range(max_wait * 10):
-            time.sleep(0.1)
-            if not _is_process_alive(pid):
-                if not quiet:
-                    logger.debug("Watchdog stopped")
-                pid_file.unlink(missing_ok=True)
-                return True
-
-        # Force kill if needed
-        try:
-            os.kill(pid, signal.SIGKILL)
-            time.sleep(0.5)
-        except ProcessLookupError:
-            pass
-
-        pid_file.unlink(missing_ok=True)
-        return True
-
-    except ProcessLookupError:
-        pid_file.unlink(missing_ok=True)
-        return True
-    except Exception as e:
-        if not quiet:
-            logger.debug(f"Error stopping watchdog: {e}")
         return False
 
 
@@ -810,8 +736,6 @@ def stop_ui_server(quiet: bool = False) -> bool:
 def stop_daemon(quiet: bool = False) -> bool:
     """Stop the daemon process. Returns True on success, False on failure.
 
-    Stops the watchdog first (if running) to prevent it from restarting the daemon.
-
     Args:
         quiet: If True, suppress output messages
 
@@ -825,9 +749,6 @@ def stop_daemon(quiet: bool = False) -> bool:
 
     # Stop UI server first
     stop_ui_server(quiet=True)
-
-    # Stop watchdog to prevent it from restarting the daemon
-    stop_watchdog(quiet=True)
 
     pid_file = get_gobby_home() / "gobby.pid"
 
@@ -860,7 +781,7 @@ def stop_daemon(quiet: bool = False) -> bool:
             click.echo(f"Stale PID file (PID {pid} not running), scanning for orphaned daemons...")
         pid_file.unlink(missing_ok=True)
         # Don't return early — scan for daemons on the port in case a different
-        # PID is running the daemon (e.g. watchdog restarted it, crash + restart)
+        # PID is running the daemon (e.g. crash + restart)
         killed = kill_all_gobby_daemons()
         if killed > 0 and not quiet:
             click.echo(f"Cleaned up {killed} orphaned daemon process(es)")
@@ -929,7 +850,7 @@ def stop_daemon(quiet: bool = False) -> bool:
                 if not quiet:
                     click.echo("Gobby daemon stopped successfully")
                 pid_file.unlink(missing_ok=True)
-                # Sweep for orphaned watchdog/daemon processes that could respawn
+                # Sweep for orphaned daemon processes that could respawn
                 kill_all_gobby_daemons()
                 return True
 

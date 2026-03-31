@@ -167,7 +167,6 @@ def setup_otel_logging(config: TelemetrySettings, verbose: bool = False) -> None
         "hook-manager": config.log_file_hook_manager,
         "mcp-server": config.log_file_mcp_server,
         "mcp-client": config.log_file_mcp_client,
-        "watchdog": config.log_file_watchdog,
     }
 
     # Map logger names to their corresponding files
@@ -176,7 +175,6 @@ def setup_otel_logging(config: TelemetrySettings, verbose: bool = False) -> None
         "gobby.hooks": ["hook-manager"],
         "gobby.mcp.server": ["mcp-server"],
         "gobby.mcp.client": ["mcp-client"],
-        "gobby.watchdog": ["watchdog"],
     }
 
     # Helper to create handler

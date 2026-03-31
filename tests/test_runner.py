@@ -1,5 +1,6 @@
 """Tests for src/runner.py - Gobby Daemon Runner."""
 
+import asyncio
 import signal
 from contextlib import ExitStack
 from pathlib import Path
@@ -272,7 +273,11 @@ class TestGobbyRunnerRun:
 
     @pytest.mark.asyncio
     async def test_run_with_websocket_server(self, mock_config_with_websocket):
-        """Test run with WebSocket server enabled."""
+        """Test run with WebSocket server enabled.
+
+        Subsystem init (including WebSocket start) runs as a background task.
+        We delay shutdown briefly to let it execute.
+        """
         mock_mcp_manager = AsyncMock()
         mock_mcp_manager.connect_all = AsyncMock()
         mock_mcp_manager.disconnect_all = AsyncMock()
@@ -290,7 +295,11 @@ class TestGobbyRunnerRun:
             [stack.enter_context(p) for p in patches]
 
             runner = GobbyRunner()
-            runner._shutdown_requested = True
+
+            # Schedule shutdown after a brief delay to let subsystem init run
+            async def _delayed_shutdown() -> None:
+                await asyncio.sleep(0.1)
+                runner._shutdown_requested = True
 
             with patch("uvicorn.Config"), patch("uvicorn.Server") as mock_server_cls:
                 mock_server = AsyncMock()
@@ -298,6 +307,7 @@ class TestGobbyRunnerRun:
                 mock_server_cls.return_value = mock_server
 
                 with patch("gobby.runner_maintenance.setup_signal_handlers"):
+                    asyncio.create_task(_delayed_shutdown())
                     await runner.run()
 
             # WebSocket server start should be called

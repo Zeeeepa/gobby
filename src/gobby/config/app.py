@@ -60,7 +60,6 @@ from gobby.config.skills import SkillsConfig
 from gobby.config.tasks import CompactHandoffConfig, GobbyTasksConfig, WorkflowConfig
 from gobby.config.tmux import TmuxConfig
 from gobby.config.voice import VoiceConfig
-from gobby.config.watchdog import WatchdogConfig
 from gobby.search.models import SearchConfig
 from gobby.telemetry.config import TelemetrySettings
 
@@ -411,10 +410,6 @@ class DaemonConfig(BaseModel):
         default_factory=SearchConfig,
         description="Unified search configuration with embedding fallback",
     )
-    watchdog: WatchdogConfig = Field(
-        default_factory=WatchdogConfig,
-        description="Daemon watchdog process configuration",
-    )
     ui: UIConfig = Field(
         default_factory=UIConfig,
         description="Web UI configuration",
@@ -704,7 +699,6 @@ _LOGGING_TO_TELEMETRY_FIELDS: dict[str, str] = {
     "hook_manager": "log_file_hook_manager",
     "mcp_server": "log_file_mcp_server",
     "mcp_client": "log_file_mcp_client",
-    "watchdog": "log_file_watchdog",
     # These kept the same name
     "max_size_mb": "max_size_mb",
     "backup_count": "backup_count",
@@ -822,9 +816,6 @@ def load_config(
             telemetry_config["log_file_mcp_client"] = safe_mcp_client
         if safe_hook := os.environ.get("GOBBY_LOGGING_HOOK_MANAGER"):
             telemetry_config["log_file_hook_manager"] = safe_hook
-        if safe_watchdog := os.environ.get("GOBBY_LOGGING_WATCHDOG"):
-            telemetry_config["log_file_watchdog"] = safe_watchdog
-
     # Migrate legacy config keys (renamed/removed fields still in DB)
     config_dict = _migrate_legacy_config(config_dict)
 

@@ -347,9 +347,6 @@ gobby_tasks:
 session_summary:
   summary_file_path: "{gobby_home}/session_summaries"
 
-watchdog:
-  enabled: false
-
 conductor:
   daily_budget_usd: 1.0
   warning_threshold: 0.8
@@ -880,7 +877,7 @@ def _production_daemon_running() -> bool:
 
 
 # Known daemon artifacts that the production daemon may create/touch
-_DAEMON_ARTIFACTS = {"gobby.pid", "ui.pid", "watchdog.pid", "shutdown_source.json"}
+_DAEMON_ARTIFACTS = {"gobby.pid", "ui.pid", "shutdown_source.json"}
 
 
 @pytest.fixture(autouse=True)
@@ -899,7 +896,7 @@ def assert_no_external_writes() -> Generator[None]:
 
     Known daemon artifacts (PID files, log files) are ignored when a
     production daemon is detected, since these are created by the
-    daemon's watchdog cycle, not by the test.
+    daemon's lifecycle, not by the test.
     """
     real_gobby = Path.home() / ".gobby"
     prod_before = _production_daemon_running()

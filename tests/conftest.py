@@ -141,14 +141,13 @@ def mock_daemon_config() -> "MagicMock":
     """Create a mock daemon configuration for CLI tests.
 
     Provides daemon_port, websocket.port, telemetry log paths,
-    and disables watchdog and UI.
+    and disables the UI.
     """
     config = MagicMock()
     config.daemon_port = 60887
     config.websocket.port = 60888
     config.telemetry.log_file = "~/.gobby/logs/client.log"
     config.telemetry.log_file_error = "~/.gobby/logs/client_error.log"
-    config.watchdog.enabled = False
     config.ui.enabled = False
     config.databases.neo4j.url = None
     config.databases.neo4j.auth = None
@@ -309,7 +308,6 @@ def protect_production_resources(
             "gobby.cli.utils",
             "gobby.cli.tasks._utils",
             "gobby.mcp_proxy.stdio",
-            "gobby.watchdog",
         ]
 
         rogue_replacements: dict[int, tuple[Any, Any]] = {}

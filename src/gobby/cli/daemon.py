@@ -34,7 +34,6 @@ from .utils import (
     kill_all_gobby_daemons,
     setup_logging,
     spawn_ui_server,
-    stop_watchdog,
     wait_for_port_available,
 )
 from .utils import (
@@ -157,48 +156,6 @@ def _services_stop(gobby_home: Path) -> None:
         logger.warning(f"Failed to stop Docker services: {e}")
 
 
-# Backwards-compatible aliases
-_neo4j_start = _services_start
-_neo4j_stop = _services_stop
-
-
-def spawn_watchdog(daemon_port: int, verbose: bool, log_file: Path) -> int | None:
-    """
-    Spawn the watchdog process.
-
-    Args:
-        daemon_port: Port the daemon is listening on
-        verbose: Enable verbose logging
-        log_file: Path to watchdog log file
-
-    Returns:
-        Watchdog process PID, or None on failure
-    """
-    cmd = [sys.executable, "-m", "gobby.watchdog", "--port", str(daemon_port)]
-    if verbose:
-        cmd.append("--verbose")
-
-    try:
-        log_file.parent.mkdir(parents=True, exist_ok=True)
-        log_f = open(log_file, "a")
-        try:
-            process = subprocess.Popen(  # nosec B603
-                cmd,
-                stdout=log_f,
-                stderr=subprocess.STDOUT,
-                stdin=subprocess.DEVNULL,
-                start_new_session=True,
-                env=os.environ.copy(),
-            )
-        finally:
-            log_f.close()
-        return process.pid
-
-    except Exception as e:
-        logger.error(f"Failed to spawn watchdog: {e}")
-        return None
-
-
 @click.command()
 @click.option(
     "--verbose",
@@ -207,25 +164,18 @@ def spawn_watchdog(daemon_port: int, verbose: bool, log_file: Path) -> int | Non
     help="Enable verbose debug output",
 )
 @click.option(
-    "--no-watchdog",
-    is_flag=True,
-    help="Disable watchdog process (watchdog is enabled by default)",
-)
-@click.option(
     "--no-ui",
     is_flag=True,
     help="Disable auto-starting the web UI",
 )
 @click.option(
-    "--neo4j",
-    "neo4j_flag",
+    "--docker",
+    "docker_flag",
     is_flag=True,
-    help="Also start Neo4j Docker containers",
+    help="Also start Docker service containers (Qdrant, Neo4j)",
 )
 @click.pass_context
-def start(
-    ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool, neo4j_flag: bool
-) -> None:
+def start(ctx: click.Context, verbose: bool, no_ui: bool, docker_flag: bool) -> None:
     """Start the Gobby daemon."""
     # If OS service is installed, delegate to it
     svc = get_service_status()
@@ -257,14 +207,11 @@ def start(
     # Start Docker services (Qdrant, Neo4j) via unified compose
     services_compose = gobby_dir / "services" / "docker-compose.yml"
     legacy_compose = gobby_dir / "services" / "neo4j" / "docker-compose.yml"
-    if services_compose.exists() or legacy_compose.exists() or neo4j_flag:
+    if services_compose.exists() or legacy_compose.exists() or docker_flag:
         click.echo("Starting Docker services...")
         _services_start(gobby_dir)
 
-    # Kill any existing watchdog before spawning a new one
-    stop_watchdog(quiet=True)
-
-    # Kill any existing gobby daemon processes (including orphaned watchdogs)
+    # Kill any existing gobby daemon processes
     # Do this BEFORE the PID file check so orphaned processes that respawned
     # the daemon during restart don't cause a false "already running" error
     click.echo("Checking for existing gobby processes...")
@@ -375,16 +322,6 @@ def start(
                     time.sleep(0.5)
                     continue
 
-            # Spawn watchdog if daemon is healthy and watchdog is enabled
-            watchdog_pid = None
-            if daemon_healthy and not no_watchdog and config.watchdog.enabled:
-                watchdog_log = Path(config.telemetry.log_file_watchdog).expanduser()
-                watchdog_pid = spawn_watchdog(http_port, verbose, watchdog_log)
-                if watchdog_pid:
-                    watchdog_pid_file = gobby_dir / "watchdog.pid"
-                    with open(watchdog_pid_file, "w") as f:
-                        f.write(str(watchdog_pid))
-
             # Spawn UI server if enabled
             ui_pid = None
             ui_url = None
@@ -412,7 +349,6 @@ def start(
                 "log_files": str(log_file.parent),
                 "http_port": http_port,
                 "websocket_port": ws_port,
-                "watchdog_pid": watchdog_pid,
                 "ui_enabled": config.ui.enabled and not no_ui,
                 "ui_mode": config.ui.mode if config.ui.enabled and not no_ui else None,
                 "ui_url": ui_url,
@@ -442,16 +378,16 @@ def start(
 
 @click.command()
 @click.option(
-    "--neo4j",
-    "neo4j_flag",
+    "--docker",
+    "docker_flag",
     is_flag=True,
-    help="Also stop Neo4j Docker containers",
+    help="Also stop Docker service containers (Qdrant, Neo4j)",
 )
 @click.pass_context
-def stop(ctx: click.Context, neo4j_flag: bool) -> None:
+def stop(ctx: click.Context, docker_flag: bool) -> None:
     """Stop the Gobby daemon."""
     # If OS service is installed and running, delegate to it
-    neo4j_stopped = False
+    docker_stopped = False
     svc = get_service_status()
     if svc.get("installed") and svc.get("running"):
         click.echo("Stopping via OS service manager...")
@@ -462,21 +398,21 @@ def stop(ctx: click.Context, neo4j_flag: bool) -> None:
             click.echo(f"Service stop failed: {result.get('error')}", err=True)
             click.echo("Falling back to direct stop...")
 
-        # Stop Neo4j if requested
-        if neo4j_flag:
-            click.echo("Stopping Neo4j containers...")
-            _neo4j_stop(get_gobby_home())
-            neo4j_stopped = True
+        # Stop Docker containers if requested
+        if docker_flag:
+            click.echo("Stopping Docker containers...")
+            _services_stop(get_gobby_home())
+            docker_stopped = True
 
         if result.get("success"):
             sys.exit(0)
 
     success = stop_daemon_util(quiet=False)
 
-    # Stop Neo4j containers if requested (only if not already stopped above)
-    if neo4j_flag and not neo4j_stopped:
-        click.echo("Stopping Neo4j containers...")
-        _neo4j_stop(get_gobby_home())
+    # Stop Docker containers if requested (only if not already stopped above)
+    if docker_flag and not docker_stopped:
+        click.echo("Stopping Docker containers...")
+        _services_stop(get_gobby_home())
 
     sys.exit(0 if success else 1)
 
@@ -489,25 +425,18 @@ def stop(ctx: click.Context, neo4j_flag: bool) -> None:
     help="Enable verbose debug output",
 )
 @click.option(
-    "--no-watchdog",
-    is_flag=True,
-    help="Disable watchdog process (watchdog is enabled by default)",
-)
-@click.option(
     "--no-ui",
     is_flag=True,
     help="Disable auto-starting the web UI",
 )
 @click.option(
-    "--neo4j",
-    "neo4j_flag",
+    "--docker",
+    "docker_flag",
     is_flag=True,
-    help="Also restart Neo4j Docker containers",
+    help="Also restart Docker service containers (Qdrant, Neo4j)",
 )
 @click.pass_context
-def restart(
-    ctx: click.Context, verbose: bool, no_watchdog: bool, no_ui: bool, neo4j_flag: bool
-) -> None:
+def restart(ctx: click.Context, verbose: bool, no_ui: bool, docker_flag: bool) -> None:
     """Restart the Gobby daemon (stop then start)."""
     setup_logging(verbose)
 
@@ -524,10 +453,10 @@ def restart(
 
     click.echo("Restarting Gobby daemon...")
 
-    # Stop Neo4j containers if requested (before daemon stop)
-    if neo4j_flag:
-        click.echo("Stopping Neo4j containers...")
-        _neo4j_stop(get_gobby_home())
+    # Stop Docker containers if requested (before daemon stop)
+    if docker_flag:
+        click.echo("Stopping Docker containers...")
+        _services_stop(get_gobby_home())
 
     # Stop daemon using helper function (doesn't call sys.exit)
     if not stop_daemon_util(quiet=False):
@@ -537,8 +466,8 @@ def restart(
     # Wait for cleanup and port release (TIME_WAIT state)
     time.sleep(3)
 
-    # Call start command (with neo4j flag forwarded)
-    ctx.invoke(start, verbose=verbose, no_watchdog=no_watchdog, no_ui=no_ui, neo4j_flag=neo4j_flag)
+    # Call start command (with docker flag forwarded)
+    ctx.invoke(start, verbose=verbose, no_ui=no_ui, docker_flag=docker_flag)
 
 
 @click.command()
@@ -588,19 +517,6 @@ def status(ctx: click.Context) -> None:
     http_port = config.daemon_port
     websocket_port = config.websocket.port
 
-    # Check watchdog status
-    watchdog_pid = None
-    watchdog_pid_file = get_gobby_home() / "watchdog.pid"
-    if watchdog_pid_file.exists():
-        try:
-            with open(watchdog_pid_file) as f:
-                wd_pid = int(f.read().strip())
-            # Check if watchdog is actually running
-            os.kill(wd_pid, 0)
-            watchdog_pid = wd_pid
-        except (ProcessLookupError, ValueError, OSError):
-            pass  # Watchdog not running or stale PID file
-
     # Check UI server status
     ui_enabled = config.ui.enabled
     ui_mode = config.ui.mode if ui_enabled else None
@@ -631,7 +547,6 @@ def status(ctx: click.Context) -> None:
         "uptime": uptime_str,
         "http_port": http_port,
         "websocket_port": websocket_port,
-        "watchdog_pid": watchdog_pid,
         "ui_enabled": ui_enabled,
         "ui_mode": ui_mode,
         "ui_url": ui_url,

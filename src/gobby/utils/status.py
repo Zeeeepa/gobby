@@ -114,8 +114,6 @@ def format_status_message(
     # Process metrics
     memory_mb: float | None = None,
     cpu_percent: float | None = None,
-    # Watchdog info
-    watchdog_pid: int | None = None,
     # MCP proxy info
     mcp_connected: int | None = None,
     mcp_total: int | None = None,
@@ -203,10 +201,6 @@ def format_status_message(
         # Service status
         if service_info:
             lines.append(f"Service: {service_info}")
-
-        # Watchdog status
-        if watchdog_pid is not None:
-            lines.append(f"Watchdog: Running (PID: {watchdog_pid})")
 
         # Uptime and process metrics on same conceptual level
         metrics_parts = []
