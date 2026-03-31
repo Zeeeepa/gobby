@@ -254,15 +254,12 @@ def start(
     click.echo("Initializing local storage...")
     init_local_storage()
 
-    # Start Neo4j containers if requested or if installed
-    if neo4j_flag:
-        click.echo("Starting Neo4j containers...")
-        _neo4j_start(gobby_dir)
-    else:
-        compose_file = gobby_dir / "services" / "neo4j" / "docker-compose.yml"
-        if compose_file.exists():
-            click.echo("Neo4j installed, auto-starting containers...")
-            _neo4j_start(gobby_dir)
+    # Start Docker services (Qdrant, Neo4j) via unified compose
+    services_compose = gobby_dir / "services" / "docker-compose.yml"
+    legacy_compose = gobby_dir / "services" / "neo4j" / "docker-compose.yml"
+    if services_compose.exists() or legacy_compose.exists() or neo4j_flag:
+        click.echo("Starting Docker services...")
+        _services_start(gobby_dir)
 
     # Kill any existing watchdog before spawning a new one
     stop_watchdog(quiet=True)
