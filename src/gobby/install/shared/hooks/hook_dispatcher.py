@@ -763,6 +763,11 @@ async def main() -> int:
             if result:
                 print(json.dumps(result))
 
+            # Print banner to stderr for session-start (visual confirmation
+            # that daemon is alive). Claude Code renders hook stderr output.
+            if hook_type in config.session_start_hooks and result.get("systemMessage"):
+                print(result["systemMessage"].strip(), file=sys.stderr)
+
             return 0
         else:
             # HTTP error from daemon
