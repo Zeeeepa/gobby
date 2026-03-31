@@ -27,14 +27,8 @@ def _make_mock_proc(returncode: int = 0) -> AsyncMock:
 
 
 @pytest.fixture
-async def trigger(mock_indexer: AsyncMock, tmp_path: Path) -> CodeIndexTrigger:
+async def trigger(mock_indexer: AsyncMock) -> CodeIndexTrigger:
     loop = asyncio.get_running_loop()
-    # Create a fake gcode binary so the trigger finds it
-    gcode_bin = tmp_path / ".gobby" / "bin" / "gcode"
-    gcode_bin.parent.mkdir(parents=True, exist_ok=True)
-    gcode_bin.touch()
-    gcode_bin.chmod(0o755)
-
     t = CodeIndexTrigger(
         indexer=mock_indexer,
         loop=loop,
@@ -212,8 +206,6 @@ async def test_gcode_failure_does_not_propagate(trigger: CodeIndexTrigger, tmp_p
 @pytest.mark.asyncio
 async def test_no_gcode_warns_and_skips(trigger: CodeIndexTrigger, tmp_path: Path) -> None:
     """Missing gcode binary logs warning and skips indexing."""
-    # Remove the gcode binary that the trigger fixture created
-    (tmp_path / ".gobby" / "bin" / "gcode").unlink(missing_ok=True)
 
     with (
         patch("gobby.code_index.trigger.Path.home", return_value=tmp_path),

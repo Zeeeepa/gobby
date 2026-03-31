@@ -25,8 +25,14 @@ export const PlansTab = memo(function PlansTab({
   onApprovePlan,
   onRequestPlanChanges,
 }: PlansTabProps) {
-  // Only plan artifacts
-  const plans = Array.from(artifacts.values()).filter((a) => a.isPlan)
+  // Only plan artifacts, sorted by most recent version timestamp
+  const plans = Array.from(artifacts.values())
+    .filter((a) => a.isPlan)
+    .sort((a, b) => {
+      const aTime = a.versions[a.versions.length - 1]?.timestamp.getTime() ?? 0
+      const bTime = b.versions[b.versions.length - 1]?.timestamp.getTime() ?? 0
+      return aTime - bTime
+    })
   const latestPlan = plans[plans.length - 1] ?? null
 
   // Auto-open the latest plan if none is active

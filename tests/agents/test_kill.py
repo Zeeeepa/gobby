@@ -1,6 +1,7 @@
 """Tests for gobby.agents.kill module."""
 
 import signal
+import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -19,7 +20,9 @@ pytestmark = pytest.mark.unit
 class TestRunSubprocess:
     @pytest.mark.asyncio
     async def test_run_subprocess_success(self):
-        rc, out, err = await _run_subprocess("echo", "hello", timeout=1.0)
+        rc, out, err = await _run_subprocess(
+            sys.executable, "-c", 'print("hello")', timeout=1.0
+        )
         assert rc == 0
         assert out.strip() == "hello"
         assert err == ""

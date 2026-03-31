@@ -754,15 +754,10 @@ class MemoryManager:
                 report["neo4j"]["orphan_memories_found"] = len(orphaned)
 
                 if not dry_run and orphaned:
-                    deleted = 0
-                    for oid in orphaned:
-                        try:
-                            await self._kg_service.remove_memory_from_graph(oid)
-                            deleted += 1
-                        except Exception as e:
-                            logger.warning(f"Failed to delete Neo4j orphan {oid}: {e}")
-                            report["neo4j"]["errors"] += 1
+                    deleted = await self._kg_service.remove_memories_from_graph(orphaned)
                     report["neo4j"]["orphan_memories_deleted"] = deleted
+                    if deleted < len(orphaned):
+                        report["neo4j"]["errors"] += len(orphaned) - deleted
 
                     # Clean orphaned entities after removing memory nodes
                     entities_deleted = await self._kg_service.remove_orphaned_entities()

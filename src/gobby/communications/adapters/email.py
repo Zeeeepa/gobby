@@ -118,22 +118,20 @@ class EmailAdapter(BaseChannelAdapter):
 
     async def _ensure_smtp_connected(self) -> None:
         """Ensure SMTP connection is active."""
-        smtp_client = self._smtp_client
-        if not HAS_SMTP or not smtp_client:
+        if not HAS_SMTP or not self._smtp_client:
             return
 
         async def _check_and_reconnect() -> None:
-            nonlocal smtp_client
             try:
-                if smtp_client is None:
+                if self._smtp_client is None:
                     raise RuntimeError("SMTP client not initialized")
-                if not smtp_client.is_connected:
+                if not self._smtp_client.is_connected:
                     raise RuntimeError("SMTP not connected")
-                await smtp_client.noop()
+                await self._smtp_client.noop()
             except (OSError, RuntimeError):
-                if smtp_client:
+                if self._smtp_client:
                     try:
-                        smtp_client.close()
+                        self._smtp_client.close()
                     except OSError:
                         pass
 
@@ -143,39 +141,31 @@ class EmailAdapter(BaseChannelAdapter):
                     use_tls=self._smtp_port == 465,
                     start_tls=self._smtp_port == 587,
                 )
-                smtp_client = self._smtp_client
-                if smtp_client is None:
-                    raise RuntimeError("SMTP client not initialized after re-creation") from None
-                await smtp_client.connect()
-                await smtp_client.login(self._from_address, self._password)
+                await self._smtp_client.connect()
+                await self._smtp_client.login(self._from_address, self._password)
 
         await self._retry(_check_and_reconnect)
 
     async def _ensure_imap_connected(self) -> None:
         """Ensure IMAP connection is active."""
-        imap_client = self._imap_client
-        if not HAS_IMAP or not imap_client:
+        if not HAS_IMAP or not self._imap_client:
             return
 
         async def _check_and_reconnect() -> None:
-            nonlocal imap_client
             try:
                 # No robust is_connected check in aioimaplib besides trying a command
-                if imap_client is None:
+                if self._imap_client is None:
                     raise RuntimeError("IMAP client not initialized")
-                await imap_client.noop()
+                await self._imap_client.noop()
             except (TimeoutError, OSError, RuntimeError):
                 try:
-                    if imap_client:
-                        await imap_client.logout()
+                    if self._imap_client:
+                        await self._imap_client.logout()
                 except (TimeoutError, OSError):
                     pass
                 self._imap_client = aioimaplib.IMAP4_SSL(host=self._imap_host, port=self._imap_port)
-                imap_client = self._imap_client
-                if imap_client is None:
-                    raise RuntimeError("IMAP client not initialized after re-creation") from None
-                await imap_client.wait_hello_from_server()
-                await imap_client.login(self._from_address, self._password)
+                await self._imap_client.wait_hello_from_server()
+                await self._imap_client.login(self._from_address, self._password)
 
         await self._retry(_check_and_reconnect)
 

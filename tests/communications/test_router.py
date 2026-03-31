@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -131,16 +131,17 @@ async def test_router_cache_expires_after_ttl():
     store.list_routing_rules.return_value = rules
 
     router = MessageRouter(store)
-    router._cache_ttl = 0.01  # 10ms TTL for testing
+    router._cache_ttl = 30.0
 
-    await router.match_channels("task.created")
-    assert store.list_routing_rules.call_count == 1
+    with patch("gobby.communications.router.time") as mock_time:
+        mock_time.monotonic.return_value = 100.0
+        await router.match_channels("task.created")
+        assert store.list_routing_rules.call_count == 1
 
-    # Wait for cache to expire
-    await asyncio.sleep(0.02)
-
-    await router.match_channels("task.updated")
-    assert store.list_routing_rules.call_count == 2
+        # Advance past TTL
+        mock_time.monotonic.return_value = 131.0
+        await router.match_channels("task.updated")
+        assert store.list_routing_rules.call_count == 2
 
 
 @pytest.mark.asyncio

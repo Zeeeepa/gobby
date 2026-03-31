@@ -328,6 +328,26 @@ class KnowledgeGraphService:
         except Exception as e:
             logger.warning(f"Failed to delete Memory node {memory_id} from graph: {e}")
 
+    async def remove_memories_from_graph(self, memory_ids: set[str]) -> int:
+        """Batch-remove Memory nodes and their MENTIONED_IN edges from Neo4j.
+
+        Returns the number of nodes deleted.
+        """
+        if not memory_ids:
+            return 0
+        try:
+            records = await self._neo4j.query(
+                "MATCH (m:Memory) WHERE m.memory_id IN $ids DETACH DELETE m RETURN count(m) AS deleted",
+                {"ids": list(memory_ids)},
+            )
+            return records[0]["deleted"] if records else 0
+        except Neo4jConnectionError as e:
+            logger.warning(f"Neo4j unreachable during batch memory deletion: {e}")
+            return 0
+        except Exception as e:
+            logger.warning(f"Failed to batch-delete {len(memory_ids)} Memory nodes: {e}")
+            return 0
+
     async def get_all_memory_node_ids(self) -> set[str]:
         """Return all memory_id values from Memory nodes in Neo4j."""
         try:
