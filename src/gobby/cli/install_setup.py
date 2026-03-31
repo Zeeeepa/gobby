@@ -21,6 +21,7 @@ from pathlib import Path
 from shutil import copy2
 from typing import Any
 from urllib.error import URLError
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 import click
@@ -28,6 +29,19 @@ import click
 from .utils import get_install_dir
 
 logger = logging.getLogger(__name__)
+
+
+def _urlopen_https(req: Request, *, timeout: int) -> Any:
+    """Open a URL after validating the scheme is HTTPS.
+
+    Wraps :func:`urllib.request.urlopen` with a scheme check to prevent
+    ``file://`` or other unexpected schemes (bandit B310).
+    """
+    url = req.full_url
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise ValueError(f"Only HTTPS URLs are allowed, got: {parsed.scheme}://...")
+    return urlopen(req, timeout=timeout)  # nosec B310 — scheme validated above
 
 
 def ensure_daemon_config() -> dict[str, Any]:
@@ -245,7 +259,7 @@ def _get_latest_gsqz_version() -> str | None:
     """
     try:
         req = Request(_GSQZ_CRATES_API, headers={"User-Agent": "gobby-installer/1.0"})
-        with urlopen(req, timeout=10) as resp:
+        with _urlopen_https(req, timeout=10) as resp:
             data = json.loads(resp.read())
         return str(data["crate"]["max_version"])
     except (URLError, json.JSONDecodeError, KeyError, OSError) as e:
@@ -304,7 +318,7 @@ def _install_gsqz_from_github(bin_dir: Path, target: str, version: str | None = 
             url = _GSQZ_RELEASE_URL.format(target=target)
         logger.info("Downloading gsqz from %s", url)
         req = Request(url, headers={"User-Agent": "gobby-installer/1.0"})
-        with urlopen(req, timeout=30) as resp:
+        with _urlopen_https(req, timeout=30) as resp:
             tarball = BytesIO(resp.read())
 
         bin_dir.mkdir(parents=True, exist_ok=True)
@@ -540,7 +554,7 @@ def _get_latest_gcode_version() -> str | None:
     """
     try:
         req = Request(_GCODE_CRATES_API, headers={"User-Agent": "gobby-installer/1.0"})
-        with urlopen(req, timeout=10) as resp:
+        with _urlopen_https(req, timeout=10) as resp:
             data = json.loads(resp.read())
         return str(data["crate"]["max_version"])
     except (URLError, json.JSONDecodeError, KeyError, OSError) as e:
@@ -591,7 +605,7 @@ def _install_gcode_from_github(bin_dir: Path, target: str, version: str | None =
             url = _GCODE_RELEASE_URL.format(target=target)
         logger.info("Downloading gcode from %s", url)
         req = Request(url, headers={"User-Agent": "gobby-installer/1.0"})
-        with urlopen(req, timeout=30) as resp:
+        with _urlopen_https(req, timeout=30) as resp:
             tarball = BytesIO(resp.read())
 
         bin_dir.mkdir(parents=True, exist_ok=True)

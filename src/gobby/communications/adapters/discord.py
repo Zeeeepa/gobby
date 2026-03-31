@@ -162,13 +162,13 @@ class DiscordAdapter(BaseChannelAdapter):
                                         self._session_id = None
                                         self._resume_gateway_url = None
                                         self._sequence = None
-                                        await asyncio.sleep(1 + 4 * random.random())
+                                        await asyncio.sleep(1 + 4 * random.random())  # nosec B311 — jitter, not crypto
                                         await self._send_identify(ws)
                                     else:
                                         logger.info(
                                             "Discord gateway: invalid session (resumable), re-sending RESUME"
                                         )
-                                        await asyncio.sleep(1 + 4 * random.random())
+                                        await asyncio.sleep(1 + 4 * random.random())  # nosec B311 — jitter, not crypto
                                         await ws.send(
                                             json.dumps(
                                                 {
@@ -234,7 +234,7 @@ class DiscordAdapter(BaseChannelAdapter):
         """Send periodic heartbeats to keep the gateway connection alive."""
         try:
             # Discord expects a jittered first heartbeat (random fraction of interval)
-            await asyncio.sleep(random.random() * interval)
+            await asyncio.sleep(random.random() * interval)  # nosec B311 — jitter, not crypto
             await ws.send(json.dumps({"op": 1, "d": self._sequence}))
             while True:
                 await asyncio.sleep(interval)
