@@ -229,19 +229,20 @@ def _get_pack_size_estimate() -> int:
 
 @click.command("pack")
 @click.argument("output", required=False, type=click.Path())
-@click.option("--no-docker", is_flag=True, help="Skip Docker volume export")
+@click.option("--no-docker", is_flag=True, help="Skip Docker volume export (Neo4j + Qdrant)")
 @click.option("--no-transcripts", is_flag=True, help="Skip session transcript archives")
 @click.option("--dry-run", is_flag=True, help="Show what would be packed without creating archive")
 def pack(output: str | None, no_docker: bool, no_transcripts: bool, dry_run: bool) -> None:
     """Pack all Gobby data into a portable archive for machine migration.
 
     Creates a tarball containing the SQLite database, session transcripts,
-    vector store data, configs, and optionally Docker volume data (Neo4j).
+    vector store data, configs, and Docker volume data (Neo4j + Qdrant).
 
+    \b
     Usage:
-        gobby pack                          # Auto-named: gobby-pack-YYYYMMDD.tar.gz
+        gobby pack                          # Auto-named archive
         gobby pack ~/backup/gobby.tar.gz    # Custom path
-        gobby pack --no-docker              # Skip Neo4j volume export
+        gobby pack --no-docker              # Skip Docker volume export
         gobby pack --dry-run                # Preview what would be packed
     """
     if not get_gobby_home().exists():
@@ -382,7 +383,7 @@ def _do_pack(
 
 @click.command("unpack")
 @click.argument("archive", type=click.Path(exists=True))
-@click.option("--no-docker", is_flag=True, help="Skip Docker volume import")
+@click.option("--no-docker", is_flag=True, help="Skip Docker volume import (Neo4j + Qdrant)")
 @click.option("--dry-run", is_flag=True, help="Show what would be unpacked without extracting")
 @click.option(
     "--force",
@@ -393,8 +394,9 @@ def unpack(archive: str, no_docker: bool, dry_run: bool, force: bool) -> None:
     """Unpack a Gobby archive to restore data on a new machine.
 
     Restores the SQLite database, session transcripts, vector store data,
-    configs, and optionally Docker volume data.
+    configs, and Docker volume data (Neo4j + Qdrant).
 
+    \b
     Usage:
         gobby unpack gobby-pack-20260316.tar.gz
         gobby unpack backup.tar.gz --no-docker
