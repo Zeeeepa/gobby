@@ -2,7 +2,7 @@
 
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from claude_agent_sdk.types import SyncHookJSONOutput
@@ -54,9 +54,8 @@ class TestFinders:
             assert _find_cli_path() is None
 
     def test_find_project_root(self) -> None:
-        root = _find_project_root()
-        # In pytest running from gobby repo, it might be the actual project root.
-        # But let's test it using standard mocks.
+        _find_project_root()  # smoke test — actual root depends on CWD
+        # Test with standard mocks:
         with patch("pathlib.Path.is_dir", return_value=True):
             assert _find_project_root() is not None
 

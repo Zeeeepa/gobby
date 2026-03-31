@@ -1,14 +1,13 @@
 """Extra tests for gobby.communications.manager."""
 
 from datetime import UTC, datetime
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from gobby.communications.adapters.base import BaseChannelAdapter
 from gobby.communications.manager import CommunicationsManager
-from gobby.communications.models import ChannelConfig, CommsIdentity, CommsMessage
+from gobby.communications.models import ChannelConfig
 
 pytestmark = pytest.mark.unit
 
