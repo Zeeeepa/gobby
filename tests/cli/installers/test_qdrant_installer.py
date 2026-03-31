@@ -298,7 +298,7 @@ class TestConfigModels:
         from gobby.config.persistence import DatabasesConfig
 
         config = DatabasesConfig()
-        assert config.qdrant.url is None
+        assert config.qdrant.url == "http://localhost:6333"
         assert config.qdrant.port == 6333
         assert config.neo4j.url == "http://localhost:8474"
         assert config.neo4j.database == "neo4j"
@@ -311,12 +311,12 @@ class TestConfigModels:
         assert config.model == "local/nomic-embed-text-v1.5"
         assert config.dim == 768
 
-    def test_qdrant_config_mutual_exclusivity(self) -> None:
-        """QdrantConfig rejects both path and url set."""
+    def test_qdrant_config_default_url(self) -> None:
+        """QdrantConfig defaults to localhost URL."""
         from gobby.config.persistence import QdrantConfig
 
-        with pytest.raises(ValueError, match="mutually exclusive"):
-            QdrantConfig(path="/some/path", url="http://localhost:6333")
+        config = QdrantConfig()
+        assert config.url == "http://localhost:6333"
 
     def test_daemon_config_has_databases(self) -> None:
         """DaemonConfig includes databases and embeddings."""

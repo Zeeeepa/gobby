@@ -13,7 +13,7 @@ Extracted from app.py using Strangler Fig pattern for code decomposition.
 import logging
 from pathlib import Path
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -38,12 +38,8 @@ class QdrantConfig(BaseModel):
     model_config = {"extra": "ignore"}
 
     url: str | None = Field(
-        default=None,
-        description=(
-            "URL for Qdrant server. "
-            "Set automatically by 'gobby install' when Docker is available. "
-            "Example: 'http://localhost:6333'"
-        ),
+        default="http://localhost:6333",
+        description="URL for Qdrant server (Docker-managed).",
     )
     api_key: str | None = Field(
         default=None,
@@ -56,28 +52,10 @@ class QdrantConfig(BaseModel):
         default=6333,
         description="HTTP port for Qdrant server",
     )
-    path: str | None = Field(
-        default=None,
-        description=(
-            "Directory path for embedded Qdrant storage (on-disk, zero Docker). "
-            "Mutually exclusive with url. "
-            "Default set by runner to ~/.gobby/services/qdrant/"
-        ),
-    )
     collection_prefix: str = Field(
         default="code_symbols_",
         description="Qdrant collection name prefix for code symbol embeddings",
     )
-
-    @model_validator(mode="after")
-    def validate_exclusivity(self) -> "QdrantConfig":
-        """Validate path and url are mutually exclusive."""
-        if self.path and self.url:
-            raise ValueError(
-                "qdrant path and url are mutually exclusive. "
-                "Use path for embedded mode or url for remote/Docker mode."
-            )
-        return self
 
 
 class Neo4jConfig(BaseModel):

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-from pydantic import ValidationError
 
 from gobby.config.persistence import EmbeddingsConfig, MemoryConfig, Neo4jConfig, QdrantConfig
 
@@ -15,28 +14,16 @@ pytestmark = pytest.mark.unit
 # ===========================================================================
 
 
-def test_qdrant_path_defaults_to_none() -> None:
-    """QdrantConfig.path should default to None."""
+def test_qdrant_url_defaults_to_localhost() -> None:
+    """QdrantConfig.url should default to http://localhost:6333."""
     config = QdrantConfig()
-    assert config.path is None
-
-
-def test_qdrant_url_defaults_to_none() -> None:
-    """QdrantConfig.url should default to None."""
-    config = QdrantConfig()
-    assert config.url is None
+    assert config.url == "http://localhost:6333"
 
 
 def test_qdrant_api_key_defaults_to_none() -> None:
     """QdrantConfig.api_key should default to None."""
     config = QdrantConfig()
     assert config.api_key is None
-
-
-def test_qdrant_path_accepted() -> None:
-    """QdrantConfig.path should accept a string path."""
-    config = QdrantConfig(path="/tmp/qdrant")
-    assert config.path == "/tmp/qdrant"
 
 
 def test_qdrant_url_accepted() -> None:
@@ -49,12 +36,6 @@ def test_qdrant_api_key_accepts_env_var_syntax() -> None:
     """QdrantConfig.api_key should accept ${ENV_VAR} syntax."""
     config = QdrantConfig(api_key="${qdrant_api_key}")
     assert config.api_key == "${qdrant_api_key}"
-
-
-def test_qdrant_path_and_url_mutual_exclusivity() -> None:
-    """Setting both path and url should raise an error."""
-    with pytest.raises(ValidationError, match="mutually exclusive"):
-        QdrantConfig(path="/tmp/qdrant", url="http://localhost:6333")
 
 
 # ===========================================================================

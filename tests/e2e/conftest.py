@@ -344,9 +344,6 @@ gobby_tasks:
   validation:
     enabled: false
 
-memory:
-  qdrant_path: "{gobby_home}/services/qdrant"
-
 session_summary:
   summary_file_path: "{gobby_home}/session_summaries"
 

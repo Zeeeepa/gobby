@@ -207,31 +207,22 @@ class TestMemoryBackupConfigValidation:
 # =============================================================================
 
 
-class TestQdrantConfigExclusivity:
-    """Test QdrantConfig path and url mutual exclusivity."""
+class TestQdrantConfigDefaults:
+    """Test QdrantConfig default values."""
 
-    def test_qdrant_path_only(self) -> None:
-        """Test setting path without url."""
+    def test_qdrant_url_defaults_to_localhost(self) -> None:
+        """Test that QdrantConfig.url defaults to http://localhost:6333."""
         from gobby.config.persistence import QdrantConfig
 
-        config = QdrantConfig(path="/tmp/qdrant")
-        assert config.path == "/tmp/qdrant"
-        assert config.url is None
-
-    def test_qdrant_url_only(self) -> None:
-        """Test setting url without path."""
-        from gobby.config.persistence import QdrantConfig
-
-        config = QdrantConfig(url="http://localhost:6333")
+        config = QdrantConfig()
         assert config.url == "http://localhost:6333"
-        assert config.path is None
 
-    def test_both_qdrant_rejected(self) -> None:
-        """Test that setting both path and url raises error."""
+    def test_qdrant_api_key_defaults_to_none(self) -> None:
+        """Test that QdrantConfig.api_key defaults to None."""
         from gobby.config.persistence import QdrantConfig
 
-        with pytest.raises(ValidationError, match="mutually exclusive"):
-            QdrantConfig(path="/tmp/qdrant", url="http://localhost:6333")
+        config = QdrantConfig()
+        assert config.api_key is None
 
 
 class TestEmbeddingsConfigFields:

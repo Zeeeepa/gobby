@@ -18,27 +18,25 @@ class TestVectorStoreInitialization:
     """Test that runner.py initializes VectorStore correctly."""
 
     @pytest.mark.asyncio
-    async def test_vectorstore_created_with_config_path(self) -> None:
-        """VectorStore should be created with qdrant_path from config."""
+    async def test_vectorstore_created_with_default_config(self) -> None:
+        """VectorStore should be created with qdrant url from config."""
         from gobby.memory.vectorstore import VectorStore
 
         config = MagicMock()
-        config.databases.qdrant.path = "/tmp/test-qdrant"
-        config.databases.qdrant.url = None
+        config.databases.qdrant.url = "http://localhost:6333"
         config.databases.qdrant.api_key = None
         config.embeddings.model = "text-embedding-3-small"
 
         vs = VectorStore(
-            path=config.databases.qdrant.path,
             url=config.databases.qdrant.url,
             api_key=config.databases.qdrant.api_key,
         )
-        assert vs._path == "/tmp/test-qdrant"
-        assert vs._url is None
+        assert vs._url == "http://localhost:6333"
+        assert vs._path is None
 
     @pytest.mark.asyncio
-    async def test_vectorstore_created_with_config_url(self) -> None:
-        """VectorStore should be created with qdrant_url from config."""
+    async def test_vectorstore_created_with_custom_url_and_key(self) -> None:
+        """VectorStore should be created with custom qdrant url and api key."""
         from gobby.memory.vectorstore import VectorStore
 
         vs = VectorStore(
@@ -160,9 +158,9 @@ class TestVectorStoreInitialization:
 
         vs.rebuild.assert_not_called()
 
-    def test_default_qdrant_path_config_is_none(self) -> None:
-        """Config default for qdrant path should be None (runner provides fallback)."""
+    def test_default_qdrant_url_config(self) -> None:
+        """Config default for qdrant url should be http://localhost:6333."""
         from gobby.config.persistence import QdrantConfig
 
         config = QdrantConfig()
-        assert config.path is None
+        assert config.url == "http://localhost:6333"
