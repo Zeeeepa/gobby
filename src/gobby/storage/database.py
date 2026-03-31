@@ -152,6 +152,11 @@ class LocalDatabase:
             if db_path is None:
                 if safe_path:
                     db_path = safe_path
+                else:
+                    raise RuntimeError(
+                        "GOBBY_TEST_PROTECT is set but no GOBBY_DATABASE_PATH configured. "
+                        "Refusing to fall through to default (possibly production) database."
+                    )
             else:
                 resolved = Path(db_path).expanduser().resolve()
                 if resolved == _PRODUCTION_DB_PATH:

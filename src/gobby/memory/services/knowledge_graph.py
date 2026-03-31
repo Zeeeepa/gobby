@@ -337,7 +337,10 @@ class KnowledgeGraphService:
             return 0
         try:
             records = await self._neo4j.query(
-                "MATCH (m:Memory) WHERE m.memory_id IN $ids DETACH DELETE m RETURN count(m) AS deleted",
+                "MATCH (m:Memory) WHERE m.memory_id IN $ids "
+                "WITH count(m) AS total, collect(m) AS nodes "
+                "UNWIND nodes AS n DETACH DELETE n "
+                "RETURN total AS deleted",
                 {"ids": list(memory_ids)},
             )
             return records[0]["deleted"] if records else 0

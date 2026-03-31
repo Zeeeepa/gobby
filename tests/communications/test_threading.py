@@ -130,7 +130,7 @@ async def test_inbound_without_thread_id_does_not_populate():
 
     await manager.handle_inbound_messages("test-channel", [msg])
 
-    assert "test-channel:session-123" not in manager._thread_manager._thread_map
+    assert ("test-channel", "session-123") not in manager._thread_manager._thread_map
 
 
 @pytest.mark.asyncio

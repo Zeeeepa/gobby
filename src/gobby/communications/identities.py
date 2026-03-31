@@ -50,7 +50,7 @@ class IdentityManager:
             identity.session_id = session_id
             self._store.update_identity(identity)
 
-    async def resolve_identity(
+    def resolve_identity(
         self,
         channel_id: str,
         external_user_id: str,

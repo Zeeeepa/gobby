@@ -406,7 +406,7 @@ class CommunicationsManager:
         self, channel_id: str, external_user_id: str, external_username: str | None = None
     ) -> CommsIdentity:
         """Resolve identity and auto-create/link session if needed."""
-        return await self._identity_manager.resolve_identity(
+        return self._identity_manager.resolve_identity(
             channel_id, external_user_id, external_username
         )
 
@@ -458,7 +458,7 @@ class CommunicationsManager:
                         "conversation_reference"
                     ]
 
-                identity = await self._identity_manager.resolve_identity(
+                identity = self._identity_manager.resolve_identity(
                     channel.id, message.identity_id, external_username, metadata=identity_meta
                 )
                 message.session_id = identity.session_id
