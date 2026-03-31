@@ -72,13 +72,13 @@ class TestDockerComposeServices:
         test_cmd = data["services"]["qdrant"]["healthcheck"]["test"]
         assert any("healthz" in str(t) for t in test_cmd)
 
-    def test_qdrant_uses_bind_mount(self) -> None:
-        """Qdrant uses bind mount for storage (not Docker volume)."""
+    def test_qdrant_uses_named_volume(self) -> None:
+        """Qdrant uses named Docker volume for storage."""
         from gobby.cli.installers.qdrant import _COMPOSE_SRC
 
         data = yaml.safe_load(_COMPOSE_SRC.read_text())
         volumes = data["services"]["qdrant"]["volumes"]
-        assert any("./qdrant:/qdrant/storage" in str(v) for v in volumes)
+        assert any("gobby_qdrant_data:/qdrant/storage" in str(v) for v in volumes)
 
     def test_qdrant_has_profiles(self) -> None:
         """Qdrant service has docker compose profiles."""
@@ -104,6 +104,14 @@ class TestDockerComposeServices:
 
         data = yaml.safe_load(_COMPOSE_SRC.read_text())
         assert "gobby_neo4j_data" in data.get("volumes", {})
+
+    def test_compose_has_qdrant_volume(self) -> None:
+        """Compose file defines gobby_qdrant_data volume with explicit name."""
+        from gobby.cli.installers.qdrant import _COMPOSE_SRC
+
+        data = yaml.safe_load(_COMPOSE_SRC.read_text())
+        assert "gobby_qdrant_data" in data.get("volumes", {})
+        assert data["volumes"]["gobby_qdrant_data"]["name"] == "gobby_qdrant_data"
 
     def test_qdrant_restart_policy(self) -> None:
         """Qdrant service has unless-stopped restart policy."""
@@ -143,24 +151,6 @@ class TestInstallQdrant:
         assert compose_file.name == "docker-compose.yml"
         data = yaml.safe_load(compose_file.read_text())
         assert "qdrant" in data["services"]
-
-    def test_install_creates_qdrant_storage_dir(self, tmp_path: Path) -> None:
-        """install_qdrant creates qdrant storage directory for bind mount."""
-        from gobby.cli.installers.qdrant import install_qdrant
-
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-
-        with (
-            patch.object(shutil, "which", return_value="/usr/bin/docker"),
-            patch("gobby.cli.installers.qdrant.subprocess.run", return_value=mock_result),
-            patch("gobby.cli.installers.qdrant._wait_for_health", return_value=True),
-            patch("gobby.cli.installers.qdrant._update_config"),
-        ):
-            result = install_qdrant(gobby_home=tmp_path)
-
-        assert result["success"] is True
-        assert (tmp_path / "services" / "qdrant").is_dir()
 
     def test_install_returns_url(self, tmp_path: Path) -> None:
         """install_qdrant returns the configured URL on success."""
@@ -228,13 +218,11 @@ class TestUninstallQdrant:
         assert result["data_removed"] is False
 
     def test_uninstall_with_data_removal(self, tmp_path: Path) -> None:
-        """uninstall_qdrant removes storage directory when requested."""
-        from gobby.cli.installers.qdrant import uninstall_qdrant
+        """uninstall_qdrant removes Docker volume when requested."""
+        from gobby.cli.installers.qdrant import QDRANT_VOLUME_NAME, uninstall_qdrant
 
         services_dir = tmp_path / "services"
-        qdrant_dir = services_dir / "qdrant"
-        qdrant_dir.mkdir(parents=True)
-        (qdrant_dir / "test_data").write_text("data")
+        services_dir.mkdir(parents=True)
         compose = services_dir / "docker-compose.yml"
         compose.write_text("services:\n  qdrant:\n    image: qdrant/qdrant\n")
 
@@ -242,14 +230,19 @@ class TestUninstallQdrant:
         mock_result.returncode = 0
 
         with (
-            patch("gobby.cli.installers.qdrant.subprocess.run", return_value=mock_result),
+            patch("gobby.cli.installers.qdrant.subprocess.run", return_value=mock_result) as mock_run,
             patch("gobby.cli.installers.qdrant._update_config"),
         ):
             result = uninstall_qdrant(gobby_home=tmp_path, remove_data=True)
 
         assert result["success"] is True
         assert result["data_removed"] is True
-        assert not qdrant_dir.exists()
+        # Verify docker volume rm was called
+        volume_rm_calls = [
+            c for c in mock_run.call_args_list
+            if "volume" in str(c) and QDRANT_VOLUME_NAME in str(c)
+        ]
+        assert len(volume_rm_calls) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -275,11 +268,11 @@ class TestQdrantHealthCheck:
         assert is_qdrant_installed(gobby_home=tmp_path) is False
 
     def test_is_qdrant_installed_with_files(self, tmp_path: Path) -> None:
-        """Returns True when compose file and qdrant dir exist."""
+        """Returns True when compose file exists."""
         from gobby.cli.services import is_qdrant_installed
 
         services = tmp_path / "services"
-        (services / "qdrant").mkdir(parents=True)
+        services.mkdir(parents=True)
         (services / "docker-compose.yml").write_text("services: {}")
 
         assert is_qdrant_installed(gobby_home=tmp_path) is True

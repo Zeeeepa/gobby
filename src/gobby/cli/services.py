@@ -22,12 +22,11 @@ logger = logging.getLogger(__name__)
 def is_qdrant_installed(*, gobby_home: Path | None = None) -> bool:
     """Check if Qdrant service is installed.
 
-    Checks for the unified Docker Compose file and qdrant storage directory.
+    Checks for the unified Docker Compose file (which always includes Qdrant).
     """
     home = gobby_home or Path("~/.gobby").expanduser()
     compose = home / "services" / "docker-compose.yml"
-    qdrant_dir = home / "services" / "qdrant"
-    return compose.exists() and qdrant_dir.exists()
+    return compose.exists()
 
 
 async def is_qdrant_healthy(url: str | None) -> bool:

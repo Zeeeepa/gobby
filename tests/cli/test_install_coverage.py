@@ -137,6 +137,22 @@ class TestDetectionHelpers:
 # install command — --claude only
 # ---------------------------------------------------------------------------
 class TestInstallCommand:
+    @pytest.fixture(autouse=True)
+    def _mock_docker_services(self) -> Any:
+        """Mock Docker service installers — tests here focus on CLI-specific hooks."""
+        qdrant_result = {"success": True, "qdrant_url": "http://localhost:6333"}
+        neo4j_result = {
+            "success": True,
+            "neo4j_url": "http://localhost:7474",
+            "bolt_url": "bolt://localhost:7687",
+            "compose_file": "/path/to/compose.yml",
+        }
+        with (
+            patch("gobby.cli.install.install_qdrant", return_value=qdrant_result),
+            patch("gobby.cli.install.install_neo4j", return_value=neo4j_result),
+        ):
+            yield
+
     @patch("gobby.cli.install.run_daemon_setup")
     @patch(
         "gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"}
@@ -325,23 +341,66 @@ class TestInstallCommand:
     )
     @patch("gobby.cli.install.get_install_dir", return_value=Path("/fake/install"))
     @patch("gobby.cli.install.install_neo4j")
-    def test_install_neo4j(
+    @patch("gobby.cli.install.install_qdrant")
+    @patch("gobby.cli.install.install_claude")
+    def test_install_neo4j_default(
         self,
-        mock_install: MagicMock,
+        mock_claude: MagicMock,
+        mock_qdrant: MagicMock,
+        mock_neo4j: MagicMock,
         _install_dir: MagicMock,
         _config: MagicMock,
         _setup: MagicMock,
         runner: CliRunner,
     ) -> None:
-        mock_install.return_value = {
+        """Neo4j installs by default (no --neo4j flag needed)."""
+        mock_claude.return_value = {
+            "success": True,
+            "hooks_installed": ["PreToolUse"],
+            "mcp_configured": True,
+        }
+        mock_qdrant.return_value = {"success": True, "qdrant_url": "http://localhost:6333"}
+        mock_neo4j.return_value = {
             "success": True,
             "neo4j_url": "http://localhost:7474",
             "bolt_url": "bolt://localhost:7687",
             "compose_file": "/path/to/compose.yml",
         }
-        result = runner.invoke(install, ["--neo4j"], catch_exceptions=False)
+        result = runner.invoke(install, ["--claude"], catch_exceptions=False)
         assert result.exit_code == 0
         assert "Neo4j" in result.output
+        mock_neo4j.assert_called_once()
+
+    @patch("gobby.cli.install.run_daemon_setup")
+    @patch(
+        "gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"}
+    )
+    @patch("gobby.cli.install.get_install_dir", return_value=Path("/fake/install"))
+    @patch("gobby.cli.install.install_neo4j")
+    @patch("gobby.cli.install.install_qdrant")
+    @patch("gobby.cli.install.install_claude")
+    def test_install_no_ext_services(
+        self,
+        mock_claude: MagicMock,
+        mock_qdrant: MagicMock,
+        mock_neo4j: MagicMock,
+        _install_dir: MagicMock,
+        _config: MagicMock,
+        _setup: MagicMock,
+        runner: CliRunner,
+    ) -> None:
+        """--no-ext-services skips both Qdrant and Neo4j."""
+        mock_claude.return_value = {
+            "success": True,
+            "hooks_installed": ["PreToolUse"],
+            "mcp_configured": True,
+        }
+        result = runner.invoke(
+            install, ["--claude", "--no-ext-services"], catch_exceptions=False
+        )
+        assert result.exit_code == 0
+        mock_qdrant.assert_not_called()
+        mock_neo4j.assert_not_called()
 
     @patch("gobby.cli.install.run_daemon_setup")
     @patch(

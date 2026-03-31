@@ -140,10 +140,10 @@ __all__ = [
     help="Install Antigravity agent hooks (internal)",
 )
 @click.option(
-    "--neo4j",
-    "neo4j_flag",
+    "--no-ext-services",
+    "no_ext_services_flag",
     is_flag=True,
-    help="Install Neo4j knowledge graph backend (Docker-based)",
+    help="Skip Docker service installation (Qdrant, Neo4j)",
 )
 @click.option(
     "--neo4j-password",
@@ -181,7 +181,7 @@ def install(
     hooks_flag: bool,
     all_flag: bool,
     antigravity_flag: bool,
-    neo4j_flag: bool,
+    no_ext_services_flag: bool,
     neo4j_password: str | None,
     project_flag: bool,
     no_interactive_flag: bool,
@@ -207,7 +207,6 @@ def install(
         and not hooks_flag
         and not all_flag
         and not antigravity_flag
-        and not neo4j_flag
     ):
         all_flag = True
 
@@ -325,11 +324,9 @@ def install(
     if "antigravity" in clis_to_install:
         _run_antigravity_install(install_antigravity, project_path, results)
 
-    # Qdrant (installed by default if Docker available)
-    _run_qdrant_install(install_qdrant, results)
-
-    # Neo4j
-    if neo4j_flag:
+    # Docker services (Qdrant + Neo4j, installed by default if Docker available)
+    if not no_ext_services_flag:
+        _run_qdrant_install(install_qdrant, results)
         _run_neo4j_install(install_neo4j, neo4j_password, results)
 
     # Migration detection

@@ -27,7 +27,6 @@ DB_NAME = "gobby-hub.db"
 PACK_DIRS = [
     "session_transcripts",
     "session_summaries",
-    "services/qdrant",
     "services/neo4j/conf",
     "hooks",
     "certs",
@@ -46,6 +45,7 @@ PACK_FILES = [
 # Docker volumes to export
 DOCKER_VOLUMES = [
     "neo4j_gobby_neo4j_data",
+    "gobby_qdrant_data",
 ]
 
 
@@ -186,9 +186,9 @@ def _start_services() -> None:
     _services_start(get_gobby_home())
 
 
-# Backwards-compatible aliases
-_stop_neo4j_container = _stop_services
-_start_neo4j_container = _start_services
+# Aliases — _stop_services/_start_services handle all Docker services (Qdrant, Neo4j)
+_stop_docker_services = _stop_services
+_start_docker_services = _start_services
 
 
 def _start_daemon() -> None:
@@ -317,20 +317,20 @@ def pack(output: str | None, no_docker: bool, no_transcripts: bool, dry_run: boo
         click.echo("  Stopping daemon for consistent snapshot...")
         stop_daemon(quiet=True)
 
-    # Stop Neo4j for consistent volume export
-    neo4j_was_running = False
+    # Stop Docker services for consistent volume export
+    services_were_running = False
     if docker_volumes_to_export:
-        neo4j_was_running = _stop_neo4j_container()
-        if neo4j_was_running:
-            click.echo("  Stopped Neo4j container")
+        services_were_running = _stop_docker_services()
+        if services_were_running:
+            click.echo("  Stopped Docker services")
 
     try:
         _do_pack(output_path, items, docker_volumes_to_export, missing)
     finally:
         # Restart services that were running
-        if neo4j_was_running:
-            click.echo("  Restarting Neo4j container...")
-            _start_neo4j_container()
+        if services_were_running:
+            click.echo("  Restarting Docker services...")
+            _start_docker_services()
         if daemon_was_running:
             click.echo("  Restarting daemon...")
             _start_daemon()
@@ -393,7 +393,7 @@ def unpack(archive: str, no_docker: bool, dry_run: bool, force: bool) -> None:
     """Unpack a Gobby archive to restore data on a new machine.
 
     Restores the SQLite database, session transcripts, vector store data,
-    configs, and optionally Docker volume data (Neo4j).
+    configs, and optionally Docker volume data.
 
     Usage:
         gobby unpack gobby-pack-20260316.tar.gz
@@ -453,9 +453,9 @@ def unpack(archive: str, no_docker: bool, dry_run: bool, force: bool) -> None:
             click.echo("  Stopping daemon...")
             stop_daemon(quiet=True)
 
-        neo4j_was_running = _stop_neo4j_container()
-        if neo4j_was_running:
-            click.echo("  Stopped Neo4j container")
+        services_were_running = _stop_docker_services()
+        if services_were_running:
+            click.echo("  Stopped Docker services")
 
         # Backup existing DB if present
         existing_db = get_gobby_home() / DB_NAME
@@ -544,9 +544,9 @@ def unpack(archive: str, no_docker: bool, dry_run: bool, force: bool) -> None:
             click.echo(f"    Warning: {hook_result['error']}", err=True)
 
     # Restart services
-    if neo4j_was_running or (not no_docker and docker_archives):
-        click.echo("  Starting Neo4j container...")
-        _start_neo4j_container()
+    if services_were_running or (not no_docker and docker_archives):
+        click.echo("  Starting Docker services...")
+        _start_docker_services()
     if daemon_was_running:
         click.echo("  Restarting daemon...")
         _start_daemon()

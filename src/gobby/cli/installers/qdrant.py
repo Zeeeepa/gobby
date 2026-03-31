@@ -22,6 +22,7 @@ _COMPOSE_SRC = _DATA_DIR / "docker-compose.services.yml"
 
 DEFAULT_QDRANT_HTTP_URL = "http://localhost:6333"
 DEFAULT_QDRANT_PORT = 6333
+QDRANT_VOLUME_NAME = "gobby_qdrant_data"
 
 
 def _ensure_unified_compose(services_dir: Path) -> Path:
@@ -59,10 +60,6 @@ def install_qdrant(
 
     services_dir = home / "services"
     compose_file = _ensure_unified_compose(services_dir)
-
-    # Ensure qdrant storage directory exists (for bind mount)
-    qdrant_dir = services_dir / "qdrant"
-    qdrant_dir.mkdir(parents=True, exist_ok=True)
 
     # Run docker compose up with qdrant profile
     try:
@@ -153,9 +150,14 @@ def uninstall_qdrant(
             logger.warning("Docker compose down timed out")
 
     if remove_data:
-        qdrant_dir = services_dir / "qdrant"
-        if qdrant_dir.exists():
-            shutil.rmtree(qdrant_dir, ignore_errors=True)
+        try:
+            subprocess.run(  # nosec B603 B607
+                ["docker", "volume", "rm", QDRANT_VOLUME_NAME],
+                capture_output=True,
+                timeout=30,
+            )
+        except (subprocess.TimeoutExpired, OSError):
+            logger.warning(f"Failed to remove Docker volume {QDRANT_VOLUME_NAME}")
 
     _update_config(qdrant_url=None)
 

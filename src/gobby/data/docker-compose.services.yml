@@ -34,7 +34,7 @@ services:
       # To enable: set QDRANT__SERVICE__API_KEY and configure TLS
       - QDRANT__LOG_LEVEL=${GOBBY_QDRANT_LOG_LEVEL:-WARN}
     volumes:
-      - ./qdrant:/qdrant/storage
+      - gobby_qdrant_data:/qdrant/storage
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/6333 && printf \"GET /healthz HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n\" >&3 && grep -q \"healthz check passed\" <&3'"]
       interval: 10s
@@ -47,3 +47,5 @@ services:
 
 volumes:
   gobby_neo4j_data:
+  gobby_qdrant_data:
+    name: gobby_qdrant_data
