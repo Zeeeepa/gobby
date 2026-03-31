@@ -268,7 +268,9 @@ def create_spawn_agent_registry(
                 failed_providers = get_failed_providers_for_task(task_id, arm)
 
                 def _resolve_provider(p: str | None) -> str:
-                    return "claude" if p in (None, "inherit") else p
+                    if p is None or p == "inherit":
+                        return "claude"
+                    return p
 
                 agent_provider = _resolve_provider(agent_body.provider)
 
