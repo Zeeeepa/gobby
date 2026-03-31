@@ -340,16 +340,27 @@ class VectorStore:
         if not memories:
             return
 
-        # Embed and upsert in batches
-        items: list[tuple[str, list[float], dict[str, Any]]] = []
+        # Embed and upsert in batches (chunked to stay under Qdrant request size limit)
+        batch_size = 500
+        total = 0
+        batch: list[tuple[str, list[float], dict[str, Any]]] = []
         for mem in memories:
             content = mem["content"]
             embedding = await embed_fn(content)
             payload = {k: v for k, v in mem.items() if k not in ("id",)}
-            items.append((mem["id"], embedding, payload))
+            batch.append((mem["id"], embedding, payload))
 
-        await self.batch_upsert(items)
-        logger.info(f"Rebuilt {len(items)} vectors in '{self._collection_name}'")
+            if len(batch) >= batch_size:
+                await self.batch_upsert(batch)
+                total += len(batch)
+                logger.info(f"Rebuild progress: {total}/{len(memories)} vectors")
+                batch = []
+
+        if batch:
+            await self.batch_upsert(batch)
+            total += len(batch)
+
+        logger.info(f"Rebuilt {total} vectors in '{self._collection_name}'")
 
     async def scroll_ids(self, batch_size: int = 1000) -> list[str]:
         """Return all point IDs in the collection."""
