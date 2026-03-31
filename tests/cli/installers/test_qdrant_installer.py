@@ -99,11 +99,20 @@ class TestDockerComposeServices:
         assert "all" in profiles
 
     def test_compose_has_neo4j_volume(self) -> None:
-        """Compose file defines gobby_neo4j_data volume."""
+        """Compose file defines gobby_neo4j_data volume with explicit name."""
         from gobby.cli.installers.qdrant import _COMPOSE_SRC
 
         data = yaml.safe_load(_COMPOSE_SRC.read_text())
         assert "gobby_neo4j_data" in data.get("volumes", {})
+        assert data["volumes"]["gobby_neo4j_data"]["name"] == "gobby_neo4j_data"
+
+    def test_compose_has_neo4j_logs_volume(self) -> None:
+        """Compose file defines gobby_neo4j_logs volume to prevent anonymous volumes."""
+        from gobby.cli.installers.qdrant import _COMPOSE_SRC
+
+        data = yaml.safe_load(_COMPOSE_SRC.read_text())
+        assert "gobby_neo4j_logs" in data.get("volumes", {})
+        assert data["volumes"]["gobby_neo4j_logs"]["name"] == "gobby_neo4j_logs"
 
     def test_compose_has_qdrant_volume(self) -> None:
         """Compose file defines gobby_qdrant_data volume with explicit name."""

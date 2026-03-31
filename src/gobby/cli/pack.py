@@ -44,7 +44,7 @@ PACK_FILES = [
 
 # Docker volumes to export
 DOCKER_VOLUMES = [
-    "neo4j_gobby_neo4j_data",
+    "gobby_neo4j_data",
     "gobby_qdrant_data",
 ]
 

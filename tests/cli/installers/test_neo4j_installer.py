@@ -50,11 +50,20 @@ class TestDockerComposeNeo4j:
         assert "8687:7687" in ports
 
     def test_compose_has_volume(self) -> None:
-        """docker-compose.neo4j.yml defines gobby_neo4j_data volume."""
+        """docker-compose.neo4j.yml defines gobby_neo4j_data volume with explicit name."""
         from gobby.cli.installers.neo4j import _COMPOSE_SRC
 
         data = yaml.safe_load(_COMPOSE_SRC.read_text())
         assert "gobby_neo4j_data" in data.get("volumes", {})
+        assert data["volumes"]["gobby_neo4j_data"]["name"] == "gobby_neo4j_data"
+
+    def test_compose_has_logs_volume(self) -> None:
+        """docker-compose.neo4j.yml defines gobby_neo4j_logs volume to prevent anonymous volumes."""
+        from gobby.cli.installers.neo4j import _COMPOSE_SRC
+
+        data = yaml.safe_load(_COMPOSE_SRC.read_text())
+        assert "gobby_neo4j_logs" in data.get("volumes", {})
+        assert data["volumes"]["gobby_neo4j_logs"]["name"] == "gobby_neo4j_logs"
 
     def test_compose_has_healthcheck(self) -> None:
         """Neo4j service has a healthcheck."""
