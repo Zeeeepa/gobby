@@ -206,7 +206,7 @@ class TestKillAgent:
                 if args[2] == "777":
                     return (0, "python claude session-id sess1", "")
                 if args[2] == "778":
-                    # This one also matches! It should pick highest pid (778)
+                    # Both PIDs match — kill_agent picks the highest PID for disambiguation
                     return (0, "python claude session-id sess1 --wrapper", "")
             return (1, "", "")
 

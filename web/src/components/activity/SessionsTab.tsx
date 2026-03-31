@@ -184,13 +184,9 @@ export const SessionsTab = memo(function SessionsTab({
   // Auto-close watching view when the selected session disappears from the list
   useEffect(() => {
     if (selectedSessionId && !loading) {
-      if (entries.length === 0) {
+      const stillPresent = entries.some((e) => e.id === selectedSessionId);
+      if (!stillPresent) {
         setSelectedSessionId(null);
-      } else {
-        const stillPresent = entries.some((e) => e.id === selectedSessionId);
-        if (!stillPresent) {
-          setSelectedSessionId(null);
-        }
       }
     }
   }, [entries, selectedSessionId, loading]);

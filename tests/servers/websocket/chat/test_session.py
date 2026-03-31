@@ -103,6 +103,12 @@ class TestCancelActiveChat:
         with patch("asyncio.sleep", new_callable=AsyncMock):
             await mixin._cancel_active_chat("conv-xyz")
 
+        # Await the task to ensure cancellation is fully observed
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
         session.interrupt.assert_awaited_once()
         assert task.cancelled()
         session.drain_pending_response.assert_awaited_once()

@@ -508,6 +508,9 @@ export function AgentEditForm({
                   <select className="agent-edit-input" value={form.fallback_agent} onChange={e => {
                     onChange({ ...form, fallback_agent: e.target.value || '' })
                   }}>
+                    {agentNames.filter(n => n !== form.name).includes(form.fallback_agent) ? null : (
+                      <option key={form.fallback_agent} value={form.fallback_agent}>{form.fallback_agent} (missing)</option>
+                    )}
                     {agentNames.filter(n => n !== form.name).map(n => (
                       <option key={n} value={n}>{n}</option>
                     ))}

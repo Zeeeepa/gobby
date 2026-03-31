@@ -17,12 +17,12 @@ description: Python coding guidelines and best practices. Use when writing, revi
 
 ```bash
 # Syntax check (always)
-find . -name '*.py' -exec python -m py_compile {} +
+find . -name '*.py' -not -path '*/.venv/*' -not -path '*/venv/*' -not -path '*/build/*' -not -path '*/__pycache__/*' -exec python -m py_compile {} +
 
 # Run tests if present
 python -m pytest tests/ -v 2>/dev/null || python -m unittest discover -v 2>/dev/null || echo "No tests found"
 
-# Format check (if available)
+# Auto-fix lint issues (if available)
 ruff check . --fix 2>/dev/null || python -m black --check . 2>/dev/null
 ```
 

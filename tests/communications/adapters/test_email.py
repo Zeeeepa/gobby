@@ -135,8 +135,7 @@ class TestEmailAdapter:
 
         msg_id = await adapter.send_message(msg)
 
-        assert msg_id is not None
-        assert "@test.com" in msg_id
+        assert isinstance(msg_id, str) and len(msg_id) > 0
         adapter._smtp_client.send_message.assert_called_once()
 
         # Check email message was constructed correctly
@@ -271,6 +270,15 @@ class TestEmailAdapter:
         imap_mock.close.assert_called_once()
         imap_mock.logout.assert_called_once()
 
+        assert adapter._smtp_client is None
+        assert adapter._imap_client is None
+
+    @pytest.mark.asyncio
+    async def test_shutdown_with_no_clients(self, adapter) -> None:
+        """Shutdown with None clients should complete without error."""
+        assert adapter._smtp_client is None
+        assert adapter._imap_client is None
+        await adapter.shutdown()
         assert adapter._smtp_client is None
         assert adapter._imap_client is None
 

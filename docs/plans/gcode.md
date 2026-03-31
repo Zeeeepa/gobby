@@ -286,7 +286,7 @@ ignore = "0.4"
 # Secret resolution (Fernet decryption of gobby secrets)
 fernet = "0.2"
 pbkdf2 = "0.12"
-base64 = "0.22"
+# base64 already listed above
 ```
 
 ## Installation
@@ -391,4 +391,4 @@ After gcode Sprint 2, verify cross-runtime embedding parity: generate same text 
 | `src/gobby/config/bootstrap.py` | Bootstrap config format |
 | `src/gobby/search/local_embeddings.py` | llama-cpp-python embedding params to replicate |
 | `src/gobby/search/embeddings.py` | Embedding routing layer (prefix behavior) |
-| `src/gobby/cli/install_setup.py:416-511` | gsqz install template |
+| `src/gobby/cli/install_setup.py` (`_install_gsqz()`) | gsqz install template |

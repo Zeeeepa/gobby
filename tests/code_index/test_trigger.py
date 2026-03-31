@@ -63,6 +63,9 @@ async def test_single_file_triggers_gcode(trigger: CodeIndexTrigger, tmp_path: P
         args = call_args[0]
         assert "index" in args
         assert "--files" in args
+
+        # Legacy in-process indexer must NOT be invoked
+        trigger._indexer.index_changed_files.assert_not_awaited()
         assert "/src/foo.py" in args
 
 
