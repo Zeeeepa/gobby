@@ -53,12 +53,18 @@ class TestChatSessionSendMessage:
         session._client.receive_response.return_value = TestChatSessionSendMessage._mock_stream(
             [
                 AssistantMessage(
-                    id="msg_1",
-                    role="assistant",
-                    content=[TextBlock(text="Hello world", type="text")],
+                    content=[TextBlock(text="Hello world")],
                     model="claude-3-opus-20240229",
                 ),
-                ResultMessage(session_id="sdk-123", result="Hello world"),
+                ResultMessage(
+                    subtype="result",
+                    duration_ms=0,
+                    duration_api_ms=0,
+                    is_error=False,
+                    num_turns=1,
+                    session_id="sdk-123",
+                    result="Hello world",
+                ),
             ]
         )
 
@@ -77,7 +83,7 @@ class TestChatSessionSendMessage:
     async def test_send_message_handles_list_content(self, session: ChatSession) -> None:
         """Test list content is reformatted for exact SDK input mapping."""
         session._client.receive_response.return_value = TestChatSessionSendMessage._mock_stream(
-            [ResultMessage(session_id="sdk-123", result="fallback")]
+            [ResultMessage(subtype="result", duration_ms=0, duration_api_ms=0, is_error=False, num_turns=1, session_id="sdk-123", result="fallback")]
         )
 
         # Test content list
@@ -109,6 +115,8 @@ class TestChatSessionSendMessage:
         session._client.receive_response.return_value = TestChatSessionSendMessage._mock_stream(
             [
                 StreamEvent(
+                    uuid="evt-1",
+                    session_id="sdk",
                     event={
                         "type": "message_start",
                         "message": {
@@ -118,9 +126,9 @@ class TestChatSessionSendMessage:
                                 "cache_creation_input_tokens": 10,
                             }
                         },
-                    }
+                    },
                 ),
-                ResultMessage(session_id="sdk", result="Hello", usage={"output_tokens": 20}),
+                ResultMessage(subtype="result", duration_ms=0, duration_api_ms=0, is_error=False, num_turns=1, session_id="sdk", result="Hello", usage={"output_tokens": 20}),
             ]
         )
 
@@ -142,17 +150,13 @@ class TestChatSessionSendMessage:
         session._client.receive_response.return_value = TestChatSessionSendMessage._mock_stream(
             [
                 AssistantMessage(
-                    id="msg_2",
-                    role="assistant",
                     content=[ToolUseBlock(id="tu_1", name="mcp__gobby__read", input={"path": "a"})],
                     model="test",
                 ),
                 UserMessage(
-                    id="msg_out",
-                    role="user",
                     content=[ToolResultBlock(tool_use_id="tu_1", content="ok", is_error=False)],
                 ),
-                ResultMessage(session_id="sdk", result=""),
+                ResultMessage(subtype="result", duration_ms=0, duration_api_ms=0, is_error=False, num_turns=1, session_id="sdk", result=""),
             ]
         )
 
@@ -181,12 +185,10 @@ class TestChatSessionSendMessage:
         session._client.receive_response.return_value = TestChatSessionSendMessage._mock_stream(
             [
                 AssistantMessage(
-                    id="m1",
-                    role="assistant",
                     content=[ThinkingBlock(thinking="hmm", signature="sig")],
                     model="claude-3-7",
                 ),
-                ResultMessage(session_id="s", result="res"),
+                ResultMessage(subtype="result", duration_ms=0, duration_api_ms=0, is_error=False, num_turns=1, session_id="s", result="res"),
             ]
         )
 
@@ -232,9 +234,10 @@ class TestChatSessionSendMessage:
         await session.drain_pending_response()
         # Should finish successfully
 
-        # Stop
+        # Stop — save client ref before stop() clears it
+        client_mock = session._client
         await session.stop()
-        session._client.disconnect.assert_awaited_once()
+        client_mock.disconnect.assert_awaited_once()
         assert not session._connected
 
     @pytest.mark.asyncio

@@ -9,14 +9,14 @@ services:
       - "8474:7474"
       - "8687:7687"
     environment:
-      - NEO4J_AUTH=neo4j/${GOBBY_NEO4J_PASSWORD:-gobbyneo4j}
+      - NEO4J_AUTH=neo4j/${GOBBY_NEO4J_PASSWORD}
       - NEO4J_PLUGINS=["apoc"]
     volumes:
       - gobby_neo4j_data:/data
       - gobby_neo4j_logs:/logs
       - ./neo4j/conf:/var/lib/neo4j/conf
     healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u neo4j -p ${GOBBY_NEO4J_PASSWORD:-gobbyneo4j} 'RETURN 1'"]
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p ${GOBBY_NEO4J_PASSWORD} 'RETURN 1'"]
       interval: 10s
       timeout: 5s
       retries: 5

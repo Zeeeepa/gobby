@@ -158,6 +158,8 @@ filterwarnings = [
     "ignore::DeprecationWarning:google.genai.*",
     "ignore::DeprecationWarning:oletools",
     "ignore::DeprecationWarning:oletools.*",
+    # Ignore MCP SDK streamable_http_client deprecation (upstream)
+    "ignore:Use `streamable_http_client` instead:DeprecationWarning",
 ]
 
 [tool.ruff]

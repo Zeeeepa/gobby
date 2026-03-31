@@ -128,7 +128,7 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
         if resolved_session_id:
             try:
                 _session = _session_manager.get(resolved_session_id)
-            except Exception as e:
+            except (KeyError, ValueError) as e:
                 logger.debug(f"Best-effort session lookup failed: {e}")
 
         # Check for linked commits (unless parent with all children closed or epic)

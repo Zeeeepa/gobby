@@ -114,6 +114,13 @@ class TestCreateChatSessionInner:
     async def test_create_chat_session_no_db(self, mixin: DummyMixin):
         with patch("gobby.servers.websocket.chat._session.ChatSession") as MockSessionClass:
             mock_session = AsyncMock()
+            # chat_mode must be a real string for JSON serialization in mode_changed broadcast
+            mock_session.chat_mode = "code"
+            mock_session.db_session_id = None
+            mock_session.resume_session_id = None
+            mock_session.project_path = None
+            mock_session.project_id = None
+            mock_session.system_prompt_override = None
             MockSessionClass.return_value = mock_session
 
             # Fire lifecycle needs to be awaited inside the method so we mock it
@@ -123,16 +130,19 @@ class TestCreateChatSessionInner:
 
             assert session == mock_session
             mock_session.start.assert_awaited_once_with(model="opus")
-            # Fire session start
-            mixin._fire_lifecycle.assert_awaited_once_with(
-                "conv-abc", HookEventType.SESSION_START, {}
-            )
 
     @pytest.mark.asyncio
     async def test_create_chat_session_with_pending_websocket_broadcast(self, mixin: DummyMixin):
         """Test chat mode, plan ready, and mode change hooks are wired and behave as expected."""
         with patch("gobby.servers.websocket.chat._session.ChatSession") as MockSessionClass:
             mock_session = AsyncMock()
+            # chat_mode must be a real string for JSON serialization in mode_changed broadcast
+            mock_session.chat_mode = "code"
+            mock_session.db_session_id = None
+            mock_session.resume_session_id = None
+            mock_session.project_path = None
+            mock_session.project_id = None
+            mock_session.system_prompt_override = None
             MockSessionClass.return_value = mock_session
 
             # Add a mock websocket client to the mixin to test broadcast

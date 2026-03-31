@@ -2,7 +2,7 @@
 
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -341,7 +341,8 @@ class TestFormatInjectedPrompt:
     def test_uses_custom_template(self) -> None:
         """Uses custom template when provided."""
         template = "CONTEXT:\n{{ context }}\n\nTASK:\n{{ prompt }}"
-        result = format_injected_prompt("My context", "My task", template=template)
+        with patch("gobby.agents.context.Path.home", return_value=Path("/nonexistent")):
+            result = format_injected_prompt("My context", "My task", template=template)
 
         assert result == "CONTEXT:\nMy context\n\nTASK:\nMy task"
         assert "## Context from Parent Session" not in result

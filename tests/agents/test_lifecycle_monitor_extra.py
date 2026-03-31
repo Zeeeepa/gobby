@@ -39,6 +39,7 @@ class TestRecoverTaskFromFailedAgent:
             status="error",
             error="API failed",
             created_at="2024-01-01T00:00:00Z",
+            updated_at="2024-01-01T00:00:00Z",
         )
         mock_run_mgr.get.return_value = db_run
 
@@ -80,6 +81,7 @@ class TestRecoverTaskFromFailedAgent:
             status="error",
             error="",
             created_at="2024-01-01",
+            updated_at="2024-01-01T00:00:00Z",
         )
         mock_run_mgr.get.return_value = db_run
 
@@ -128,6 +130,7 @@ class TestRecoverTaskFromFailedAgent:
             prompt="p",
             status="error",
             created_at="2024-01-01",
+            updated_at="2024-01-01T00:00:00Z",
         )
         mock_run_mgr.get.return_value = db_run
 

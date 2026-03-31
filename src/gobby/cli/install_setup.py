@@ -646,6 +646,11 @@ def _install_gcode_from_submodule(bin_dir: Path) -> bool:
             break
         search = search.parent
     else:
+        logger.debug(
+            "gcode submodule not found after searching %d parents from %s",
+            10,
+            Path(__file__).resolve().parent,
+        )
         return False
 
     try:

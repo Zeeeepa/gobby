@@ -23,6 +23,20 @@ from gobby.cli.install import (
 pytestmark = pytest.mark.unit
 
 
+@pytest.fixture(autouse=True)
+def _mock_ext_services_and_prompts():
+    """Prevent real Docker service installers and interactive API-key prompts."""
+    with (
+        patch("gobby.cli.install._run_qdrant_install"),
+        patch("gobby.cli.install._run_neo4j_install"),
+        patch(
+            "gobby.cli._install_prompts._prompt_api_keys",
+            return_value={"stored": 0, "already_configured": 0, "env_found": 0},
+        ),
+    ):
+        yield
+
+
 class TestEnsureDaemonConfig:
     """Tests for _ensure_daemon_config function."""
 

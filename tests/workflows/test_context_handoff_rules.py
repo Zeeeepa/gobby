@@ -235,7 +235,7 @@ class TestInjectErrorTriagePolicy:
         assert body.event.value == "session_start"
         assert body.effects[0].type == "inject_context"
         assert body.effects[0].template is not None
-        assert "Pre-Existing" in body.effects[0].template
+        assert "Error Resolution Policy" in body.effects[0].template
 
     def test_has_when_condition(self, db, manager) -> None:
         _sync_bundled(db)

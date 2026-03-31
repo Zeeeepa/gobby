@@ -140,6 +140,8 @@ class TestInstallGsqzFromGithub:
         with patch("gobby.cli.install_setup.urlopen", return_value=mock_resp) as mock_urlopen:
             assert _install_gsqz_from_github(tmp_path, "aarch64-apple-darwin", "0.1.0") is True
         url_called = mock_urlopen.call_args[0][0]
+        if hasattr(url_called, "full_url"):
+            url_called = url_called.full_url
         assert "v0.1.0" in url_called
 
     def test_nested_path_in_tarball(self, tmp_path: Path) -> None:

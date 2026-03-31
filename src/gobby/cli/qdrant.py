@@ -3,9 +3,12 @@ CLI commands for Qdrant vector database management.
 """
 
 import asyncio
+import logging
 import sys
 
 import click
+
+logger = logging.getLogger(__name__)
 
 
 @click.group("qdrant")
@@ -39,7 +42,8 @@ def qdrant_status() -> None:
 
         config = load_config()
         url = config.databases.qdrant.url
-    except Exception:
+    except (ImportError, FileNotFoundError, ValueError, AttributeError) as e:
+        logger.debug(f"Could not load config for qdrant status: {e}")
         url = None
 
     status = asyncio.run(get_qdrant_status(qdrant_url=url))

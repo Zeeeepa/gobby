@@ -562,6 +562,18 @@ class TestKillAllGobbyDaemons:
 class TestStopDaemon:
     """Tests for stop_daemon function."""
 
+    @pytest.fixture(autouse=True)
+    def _mock_stop_daemon_deps(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Mock dependencies added to stop_daemon after tests were written."""
+        # Clear GOBBY_TEST_PROTECT so the test-safety guard doesn't short-circuit
+        monkeypatch.delenv("GOBBY_TEST_PROTECT", raising=False)
+        with (
+            patch("gobby.cli.utils.stop_ui_server"),
+            patch("gobby.cli.utils.kill_all_gobby_daemons", return_value=0),
+            patch("gobby.cli.installers.service.get_service_status", return_value={}),
+        ):
+            yield
+
     def test_no_pid_file(self, temp_dir: Path) -> None:
         """Test when no PID file exists."""
         with patch("gobby.cli.utils.get_gobby_home", return_value=temp_dir):
@@ -589,12 +601,16 @@ class TestStopDaemon:
         def mock_is_alive(pid):
             return alive_calls.pop(0) if alive_calls else False
 
+        mock_proc = MagicMock()
+        mock_proc.cmdline.return_value = ["python", "-m", "gobby.runner"]
+
         with patch("gobby.cli.utils.get_gobby_home", return_value=temp_dir):
             with patch("gobby.cli.utils._is_process_alive", side_effect=mock_is_alive):
-                with patch("os.kill") as mock_kill:
-                    result = stop_daemon(quiet=True)
-                    assert result is True
-                    mock_kill.assert_called_with(12345, signal.SIGTERM)
+                with patch("gobby.cli.utils.psutil.Process", return_value=mock_proc):
+                    with patch("os.kill") as mock_kill:
+                        result = stop_daemon(quiet=True)
+                        assert result is True
+                        mock_kill.assert_called_with(12345, signal.SIGTERM)
 
     def test_force_kills_stubborn_process(self, temp_dir: Path) -> None:
         """Test force killing when process doesn't stop gracefully."""
@@ -614,25 +630,33 @@ class TestStopDaemon:
             # Still alive until after SIGKILL
             return signal.SIGKILL not in kill_calls
 
+        mock_proc = MagicMock()
+        mock_proc.cmdline.return_value = ["python", "-m", "gobby.runner"]
+
         with patch("gobby.cli.utils.get_gobby_home", return_value=temp_dir):
             with patch("gobby.cli.utils._is_process_alive", side_effect=mock_is_alive):
-                with patch("os.kill", side_effect=mock_kill):
-                    with patch("time.sleep"):
-                        result = stop_daemon(quiet=True)
-                        assert result is True
-                        assert signal.SIGTERM in kill_calls
-                        assert signal.SIGKILL in kill_calls
+                with patch("gobby.cli.utils.psutil.Process", return_value=mock_proc):
+                    with patch("os.kill", side_effect=mock_kill):
+                        with patch("time.sleep"):
+                            result = stop_daemon(quiet=True)
+                            assert result is True
+                            assert signal.SIGTERM in kill_calls
+                            assert signal.SIGKILL in kill_calls
 
     def test_permission_error(self, temp_dir: Path) -> None:
         """Test handling of permission error when stopping daemon."""
         pid_file = temp_dir / "gobby.pid"
         pid_file.write_text("12345")
 
+        mock_proc = MagicMock()
+        mock_proc.cmdline.return_value = ["python", "-m", "gobby.runner"]
+
         with patch("gobby.cli.utils.get_gobby_home", return_value=temp_dir):
             with patch("gobby.cli.utils._is_process_alive", return_value=True):
-                with patch("os.kill", side_effect=PermissionError()):
-                    result = stop_daemon(quiet=True)
-                    assert result is False
+                with patch("gobby.cli.utils.psutil.Process", return_value=mock_proc):
+                    with patch("os.kill", side_effect=PermissionError()):
+                        result = stop_daemon(quiet=True)
+                        assert result is False
 
 
 # ==============================================================================

@@ -164,6 +164,32 @@ class CommunicationsManager:
         await adapter.initialize(channel, self._secret_store.get)
         return adapter
 
+    def _enrich_outbound_metadata(
+        self,
+        channel: ChannelConfig,
+        channel_name: str,
+        session_id: str | None,
+        metadata: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Build effective metadata for outbound messages/attachments."""
+        effective = dict(metadata) if metadata else {}
+        if "platform_destination" not in effective:
+            default_dest = channel.config_json.get("default_destination")
+            if default_dest:
+                effective["platform_destination"] = default_dest
+
+            if not effective.get("platform_destination") and session_id:
+                identity = self._identity_manager.get_identity_by_session(channel.id, session_id)
+                if identity and "conversation_reference" in identity.metadata_json:
+                    effective["conversation_reference"] = identity.metadata_json[
+                        "conversation_reference"
+                    ]
+                    logger.debug(
+                        "Injected conversation_reference for proactive messaging on %s",
+                        channel_name,
+                    )
+        return effective
+
     async def send_message(
         self,
         channel_name: str,
@@ -199,25 +225,9 @@ class CommunicationsManager:
         if session_id:
             platform_thread_id = self._get_thread_id(channel_name, session_id)
 
-        # Inject platform_destination from channel config if not already provided
-        effective_metadata = dict(metadata) if metadata else {}
-        if "platform_destination" not in effective_metadata:
-            # 1. Try channel default
-            default_dest = channel.config_json.get("default_destination")
-            if default_dest:
-                effective_metadata["platform_destination"] = default_dest
-
-            # 2. Try proactive messaging via identity conversation reference
-            if not effective_metadata.get("platform_destination") and session_id:
-                identity = self._identity_manager.get_identity_by_session(channel.id, session_id)
-                if identity and "conversation_reference" in identity.metadata_json:
-                    effective_metadata["conversation_reference"] = identity.metadata_json[
-                        "conversation_reference"
-                    ]
-                    logger.debug(
-                        "Injected conversation_reference for proactive messaging on %s",
-                        channel_name,
-                    )
+        effective_metadata = self._enrich_outbound_metadata(
+            channel, channel_name, session_id, metadata
+        )
 
         # Build CommsMessage
         message = CommsMessage(
@@ -295,14 +305,9 @@ class CommunicationsManager:
 
         display_name = filename or file_path.name
 
-        # Proactive messaging support for attachments
-        effective_metadata = dict(metadata) if metadata else {}
-        if "platform_destination" not in effective_metadata and session_id:
-            identity = self._identity_manager.get_identity_by_session(channel.id, session_id)
-            if identity and "conversation_reference" in identity.metadata_json:
-                effective_metadata["conversation_reference"] = identity.metadata_json[
-                    "conversation_reference"
-                ]
+        effective_metadata = self._enrich_outbound_metadata(
+            channel, channel_name, session_id, metadata
+        )
 
         message = CommsMessage(
             id=str(uuid.uuid4()),

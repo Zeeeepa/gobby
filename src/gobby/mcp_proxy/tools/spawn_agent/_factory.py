@@ -267,9 +267,10 @@ def create_spawn_agent_registry(
                 arm = LocalAgentRunManager(db)
                 failed_providers = get_failed_providers_for_task(task_id, arm)
 
-                agent_provider = agent_body.provider
-                if agent_provider in (None, "inherit"):
-                    agent_provider = "claude"
+                def _resolve_provider(p: str | None) -> str:
+                    return "claude" if p in (None, "inherit") else p
+
+                agent_provider = _resolve_provider(agent_body.provider)
 
                 if agent_provider in failed_providers:
                     visited: set[str] = {agent_body.name}
@@ -289,9 +290,7 @@ def create_spawn_agent_registry(
                         candidate = _load_agent_body(candidate_name, db, project_id=project_id)
                         if not candidate:
                             break
-                        candidate_provider = candidate.provider
-                        if candidate_provider in (None, "inherit"):
-                            candidate_provider = "claude"
+                        candidate_provider = _resolve_provider(candidate.provider)
                         if candidate_provider not in failed_providers:
                             fallback_body = candidate
                             break

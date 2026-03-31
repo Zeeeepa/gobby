@@ -144,18 +144,15 @@ class TestWebChatAutoCreate:
         manager._store.create_channel.assert_not_called()
 
     def test_set_websocket_broadcast(self, manager):
-        mock_adapter = MagicMock()
-        mock_adapter.__class__.__name__ = "WebChatAdapter"
-        # we need to simulate isinstance bypassing or importing the real one
-        with patch("gobby.communications.adapters.web_chat.WebChatAdapter") as WebChatCls:
-            # We mock isinstance check internally actually by real type
-            adapter_instance = WebChatCls()
-            manager._adapters["web_chat"] = adapter_instance
+        from gobby.communications.adapters.web_chat import WebChatAdapter
 
-            mock_broadcast = MagicMock()
-            manager.set_websocket_broadcast(mock_broadcast)
+        adapter_instance = MagicMock(spec=WebChatAdapter)
+        manager._adapters["web_chat"] = adapter_instance
 
-            adapter_instance.set_broadcast.assert_called_once_with(mock_broadcast)
+        mock_broadcast = MagicMock()
+        manager.set_websocket_broadcast(mock_broadcast)
+
+        adapter_instance.set_broadcast.assert_called_once_with(mock_broadcast)
 
 
 class TestDelegates:

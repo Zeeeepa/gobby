@@ -20,10 +20,12 @@ class TestParseProviderList:
         assert parse_provider_list("claude") == ["claude"]
 
     def test_multiple_providers(self) -> None:
-        assert parse_provider_list("gemini,claude") == ["gemini", "claude"]
+        with pytest.warns(DeprecationWarning, match="Comma-separated"):
+            assert parse_provider_list("gemini,claude") == ["gemini", "claude"]
 
     def test_whitespace_handling(self) -> None:
-        assert parse_provider_list("gemini , claude , codex") == ["gemini", "claude", "codex"]
+        with pytest.warns(DeprecationWarning, match="Comma-separated"):
+            assert parse_provider_list("gemini , claude , codex") == ["gemini", "claude", "codex"]
 
     def test_none_returns_empty(self) -> None:
         assert parse_provider_list(None) == []
@@ -32,7 +34,8 @@ class TestParseProviderList:
         assert parse_provider_list("") == []
 
     def test_case_normalization(self) -> None:
-        assert parse_provider_list("Claude,GEMINI") == ["claude", "gemini"]
+        with pytest.warns(DeprecationWarning, match="Comma-separated"):
+            assert parse_provider_list("Claude,GEMINI") == ["claude", "gemini"]
 
 
 class TestGetFailedProviders:

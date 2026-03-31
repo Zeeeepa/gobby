@@ -70,14 +70,14 @@ class TestGetNeo4jStatus:
 
 
 class TestInstallNeo4jFlag:
-    """Tests for --neo4j flag in install command."""
+    """Tests for Neo4j-related params in install/uninstall commands."""
 
-    def test_install_command_has_neo4j_option(self) -> None:
-        """install command has --neo4j flag."""
+    def test_install_command_has_neo4j_password(self) -> None:
+        """install command has --neo4j-password option."""
         from gobby.cli.install import install
 
         param_names = [p.name for p in install.params]
-        assert "neo4j_flag" in param_names
+        assert "neo4j_password" in param_names
 
     def test_uninstall_command_has_neo4j_option(self) -> None:
         """uninstall command has --neo4j flag."""
@@ -88,72 +88,91 @@ class TestInstallNeo4jFlag:
 
 
 # ---------------------------------------------------------------------------
-# daemon.py — --neo4j flag
+# daemon.py — --docker flag (consolidated from --neo4j)
 # ---------------------------------------------------------------------------
 
 
-class TestDaemonNeo4jFlag:
-    """Tests for --neo4j flag on daemon start/stop/restart."""
+class TestDaemonDockerFlag:
+    """Tests for --docker flag on daemon start/stop/restart.
 
-    def test_start_has_neo4j_flag(self) -> None:
+    Neo4j service management was consolidated into unified Docker
+    service management via the --docker flag.
+    """
+
+    def test_start_has_docker_flag(self) -> None:
         from gobby.cli.daemon import start
 
         param_names = [p.name for p in start.params]
-        assert "neo4j_flag" in param_names
+        assert "docker_flag" in param_names
 
-    def test_stop_has_neo4j_flag(self) -> None:
+    def test_stop_has_docker_flag(self) -> None:
         from gobby.cli.daemon import stop
 
         param_names = [p.name for p in stop.params]
-        assert "neo4j_flag" in param_names
+        assert "docker_flag" in param_names
 
-    def test_restart_has_neo4j_flag(self) -> None:
+    def test_restart_has_docker_flag(self) -> None:
         from gobby.cli.daemon import restart
 
         param_names = [p.name for p in restart.params]
-        assert "neo4j_flag" in param_names
+        assert "docker_flag" in param_names
 
-    def test_neo4j_start_runs_compose_up(self, tmp_path: Path) -> None:
-        from gobby.cli.daemon import _neo4j_start
+    def test_services_start_runs_compose_up(self, tmp_path: Path) -> None:
+        from gobby.cli.daemon import _services_start
 
-        svc_dir = tmp_path / "services" / "neo4j"
+        svc_dir = tmp_path / "services"
         svc_dir.mkdir(parents=True)
         (svc_dir / "docker-compose.yml").write_text("services: {}")
 
-        with patch("gobby.cli.daemon.subprocess.run") as mock_run:
+        with (
+            patch("gobby.cli.daemon.subprocess.run") as mock_run,
+            patch("shutil.which", return_value="/usr/bin/docker"),
+            patch("gobby.config.app.load_config") as mock_config,
+        ):
+            mock_config.return_value = MagicMock(
+                databases=MagicMock(
+                    neo4j=MagicMock(url="http://localhost:8474", auth="neo4j:password"),
+                    qdrant=MagicMock(url=None),
+                ),
+            )
             mock_run.return_value = MagicMock(returncode=0)
-            _neo4j_start(tmp_path)
+            _services_start(tmp_path)
 
         compose_calls = [c for c in mock_run.call_args_list if "up" in str(c)]
         assert len(compose_calls) >= 1
 
-    def test_neo4j_start_skips_when_not_installed(self, tmp_path: Path) -> None:
-        from gobby.cli.daemon import _neo4j_start
+    def test_services_start_skips_when_no_docker(self, tmp_path: Path) -> None:
+        from gobby.cli.daemon import _services_start
 
-        with patch("gobby.cli.daemon.subprocess.run") as mock_run:
-            _neo4j_start(tmp_path)
+        with patch("shutil.which", return_value=None):
+            with patch("gobby.cli.daemon.subprocess.run") as mock_run:
+                _services_start(tmp_path)
 
         mock_run.assert_not_called()
 
-    def test_neo4j_stop_runs_compose_down(self, tmp_path: Path) -> None:
-        from gobby.cli.daemon import _neo4j_stop
+    def test_services_stop_runs_compose_down(self, tmp_path: Path) -> None:
+        from gobby.cli.daemon import _services_stop
 
-        svc_dir = tmp_path / "services" / "neo4j"
+        svc_dir = tmp_path / "services"
         svc_dir.mkdir(parents=True)
         (svc_dir / "docker-compose.yml").write_text("services: {}")
 
-        with patch("gobby.cli.daemon.subprocess.run") as mock_run:
+        with (
+            patch("shutil.which", return_value="/usr/bin/docker"),
+            patch("gobby.cli.daemon.subprocess.run") as mock_run,
+        ):
             mock_run.return_value = MagicMock(returncode=0)
-            _neo4j_stop(tmp_path)
+            _services_stop(tmp_path)
 
         compose_calls = [c for c in mock_run.call_args_list if "down" in str(c)]
         assert len(compose_calls) >= 1
 
-    def test_neo4j_stop_skips_when_not_installed(self, tmp_path: Path) -> None:
-        from gobby.cli.daemon import _neo4j_stop
+    def test_services_stop_skips_when_no_docker(self, tmp_path: Path) -> None:
+        from gobby.cli.daemon import _services_stop
 
-        with patch("gobby.cli.daemon.subprocess.run") as mock_run:
-            _neo4j_stop(tmp_path)
+        with patch("shutil.which", return_value=None):
+            with patch("gobby.cli.daemon.subprocess.run") as mock_run:
+                _services_stop(tmp_path)
 
         mock_run.assert_not_called()
 

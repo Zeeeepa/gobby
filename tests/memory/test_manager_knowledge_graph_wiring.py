@@ -29,10 +29,7 @@ def _make_manager(
     db.fetchone = MagicMock(return_value=None)
     db.execute = MagicMock()
 
-    config = MemoryConfig(
-        neo4j_url=neo4j_url,
-        neo4j_auth="neo4j:password" if neo4j_url else None,
-    )
+    config = MemoryConfig()
 
     return MemoryManager(
         db=db,
@@ -40,6 +37,8 @@ def _make_manager(
         llm_service=llm_service,
         vector_store=vector_store,
         embed_fn=embed_fn,
+        neo4j_url=neo4j_url,
+        neo4j_auth="neo4j:password" if neo4j_url else None,
     )
 
 

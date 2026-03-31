@@ -65,34 +65,35 @@ async def _run_maintenance(
     projects = indexer.storage.list_indexed_projects()
     gcode_bin = Path.home() / ".gobby" / "bin" / "gcode"
 
-    if not gcode_bin.exists():
+    gcode_available = gcode_bin.exists()
+    if not gcode_available:
         logger.warning("gcode not installed — skipping maintenance index. Run `gobby install`.")
-        return
 
     for project in projects:
         if not project.root_path:
             continue
 
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                str(gcode_bin),
-                "index",
-                str(project.root_path),
-                "--quiet",
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
-            if proc.returncode != 0:
-                detail = stderr.decode().strip() if stderr else "<no stderr>"
-                logger.warning(
-                    f"Maintenance reindex failed for {project.id} "
-                    f"(exit code {proc.returncode}): {detail}"
+        if gcode_available:
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    str(gcode_bin),
+                    "index",
+                    str(project.root_path),
+                    "--quiet",
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.PIPE,
                 )
-        except TimeoutError:
-            logger.warning(f"Maintenance reindex timed out for {project.id}")
-        except Exception as e:
-            logger.warning(f"Maintenance reindex failed for {project.id}: {e}")
+                _, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+                if proc.returncode != 0:
+                    detail = stderr.decode().strip() if stderr else "<no stderr>"
+                    logger.warning(
+                        f"Maintenance reindex failed for {project.id} "
+                        f"(exit code {proc.returncode}): {detail}"
+                    )
+            except TimeoutError:
+                logger.warning(f"Maintenance reindex timed out for {project.id}")
+            except Exception as e:
+                logger.warning(f"Maintenance reindex failed for {project.id}: {e}")
 
         # Generate summaries (Python only — needs LLM)
         if summarizer is not None:
@@ -108,7 +109,10 @@ async def _run_maintenance(
                         try:
                             with open(full, "rb") as f:
                                 f.seek(bs)
-                                return f.read(be - bs).decode("utf-8", errors="replace")
+                                data = f.read(be - bs)
+                                if not data:
+                                    return None
+                                return data.decode("utf-8", errors="replace")
                         except (OSError, ValueError):
                             return None
 

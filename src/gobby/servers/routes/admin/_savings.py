@@ -1,5 +1,6 @@
 """Savings tracking API endpoints."""
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -77,7 +78,7 @@ def register_savings_routes(router: APIRouter, server: "HTTPServer") -> None:
             }
 
         # Resolve model from active session when caller doesn't provide one
-        model = body.get("model") or _resolve_active_model(server)
+        model = body.get("model") or await _resolve_active_model(server)
 
         # Support both chars and tokens
         if "original_tokens" in body:
@@ -104,11 +105,12 @@ def register_savings_routes(router: APIRouter, server: "HTTPServer") -> None:
         return {"success": True}
 
 
-def _resolve_active_model(server: "HTTPServer") -> str | None:
+async def _resolve_active_model(server: "HTTPServer") -> str | None:
     """Look up the model from the most recently updated session."""
     try:
-        row = server.services.database.fetchone(
-            "SELECT model FROM sessions WHERE model IS NOT NULL ORDER BY updated_at DESC LIMIT 1"
+        row = await asyncio.to_thread(
+            server.services.database.fetchone,
+            "SELECT model FROM sessions WHERE model IS NOT NULL ORDER BY updated_at DESC LIMIT 1",
         )
         return row["model"] if row else None
     except Exception as e:

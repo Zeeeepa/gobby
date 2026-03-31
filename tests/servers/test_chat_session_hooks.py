@@ -37,7 +37,7 @@ class TestChatSessionHooks:
 
         # Invoke the hook logic directly
         hook_fn = hooks["UserPromptSubmit"][0].hooks[0]
-        ctx = HookContext("sys", "id", {})
+        ctx = HookContext(signal=None)
         inp = {"prompt": "testing auth"}
 
         # Trigger it
@@ -47,7 +47,7 @@ class TestChatSessionHooks:
         mock_cb.assert_awaited_once_with(
             {"prompt": "testing auth", "source": "claude_sdk_web_chat"}
         )
-        assert "content" in res  # Based on _response_to_prompt_output mapper
+        assert isinstance(res, dict)  # SyncHookJSONOutput from _response_to_prompt_output
 
         # Assert transcript path logic
         assert not session._transcript_path_captured
@@ -55,7 +55,7 @@ class TestChatSessionHooks:
         inp2 = {"prompt": "second", "transcript_path": "/var/tmp/transcript.gz"}
         await hook_fn(inp2, None, ctx)
 
-        session._session_manager_ref.update.assert_awaited_once_with(
+        session._session_manager_ref.update.assert_called_once_with(
             "db-id", transcript_path="/var/tmp/transcript.gz"
         )
         assert session._transcript_path_captured
@@ -71,7 +71,7 @@ class TestChatSessionHooks:
         hook_fn = hooks["PreToolUse"][0].hooks[0]
 
         inp = {"tool_name": "Read", "tool_input": {"path": "/"}}
-        ctx = HookContext("sys", "id", {})
+        ctx = HookContext(signal=None)
 
         res = await hook_fn(inp, "use_1", ctx)
 
@@ -98,7 +98,7 @@ class TestChatSessionHooks:
                 "tool_input": {"file_path": "project-plan.md"},
                 "tool_response": "done",
             }
-            ctx = HookContext("sys", "id", {})
+            ctx = HookContext(signal=None)
             await hook_fn(inp, "use_2", ctx)
 
             # Since chat_mode == "plan" and not approved and matches _PLAN_FILE_PATTERN (~/.gobby/plan.md or project-plan.md depending on regex)
@@ -119,7 +119,7 @@ class TestChatSessionHooks:
         hooks = session._build_sdk_hooks()
         hook_fn = hooks["Stop"][0].hooks[0]
 
-        await hook_fn({"stop_hook_active": True}, None, HookContext("sys", "id", {}))
+        await hook_fn({"stop_hook_active": True}, None, HookContext(signal=None))
         mock_cb.assert_awaited_once_with({"stop_hook_active": True})
 
     @pytest.mark.asyncio
@@ -129,7 +129,7 @@ class TestChatSessionHooks:
         hooks = session._build_sdk_hooks()
         hook_fn = hooks["PreCompact"][0].hooks[0]
 
-        await hook_fn({"trigger": "token_limit"}, None, HookContext("sys", "id", {}))
+        await hook_fn({"trigger": "token_limit"}, None, HookContext(signal=None))
         mock_cb.assert_awaited_once_with({"trigger": "token_limit"})
 
     @pytest.mark.asyncio
@@ -143,7 +143,7 @@ class TestChatSessionHooks:
         start_fn = hooks["SubagentStart"][0].hooks[0]
         stop_fn = hooks["SubagentStop"][0].hooks[0]
 
-        ctx = HookContext("sys", "id", {})
+        ctx = HookContext(signal=None)
         await start_fn({"session_id": "sid_1"}, None, ctx)
         await stop_fn({"session_id": "sid_1"}, None, ctx)
 

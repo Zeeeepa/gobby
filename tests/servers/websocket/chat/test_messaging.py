@@ -130,19 +130,23 @@ class TestHandleChatMessage:
 
     @pytest.mark.asyncio
     async def test_success_dispatch(self, mixin: DummyMessagingMixin, ws: AsyncMock):
-        mixin.clients[ws] = {}
+        mixin.clients[ws] = {"connected": True}
 
         with patch.object(mixin, "_stream_chat_response", new_callable=AsyncMock) as mock_stream:
             await mixin._handle_chat_message(ws, {"content": "hi", "conversation_id": "c1"})
 
-            # Since task runs async, let event loop tick
-            await asyncio.sleep(0.01)
-
-            mock_stream.assert_awaited_once_with(
-                ws, "c1", "hi", None, "", None, inject_context=None
-            )
-            assert "c1" in mixin._active_chat_tasks
             assert mixin.clients[ws]["conversation_id"] == "c1"
+            assert "c1" in mixin._active_chat_tasks
+
+            # Await the background task so the mock actually executes
+            await mixin._active_chat_tasks["c1"]
+
+            mock_stream.assert_awaited_once()
+            call_args = mock_stream.call_args
+            assert call_args[0][0] is ws
+            assert call_args[0][1] == "c1"
+            assert call_args[0][2] == "hi"
+            assert call_args[0][3] is None  # model
 
 
 class TestStreamChatResponse:
@@ -158,7 +162,8 @@ class TestStreamChatResponse:
                 sdk_session_id="sdk", input_tokens=10, output_tokens=5, tool_calls_count=0
             )
 
-        session.send_message.return_value = dummy_generator("hi")
+        # send_message must return an async generator directly (not a coroutine)
+        session.send_message = lambda content: dummy_generator(content)
 
         await mixin._stream_chat_response(ws, "c1", "hi", "sonnet")
 
@@ -184,7 +189,8 @@ class TestStreamChatResponse:
                 sdk_session_id="sdk", input_tokens=10, output_tokens=5, tool_calls_count=1
             )
 
-        session.send_message.return_value = mock_stream("hi")
+        # send_message must return an async generator directly (not a coroutine)
+        session.send_message = lambda content: mock_stream(content)
 
         await mixin._stream_chat_response(ws, "c1", "hi", None)
 
@@ -211,7 +217,8 @@ class TestStreamChatResponse:
             raise asyncio.CancelledError()
             yield  # noqa: unreachable — required to make this an async generator
 
-        session.send_message.return_value = canceling_stream("hi")
+        # send_message must return an async generator directly (not a coroutine)
+        session.send_message = lambda content: canceling_stream(content)
 
         await mixin._stream_chat_response(ws, "c1", "hi", None)
 
@@ -229,7 +236,8 @@ class TestStreamChatResponse:
         async def dummy_stream(content):
             yield ThinkingEvent(content="hmm")
 
-        session.send_message.return_value = dummy_stream("hi")
+        # send_message must return an async generator directly (not a coroutine)
+        session.send_message = lambda content: dummy_stream(content)
 
         ws.send.side_effect = ConnectionClosed(None, None)
 

@@ -215,7 +215,9 @@ class TestEmailAdapter:
     async def test_poll_with_messages(self, mock_imap, adapter) -> None:
         adapter._imap_client = AsyncMock()
 
-        # Mock search to return msg number 1
+        # poll() now calls imap.select("INBOX") before search
+        adapter._imap_client.select.return_value = ("OK", [])
+        # Mock search to return msg numbers
         adapter._imap_client.search.return_value = ("OK", [b"1 2"])
 
         # Craft two raw RFC822 emails
@@ -230,10 +232,11 @@ class TestEmailAdapter:
         msg2["From"] = "other@test.com"
         msg2.add_alternative("<b>HTML</b>", subtype="html")
 
+        # poll() now uses string num_str (decoded from bytes) for fetch/store
         def fetch_side_effect(num, query):
-            if num == b"1":
+            if num == "1":
                 return ("OK", [("1 (RFC822)", bytes(msg1))])
-            if num == b"2":
+            if num == "2":
                 return ("OK", [("2 (RFC822)", bytes(msg2))])
             return ("BAD", [])
 
@@ -253,18 +256,20 @@ class TestEmailAdapter:
         assert "HTML" in messages[1].content
 
         assert adapter._imap_client.store.call_count == 2
-        adapter._imap_client.store.assert_any_call(b"1", "+FLAGS", "(\\Seen)")
+        adapter._imap_client.store.assert_any_call("1", "+FLAGS", "(\\Seen)")
 
     @pytest.mark.asyncio
     async def test_shutdown(self, adapter) -> None:
-        adapter._smtp_client = AsyncMock()
-        adapter._imap_client = AsyncMock()
+        smtp_mock = AsyncMock()
+        imap_mock = AsyncMock()
+        adapter._smtp_client = smtp_mock
+        adapter._imap_client = imap_mock
 
         await adapter.shutdown()
 
-        adapter._smtp_client.quit.assert_called_once()
-        adapter._imap_client.close.assert_called_once()
-        adapter._imap_client.logout.assert_called_once()
+        smtp_mock.quit.assert_called_once()
+        imap_mock.close.assert_called_once()
+        imap_mock.logout.assert_called_once()
 
         assert adapter._smtp_client is None
         assert adapter._imap_client is None

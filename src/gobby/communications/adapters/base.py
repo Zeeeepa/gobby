@@ -109,6 +109,7 @@ class BaseChannelAdapter(ABC):
         Unlike _retry_request (HTTP-specific), this retries any async operation
         on exception. Used for SMTP/IMAP reconnects, etc.
         """
+        max_retries = max(0, max_retries)
         last_exc: Exception | None = None
         for attempt in range(max_retries + 1):
             try:
@@ -147,6 +148,7 @@ class BaseChannelAdapter(ABC):
         Raises:
             httpx.HTTPStatusError: If all retries are exhausted or a non-retryable error occurs.
         """
+        max_retries = max(0, max_retries)
         last_response: httpx.Response | None = None
         for attempt in range(max_retries + 1):
             response = await coro_factory()

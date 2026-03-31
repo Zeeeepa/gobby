@@ -129,6 +129,11 @@ class MemoryManager:
             except Exception as e:
                 logger.warning(f"Failed to initialize KnowledgeGraphService: {e}")
 
+    def clear_graph_clients(self) -> None:
+        """Disable graph features by clearing Neo4j client and KG service."""
+        self._neo4j_client = None
+        self._kg_service = None
+
     @property
     def kg_service(self) -> KnowledgeGraphService | None:
         """Get the knowledge graph service."""

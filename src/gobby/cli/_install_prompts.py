@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -354,8 +355,6 @@ def _run_qdrant_install(
     results: dict[str, dict[str, Any]],
 ) -> None:
     """Run install + echo for Qdrant (default, Docker-gated)."""
-    import shutil
-
     if not shutil.which("docker"):
         click.echo("Docker not found — Qdrant will run in embedded mode")
         return

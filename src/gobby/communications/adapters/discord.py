@@ -107,6 +107,7 @@ class DiscordAdapter(BaseChannelAdapter):
             return
 
         try:
+            retry_count = 0
             while True:
                 try:
                     gateway_url = self._resume_gateway_url or self._DEFAULT_GATEWAY_URL
@@ -209,7 +210,16 @@ class DiscordAdapter(BaseChannelAdapter):
 
                 except Exception as e:
                     logger.warning("Discord gateway connection error: %s", e)
-                    await asyncio.sleep(5)
+                    delay = min(60, 5 * (2**retry_count)) + random.random()  # nosec B311
+                    retry_count += 1
+                    if retry_count > 10:
+                        logger.error(
+                            "Discord gateway: exceeded max retries (%d), stopping", retry_count
+                        )
+                        break
+                    await asyncio.sleep(delay)
+                else:
+                    retry_count = 0  # Reset on successful connection
         except asyncio.CancelledError:
             pass
 

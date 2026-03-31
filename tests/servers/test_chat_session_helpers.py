@@ -89,11 +89,8 @@ class TestFinders:
             assert res == {"command": str(sibling), "args": ["mcp-server"]}
 
         # 2. fallback to which
-        def mock_exists(p):
-            return False
-
         with (
-            patch("pathlib.Path.exists", side_effect=mock_exists),
+            patch("pathlib.Path.exists", return_value=False),
             patch("shutil.which", return_value="/usr/bin/gobby"),
         ):
             res = _build_gobby_mcp_entry()
@@ -101,7 +98,7 @@ class TestFinders:
 
         # 3. fallback to bare string
         with (
-            patch("pathlib.Path.exists", side_effect=mock_exists),
+            patch("pathlib.Path.exists", return_value=False),
             patch("shutil.which", return_value=None),
         ):
             res = _build_gobby_mcp_entry()

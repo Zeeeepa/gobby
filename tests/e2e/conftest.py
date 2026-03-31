@@ -929,6 +929,11 @@ def assert_no_external_writes() -> Generator[None]:
             # since a running daemon continuously writes to its db and logs.
             # Log file mtime changes are always the production daemon (test
             # daemon writes to its temp dir), so exempt them unconditionally.
+            # SQLite WAL/SHM files can be touched by any process that opens
+            # the database (even read-only), so exempt them as well.
+            basename = Path(rel_path).name
+            if basename.endswith(("-shm", "-wal", "-journal")):
+                continue
             leaked.append(f"  MODIFIED: ~/.gobby/{rel_path}")
 
     if leaked:

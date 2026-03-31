@@ -197,7 +197,7 @@ if [ -n "$CHANGED_FILES" ]; then
     if [ "$INDEXED" = "false" ]; then
         GCODE="$HOME/.gobby/bin/gcode"
         if [ -x "$GCODE" ]; then
-            echo "$CHANGED_FILES" | tr '\n' ' ' | xargs $GCODE index --files --quiet &
+            printf '%s\0' $CHANGED_FILES | xargs -0 $GCODE index --files --quiet &
         fi
     fi
 fi

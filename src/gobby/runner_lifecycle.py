@@ -53,8 +53,7 @@ async def _init_subsystems(runner: GobbyRunner, rebuild_vector_store: Any) -> No
             logger.warning(
                 f"Neo4j configured but unreachable at {db_cfg.neo4j.url} — graph features disabled"
             )
-            runner.memory_manager._neo4j_client = None
-            runner.memory_manager._kg_service = None
+            runner.memory_manager.clear_graph_clients()
 
     # Run metrics cleanup on startup
     try:

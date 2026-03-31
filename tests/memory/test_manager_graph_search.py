@@ -27,13 +27,12 @@ def _make_manager(
     db.fetchone = MagicMock(return_value=None)
     db.execute = MagicMock()
 
-    config = MemoryConfig(
-        neo4j_url=neo4j_url,
-        neo4j_auth="neo4j:password" if neo4j_url else None,
-        neo4j_graph_search=graph_search,
-        neo4j_graph_min_score=graph_min_score,
-        neo4j_rrf_k=rrf_k,
-    )
+    config = MemoryConfig()
+    # MemoryConfig uses extra="ignore", so graph-search knobs must be
+    # injected after construction for getattr() in the manager to find them.
+    object.__setattr__(config, "neo4j_graph_search", graph_search)
+    object.__setattr__(config, "neo4j_graph_min_score", graph_min_score)
+    object.__setattr__(config, "neo4j_rrf_k", rrf_k)
 
     return MemoryManager(
         db=db,
@@ -41,6 +40,8 @@ def _make_manager(
         llm_service=llm_service,
         vector_store=vector_store,
         embed_fn=embed_fn,
+        neo4j_url=neo4j_url,
+        neo4j_auth="neo4j:password" if neo4j_url else None,
     )
 
 

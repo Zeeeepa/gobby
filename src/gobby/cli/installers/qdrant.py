@@ -156,8 +156,8 @@ def uninstall_qdrant(
                 capture_output=True,
                 timeout=30,
             )
-        except (subprocess.TimeoutExpired, OSError):
-            logger.warning(f"Failed to remove Docker volume {QDRANT_VOLUME_NAME}")
+        except (subprocess.TimeoutExpired, OSError) as exc:
+            logger.warning(f"Failed to remove Docker volume {QDRANT_VOLUME_NAME}: {exc}")
 
     _update_config(qdrant_url=None)
 

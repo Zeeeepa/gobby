@@ -696,6 +696,12 @@ class HookManager:
             already_injected: set[str] = set(variables.get("injected_memory_ids", []))
 
             memories = result.get("memories", [])
+            id_less = [m for m in memories if not m.get("id")]
+            if id_less:
+                self.logger.warning(
+                    "Memory dedup: %d memories lack 'id' field and cannot be tracked",
+                    len(id_less),
+                )
             if not memories or not already_injected:
                 # Nothing to filter — but still track the IDs we're about to inject
                 new_ids = [m["id"] for m in memories if m.get("id")]
