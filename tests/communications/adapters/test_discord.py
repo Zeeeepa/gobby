@@ -7,6 +7,7 @@ import time
 from collections.abc import Callable
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -497,3 +498,70 @@ async def test_send_message_embed_too_many_fields(
 
     with pytest.raises(ValueError, match="26 fields"):
         await adapter.send_message(message)
+
+
+# --- Dynamic gateway URL ---
+
+
+@pytest.mark.asyncio
+async def test_fetch_gateway_url_success(
+    adapter: DiscordAdapter,
+    channel_config: ChannelConfig,
+    secret_resolver: Callable[[str], str | None],
+) -> None:
+    """initialize() fetches gateway URL from GET /gateway/bot."""
+    channel_config.config_json["enable_gateway"] = False
+
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "url": "wss://gateway.discord.gg",
+            "shards": 1,
+            "session_start_limit": {
+                "total": 1000,
+                "remaining": 995,
+                "reset_after": 14400000,
+            },
+        }
+        mock_get.return_value = mock_response
+
+        await adapter.initialize(channel_config, secret_resolver)
+
+    assert adapter._gateway_url == "wss://gateway.discord.gg?v=10&encoding=json"
+
+
+@pytest.mark.asyncio
+async def test_fetch_gateway_url_fallback_on_error(
+    adapter: DiscordAdapter,
+    channel_config: ChannelConfig,
+    secret_resolver: Callable[[str], str | None],
+) -> None:
+    """Falls back to default URL when API fails."""
+    channel_config.config_json["enable_gateway"] = False
+
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
+        mock_get.side_effect = httpx.ConnectError("connection refused")
+
+        await adapter.initialize(channel_config, secret_resolver)
+
+    assert adapter._gateway_url == DiscordAdapter._DEFAULT_GATEWAY_URL
+
+
+@pytest.mark.asyncio
+async def test_fetch_gateway_url_fallback_on_http_error(
+    adapter: DiscordAdapter,
+    channel_config: ChannelConfig,
+    secret_resolver: Callable[[str], str | None],
+) -> None:
+    """Falls back to default URL when API returns non-200."""
+    channel_config.config_json["enable_gateway"] = False
+
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_get.return_value = mock_response
+
+        await adapter.initialize(channel_config, secret_resolver)
+
+    assert adapter._gateway_url == DiscordAdapter._DEFAULT_GATEWAY_URL

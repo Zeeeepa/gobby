@@ -52,6 +52,7 @@ class DiscordAdapter(BaseChannelAdapter):
         self._client: httpx.AsyncClient | None = None
         self._gateway_task: asyncio.Task[Any] | None = None
         self._bot_token: str = ""
+        self._gateway_url: str = DiscordAdapter._DEFAULT_GATEWAY_URL
         # Gateway session state for RESUME
         self._session_id: str | None = None
         self._resume_gateway_url: str | None = None
@@ -98,8 +99,37 @@ class DiscordAdapter(BaseChannelAdapter):
             timeout=30.0,
         )
 
+        # Fetch dynamic gateway URL from Discord API
+        await self._fetch_gateway_url()
+
         if HAS_WEBSOCKETS and config.config_json.get("enable_gateway", True):
             self._gateway_task = asyncio.create_task(self._run_gateway())
+
+    async def _fetch_gateway_url(self) -> None:
+        """Fetch gateway URL from GET /gateway/bot with graceful fallback."""
+        if not self._client:
+            return
+
+        try:
+            response = await self._client.get("/gateway/bot")
+            if response.status_code == 200:
+                data = response.json()
+                url = data.get("url")
+                if url:
+                    self._gateway_url = f"{url}?v=10&encoding=json"
+                    logger.info("Discord gateway URL fetched: %s", self._gateway_url)
+
+                session_limit = data.get("session_start_limit", {})
+                remaining = session_limit.get("remaining", "?")
+                total = session_limit.get("total", "?")
+                logger.info("Discord session start limit: %s/%s remaining", remaining, total)
+            else:
+                logger.warning(
+                    "Failed to fetch Discord gateway URL (HTTP %d), using default",
+                    response.status_code,
+                )
+        except Exception as e:
+            logger.warning("Failed to fetch Discord gateway URL: %s, using default", e)
 
     async def _run_gateway(self) -> None:
         """Background task to connect to Discord Gateway and handle events."""
@@ -110,7 +140,7 @@ class DiscordAdapter(BaseChannelAdapter):
             retry_count = 0
             while True:
                 try:
-                    gateway_url = self._resume_gateway_url or self._DEFAULT_GATEWAY_URL
+                    gateway_url = self._resume_gateway_url or self._gateway_url
                     async with websockets.connect(gateway_url) as ws:
                         # Attempt RESUME if we have a prior session
                         if self._session_id and self._sequence is not None:
