@@ -475,34 +475,48 @@ def _macos_restart() -> dict[str, Any]:
     _launchctl_bootout(quiet=True)
 
     # Wait for launchd to fully unload the service entry.
-    # Without this, bootstrap races with bootout and fails with error 5
-    # (I/O error) when the stale domain entry hasn't been cleaned up yet.
-    for _ in range(30):  # up to ~3s
+    # The plist sets ExitTimeOut=15s, so the process may take that long
+    # to terminate.  Poll for up to 16s to avoid racing bootstrap.
+    for _ in range(160):  # up to ~16s
         status = _get_service_status_macos()
         if not status.get("enabled"):
             break
         time.sleep(0.1)
 
     # Bootstrap a fresh instance from the plist.
-    try:
-        result = subprocess.run(  # nosec B603 B607
-            ["launchctl", "bootstrap", f"gui/{uid}", str(plist_file)],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if result.returncode != 0 and "37:" not in (result.stderr or ""):
-            return {
-                "success": False,
-                "error": f"launchctl bootstrap failed: {result.stderr or result.stdout}",
-            }
-        return {
-            "success": True,
-            "platform": "macos",
-            "method": "launchctl bootout + bootstrap",
-        }
-    except (subprocess.TimeoutExpired, OSError) as e:
-        return {"success": False, "error": str(e)}
+    # Retry on error 5 (I/O error) which means launchd hasn't fully
+    # released the domain entry yet despite our polling above.
+    max_retries = 5
+    last_error = ""
+    for attempt in range(max_retries):
+        try:
+            result = subprocess.run(  # nosec B603 B607
+                ["launchctl", "bootstrap", f"gui/{uid}", str(plist_file)],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode == 0 or "37:" in (result.stderr or ""):
+                return {
+                    "success": True,
+                    "platform": "macos",
+                    "method": "launchctl bootout + bootstrap",
+                }
+            last_error = result.stderr or result.stdout
+            # Error 5 = I/O error (domain not yet released) — retry
+            if "5:" in last_error and attempt < max_retries - 1:
+                time.sleep(1)
+                continue
+            break
+        except subprocess.TimeoutExpired:
+            return {"success": False, "error": "launchctl bootstrap timed out"}
+        except OSError as e:
+            return {"success": False, "error": str(e)}
+
+    return {
+        "success": False,
+        "error": f"launchctl bootstrap failed: {last_error}",
+    }
 
 
 def _macos_start() -> dict[str, Any]:
