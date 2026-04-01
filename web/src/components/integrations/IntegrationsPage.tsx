@@ -1,19 +1,10 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useIntegrations } from '../../hooks/useIntegrations'
 import type { Channel, ChannelType } from '../../hooks/useIntegrations'
+import { ChannelCard, CHANNEL_DISPLAY_NAMES } from './ChannelCard'
 import './IntegrationsPage.css'
 
 const CHANNEL_TYPES: ChannelType[] = ['slack', 'telegram', 'discord', 'teams', 'email', 'sms', 'gobby_chat']
-
-const CHANNEL_DISPLAY_NAMES: Record<ChannelType, string> = {
-  slack: 'Slack',
-  telegram: 'Telegram',
-  discord: 'Discord',
-  teams: 'Teams',
-  email: 'Email',
-  sms: 'SMS',
-  gobby_chat: 'Gobby Chat',
-}
 
 export function IntegrationsPage() {
   const {
@@ -153,47 +144,14 @@ export function IntegrationsPage() {
             {filteredChannels.length > 0 ? (
               <div className="intg-channel-grid">
                 {filteredChannels.map(channel => (
-                  <div
+                  <ChannelCard
                     key={channel.id}
-                    className="intg-empty-card"
-                    onClick={() => setSelectedChannel(channel)}
-                    style={{ borderLeftWidth: 3, borderLeftColor: getPlatformColor(channel.channel_type) }}
-                  >
-                    <PlatformIcon type={channel.channel_type} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 500 }}>{channel.name}</div>
-                      <div style={{ fontSize: '0.7em', color: 'var(--text-secondary)' }}>
-                        {CHANNEL_DISPLAY_NAMES[channel.channel_type]}
-                        {' \u00b7 '}
-                        <span style={{ color: channel.enabled ? '#22c55e' : 'var(--text-secondary)' }}>
-                          {channel.enabled ? 'Enabled' : 'Disabled'}
-                        </span>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button
-                        title="Edit"
-                        onClick={e => { e.stopPropagation(); setEditingChannel(channel) }}
-                        style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: 4 }}
-                      >
-                        &#9998;
-                      </button>
-                      <button
-                        title={channel.enabled ? 'Disable' : 'Enable'}
-                        onClick={e => { e.stopPropagation(); handleToggleEnabled(channel) }}
-                        style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: 4 }}
-                      >
-                        {channel.enabled ? '\u23F8' : '\u25B6'}
-                      </button>
-                      <button
-                        title="Remove"
-                        onClick={e => { e.stopPropagation(); handleRemove(channel) }}
-                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4 }}
-                      >
-                        &times;
-                      </button>
-                    </div>
-                  </div>
+                    channel={channel}
+                    onSelect={setSelectedChannel}
+                    onEdit={setEditingChannel}
+                    onToggleEnabled={handleToggleEnabled}
+                    onRemove={handleRemove}
+                  />
                 ))}
               </div>
             ) : channels.length === 0 ? (
@@ -232,19 +190,6 @@ export function IntegrationsPage() {
       )}
     </div>
   )
-}
-
-function getPlatformColor(type: ChannelType): string {
-  const colors: Record<ChannelType, string> = {
-    slack: '#611f69',
-    telegram: '#229ED9',
-    discord: '#5865F2',
-    teams: '#6264A7',
-    email: '#D44638',
-    sms: '#25D366',
-    gobby_chat: 'var(--text-secondary)',
-  }
-  return colors[type] || 'var(--border-color)'
 }
 
 export function PlatformIcon({ type, size = 16 }: { type: ChannelType; size?: number }) {

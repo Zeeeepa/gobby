@@ -207,6 +207,96 @@
   background: var(--bg-hover, rgba(255, 255, 255, 0.05));
 }
 
+/* Channel card */
+.intg-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.intg-card:hover {
+  border-color: var(--accent-color);
+  background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+}
+
+.intg-card--disabled {
+  opacity: 0.7;
+}
+
+.intg-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.intg-card-name {
+  font-weight: 500;
+  font-size: calc(var(--font-size-base) * 0.8);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.intg-type-badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: calc(var(--font-size-base) * 0.6);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.intg-card-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.intg-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.intg-status-text {
+  font-size: calc(var(--font-size-base) * 0.65);
+  color: var(--text-secondary);
+}
+
+.intg-card-footer {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.intg-card-action {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: calc(var(--font-size-base) * 0.75);
+  transition: background 0.15s, color 0.15s;
+}
+
+.intg-card-action:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.1));
+  color: var(--text-primary);
+}
+
+.intg-card-action--danger:hover {
+  color: #ef4444;
+}
+
 /* Loading */
 .intg-loading {
   display: flex;
