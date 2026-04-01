@@ -304,11 +304,7 @@ async def test_slack_adapter_sends_with_thread_ts():
     await adapter.send_message(msg)
 
     call_kwargs = adapter._client.post.call_args
-    json_body = (
-        call_kwargs[1].get("json") or call_kwargs[0][1]
-        if len(call_kwargs[0]) > 1
-        else call_kwargs[1].get("json", {})
-    )
+    json_body = call_kwargs.kwargs.get("json", {})
     # The Slack adapter should include thread_ts in the payload
     assert json_body.get("thread_ts") == "1234567890.000001"
 

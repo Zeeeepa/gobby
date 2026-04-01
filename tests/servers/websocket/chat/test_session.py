@@ -15,18 +15,18 @@ pytestmark = pytest.mark.unit
 
 
 class DummyMixin(ChatSessionMixin):
-    def __init__(self):
-        self.clients = {}
-        self._chat_sessions = {}
-        self._active_chat_tasks = {}
-        self._pending_modes = {}
-        self._pending_worktree_paths = {}
-        self._pending_agents = {}
-        self._session_create_locks = {}
+    def __init__(self) -> None:
+        self.clients: dict = {}
+        self._chat_sessions: dict = {}
+        self._active_chat_tasks: dict = {}
+        self._pending_modes: dict = {}
+        self._pending_worktree_paths: dict = {}
+        self._pending_agents: dict = {}
+        self._session_create_locks: dict = {}
         self.session_manager = None
         self.daemon_config = None
 
-    async def _fire_lifecycle(self, cid, event_type, data):
+    async def _fire_lifecycle(self, cid: str, event_type: str, data: object) -> None:
         pass
 
 
@@ -74,6 +74,7 @@ class TestResolveGitBranch:
         with patch("asyncio.create_subprocess_exec", side_effect=[proc1, proc2]):
             branch, path = await _resolve_git_branch("/test/path")
             assert branch == "detached:a1b2c3d"
+            assert path == "/test/path"
 
     @pytest.mark.asyncio
     async def test_resolve_git_branch_error(self):

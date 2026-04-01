@@ -170,6 +170,8 @@ class BaseChannelAdapter(ABC):
                             delay = max(0.0, (dt - datetime.now(UTC)).total_seconds())
                         except (ValueError, TypeError):
                             pass  # keep exponential backoff default
+                if self._rate_limit_callback is not None:
+                    self._rate_limit_callback(delay, False)
                 logger.warning(
                     "%s rate limited (429), retrying in %.1fs (attempt %d/%d)",
                     self.channel_type,

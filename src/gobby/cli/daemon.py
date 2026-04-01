@@ -90,6 +90,7 @@ def _services_start(gobby_home: Path) -> None:
         profiles = ["all"]
 
     if not profiles:
+        logger.debug("No external services configured — skipping Docker startup")
         return
 
     cmd = ["docker", "compose", "-f", str(compose_file)]
@@ -139,8 +140,6 @@ def _services_stop(gobby_home: Path) -> None:
                 "compose",
                 "-f",
                 str(compose_file),
-                "--profile",
-                "all",
                 "down",
             ],
             capture_output=True,

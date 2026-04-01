@@ -112,10 +112,10 @@ def test_neo4j_url_defaults_to_docker_compose() -> None:
     assert config.url == "http://localhost:8474"
 
 
-def test_neo4j_auth_defaults_to_docker_compose() -> None:
-    """Neo4jConfig.auth should default to the docker-compose fallback password."""
+def test_neo4j_auth_defaults_to_none() -> None:
+    """Neo4jConfig.auth should default to None (must be provided when enabled)."""
     config = Neo4jConfig()
-    assert config.auth == "neo4j:gobbyneo4j"
+    assert config.auth is None
 
 
 # ===========================================================================

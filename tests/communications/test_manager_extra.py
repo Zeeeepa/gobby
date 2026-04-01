@@ -39,7 +39,7 @@ def manager(mock_store, mock_secret_store, mock_session_store) -> Communications
 
 class TestAttachments:
     @pytest.fixture
-    def mock_adapter(self, manager):
+    def mock_adapter(self, manager: CommunicationsManager) -> AsyncMock:
         adapter = AsyncMock(spec=BaseChannelAdapter)
         adapter.send_attachment.return_value = "plat_attach_123"
         channel = ChannelConfig(

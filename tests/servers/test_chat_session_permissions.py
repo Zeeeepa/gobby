@@ -205,8 +205,9 @@ class TestWaitForToolApproval:
             await asyncio.sleep(0.01)
             session.provide_approval("approve")
 
-        asyncio.create_task(approve_delayed())
+        task = asyncio.create_task(approve_delayed())
         result = await session._wait_for_tool_approval("Bash", {"command": "ls"})
+        await task
 
         assert isinstance(result, PermissionResultAllow)
         assert result.updated_input == {"command": "ls"}
@@ -219,8 +220,9 @@ class TestWaitForToolApproval:
             await asyncio.sleep(0.01)
             session.provide_approval("reject")
 
-        asyncio.create_task(reject_delayed())
+        task = asyncio.create_task(reject_delayed())
         result = await session._wait_for_tool_approval("Bash", {"command": "ls"})
+        await task
 
         assert isinstance(result, PermissionResultDeny)
 

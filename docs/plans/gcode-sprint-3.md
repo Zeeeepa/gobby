@@ -26,7 +26,7 @@ Sprint 3 makes gcode the primary code index interface, replacing the gobby-code 
 
 ### 1.1 Make llama-cpp-2 an optional Cargo feature [category: code]
 
-Target: `rust/gcode/Cargo.toml`, `rust/gcode/src/search/semantic.rs`
+Target: `GobbyAI/gobby-code` repo — `Cargo.toml`, `src/search/semantic.rs`
 
 **Cargo.toml:**
 ```toml
@@ -103,8 +103,8 @@ _GCODE_BIN_NAME = "gcode.exe" if sys.platform == "win32" else "gcode"
 
 **New constants** (alongside gsqz constants):
 ```python
-_GCODE_RELEASE_URL = "https://github.com/GobbyAI/gobby-cli/releases/latest/download/gcode-{target}.tar.gz"
-_GCODE_VERSIONED_RELEASE_URL = "https://github.com/GobbyAI/gobby-cli/releases/download/v{version}/gcode-{target}.tar.gz"
+_GCODE_RELEASE_URL = "https://github.com/GobbyAI/gobby-code/releases/latest/download/gcode-{target}.tar.gz"
+_GCODE_VERSIONED_RELEASE_URL = "https://github.com/GobbyAI/gobby-code/releases/download/v{version}/gcode-{target}.tar.gz"
 _GCODE_TARGETS = _GSQZ_TARGETS  # Same platform mapping
 ```
 

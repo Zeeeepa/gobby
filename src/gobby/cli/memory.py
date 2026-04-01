@@ -533,9 +533,9 @@ def reconcile(ctx: click.Context, dry_run: bool) -> None:
     mode = "Dry-run: scanning" if dry_run else "Reconciling"
     click.echo(f"{mode} memory stores...")
     try:
-        params = f"?dry_run={str(dry_run).lower()}"
+        params = urllib.parse.urlencode({"dry_run": str(dry_run).lower()})
         response = client.call_http_api(
-            f"/api/memories/reconcile{params}", method="POST", timeout=600.0
+            f"/api/memories/reconcile?{params}", method="POST", timeout=600.0
         )
         result = response.json()
     except (httpx.HTTPError, ConnectionError, OSError, ValueError) as e:

@@ -845,7 +845,9 @@ class MemoryManager:
         """
         record = await self._backend.get(memory_id)
         if record:
-            # Enforce project scoping if requested
+            # Post-fetch project scoping (backend protocol has no project_id param).
+            # Matches sync get_memory semantics: returns memory if it belongs to the
+            # requested project OR is global (project_id IS NULL).
             if project_id and record.project_id and record.project_id != project_id:
                 return None
             return self._record_to_memory(record)

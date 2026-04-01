@@ -354,6 +354,7 @@ def build_condition_helpers(
         "dict": dict,
         "any": any,
         "all": all,
+        "normalize_path": lambda p: p.replace("\\", "/"),
     }
 
     # --- Task helpers ---

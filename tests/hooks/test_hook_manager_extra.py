@@ -158,11 +158,14 @@ class TestDedupMemoryResults:
     """Tests for _dedup_memory_results filtering and ID tracking."""
 
     def _make_manager(self, mock_components=None):
-        with patch("gobby.hooks.hook_manager.HookManagerFactory.create") as mock_create:
-            if mock_components is None:
-                mock_components = MagicMock()
-            mock_create.return_value = mock_components
-            return HookManager()
+        patcher = patch("gobby.hooks.hook_manager.HookManagerFactory.create")
+        mock_create = patcher.start()
+        if mock_components is None:
+            mock_components = MagicMock()
+        mock_create.return_value = mock_components
+        manager = HookManager()
+        patcher.stop()
+        return manager
 
     def _make_result(self, *ids):
         return {

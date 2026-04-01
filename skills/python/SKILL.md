@@ -28,8 +28,8 @@ ruff check . --fix 2>/dev/null || python -m black --check . 2>/dev/null
 
 ## Python Version
 
-- **Minimum:** Python 3.10+ (3.9 reached EOL Oct 2025)
-- **Target:** Python 3.11-3.13 for new projects
+- **Minimum:** Python 3.13+
+- **Target:** Python 3.13+ for new projects
 - Never use Python 2 syntax or patterns
 - Use modern features: match statements, walrus operator, type hints
 

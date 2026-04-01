@@ -116,6 +116,8 @@ const TABS: Array<{ id: ActivityTab; label: string; icon: ReactNode }> = [
   },
 ];
 
+const noopFetchDiff = async (): Promise<string> => '';
+
 const STORAGE_KEY_PINNED = "gobby-activity-panel-pinned";
 const STORAGE_KEY_WIDTH = "gobby-activity-panel-width";
 const STORAGE_KEY_TAB = "gobby-activity-panel-tab";
@@ -225,7 +227,7 @@ export function ActivityPanel({
         return (
           <FileChangesTab
             changedFiles={changedFiles}
-            fetchDiff={fetchDiff || (async () => '')}
+            fetchDiff={fetchDiff || noopFetchDiff}
           />
         );
       case "canvas":

@@ -65,6 +65,7 @@ class IdentityManager:
             external_user_id: Platform-specific user ID.
             external_username: Optional platform-specific username.
             metadata: Optional metadata to merge into identity (e.g. conversation_reference).
+            project_id: Optional project ID for auto-created sessions.
 
         Returns:
             The resolved CommsIdentity.
@@ -106,6 +107,7 @@ class IdentityManager:
             if needs_update:
                 self._store.update_identity(identity)
         else:
+            # Store generates id/created_at/updated_at on insert
             identity = CommsIdentity(
                 id="",
                 channel_id=channel_id,

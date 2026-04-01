@@ -9,13 +9,13 @@ rules:
     when: >-
       variables.get('enforce_tdd')
       and event.data.get('tool_name') == 'Write'
-      and tool_input.get('file_path', '').endswith('.py')
-      and not tool_input.get('file_path', '').endswith('__init__.py')
-      and not tool_input.get('file_path', '').endswith('conftest.py')
-      and '/tests/' not in tool_input.get('file_path', '')
-      and not tool_input.get('file_path', '').split('/')[-1].startswith('test_')
-      and not tool_input.get('file_path', '').endswith('_test.py')
-      and tool_input.get('file_path', '') not in variables.get('tdd_nudged_files', [])
+      and normalize_path(tool_input.get('file_path', '')).endswith('.py')
+      and not normalize_path(tool_input.get('file_path', '')).endswith('__init__.py')
+      and not normalize_path(tool_input.get('file_path', '')).endswith('conftest.py')
+      and '/tests/' not in normalize_path(tool_input.get('file_path', ''))
+      and not normalize_path(tool_input.get('file_path', '')).split('/')[-1].startswith('test_')
+      and not normalize_path(tool_input.get('file_path', '')).endswith('_test.py')
+      and normalize_path(tool_input.get('file_path', '')) not in variables.get('tdd_nudged_files', [])
     effects:
       - type: set_variable
         variable: tdd_nudged_files

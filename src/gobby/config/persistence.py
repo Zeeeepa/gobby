@@ -72,9 +72,10 @@ class Neo4jConfig(BaseModel):
         ),
     )
     auth: str | None = Field(
-        default="neo4j:gobbyneo4j",
+        default=None,
         description=(
             "Neo4j authentication in 'user:password' format. "
+            "Must be provided when Neo4j is enabled. "
             "Supports ${ENV_VAR} pattern for env var expansion at load time."
         ),
     )

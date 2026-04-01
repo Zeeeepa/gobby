@@ -8,8 +8,8 @@ rules:
     priority: 10
     when: >-
       event.data.get('tool_name') in ('Write', 'Edit')
-      and '.claude/' in tool_input.get('file_path', '')
-      and '/memory/' in tool_input.get('file_path', '')
+      and '.claude/' in normalize_path(tool_input.get('file_path', ''))
+      and '/memory/' in normalize_path(tool_input.get('file_path', ''))
     effect:
       type: block
       tools: [Write, Edit]

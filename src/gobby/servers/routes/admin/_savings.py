@@ -114,7 +114,7 @@ async def _resolve_active_model(server: "HTTPServer") -> str | None:
         )
         return row["model"] if row else None
     except Exception as e:
-        logger.debug(f"Failed to resolve active model: {e}")
+        logger.debug("Failed to resolve active model: %s", e)
         return None
 
 

@@ -229,6 +229,7 @@ class TestEmailAdapter:
         msg2 = EmailMessage()
         msg2["Message-ID"] = "msg2@test"
         msg2["From"] = "other@test.com"
+        msg2.set_content("HTML fallback as plain text")
         msg2.add_alternative("<b>HTML</b>", subtype="html")
 
         # poll() now uses string num_str (decoded from bytes) for fetch/store

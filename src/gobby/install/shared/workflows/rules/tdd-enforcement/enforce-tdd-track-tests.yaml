@@ -10,9 +10,9 @@ rules:
       variables.get('enforce_tdd')
       and event.data.get('tool_name') in ('Write', 'Edit')
       and not event.data.get('error')
-      and (tool_input.get('file_path', '').split('/')[-1].startswith('test_')
-      or '/tests/' in tool_input.get('file_path', '')
-      or tool_input.get('file_path', '').endswith('_test.py'))
+      and (normalize_path(tool_input.get('file_path', '')).split('/')[-1].startswith('test_')
+      or '/tests/' in normalize_path(tool_input.get('file_path', ''))
+      or normalize_path(tool_input.get('file_path', '')).endswith('_test.py'))
     effects:
       - type: set_variable
         variable: tdd_tests_written

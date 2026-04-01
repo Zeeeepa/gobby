@@ -19,6 +19,7 @@ from gobby.mcp_proxy.tools.tasks._lifecycle_validation import (
 )
 from gobby.mcp_proxy.tools.tasks._notifications import notify_parent_on_status_change
 from gobby.mcp_proxy.tools.tasks._resolution import resolve_task_id_for_mcp
+from gobby.storage.session_models import Session
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import TaskNotFoundError
 
@@ -124,7 +125,7 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
         _session_manager = LocalSessionManager(ctx.task_manager.db)
 
         # Resolve session for edit-awareness (used by commit checks below)
-        _session = None
+        _session: Session | None = None
         if resolved_session_id:
             try:
                 _session = _session_manager.get(resolved_session_id)
@@ -133,6 +134,9 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
 
         # Check for linked commits (unless parent with all children closed or epic)
         # Skip the check if the session made no edits — nothing to commit
+        # Tri-state: True = edits confirmed, False = no edits, None = unknown.
+        # `is not False` treats unknown the same as confirmed — safer to require
+        # a commit when we can't determine edit status.
         session_had_edits = _session.had_edits if _session else None
         if not skip_leaf_checks and session_had_edits is not False:
             commit_result = validate_commit_requirements(task, reason, repo_path)

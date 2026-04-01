@@ -22,6 +22,12 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import ASGIApp
 
+from gobby.utils.project_context import (
+    reset_project_context,
+    set_project_context,
+    set_project_context_from_session,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -48,8 +54,6 @@ class ProjectContextMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         finally:
             if token is not None:
-                from gobby.utils.project_context import reset_project_context
-
                 reset_project_context(token)
 
     def _set_context(self, request: Request) -> contextvars.Token[Any] | None:
@@ -57,14 +61,10 @@ class ProjectContextMiddleware(BaseHTTPMiddleware):
 
         Returns a ContextVar token for reset, or None if no headers present.
         """
-        from gobby.utils.project_context import set_project_context
-
         # Priority 1: resolve project from session
         session_id = request.headers.get("x-gobby-session-id")
         if session_id:
             try:
-                from gobby.utils.project_context import set_project_context_from_session
-
                 session_manager = getattr(request.app.state, "session_manager", None)
                 if session_manager:
                     token = set_project_context_from_session(

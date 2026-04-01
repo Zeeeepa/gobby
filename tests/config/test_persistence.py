@@ -319,11 +319,11 @@ class TestNeo4jConfigFields:
         assert config.url == "http://localhost:8474"
 
     def test_neo4j_auth_defaults_to_docker_compose(self) -> None:
-        """auth should default to the docker-compose fallback password."""
+        """auth should default to None (must be provided when enabled)."""
         from gobby.config.persistence import Neo4jConfig
 
         config = Neo4jConfig()
-        assert config.auth == "neo4j:gobbyneo4j"
+        assert config.auth is None
 
     def test_neo4j_url_accepts_valid_url(self) -> None:
         """Setting url to a valid URL should work."""

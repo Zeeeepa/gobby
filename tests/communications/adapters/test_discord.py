@@ -265,7 +265,11 @@ async def test_send_identify(adapter: DiscordAdapter) -> None:
 
 @pytest.mark.asyncio
 async def test_gateway_resume_logic(adapter: DiscordAdapter) -> None:
-    """Test that RESUME payload is constructed correctly when session exists."""
+    """Test RESUME payload shape and gateway URL selection.
+
+    Unit test of data shapes — the adapter has no public method for building
+    the resume payload, so we verify the expected structure directly.
+    """
     adapter._bot_token = "test-token"
     adapter._session_id = "existing-session"
     adapter._resume_gateway_url = "wss://resume.discord.gg"
@@ -313,7 +317,11 @@ async def test_gateway_identify_when_no_session(adapter: DiscordAdapter) -> None
 
 @pytest.mark.asyncio
 async def test_gateway_ready_stores_session(adapter: DiscordAdapter) -> None:
-    """Test that READY event data is stored for future RESUME."""
+    """Test that READY event data fields are stored for future RESUME.
+
+    Unit test of data assignment — _run_gateway is not easily callable in
+    isolation, so we verify the expected field-level behavior directly.
+    """
     assert adapter._session_id is None
     assert adapter._resume_gateway_url is None
 

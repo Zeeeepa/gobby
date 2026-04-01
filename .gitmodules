@@ -1,3 +1,4 @@
 [submodule "deps/gobby-cli"]
 	path = deps/gobby-cli
 	url = https://github.com/GobbyAI/gobby-cli
+	branch = main

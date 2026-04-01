@@ -21,30 +21,38 @@ pytestmark = pytest.mark.unit
 
 
 class DummyMessagingMixin(ChatMessagingMixin):
-    def __init__(self):
-        self.clients = {}
-        self._chat_sessions = {}
-        self._active_chat_tasks = {}
-        self._pending_modes = {}
-        self._pending_worktree_paths = {}
-        self._pending_agents = {}
+    def __init__(self) -> None:
+        self.clients: dict = {}
+        self._chat_sessions: dict = {}
+        self._active_chat_tasks: dict = {}
+        self._pending_modes: dict = {}
+        self._pending_worktree_paths: dict = {}
+        self._pending_agents: dict = {}
         self.session_manager = None
         self.inter_session_msg_manager = None
 
-    async def _send_error(self, ws, msg, request_id=None, code="ERROR"):
-        await ws.send(json.dumps({"error": msg}))
+    async def _send_error(
+        self, ws: object, msg: str, request_id: str | None = None, code: str = "ERROR"
+    ) -> None:
+        await ws.send(json.dumps({"error": msg}))  # type: ignore[union-attr]
 
-    async def _cancel_active_chat(self, cid):
+    async def _cancel_active_chat(self, cid: str) -> None:
         pass
 
-    async def _create_chat_session(self, cid, model=None, project_id=None, resume_session_id=None):
+    async def _create_chat_session(
+        self,
+        cid: str,
+        model: str | None = None,
+        project_id: str | None = None,
+        resume_session_id: str | None = None,
+    ) -> AsyncMock:
         sess = AsyncMock()
         sess.db_session_id = "db-id"
         sess.model = "opus"
         self._chat_sessions[cid] = sess
         return sess
 
-    async def broadcast_session_event(self, event, sid, **kwargs):
+    async def broadcast_session_event(self, event: str, sid: str, **kwargs: object) -> None:
         pass
 
 

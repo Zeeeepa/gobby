@@ -32,12 +32,11 @@ pytestmark = pytest.mark.unit
 
 
 class TestEnsureDaemonConfig:
-    @patch("gobby.cli.install_setup.Path.exists")
     @patch("gobby.cli.install_setup.Path.expanduser")
-    def test_exists(self, mock_expand, mock_exists):
-        mock_path = MagicMock()
-        mock_path.exists.return_value = True
-        mock_expand.return_value = mock_path
+    def test_exists(self, mock_expand, tmp_path):
+        target = tmp_path / "bootstrap.yaml"
+        target.touch()
+        mock_expand.return_value = target
 
         res = ensure_daemon_config()
         assert not res["created"]

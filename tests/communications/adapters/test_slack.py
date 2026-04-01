@@ -265,7 +265,7 @@ def test_verify_webhook_invalid_signature(adapter: SlackAdapter) -> None:
         "X-Slack-Signature": "v0=invalid_signature",
     }
 
-    assert adapter.verify_webhook(payload, headers, secret) is False  # noqa: E501
+    assert adapter.verify_webhook(payload, headers, secret) is False
 
 
 def test_verify_webhook_replay_attack(adapter: SlackAdapter) -> None:

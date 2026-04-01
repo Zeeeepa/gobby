@@ -55,7 +55,6 @@ class TestFinders:
 
     def test_find_project_root(self) -> None:
         _find_project_root()  # smoke test — actual root depends on CWD
-        # Test with standard mocks:
         with patch("pathlib.Path.is_dir", return_value=True):
             assert _find_project_root() is not None
 

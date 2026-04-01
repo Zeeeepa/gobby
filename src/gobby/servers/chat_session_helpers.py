@@ -119,9 +119,9 @@ def _build_gobby_mcp_entry() -> McpStdioServerConfig:
     Resolves the gobby binary using the same pattern as the installer
     (sys.executable sibling → shutil.which → bare command).
     """
-    gobby_bin = str(Path(sys.executable).parent / "gobby")
-    if Path(gobby_bin).exists():
-        return {"command": gobby_bin, "args": ["mcp-server"]}
+    gobby_bin = Path(sys.executable).parent / "gobby"
+    if gobby_bin.exists():
+        return {"command": str(gobby_bin), "args": ["mcp-server"]}
     gobby_path = shutil.which("gobby")
     if gobby_path:
         return {"command": gobby_path, "args": ["mcp-server"]}

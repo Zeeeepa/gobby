@@ -86,7 +86,7 @@ async def test_concurrent_refresh(adapter, mock_secret_resolver):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.headers = {}
-        if "oauth2" in str(args):
+        if args and "oauth2" in args[0]:
             await asyncio.sleep(0.1)
             mock_resp.json.return_value = {"access_token": "token_2", "expires_in": 3600}
         else:

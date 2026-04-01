@@ -635,7 +635,7 @@ async def test_handle_inbound_populates_thread_map_and_handles_reactions():
 
 
 def test_thread_map_lru_eviction_order():
-    """LRU eviction should evict least-recently-used entries, not active ones."""
+    """Unit test of internal LRU thread map — no public API exposes this behavior."""
     store = make_store()
     manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
     manager._thread_manager._max_size = 3
@@ -658,7 +658,7 @@ def test_thread_map_lru_eviction_order():
 
 
 def test_thread_map_move_to_end_on_track():
-    """Re-tracking an existing thread should refresh its LRU position."""
+    """Unit test of internal LRU refresh — no public API exposes this behavior."""
     store = make_store()
     manager = CommunicationsManager(make_config(), store, make_secret_store(), MagicMock())
     manager._thread_manager._max_size = 2

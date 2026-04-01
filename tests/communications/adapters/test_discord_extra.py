@@ -39,9 +39,6 @@ class TestDiscordExtras:
     @pytest.mark.asyncio
     async def test_raise_on_uninitialized_client(self):
         """Test methods raise RuntimeError if client not initialized."""
-        if not DiscordAdapter:
-            pytest.skip("Discord adapter unavailable")
-
         a = DiscordAdapter()
         assert a._client is None
 

@@ -265,7 +265,7 @@ export function useVoice(
             } catch (err) {
               console.error('Voice: Failed to encode/send audio:', err)
               if (mountedRef.current) setIsTranscribing(false)
-              setTransientError('Failed to process audio')
+              if (mountedRef.current) setTransientError('Failed to process audio')
             }
           },
 
@@ -304,9 +304,13 @@ export function useVoice(
     }
   }, [voiceMode, wsRef, conversationId, setTransientError, stopTTS])
 
-  // Stop TTS when switching conversations
+  // Stop TTS when switching conversations (skip initial mount)
+  const prevConversationIdRef = useRef(conversationId)
   useEffect(() => {
-    stopTTS()
+    if (prevConversationIdRef.current !== conversationId) {
+      prevConversationIdRef.current = conversationId
+      stopTTS()
+    }
   }, [conversationId, stopTTS])
 
   // Cleanup on unmount
@@ -336,18 +340,18 @@ export function useVoice(
 
     if (type === 'voice_transcription') {
       if (mountedRef.current) setIsTranscribing(false)
-      setVoiceError(null)
+      if (mountedRef.current) setVoiceError(null)
     } else if (type === 'voice_status') {
       const status = data.status as string
       if (status === 'error') {
-        setVoiceError(data.error as string || 'Voice error')
+        if (mountedRef.current) setVoiceError(data.error as string || 'Voice error')
         if (mountedRef.current) setIsTranscribing(false)
       } else if (status === 'empty') {
         if (mountedRef.current) setIsTranscribing(false)
-        setTransientError('No speech detected — try speaking louder or closer to the mic')
+        if (mountedRef.current) setTransientError('No speech detected — try speaking louder or closer to the mic')
       } else if (status === 'transcribing') {
         if (mountedRef.current) setIsTranscribing(true)
-        setVoiceError(null)
+        if (mountedRef.current) setVoiceError(null)
       }
     } else if (type === 'tts_audio') {
       // Store metadata — next binary frame is the audio data

@@ -3167,3 +3167,16 @@
   color: var(--text-muted);
   font-style: italic;
 }
+
+[data-theme="light"] .diff-add {
+  background: color-mix(in srgb, #16a34a 10%, transparent);
+  color: #15803d;
+}
+[data-theme="light"] .diff-remove {
+  background: color-mix(in srgb, #dc2626 10%, transparent);
+  color: #b91c1c;
+}
+[data-theme="light"] .diff-hunk {
+  background: color-mix(in srgb, #2563eb 8%, transparent);
+  color: #1d4ed8;
+}
