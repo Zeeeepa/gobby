@@ -35,6 +35,9 @@ from gobby.search.embeddings import (
     generate_embeddings,
     is_embedding_available,
 )
+
+# FTS5 backend
+from gobby.search.fts5 import FTS5SearchBackend, sanitize_fts_query
 from gobby.search.models import FallbackEvent, SearchConfig, SearchMode
 from gobby.search.protocol import SearchBackend, SearchResult, get_search_backend
 from gobby.search.tfidf import TFIDFSearcher
@@ -58,6 +61,9 @@ __all__ = [
     "AsyncSearchBackend",
     "TFIDFBackend",
     "EmbeddingBackend",
+    # FTS5 backend
+    "FTS5SearchBackend",
+    "sanitize_fts_query",
     # Embedding utilities
     "generate_embedding",
     "generate_embeddings",

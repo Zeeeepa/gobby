@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import email
 import logging
+import time
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -12,6 +14,8 @@ from email.message import EmailMessage
 from email.utils import make_msgid
 from pathlib import Path
 from typing import Any
+
+import httpx
 
 from gobby.communications.adapters import register_adapter
 from gobby.communications.adapters.base import BaseChannelAdapter
@@ -56,6 +60,14 @@ class EmailAdapter(BaseChannelAdapter):
         self._to_address: str | None = None
         self._default_destination: str | None = None
         self._password: str = ""
+        # OAuth2 fields
+        self._auth_method: str = "password"
+        self._oauth2_client_id: str = ""
+        self._oauth2_client_secret: str = ""
+        self._oauth2_token_url: str = ""
+        self._oauth2_refresh_token: str = ""
+        self._oauth2_access_token: str = ""
+        self._oauth2_token_expiry: float = 0.0
 
     @property
     def channel_type(self) -> str:
@@ -91,15 +103,12 @@ class EmailAdapter(BaseChannelAdapter):
             config.config_json.get("default_recipient") or self._to_address or None
         )
 
-        password_ref = config.config_json.get("password", "$secret:EMAIL_PASSWORD")
-        password = (
-            secret_resolver(password_ref) if password_ref.startswith("$secret:") else password_ref
-        )
+        self._auth_method = config.config_json.get("auth_method", "password")
 
-        if not password:
-            raise ValueError(f"Could not resolve Email password: {password_ref}")
-
-        self._password = password
+        if self._auth_method == "oauth2":
+            await self._init_oauth2(config, secret_resolver)
+        else:
+            await self._init_password(config, secret_resolver)
 
         if HAS_SMTP and self._smtp_host:
             self._smtp_client = aiosmtplib.SMTP(
@@ -109,12 +118,99 @@ class EmailAdapter(BaseChannelAdapter):
                 start_tls=self._smtp_port == 587,
             )
             await self._smtp_client.connect()
-            await self._smtp_client.login(self._from_address, self._password)
+            await self._smtp_login(self._smtp_client)
 
         if HAS_IMAP and self._imap_host:
             self._imap_client = aioimaplib.IMAP4_SSL(host=self._imap_host, port=self._imap_port)
             await self._imap_client.wait_hello_from_server()
-            await self._imap_client.login(self._from_address, self._password)
+            await self._imap_login(self._imap_client)
+
+    async def _init_password(
+        self, config: ChannelConfig, secret_resolver: Callable[[str], str | None]
+    ) -> None:
+        """Initialize password-based auth credentials."""
+        password_ref = config.config_json.get("password", "$secret:EMAIL_PASSWORD")
+        password = (
+            secret_resolver(password_ref) if password_ref.startswith("$secret:") else password_ref
+        )
+        if not password:
+            raise ValueError(f"Could not resolve Email password: {password_ref}")
+        self._password = password
+
+    async def _init_oauth2(
+        self, config: ChannelConfig, secret_resolver: Callable[[str], str | None]
+    ) -> None:
+        """Initialize OAuth2 credentials and fetch initial access token."""
+
+        def _resolve(key: str, label: str) -> str:
+            ref = config.config_json.get(key, "")
+            val = secret_resolver(ref) if ref.startswith("$secret:") else ref
+            if not val:
+                raise ValueError(f"OAuth2 {label} is required but not configured")
+            return val
+
+        self._oauth2_client_id = _resolve("oauth2_client_id", "client_id")
+        self._oauth2_client_secret = _resolve("oauth2_client_secret", "client_secret")
+        self._oauth2_refresh_token = _resolve("oauth2_refresh_token", "refresh_token")
+        self._oauth2_token_url = config.config_json.get(
+            "oauth2_token_url", "https://oauth2.googleapis.com/token"
+        )
+
+        # Fetch initial access token
+        await self._refresh_oauth2_token()
+
+    async def _refresh_oauth2_token(self) -> str:
+        """Exchange refresh token for a new access token."""
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                self._oauth2_token_url,
+                data={
+                    "grant_type": "refresh_token",
+                    "client_id": self._oauth2_client_id,
+                    "client_secret": self._oauth2_client_secret,
+                    "refresh_token": self._oauth2_refresh_token,
+                },
+            )
+            if response.status_code != 200:
+                raise ValueError(
+                    f"OAuth2 token exchange failed (HTTP {response.status_code}): {response.text}"
+                )
+            data = response.json()
+            self._oauth2_access_token = data["access_token"]
+            expires_in = data.get("expires_in", 3600)
+            # Refresh 60s before actual expiry to avoid races
+            self._oauth2_token_expiry = time.time() + expires_in - 60
+            logger.info("OAuth2 access token refreshed, expires in %ds", expires_in)
+            return self._oauth2_access_token
+
+    async def _get_oauth2_token(self) -> str:
+        """Get a valid access token, refreshing if expired."""
+        if time.time() >= self._oauth2_token_expiry:
+            return await self._refresh_oauth2_token()
+        return self._oauth2_access_token
+
+    def _build_xoauth2_string(self, access_token: str) -> str:
+        """Build XOAUTH2 SASL auth string per RFC 7628."""
+        auth_str = f"user={self._from_address}\x01auth=Bearer {access_token}\x01\x01"
+        return base64.b64encode(auth_str.encode()).decode()
+
+    async def _smtp_login(self, smtp_client: aiosmtplib.SMTP) -> None:
+        """Authenticate SMTP with password or XOAUTH2."""
+        if self._auth_method == "oauth2":
+            token = await self._get_oauth2_token()
+            auth_string = self._build_xoauth2_string(token)
+            await smtp_client.command("AUTH XOAUTH2 " + auth_string)
+        else:
+            await smtp_client.login(self._from_address, self._password)
+
+    async def _imap_login(self, imap_client: aioimaplib.IMAP4_SSL) -> None:
+        """Authenticate IMAP with password or XOAUTH2."""
+        if self._auth_method == "oauth2":
+            token = await self._get_oauth2_token()
+            auth_string = self._build_xoauth2_string(token)
+            await imap_client.authenticate("XOAUTH2", lambda: auth_string)
+        else:
+            await imap_client.login(self._from_address, self._password)
 
     async def _ensure_smtp_connected(self) -> None:
         """Ensure SMTP connection is active."""
@@ -142,7 +238,7 @@ class EmailAdapter(BaseChannelAdapter):
                     start_tls=self._smtp_port == 587,
                 )
                 await self._smtp_client.connect()
-                await self._smtp_client.login(self._from_address, self._password)
+                await self._smtp_login(self._smtp_client)
 
         await self._retry(_check_and_reconnect)
 
@@ -165,7 +261,7 @@ class EmailAdapter(BaseChannelAdapter):
                     pass
                 self._imap_client = aioimaplib.IMAP4_SSL(host=self._imap_host, port=self._imap_port)
                 await self._imap_client.wait_hello_from_server()
-                await self._imap_client.login(self._from_address, self._password)
+                await self._imap_login(self._imap_client)
 
         await self._retry(_check_and_reconnect)
 

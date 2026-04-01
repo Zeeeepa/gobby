@@ -35,7 +35,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 180
+BASELINE_VERSION = 181
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v171) have been removed.
@@ -114,6 +114,69 @@ def _setup_code_content_fts(db: LocalDatabase) -> None:
 
         INSERT OR IGNORE INTO code_content_fts(rowid, content, file_path, language)
         SELECT rowid, content, file_path, language FROM code_content_chunks;
+    """)
+
+
+def _setup_tasks_fts(db: LocalDatabase) -> None:
+    """Create FTS5 virtual table and triggers for task search.
+
+    Content-synced with the tasks table — triggers keep FTS5 in sync
+    automatically on INSERT/UPDATE/DELETE.
+    """
+    conn = db.connection
+    conn.executescript("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS tasks_fts USING fts5(
+            title, description, labels, task_type, category,
+            content='tasks', content_rowid='rowid'
+        );
+
+        CREATE TRIGGER IF NOT EXISTS tasks_fts_ai AFTER INSERT ON tasks BEGIN
+            INSERT INTO tasks_fts(rowid, title, description, labels, task_type, category)
+            VALUES (new.rowid, new.title, new.description, new.labels, new.task_type, new.category);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS tasks_fts_ad AFTER DELETE ON tasks BEGIN
+            INSERT INTO tasks_fts(tasks_fts, rowid, title, description, labels, task_type, category)
+            VALUES ('delete', old.rowid, old.title, old.description, old.labels, old.task_type, old.category);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS tasks_fts_au AFTER UPDATE ON tasks BEGIN
+            INSERT INTO tasks_fts(tasks_fts, rowid, title, description, labels, task_type, category)
+            VALUES ('delete', old.rowid, old.title, old.description, old.labels, old.task_type, old.category);
+            INSERT INTO tasks_fts(rowid, title, description, labels, task_type, category)
+            VALUES (new.rowid, new.title, new.description, new.labels, new.task_type, new.category);
+        END;
+
+        INSERT OR IGNORE INTO tasks_fts(rowid, title, description, labels, task_type, category)
+        SELECT rowid, title, description, labels, task_type, category FROM tasks;
+    """)
+
+
+def _setup_skills_fts(db: LocalDatabase) -> None:
+    """Create contentless FTS5 virtual table for skill search.
+
+    Contentless (content='') because tags and category live in a JSON
+    metadata blob — triggers can't extract them reliably. Application
+    code manages inserts/deletes via SkillSearch.
+    """
+    conn = db.connection
+    conn.executescript("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS skills_fts USING fts5(
+            name, description, tags_text, category,
+            content='', content_rowid='rowid'
+        );
+    """)
+    # Populate from existing skills, extracting tags/category from JSON metadata
+    conn.execute("""
+        INSERT OR IGNORE INTO skills_fts(rowid, name, description, tags_text, category)
+        SELECT rowid, name, description,
+               COALESCE(json_extract(metadata, '$.skillport.tags'), ''),
+               COALESCE(
+                   json_extract(metadata, '$.skillport.category'),
+                   json_extract(metadata, '$.category'),
+                   ''
+               )
+        FROM skills WHERE deleted_at IS NULL
     """)
 
 
@@ -277,6 +340,11 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         "Rename web_chat channel type to gobby_chat",
         "UPDATE comms_channels SET channel_type = 'gobby_chat' WHERE channel_type = 'web_chat'",
     ),
+    (
+        181,
+        "Add FTS5 search tables for tasks and skills",
+        lambda db: (_setup_tasks_fts(db), _setup_skills_fts(db)),
+    ),
 ]
 
 
@@ -309,6 +377,8 @@ def _apply_baseline(db: LocalDatabase) -> None:
     # FTS5 triggers use semicolons in BEGIN...END — can't go through the split
     _setup_code_symbols_fts(db)
     _setup_code_content_fts(db)
+    _setup_tasks_fts(db)
+    _setup_skills_fts(db)
 
     logger.info(f"Baseline schema applied, now at version {BASELINE_VERSION}")
 

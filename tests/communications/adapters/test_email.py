@@ -296,3 +296,132 @@ class TestEmailAdapter:
 
     def test_verify_webhook(self, adapter) -> None:
         assert adapter.verify_webhook(b"", {}, "") is False
+
+
+@pytest.fixture
+def oauth2_config() -> MagicMock:
+    mock_config = MagicMock()
+    mock_config.config_json = {
+        "smtp_host": "smtp.gmail.com",
+        "smtp_port": 587,
+        "imap_host": "imap.gmail.com",
+        "imap_port": 993,
+        "from_address": "bot@gmail.com",
+        "auth_method": "oauth2",
+        "oauth2_client_id": "$secret:OAUTH_CLIENT_ID",
+        "oauth2_client_secret": "$secret:OAUTH_CLIENT_SECRET",
+        "oauth2_refresh_token": "$secret:OAUTH_REFRESH_TOKEN",
+        "oauth2_token_url": "https://oauth2.googleapis.com/token",
+    }
+    return mock_config
+
+
+def oauth2_resolver(ref: str) -> str | None:
+    secrets = {
+        "$secret:OAUTH_CLIENT_ID": "test-client-id",
+        "$secret:OAUTH_CLIENT_SECRET": "test-client-secret",
+        "$secret:OAUTH_REFRESH_TOKEN": "test-refresh-token",
+    }
+    return secrets.get(ref)
+
+
+class TestEmailOAuth2:
+    @pytest.mark.asyncio
+    @patch("gobby.communications.adapters.email.aiosmtplib", create=True)
+    @patch("gobby.communications.adapters.email.aioimaplib", create=True)
+    @patch("gobby.communications.adapters.email.httpx")
+    async def test_initialize_oauth2(
+        self, mock_httpx, mock_imap, mock_smtp, adapter, oauth2_config
+    ) -> None:
+        """OAuth2 init exchanges refresh token for access token."""
+        mock_smtp_client = AsyncMock()
+        mock_smtp.SMTP.return_value = mock_smtp_client
+        mock_imap_client = AsyncMock()
+        mock_imap.IMAP4_SSL.return_value = mock_imap_client
+
+        # Mock token exchange
+        mock_http_client = AsyncMock()
+        mock_httpx.AsyncClient.return_value.__aenter__ = AsyncMock(return_value=mock_http_client)
+        mock_httpx.AsyncClient.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_token_response = MagicMock()
+        mock_token_response.status_code = 200
+        mock_token_response.json.return_value = {
+            "access_token": "test-access-token",
+            "expires_in": 3600,
+        }
+        mock_http_client.post.return_value = mock_token_response
+
+        await adapter.initialize(oauth2_config, oauth2_resolver)
+
+        assert adapter._auth_method == "oauth2"
+        assert adapter._oauth2_access_token == "test-access-token"
+        assert adapter._oauth2_client_id == "test-client-id"
+        # SMTP should use XOAUTH2 instead of login
+        mock_smtp_client.login.assert_not_called()
+        mock_smtp_client.command.assert_called_once()
+        auth_call = mock_smtp_client.command.call_args[0][0]
+        assert auth_call.startswith("AUTH XOAUTH2 ")
+
+    @pytest.mark.asyncio
+    async def test_initialize_oauth2_missing_client_id(self, adapter, oauth2_config) -> None:
+        """Missing OAuth2 client_id raises ValueError."""
+        oauth2_config.config_json["oauth2_client_id"] = "$secret:MISSING"
+
+        def bad_resolver(ref):
+            if ref == "$secret:MISSING":
+                return None
+            return oauth2_resolver(ref)
+
+        with pytest.raises(ValueError, match="OAuth2 client_id is required"):
+            await adapter.initialize(oauth2_config, bad_resolver)
+
+    def test_build_xoauth2_string(self, adapter) -> None:
+        """XOAUTH2 string follows RFC 7628 format."""
+        import base64
+
+        adapter._from_address = "user@gmail.com"
+        result = adapter._build_xoauth2_string("my-token")
+        decoded = base64.b64decode(result).decode()
+        assert decoded == "user=user@gmail.com\x01auth=Bearer my-token\x01\x01"
+
+    @pytest.mark.asyncio
+    async def test_get_oauth2_token_cached(self, adapter) -> None:
+        """Cached token returned when not expired."""
+        import time
+
+        adapter._oauth2_access_token = "cached-token"
+        adapter._oauth2_token_expiry = time.time() + 600  # Still valid
+
+        token = await adapter._get_oauth2_token()
+        assert token == "cached-token"
+
+    @pytest.mark.asyncio
+    @patch("gobby.communications.adapters.email.httpx")
+    async def test_get_oauth2_token_refreshes_when_expired(self, mock_httpx, adapter) -> None:
+        """Expired token triggers refresh."""
+        adapter._oauth2_access_token = "old-token"
+        adapter._oauth2_token_expiry = 0  # Already expired
+        adapter._oauth2_client_id = "cid"
+        adapter._oauth2_client_secret = "csec"
+        adapter._oauth2_refresh_token = "rtoken"
+        adapter._oauth2_token_url = "https://example.com/token"
+
+        mock_http_client = AsyncMock()
+        mock_httpx.AsyncClient.return_value.__aenter__ = AsyncMock(return_value=mock_http_client)
+        mock_httpx.AsyncClient.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "access_token": "new-token",
+            "expires_in": 3600,
+        }
+        mock_http_client.post.return_value = mock_response
+
+        token = await adapter._get_oauth2_token()
+
+        assert token == "new-token"
+        assert adapter._oauth2_access_token == "new-token"
+
+    def test_password_auth_still_default(self, adapter) -> None:
+        """Default auth_method is 'password'."""
+        assert adapter._auth_method == "password"

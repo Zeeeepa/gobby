@@ -1,6 +1,8 @@
-"""Task search module using TF-IDF.
+"""Task search module using FTS5.
 
-Provides semantic search capabilities for tasks using the shared TF-IDF backend.
+Provides full-text search for tasks using SQLite FTS5 virtual tables.
+The tasks_fts table is content-synced with triggers — no manual index
+management needed.
 """
 
 from __future__ import annotations
@@ -8,136 +10,164 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from gobby.search import TFIDFSearcher
+from gobby.search.fts5 import FTS5SearchBackend, sanitize_fts_query
 
 if TYPE_CHECKING:
-    from gobby.storage.tasks._models import Task
+    from gobby.storage.database import LocalDatabase
 
 logger = logging.getLogger(__name__)
 
-
-def build_searchable_content(task: Task) -> str:
-    """
-    Build searchable text content from a task.
-
-    Combines title + description + labels into a single searchable string.
-    This ensures all relevant text is indexed for search.
-
-    Args:
-        task: Task object to extract content from
-
-    Returns:
-        Concatenated searchable text
-    """
-    parts: list[str] = []
-
-    # Title is always present and most important
-    if task.title:
-        parts.append(task.title)
-
-    # Description provides additional context
-    if task.description:
-        parts.append(task.description)
-
-    # Labels can contain useful keywords
-    if task.labels:
-        parts.append(" ".join(task.labels))
-
-    # Task type can be useful for filtering
-    if task.task_type:
-        parts.append(task.task_type)
-
-    # Category can help with domain filtering
-    if task.category:
-        parts.append(task.category)
-
-    return " ".join(parts)
+# bm25 weights: title(10), description(5), labels(2), task_type(1), category(2)
+_TASK_BM25_WEIGHTS = (10.0, 5.0, 2.0, 1.0, 2.0)
 
 
-class TaskSearcher:
-    """
-    TF-IDF based search for tasks.
+class TaskFTS5Searcher:
+    """FTS5-based search for tasks.
 
-    Wraps the generic TFIDFSearcher with task-specific content building.
-    Supports lazy fitting and dirty tracking for efficient reindexing.
+    Uses the tasks_fts virtual table which is kept in sync via triggers.
+    All filters are pushed into SQL WHERE clauses for single-query search.
     """
 
-    def __init__(
-        self,
-        ngram_range: tuple[int, int] = (1, 2),
-        max_features: int = 10000,
-        min_df: int = 1,
-        stop_words: str | None = "english",
-        refit_threshold: int = 10,
-    ):
-        """
-        Initialize task searcher.
-
-        Args:
-            ngram_range: Min/max n-gram sizes for tokenization
-            max_features: Maximum vocabulary size
-            min_df: Minimum document frequency for inclusion
-            stop_words: Language for stop words (None to disable)
-            refit_threshold: Number of updates before automatic refit
-        """
-        self._searcher = TFIDFSearcher(
-            ngram_range=ngram_range,
-            max_features=max_features,
-            min_df=min_df,
-            stop_words=stop_words,
-            refit_threshold=refit_threshold,
+    def __init__(self, db: LocalDatabase):
+        self._db = db
+        self._backend = FTS5SearchBackend(
+            db=db,
+            fts_table="tasks_fts",
+            content_table="tasks",
+            id_column="id",
+            weights=_TASK_BM25_WEIGHTS,
         )
-        self._dirty = True
 
-    def fit(self, tasks: list[Task]) -> None:
-        """
-        Build the search index from tasks.
-
-        Args:
-            tasks: List of Task objects to index
-        """
-        if not tasks:
-            self._searcher.fit([])
-            self._dirty = False
-            return
-
-        # Build (task_id, content) tuples
-        items = [(task.id, build_searchable_content(task)) for task in tasks]
-
-        self._searcher.fit(items)
-        self._dirty = False
-        logger.info(f"Task search index built with {len(tasks)} tasks")
-
-    def search(self, query: str, top_k: int = 20) -> list[tuple[str, float]]:
-        """
-        Search for tasks matching the query.
+    def search(
+        self,
+        query: str,
+        top_k: int = 20,
+        project_id: str | None = None,
+        status: str | list[str] | None = None,
+        task_type: str | None = None,
+        priority: int | None = None,
+        parent_task_id: str | None = None,
+        category: str | None = None,
+        min_score: float = 0.0,
+    ) -> list[tuple[str, float]]:
+        """Search tasks with FTS5 and SQL filter push-down.
 
         Args:
             query: Search query text
-            top_k: Maximum number of results to return
+            top_k: Maximum number of results
+            project_id: Filter by project
+            status: Filter by status (string or list)
+            task_type: Filter by task type
+            priority: Filter by priority
+            parent_task_id: Filter by parent task ID (UUID)
+            category: Filter by category
+            min_score: Minimum normalized score threshold (0.0-1.0)
 
         Returns:
-            List of (task_id, similarity_score) tuples, sorted by
-            similarity descending.
+            List of (task_id, normalized_score) tuples, highest score first.
         """
-        return self._searcher.search(query, top_k)
+        fts_query = sanitize_fts_query(query)
+        if not fts_query:
+            return []
 
-    def needs_refit(self) -> bool:
-        """Check if the index needs rebuilding."""
-        return self._dirty or self._searcher.needs_refit()
+        weights_csv = ", ".join(str(w) for w in _TASK_BM25_WEIGHTS)
+        bm25_expr = f"bm25(tasks_fts, {weights_csv})"
 
-    def mark_dirty(self) -> None:
-        """Mark the index as needing a refit."""
-        self._dirty = True
-        self._searcher.mark_update()
+        conditions = ["tasks_fts MATCH ?"]
+        params: list[Any] = [fts_query]
+
+        if project_id:
+            conditions.append("t.project_id = ?")
+            params.append(project_id)
+
+        if status:
+            if isinstance(status, list):
+                placeholders = ", ".join("?" for _ in status)
+                conditions.append(f"t.status IN ({placeholders})")
+                params.extend(status)
+            else:
+                conditions.append("t.status = ?")
+                params.append(status)
+
+        if task_type:
+            conditions.append("t.task_type = ?")
+            params.append(task_type)
+
+        if priority is not None:
+            conditions.append("t.priority = ?")
+            params.append(priority)
+
+        if parent_task_id:
+            conditions.append("t.parent_task_id = ?")
+            params.append(parent_task_id)
+
+        if category:
+            conditions.append("t.category = ?")
+            params.append(category)
+
+        where = " AND ".join(conditions)
+        # Fetch extra to allow for min_score filtering
+        fetch_limit = top_k * 3 if min_score > 0 else top_k
+        params.append(fetch_limit)
+
+        sql = f"""
+            SELECT t.id, {bm25_expr} as rank
+            FROM tasks_fts fts
+            JOIN tasks t ON t.rowid = fts.rowid
+            WHERE {where}
+            ORDER BY rank
+            LIMIT ?
+        """
+
+        try:
+            rows = self._db.fetchall(sql, tuple(params))
+        except Exception as e:
+            logger.warning(f"FTS5 task search failed: {e}")
+            return []
+
+        if not rows:
+            return []
+
+        # Normalize scores
+        ids = [str(row[0]) for row in rows]
+        raw_scores = [float(row[1]) for row in rows]
+        positive = [-s for s in raw_scores]
+        max_score = max(positive) if positive else 1.0
+        if max_score == 0:
+            normalized = [0.0] * len(positive)
+        else:
+            normalized = [s / max_score for s in positive]
+
+        # Apply min_score filter and limit
+        results: list[tuple[str, float]] = []
+        for task_id, score in zip(ids, normalized, strict=False):
+            if score < min_score:
+                continue
+            results.append((task_id, score))
+            if len(results) >= top_k:
+                break
+
+        return results
+
+    def reindex(self) -> dict[str, Any]:
+        """Rebuild the FTS5 index from the tasks table.
+
+        Useful for repair — normally triggers keep the index in sync.
+
+        Returns:
+            Dict with index statistics.
+        """
+        try:
+            self._db.execute("DELETE FROM tasks_fts")
+            self._db.execute("""
+                INSERT INTO tasks_fts(rowid, title, description, labels, task_type, category)
+                SELECT rowid, title, description, labels, task_type, category FROM tasks
+            """)
+        except Exception as e:
+            logger.error(f"Failed to reindex tasks_fts: {e}")
+
+        return self.get_stats()
 
     def get_stats(self) -> dict[str, Any]:
         """Get statistics about the search index."""
-        stats = self._searcher.get_stats()
-        stats["dirty"] = self._dirty
-        return stats
-
-    def clear(self) -> None:
-        """Clear the search index."""
-        self._searcher.clear()
-        self._dirty = True
+        return self._backend.get_stats()

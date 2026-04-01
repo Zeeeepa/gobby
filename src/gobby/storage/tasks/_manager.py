@@ -82,7 +82,7 @@ from gobby.storage.tasks._queries import (
 from gobby.storage.tasks._queries import (
     list_tasks as _list_tasks,
 )
-from gobby.storage.tasks._search import TaskSearcher
+from gobby.storage.tasks._search import TaskFTS5Searcher
 
 logger = logging.getLogger(__name__)
 
@@ -107,18 +107,14 @@ class LocalTaskManager:
     def __init__(self, db: DatabaseProtocol):
         self.db = db
         self._change_listeners: list[Callable[[], Any]] = []
-        self._searcher: TaskSearcher | None = None
+        self._searcher: TaskFTS5Searcher | None = None
 
     def add_change_listener(self, listener: Callable[[], Any]) -> None:
         """Add a listener to be called when tasks change."""
         self._change_listeners.append(listener)
 
     def _notify_listeners(self) -> None:
-        """Notify all listeners of a change and mark search index dirty."""
-        # Mark search index as needing refit
-        if self._searcher is not None:
-            self._searcher.mark_dirty()
-
+        """Notify all listeners of a change."""
         for listener in self._change_listeners:
             try:
                 listener()
@@ -654,50 +650,11 @@ class LocalTaskManager:
 
     # --- Search Methods ---
 
-    def _ensure_searcher(self) -> TaskSearcher:
+    def _ensure_searcher(self) -> TaskFTS5Searcher:
         """Get or create the task searcher instance."""
         if self._searcher is None:
-            self._searcher = TaskSearcher()
+            self._searcher = TaskFTS5Searcher(self.db)
         return self._searcher
-
-    def _ensure_search_fitted(self, project_id: str | None = None) -> None:
-        """Ensure the search index is fitted with current tasks.
-
-        Note: The index is always built from ALL tasks (not project-scoped) to ensure
-        the index remains valid for searches against any project. Project filtering
-        is applied in search_tasks() after TF-IDF ranking.
-
-        Args:
-            project_id: Unused - kept for API compatibility. Index always includes all tasks.
-        """
-        _ = project_id  # Unused - index is always global
-        searcher = self._ensure_searcher()
-
-        if not searcher.needs_refit():
-            return
-
-        # Always fetch ALL tasks to build a global index
-        # Project-scoped filtering happens in search_tasks() after ranking
-        index_limit = 10000
-        tasks = _list_tasks(
-            self.db,
-            project_id=None,  # Always global
-            limit=index_limit,
-        )
-
-        if len(tasks) == index_limit:
-            logger.warning(
-                f"Task search index may be incomplete: fetched exactly {index_limit} tasks. "
-                "Consider increasing the index limit or implementing pagination."
-            )
-
-        searcher.fit(tasks)
-        logger.info(f"Task search index fitted with {len(tasks)} tasks")
-
-    def mark_search_refit_needed(self) -> None:
-        """Mark that the search index needs to be rebuilt."""
-        if self._searcher is not None:
-            self._searcher.mark_dirty()
 
     def search_tasks(
         self,
@@ -711,9 +668,10 @@ class LocalTaskManager:
         limit: int = 20,
         min_score: float = 0.0,
     ) -> list[tuple[Task, float]]:
-        """Search tasks using TF-IDF semantic search.
+        """Search tasks using FTS5 full-text search.
 
-        Two-phase search: TF-IDF ranking first, then apply SQL filters.
+        Single-query search with SQL filter push-down — all filters
+        are applied in the FTS5 JOIN query.
 
         Args:
             query: Search query text
@@ -729,79 +687,44 @@ class LocalTaskManager:
         Returns:
             List of (Task, similarity_score) tuples, sorted by score descending
         """
-        # Ensure the search index is fitted
-        self._ensure_search_fitted(project_id)
-
         searcher = self._ensure_searcher()
 
-        # Phase 1: TF-IDF search to get candidate task IDs
-        # Get more candidates than limit to allow for filtering
-        search_results = searcher.search(query, top_k=limit * 3)
+        search_results = searcher.search(
+            query,
+            top_k=limit,
+            project_id=project_id,
+            status=status,
+            task_type=task_type,
+            priority=priority,
+            parent_task_id=parent_task_id,
+            category=category,
+            min_score=min_score,
+        )
 
         if not search_results:
             return []
 
-        # Phase 2: Fetch tasks and apply filters
+        # Batch-fetch tasks for the result set
         results: list[tuple[Task, float]] = []
-
         for task_id, score in search_results:
-            if score < min_score:
-                continue
-
             try:
                 task = self.get_task(task_id)
             except (ValueError, TaskNotFoundError):
-                # Task may have been deleted since indexing
                 continue
-
-            # Apply filters
-            if project_id and task.project_id != project_id:
-                continue
-
-            if status:
-                if isinstance(status, list):
-                    if task.status not in status:
-                        continue
-                elif task.status != status:
-                    continue
-
-            if task_type and task.task_type != task_type:
-                continue
-
-            if priority is not None and task.priority != priority:
-                continue
-
-            if parent_task_id and task.parent_task_id != parent_task_id:
-                continue
-
-            if category and task.category != category:
-                continue
-
             results.append((task, score))
-
-            if len(results) >= limit:
-                break
 
         return results
 
     def reindex_search(self, project_id: str | None = None) -> dict[str, Any]:
-        """Force rebuild of the task search index.
+        """Force rebuild of the FTS5 task search index.
 
-        Note: The index is always global (includes all tasks). Project-scoped
-        filtering is applied at search time in search_tasks().
+        Normally triggers keep the index in sync. Use this for repair.
 
         Args:
-            project_id: Unused - kept for API compatibility. Index always rebuilds globally.
+            project_id: Unused - kept for API compatibility.
 
         Returns:
             Dict with index statistics
         """
         searcher = self._ensure_searcher()
-
-        # Force refit by marking dirty
-        searcher.mark_dirty()
-
-        # Ensure fitted will rebuild the index
-        self._ensure_search_fitted(project_id)
-
-        return searcher.get_stats()
+        return searcher.reindex()
