@@ -777,6 +777,32 @@ class CommunicationsManager:
         """
         return self._store.get_channel_by_name(name)
 
+    async def send_proactive(
+        self, channel_name: str, conversation_id: str, content: str, content_type: str = "text"
+    ) -> str | None:
+        """Send a proactive message via an adapter that supports it (e.g., Teams).
+
+        Args:
+            channel_name: Name of the channel to send through.
+            conversation_id: Platform-specific conversation identifier.
+            content: Message content.
+            content_type: Content type ('text' or 'adaptive_card').
+
+        Returns:
+            Platform message ID if successful.
+
+        Raises:
+            ValueError: If channel not found or adapter doesn't support proactive messaging.
+        """
+        adapter = self._adapters.get(channel_name)
+        if adapter is None:
+            raise ValueError(f"Channel {channel_name!r} not found or not active")
+
+        if not hasattr(adapter, "send_proactive"):
+            raise ValueError(f"Channel {channel_name!r} does not support proactive messaging")
+
+        return await adapter.send_proactive(conversation_id, content, content_type)
+
     def list_messages(
         self,
         channel_id: str | None = None,

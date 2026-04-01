@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -324,3 +325,70 @@ async def test_token_refresh_lock(
         )
 
         assert refresh_call_count == 1
+
+
+# --- Proactive messaging ---
+
+
+def test_parse_webhook_stores_conversation_reference(adapter: TeamsAdapter) -> None:
+    """parse_webhook stores ConversationReference in metadata and cache."""
+    payload = {
+        "type": "message",
+        "id": "msg-100",
+        "text": "Hi",
+        "from": {"id": "user-1"},
+        "recipient": {"id": "bot-1"},
+        "conversation": {"id": "conv-abc", "tenantId": "tenant-xyz"},
+        "serviceUrl": "https://smba.trafficmanager.net/apis/",
+    }
+
+    messages = adapter.parse_webhook(payload, {})
+
+    assert len(messages) == 1
+    conv_ref = messages[0].metadata_json["conversation_reference"]
+    assert conv_ref["service_url"] == "https://smba.trafficmanager.net/apis/"
+    assert conv_ref["conversation_id"] == "conv-abc"
+    assert conv_ref["tenant_id"] == "tenant-xyz"
+    assert conv_ref["bot_id"] == "bot-1"
+    # Also cached on adapter
+    assert "conv-abc" in adapter._conversation_refs
+
+
+@pytest.mark.asyncio
+async def test_send_proactive_success(adapter: TeamsAdapter) -> None:
+    """send_proactive sends using stored ConversationReference."""
+    adapter._client = AsyncMock()
+    adapter._access_token = "test-token"
+    adapter._token_expires_at = time.time() + 3600
+
+    # Store a conversation reference
+    adapter._conversation_refs["conv-abc"] = {
+        "service_url": "https://smba.trafficmanager.net/apis/",
+        "conversation_id": "conv-abc",
+        "tenant_id": "tenant-xyz",
+        "bot_id": "bot-1",
+    }
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"id": "proactive-msg-1"}
+    adapter._client.post.return_value = mock_response
+
+    msg_id = await adapter.send_proactive("conv-abc", "Hello proactively!")
+
+    assert msg_id == "proactive-msg-1"
+    adapter._client.post.assert_called_once()
+    call_kwargs = adapter._client.post.call_args
+    assert "conv-abc/activities" in call_kwargs[0][0]
+    assert call_kwargs[1]["json"]["text"] == "Hello proactively!"
+
+
+@pytest.mark.asyncio
+async def test_send_proactive_no_reference(adapter: TeamsAdapter) -> None:
+    """send_proactive raises ValueError when no ConversationReference stored."""
+    adapter._client = AsyncMock()
+    adapter._access_token = "test-token"
+    adapter._token_expires_at = time.time() + 3600
+
+    with pytest.raises(ValueError, match="No ConversationReference stored"):
+        await adapter.send_proactive("unknown-conv", "Hello")

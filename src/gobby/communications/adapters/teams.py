@@ -31,6 +31,8 @@ class TeamsAdapter(BaseChannelAdapter):
         self._token_expires_at: float = 0
         self._token_lock = asyncio.Lock()
         self._jwk_client: PyJWKClient | None = None
+        # Cache of ConversationReferences keyed by conversation_id
+        self._conversation_refs: dict[str, dict[str, Any]] = {}
 
     @property
     def channel_type(self) -> str:
@@ -140,6 +142,70 @@ class TeamsAdapter(BaseChannelAdapter):
         message_id = data.get("id")
         return str(message_id) if message_id else None
 
+    async def send_proactive(
+        self, conversation_id: str, content: str, content_type: str = "text"
+    ) -> str | None:
+        """Send a proactive message to a Teams conversation using stored ConversationReference.
+
+        Args:
+            conversation_id: The Teams conversation ID to message.
+            content: Message content.
+            content_type: Content type ('text' or 'adaptive_card').
+
+        Returns:
+            Platform message ID if successful, None otherwise.
+
+        Raises:
+            ValueError: If no ConversationReference is stored for the conversation.
+        """
+        if not self._client:
+            raise ValueError("Adapter not initialized")
+
+        conv_ref = self._conversation_refs.get(conversation_id)
+        if not conv_ref:
+            raise ValueError(
+                f"No ConversationReference stored for conversation {conversation_id}. "
+                "A prior inbound message from this conversation is required."
+            )
+
+        async with self._token_lock:
+            if time.time() >= self._token_expires_at:
+                await self._refresh_token()
+
+        service_url = conv_ref["service_url"]
+        url = f"{service_url.rstrip('/')}/v3/conversations/{conversation_id}/activities"
+
+        activity: dict[str, Any] = {
+            "type": "message",
+            "text": content,
+        }
+
+        if content_type == "adaptive_card":
+            try:
+                card_content = json.loads(content)
+            except json.JSONDecodeError as exc:
+                raise ValueError("Adaptive card content is not valid JSON") from exc
+            activity["attachments"] = [
+                {
+                    "contentType": "application/vnd.microsoft.card.adaptive",
+                    "content": card_content,
+                }
+            ]
+            activity["text"] = ""
+
+        headers = {
+            "Authorization": f"Bearer {self._access_token}",
+            "Content-Type": "application/json",
+        }
+
+        response = await self._retry_request(
+            lambda: self._client.post(url, json=activity, headers=headers)  # type: ignore[union-attr]
+        )
+
+        data = response.json()
+        message_id = data.get("id")
+        return str(message_id) if message_id else None
+
     async def shutdown(self) -> None:
         """Cleanly close connections."""
         if self._client:
@@ -184,9 +250,20 @@ class TeamsAdapter(BaseChannelAdapter):
         if not channel_id or not text:
             return []
 
-        metadata = {}
+        metadata: dict[str, Any] = {}
         if service_url:
             metadata["service_url"] = service_url
+
+        # Store ConversationReference for proactive messaging
+        conv_ref = {
+            "service_url": service_url,
+            "conversation_id": channel_id,
+            "tenant_id": conversation.get("tenantId"),
+            "bot_id": payload_dict.get("recipient", {}).get("id"),
+        }
+        metadata["conversation_reference"] = conv_ref
+        if channel_id:
+            self._conversation_refs[channel_id] = conv_ref
 
         msg = CommsMessage(
             id=message_id or "",

@@ -140,6 +140,28 @@ def create_communications_registry(
             logger.exception("Communications tool error")
             return {"success": False, "error": str(e)}
 
+    @registry.tool(
+        description="Send a proactive message to a Teams conversation (requires prior inbound message)."
+    )
+    async def send_proactive_message(
+        channel: str,
+        conversation_id: str,
+        content: str,
+        content_type: str = "text",
+    ) -> dict[str, Any]:
+        """Send a proactive message using a stored ConversationReference."""
+        try:
+            msg_id = await communications_manager.send_proactive(
+                channel_name=channel,
+                conversation_id=conversation_id,
+                content=content,
+                content_type=content_type,
+            )
+            return {"success": True, "message_id": msg_id}
+        except Exception as e:
+            logger.exception("Communications tool error")
+            return {"success": False, "error": str(e)}
+
     @registry.tool(description="Manually link an external user to a Gobby session.")
     def link_identity(channel: str, external_user_id: str, session_id: str) -> dict[str, Any]:
         """Link an external user to a Gobby session."""
