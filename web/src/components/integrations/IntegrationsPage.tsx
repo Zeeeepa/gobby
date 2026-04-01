@@ -4,6 +4,7 @@ import type { Channel, ChannelType } from '../../hooks/useIntegrations'
 import { ChannelCard, CHANNEL_DISPLAY_NAMES } from './ChannelCard'
 import { ChannelDetail } from './ChannelDetail'
 import { ChannelForm } from './ChannelForm'
+import { MessageList } from './MessageList'
 import './IntegrationsPage.css'
 
 const CHANNEL_TYPES: ChannelType[] = ['slack', 'telegram', 'discord', 'teams', 'email', 'sms', 'gobby_chat']
@@ -20,6 +21,10 @@ export function IntegrationsPage() {
     removeChannel,
     updateChannel,
     fetchChannelStatus,
+    messages,
+    messageFilters,
+    setMessageFilters,
+    fetchMessages,
   } = useIntegrations()
 
   const [activeTab, setActiveTab] = useState<'channels' | 'messages'>('channels')
@@ -182,9 +187,13 @@ export function IntegrationsPage() {
             )}
           </>
         ) : (
-          <div className="intg-messages-placeholder">
-            Message list coming soon
-          </div>
+          <MessageList
+            channels={channels}
+            messages={messages}
+            filters={messageFilters}
+            onFiltersChange={setMessageFilters}
+            onFetchMessages={fetchMessages}
+          />
         )}
       </div>
 

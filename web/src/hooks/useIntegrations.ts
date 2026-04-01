@@ -58,12 +58,15 @@ export function useIntegrations() {
   const [isLoading, setIsLoading] = useState(true)
   const [searchText, setSearchText] = useState('')
   const [channelTypeFilter, setChannelTypeFilter] = useState<ChannelType | null>(null)
-  const [messageFilters, setMessageFilters] = useState<MessageFilters>({
+  const [messageFilters, setMessageFiltersRaw] = useState<MessageFilters>({
     channelId: null,
     direction: null,
     limit: 50,
     offset: 0,
   })
+  const setMessageFilters = useCallback((update: Partial<MessageFilters>) => {
+    setMessageFiltersRaw(prev => ({ ...prev, ...update }))
+  }, [])
   const debounceRef = useRef<number | null>(null)
 
   const fetchChannels = useCallback(async () => {
