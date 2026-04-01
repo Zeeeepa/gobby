@@ -26,8 +26,9 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from gobby.search.backends import EmbeddingBackend, TFIDFBackend
+from gobby.search.backends import AsyncSearchBackend, EmbeddingBackend, TFIDFBackend
 from gobby.search.embeddings import is_embedding_available
+from gobby.search.fts5 import FTS5SearchBackend
 from gobby.search.models import FallbackEvent, SearchConfig, SearchMode
 
 logger = logging.getLogger(__name__)
@@ -75,18 +76,36 @@ class UnifiedSearcher:
         self,
         config: SearchConfig | None = None,
         event_callback: FallbackCallback | None = None,
+        db: Any | None = None,
+        fts_table: str | None = None,
+        fts_content_table: str | None = None,
+        fts_id_column: str = "id",
+        fts_weights: tuple[float, ...] | None = None,
     ):
         """Initialize UnifiedSearcher.
 
         Args:
             config: Search configuration (defaults to SearchConfig())
             event_callback: Optional callback for fallback events
+            db: Optional LocalDatabase for FTS5 backend. When provided,
+                FTS5 replaces TF-IDF as the keyword search backend.
+            fts_table: FTS5 virtual table name (required when db is set)
+            fts_content_table: Content table name for FTS5 JOINs (None for contentless)
+            fts_id_column: ID column name in the content table
+            fts_weights: bm25 column weights for FTS5 ranking
         """
         self._config = config or SearchConfig()
         self._event_callback = event_callback
 
+        # FTS5 config
+        self._db = db
+        self._fts_table = fts_table
+        self._fts_content_table = fts_content_table
+        self._fts_id_column = fts_id_column
+        self._fts_weights = fts_weights
+
         # Initialize backends lazily
-        self._tfidf_backend: TFIDFBackend | None = None
+        self._keyword_backend: AsyncSearchBackend | None = None
         self._embedding_backend: EmbeddingBackend | None = None
 
         # State tracking
@@ -102,11 +121,20 @@ class UnifiedSearcher:
         """Get the current configuration."""
         return self._config
 
-    def _get_tfidf_backend(self) -> TFIDFBackend:
-        """Get or create the TF-IDF backend."""
-        if self._tfidf_backend is None:
-            self._tfidf_backend = TFIDFBackend()
-        return self._tfidf_backend
+    def _get_keyword_backend(self) -> AsyncSearchBackend:
+        """Get or create the keyword search backend (FTS5 or TF-IDF)."""
+        if self._keyword_backend is None:
+            if self._db is not None and self._fts_table:
+                self._keyword_backend = FTS5SearchBackend(
+                    db=self._db,
+                    fts_table=self._fts_table,
+                    content_table=self._fts_content_table,
+                    id_column=self._fts_id_column,
+                    weights=self._fts_weights,
+                )
+            else:
+                self._keyword_backend = TFIDFBackend()
+        return self._keyword_backend
 
     def _get_embedding_backend(self) -> EmbeddingBackend:
         """Get or create the embedding backend."""

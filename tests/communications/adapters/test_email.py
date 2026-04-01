@@ -165,6 +165,55 @@ class TestEmailAdapter:
         assert sent_email["In-Reply-To"] == "thread-123"
         assert sent_email["References"] == "thread-123"
 
+        # Verify multipart/alternative structure
+        assert sent_email.is_multipart()
+        parts = list(sent_email.iter_parts())
+        assert len(parts) == 2
+        assert parts[0].get_content_type() == "text/plain"
+        assert parts[1].get_content_type() == "text/html"
+        # Plain text fallback should have HTML stripped
+        assert "<b>" not in parts[0].get_content()
+        assert "html" in parts[0].get_content()
+        # HTML part should preserve the original
+        assert "<b>html</b>" in parts[1].get_content()
+
+    @pytest.mark.asyncio
+    @patch("gobby.communications.adapters.email.aiosmtplib", create=True)
+    async def test_send_message_text_not_multipart(self, mock_smtp, adapter) -> None:
+        """Plain text messages should NOT be multipart."""
+        adapter._smtp_client = AsyncMock()
+        adapter._smtp_client.is_connected = True
+        adapter._from_address = "bot@test.com"
+        adapter._default_destination = "user@test.com"
+
+        msg = MagicMock()
+        msg.content = "just text"
+        msg.metadata_json = {}
+        msg.platform_thread_id = None
+        msg.content_type = "text"
+
+        await adapter.send_message(msg)
+        sent_email = adapter._smtp_client.send_message.call_args[0][0]
+        assert not sent_email.is_multipart()
+        assert sent_email.get_content().strip() == "just text"
+
+    def test_strip_html_basic(self, adapter) -> None:
+        """_strip_html handles common tags."""
+        html = "<p>Hello <strong>world</strong></p><br><p>Line <em>two</em></p>"
+        result = adapter._strip_html(html)
+        assert "Hello world" in result
+        assert "Line two" in result
+        assert "<" not in result
+
+    def test_strip_html_links(self, adapter) -> None:
+        """_strip_html strips <a> tags but keeps text."""
+        html = 'Visit <a href="https://example.com">our site</a> today'
+        result = adapter._strip_html(html)
+        assert result == "Visit our site today"
+
+    def test_strip_html_empty(self, adapter) -> None:
+        assert adapter._strip_html("") == ""
+
     @pytest.mark.asyncio
     @patch("gobby.communications.adapters.email.aiosmtplib", create=True)
     async def test_send_attachment(self, mock_smtp, adapter, tmp_path) -> None:

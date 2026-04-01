@@ -265,6 +265,41 @@ class EmailAdapter(BaseChannelAdapter):
 
         await self._retry(_check_and_reconnect)
 
+    @staticmethod
+    def _strip_html(html: str) -> str:
+        """Strip HTML tags to produce a plain text fallback.
+
+        Handles common tags: <br> → newline, <p> → double newline,
+        strips all other tags. Uses stdlib html.parser to avoid
+        external dependencies.
+        """
+        from html.parser import HTMLParser
+
+        class _Stripper(HTMLParser):
+            def __init__(self) -> None:
+                super().__init__()
+                self._parts: list[str] = []
+
+            def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+                if tag == "br":
+                    self._parts.append("\n")
+                elif tag == "p":
+                    self._parts.append("\n\n")
+
+            def handle_endtag(self, tag: str) -> None:
+                if tag == "p":
+                    self._parts.append("\n")
+
+            def handle_data(self, data: str) -> None:
+                self._parts.append(data)
+
+            def get_text(self) -> str:
+                return "".join(self._parts).strip()
+
+        stripper = _Stripper()
+        stripper.feed(html)
+        return stripper.get_text()
+
     async def send_message(self, message: CommsMessage) -> str | None:
         """Send message and return platform message ID."""
         if not HAS_SMTP or not self._smtp_client:
@@ -295,7 +330,10 @@ class EmailAdapter(BaseChannelAdapter):
             msg["References"] = message.platform_thread_id
 
         if message.content_type == "html":
-            msg.set_content(message.content, subtype="html")
+            # RFC 2046: text/plain first, then text/html alternative
+            plain_text = self._strip_html(message.content)
+            msg.set_content(plain_text)
+            msg.add_alternative(message.content, subtype="html")
         else:
             msg.set_content(message.content)
 
