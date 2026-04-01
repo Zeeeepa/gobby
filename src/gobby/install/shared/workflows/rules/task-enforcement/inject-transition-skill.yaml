@@ -1,0 +1,20 @@
+tags: [task-enforcement, enforcement, lifecycle, gobby, default]
+
+rules:
+  inject-transition-skill:
+    description: "Inject task-transitions skill when agent fetches schema for status-change tools"
+    event: after_tool
+    enabled: false
+    priority: 25
+    when: >
+      (event.data.get('mcp_tool') == 'get_tool_schema'
+       or event.data.get('tool_name') in ('get_tool_schema', 'mcp__gobby__get_tool_schema'))
+      and tool_input.get('server_name') == 'gobby-tasks'
+      and tool_input.get('tool_name') in ('close_task', 'mark_task_needs_review', 'mark_task_review_approved')
+    effects:
+      - type: mcp_call
+        server: gobby-skills
+        tool: get_skill
+        arguments:
+          name: task-transitions
+        inject_result: true

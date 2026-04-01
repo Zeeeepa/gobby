@@ -577,6 +577,9 @@ class HookManager:
                     # Dedup memory injection — filter already-injected memories
                     if dr.get("tool") == "search_memories" and session_id:
                         dr["result"] = self._dedup_memory_results(dr["result"], session_id)
+                    # Dedup skill suggestions — filter already-suggested and low-relevance
+                    if dr.get("tool") == "search_skills" and session_id:
+                        dr["result"] = self._dedup_skill_results(dr["result"], session_id)
                     extra_context.append(self._format_discovery_result(dr))
                 if dr.get("block_on_failure") and not dr.get("success"):
                     result = dr.get("result") or {}
@@ -717,6 +720,45 @@ class HookManager:
             return {**result, "memories": filtered}
         except Exception as e:
             self.logger.debug(f"Memory injection dedup failed (fail-open): {e}")
+            return result
+
+    def _dedup_skill_results(self, result: dict[str, Any], session_id: str) -> dict[str, Any]:
+        """Filter already-suggested skills and low-relevance results.
+
+        Reads ``suggested_skill_names`` from session variables, removes skills
+        whose names are already present or whose relevance score is below the
+        threshold, then appends the remaining names back for future dedup.
+        Fails open — returns unfiltered result on any error.
+        """
+        _MIN_RELEVANCE = 0.65
+
+        try:
+            from gobby.workflows.state_manager import SessionVariableManager
+
+            sv_mgr = SessionVariableManager(self._database)
+            variables = sv_mgr.get_variables(session_id)
+            already_suggested: set[str] = set(variables.get("suggested_skill_names", []))
+
+            results_list = result.get("results", [])
+            if not results_list:
+                return result
+
+            # Filter by relevance threshold and dedup
+            filtered = [
+                r
+                for r in results_list
+                if r.get("score", 0) >= _MIN_RELEVANCE
+                and r.get("skill_name", "") not in already_suggested
+            ]
+
+            # Track newly suggested skill names
+            new_names = [r["skill_name"] for r in filtered if r.get("skill_name")]
+            if new_names:
+                sv_mgr.append_to_set_variable(session_id, "suggested_skill_names", new_names)
+
+            return {**result, "results": filtered, "count": len(filtered)}
+        except Exception as e:
+            self.logger.debug(f"Skill suggestion dedup failed (fail-open): {e}")
             return result
 
     def _resolve_summary_output_path(self, session_id: str) -> str:

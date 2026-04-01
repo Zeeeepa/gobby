@@ -3,7 +3,6 @@ name: automate
 description: "Build automation with Gobby: pipelines, agent definitions, and cron scheduling. Use when asked to 'build pipeline', 'create pipeline', 'build agent', 'create agent definition', 'automate', 'schedule', 'set up cron', or when users describe something they want to happen automatically."
 version: "1.0.0"
 category: authoring
-alwaysApply: true
 injectionFormat: full
 triggers: automate, build pipeline, create pipeline, author pipeline, write pipeline, design pipeline, build agent, create agent definition, author agent, design agent, schedule, cron, set up cron
 metadata:

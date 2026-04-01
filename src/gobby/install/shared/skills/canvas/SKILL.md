@@ -3,7 +3,6 @@ name: canvas
 description: Instructions for rendering rich A2UI canvas elements to the chat interface. Auto-injected for web UI sessions.
 category: core
 triggers: canvas, ui, interface, form, a2ui, interactive
-alwaysApply: true
 injectionFormat: content
 metadata:
   gobby:

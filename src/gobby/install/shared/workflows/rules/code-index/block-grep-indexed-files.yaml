@@ -4,7 +4,7 @@ rules:
   intercept-grep-with-code-index:
     description: "Intercept Grep calls in indexed projects — steer to gcode CLI"
     event: before_tool
-    enabled: true
+    enabled: false
     priority: 50
     when: >
       event.data.get('tool_name', '').lower() in ('grep_search', 'grep')

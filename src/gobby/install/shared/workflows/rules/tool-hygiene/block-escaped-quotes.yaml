@@ -1,7 +1,7 @@
 name: block-escaped-quotes
 description: "Detect and block escaped quotes in tool arguments to prevent JSON parsing errors."
 type: rule
-enabled: true
+enabled: false
 
 # Matches any tool call that contains escaped quotes in its arguments
 when: "event.event_type == 'pre-tool-use' and regex_search(r'\\\"', str(event.data.get('tool_input', {})))"
