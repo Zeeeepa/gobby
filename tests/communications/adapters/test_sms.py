@@ -255,3 +255,36 @@ def test_verify_webhook(adapter: SMSAdapter) -> None:
     # Test invalid signature
     headers["x-twilio-signature"] = "invalid"
     assert adapter.verify_webhook(payload_str.encode("utf-8"), headers, secret) is False
+
+
+def test_verify_webhook_uses_config_url(adapter: SMSAdapter) -> None:
+    """verify_webhook uses config webhook_url as primary source."""
+    import base64
+    import hashlib
+    import hmac
+
+    secret = "my-secret"
+    config_url = "https://my-gobby.example.com/api/comms/webhooks/sms"
+    adapter._webhook_url = config_url
+
+    payload_dict = {"From": "+1234", "Body": "Hi"}
+    payload_str = urlencode(payload_dict)
+
+    # Calculate signature using config URL
+    data = config_url
+    for key in sorted(payload_dict.keys()):
+        data += f"{key}{payload_dict[key]}"
+
+    mac = hmac.new(secret.encode("utf-8"), data.encode("utf-8"), hashlib.sha1)
+    computed = base64.b64encode(mac.digest()).decode("utf-8")
+
+    # No URL headers — config URL should be used
+    headers = {"x-twilio-signature": computed}
+
+    assert adapter.verify_webhook(payload_str.encode("utf-8"), headers, secret) is True
+
+
+def test_verify_webhook_no_url_returns_false(adapter: SMSAdapter) -> None:
+    """verify_webhook returns False with warning when no URL available."""
+    headers = {"x-twilio-signature": "some-sig"}
+    assert adapter.verify_webhook(b"Body=hello", headers, "secret") is False

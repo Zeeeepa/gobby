@@ -104,6 +104,7 @@ class SkillSearch:
         self,
         config: SearchConfig | None = None,
         refit_threshold: int = 10,
+        db: Any | None = None,
     ):
         """Initialize skill search.
 
@@ -112,15 +113,28 @@ class SkillSearch:
                 Pass a SearchConfig with embedding_api_key set to enable
                 embedding-based search.
             refit_threshold: Number of updates before automatic refit
+            db: Optional LocalDatabase for FTS5 backend. When provided,
+                FTS5 replaces TF-IDF as the keyword search fallback.
         """
         if config is None:
             config = SearchConfig(mode="auto")
 
         self._config = config
         self._refit_threshold = refit_threshold
+        self._db = db
 
-        # Initialize unified searcher
-        self._searcher = UnifiedSearcher(self._config)
+        # Initialize unified searcher with FTS5 config when db available
+        # bm25 weights: name(10), description(5), tags_text(2), category(2)
+        # Even though skills_fts is contentless, we insert with matching rowids
+        # so JOINing with the skills table works for ID retrieval.
+        self._searcher = UnifiedSearcher(
+            self._config,
+            db=db,
+            fts_table="skills_fts" if db else None,
+            fts_content_table="skills" if db else None,
+            fts_id_column="id",
+            fts_weights=(10.0, 5.0, 2.0, 2.0) if db else None,
+        )
 
         # Skill metadata tracking
         self._skill_names: dict[str, str] = {}  # skill_id -> skill_name
@@ -186,6 +200,41 @@ class SkillSearch:
 
         return " ".join(parts)
 
+    def _populate_skills_fts(self, skills: list[Skill]) -> None:
+        """Populate the skills_fts contentless FTS5 table.
+
+        Rebuilds the entire table from scratch. This is safe because
+        skills volume is small (typically < 200).
+
+        Uses the skills table rowid so FTS5 results can be JOINed back
+        to the skills table via rowid.
+
+        Args:
+            skills: Skills to index in FTS5
+        """
+        if self._db is None:
+            return
+
+        try:
+            self._db.execute("DELETE FROM skills_fts")
+
+            # Look up rowids for each skill so FTS5 rowids match the skills table
+            for skill in skills:
+                row = self._db.fetchone("SELECT rowid FROM skills WHERE id = ?", (skill.id,))
+                if row is None:
+                    continue
+                rowid = row[0]
+                tags = skill.get_tags()
+                tags_text = " ".join(tags) if tags else ""
+                category = skill.get_category() or ""
+                self._db.execute(
+                    "INSERT INTO skills_fts(rowid, name, description, tags_text, category) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (rowid, skill.name, skill.description, tags_text, category),
+                )
+        except Exception as e:
+            logger.warning(f"Failed to populate skills_fts: {e}")
+
     def index_skills(self, skills: list[Skill]) -> None:
         """Build search index from skills (sync wrapper).
 
@@ -217,7 +266,8 @@ class SkillSearch:
         """Build search index from skills.
 
         Indexes skills using the configured search mode (auto, tfidf,
-        embedding, or hybrid).
+        embedding, or hybrid). When a database is available, also populates
+        the skills_fts FTS5 table for keyword fallback.
 
         Args:
             skills: List of skills to index
@@ -230,6 +280,11 @@ class SkillSearch:
             self._indexed = False
             self._pending_updates = 0
             self._searcher.clear()
+            if self._db is not None:
+                try:
+                    self._db.execute("DELETE FROM skills_fts")
+                except Exception as e:
+                    logger.debug(f"Failed to clear skills_fts: {e}")
             logger.debug("Skill search index cleared (no skills)")
             return
 
@@ -251,7 +306,11 @@ class SkillSearch:
         # Store for potential reindexing
         self._skill_items = items
 
-        # Index using unified searcher
+        # Populate FTS5 table when db is available
+        if self._db is not None:
+            self._populate_skills_fts(skills)
+
+        # Index using unified searcher (embedding backend)
         await self._searcher.fit_async(items)
         self._indexed = True
         self._pending_updates = 0

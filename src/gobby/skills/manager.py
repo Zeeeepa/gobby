@@ -82,7 +82,7 @@ class SkillManager:
         self._storage = LocalSkillManager(db, notifier=self._notifier)
 
         # Initialize search with config (propagates embedding API key)
-        self._search = SkillSearch(config=search_config)
+        self._search = SkillSearch(config=search_config, db=db)
 
     @property
     def storage(self) -> LocalSkillManager:

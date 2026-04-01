@@ -194,6 +194,9 @@ def channels_add_cmd(ctx: click.Context, channel_type: str, name: str) -> None:
         secrets["auth_token"] = click.prompt("Auth Token", hide_input=True)
         config["account_sid"] = click.prompt("Account SID")
         config["from_number"] = click.prompt("From Number")
+        config["webhook_url"] = click.prompt(
+            "Webhook URL (for signature verification, optional)", default=""
+        )
     elif channel_type == "gobby_chat":
         click.echo("No additional configuration required.")
     else:

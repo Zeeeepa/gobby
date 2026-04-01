@@ -40,6 +40,7 @@ class SMSAdapter(BaseChannelAdapter):
         self._auth_token: str | None = None
         self._from_number: str | None = None
         self._messaging_service_sid: str | None = None
+        self._webhook_url: str = ""
 
     @property
     def channel_type(self) -> str:
@@ -70,6 +71,7 @@ class SMSAdapter(BaseChannelAdapter):
         self._from_number = config.config_json.get("from_number")
 
         self._messaging_service_sid = config.config_json.get("messaging_service_sid")
+        self._webhook_url = config.config_json.get("webhook_url", "")
 
         if not self._auth_token:
             raise ValueError("TWILIO_AUTH_TOKEN secret is required")
@@ -221,23 +223,29 @@ class SMSAdapter(BaseChannelAdapter):
         if not twilio_signature:
             return False
 
-        # Twilio needs the exact URL. If the proxy/router passes it in a custom header, use it.
-        # Otherwise, we might not be able to verify properly. We look for common headers or fallback to empty.
-        url = lower_headers.get("x-original-url") or lower_headers.get("x-gobby-webhook-url")
+        # Twilio needs the exact URL for signature verification.
+        # Priority: 1) config webhook_url, 2) x-original-url header, 3) x-gobby-webhook-url header
+        url = (
+            self._webhook_url
+            or lower_headers.get("x-original-url")
+            or lower_headers.get("x-gobby-webhook-url")
+        )
 
-        # We'll parse the payload to sort the params
+        if not url:
+            logger.warning(
+                "SMS webhook verification failed: no webhook_url configured and no URL headers present. "
+                "Set webhook_url in channel config for reliable signature verification."
+            )
+            return False
+
+        # Parse the payload to sort the params
         payload_str = payload.decode("utf-8")
         params = dict(parse_qsl(payload_str))
 
-        # Sort params and append to URL
-        data = url if url else ""
-        if data:
-            for key in sorted(params.keys()):
-                data += f"{key}{params[key]}"
-        else:
-            # If we don't have a URL, we cannot definitively verify the Twilio signature.
-            # Return False since it's unverified.
-            return False
+        # Sort params and append to URL per Twilio's signature spec
+        data = url
+        for key in sorted(params.keys()):
+            data += f"{key}{params[key]}"
 
         mac = hmac.new(secret.encode("utf-8"), data.encode("utf-8"), hashlib.sha1)
         computed = base64.b64encode(mac.digest()).decode("utf-8")

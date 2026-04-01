@@ -76,7 +76,7 @@ def create_skills_registry(
         storage=storage,
         notifier=notifier,
         session_manager=LocalSessionManager(db),
-        search=SkillSearch(config=search_config),
+        search=SkillSearch(config=search_config, db=db),
         updater=SkillUpdater(storage),
         loader=SkillLoader(),
         project_id=project_id,
