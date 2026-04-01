@@ -2,6 +2,7 @@
 Neo4j service installation and uninstallation.
 
 Handles local Docker-based Neo4j setup for knowledge graph features.
+Uses the unified docker-compose.services.yml with Docker Compose profiles.
 """
 
 import asyncio
@@ -17,12 +18,15 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# Bundled file locations (inside package)
+# Bundled unified compose template (shared with qdrant)
 _DATA_DIR = Path(__file__).resolve().parents[2] / "data"
-_COMPOSE_SRC = _DATA_DIR / "docker-compose.neo4j.yml"
+_COMPOSE_SRC = _DATA_DIR / "docker-compose.services.yml"
 
 DEFAULT_NEO4J_HTTP_URL = "http://localhost:8474"
 DEFAULT_NEO4J_BOLT_URL = "bolt://localhost:8687"
+
+NEO4J_DATA_VOLUME = "gobby_neo4j_data"
+NEO4J_LOGS_VOLUME = "gobby_neo4j_logs"
 
 
 def _generate_password(length: int = 24) -> str:
@@ -43,12 +47,26 @@ def _resolve_neo4j_auth() -> str:
     return f"neo4j:{_generate_password()}"
 
 
+def _ensure_unified_compose(services_dir: Path) -> Path:
+    """Ensure the unified Docker Compose file exists, copying from template if needed.
+
+    Returns the path to the compose file.
+    """
+    dest = services_dir / "docker-compose.yml"
+    if not dest.exists():
+        services_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(_COMPOSE_SRC, dest)
+    return dest
+
+
 def install_neo4j(
     *,
     gobby_home: Path | None = None,
     password: str | None = None,
 ) -> dict[str, Any]:
-    """Install Neo4j via local Docker Compose.
+    """Install Neo4j via Docker Compose.
+
+    Uses the unified services compose file with Docker Compose profiles.
 
     Args:
         gobby_home: Gobby home directory (default: ~/.gobby)
@@ -70,17 +88,14 @@ def install_neo4j(
     else:
         neo4j_auth = _resolve_neo4j_auth()
 
-    # Copy compose file
-    svc_dir = home / "services" / "neo4j"
-    svc_dir.mkdir(parents=True, exist_ok=True)
-    dest = svc_dir / "docker-compose.yml"
-    shutil.copy2(_COMPOSE_SRC, dest)
+    services_dir = home / "services"
+    compose_file = _ensure_unified_compose(services_dir)
 
     # Generate clean conf/neo4j.conf to prevent APOC plugin from corrupting
     # the config by appending duplicate lines on every container restart.
     # Must be a directory mount (not single file) because the entrypoint
     # uses sed -i which does atomic rename — fails on bind-mounted files.
-    conf_dir = svc_dir / "conf"
+    conf_dir = services_dir / "neo4j" / "conf"
     conf_dir.mkdir(parents=True, exist_ok=True)
     conf_file = conf_dir / "neo4j.conf"
     if not conf_file.exists():
@@ -105,14 +120,25 @@ def install_neo4j(
     if len(parts) == 2:
         env["GOBBY_NEO4J_PASSWORD"] = parts[1]
 
-    # Run docker compose up -d
+    # Run docker compose up with neo4j profile
     try:
         result = subprocess.run(  # nosec B603 B607 # hardcoded docker command
-            ["docker", "compose", "-f", str(dest), "up", "-d", "--remove-orphans"],
+            [
+                "docker",
+                "compose",
+                "-f",
+                str(compose_file),
+                "--profile",
+                "neo4j",
+                "up",
+                "-d",
+                "--remove-orphans",
+            ],
             capture_output=True,
             text=True,
             timeout=120,
             env=env,
+            cwd=str(services_dir),
         )
 
         if result.returncode != 0:
@@ -139,7 +165,7 @@ def install_neo4j(
         "success": True,
         "neo4j_url": DEFAULT_NEO4J_HTTP_URL,
         "bolt_url": DEFAULT_NEO4J_BOLT_URL,
-        "compose_file": str(dest),
+        "compose_file": str(compose_file),
         "mode": "local",
     }
 
@@ -159,33 +185,55 @@ def uninstall_neo4j(
         Dict with 'success' and details
     """
     home = gobby_home or Path("~/.gobby").expanduser()
-    svc_dir = home / "services" / "neo4j"
-    compose_file = svc_dir / "docker-compose.yml"
+    services_dir = home / "services"
+    compose_file = services_dir / "docker-compose.yml"
 
-    if not svc_dir.exists():
+    if not compose_file.exists():
         _update_config(neo4j_url=None, neo4j_auth=None)
         return {"success": True, "already_uninstalled": True, "message": "Neo4j not installed"}
 
-    # Run docker compose down
-    if compose_file.exists():
-        cmd = ["docker", "compose", "-f", str(compose_file), "down"]
-        if remove_volumes:
-            cmd.append("-v")
+    # Run docker compose down with neo4j profile
+    try:
+        result = subprocess.run(  # nosec B603 B607 # hardcoded docker command
+            [
+                "docker",
+                "compose",
+                "-f",
+                str(compose_file),
+                "--profile",
+                "neo4j",
+                "down",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            cwd=str(services_dir),
+        )
+        if result.returncode != 0:
+            logger.warning(f"Docker compose down failed: {result.stderr or result.stdout}")
+    except subprocess.TimeoutExpired:
+        logger.warning("Docker compose down timed out")
 
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)  # nosec B603 # hardcoded docker command
-            if result.returncode != 0:
-                logger.warning(f"Docker compose down failed: {result.stderr or result.stdout}")
-        except subprocess.TimeoutExpired:
-            logger.warning("Docker compose down timed out")
+    if remove_volumes:
+        for vol_name in (NEO4J_DATA_VOLUME, NEO4J_LOGS_VOLUME):
+            try:
+                subprocess.run(  # nosec B603 B607
+                    ["docker", "volume", "rm", vol_name],
+                    capture_output=True,
+                    timeout=30,
+                )
+            except (subprocess.TimeoutExpired, OSError) as exc:
+                logger.warning(f"Failed to remove Docker volume {vol_name}: {exc}")
 
-    # Remove service directory
-    shutil.rmtree(svc_dir, ignore_errors=True)
+    # Clean up neo4j conf subdirectory (but leave services/ and compose intact for qdrant)
+    neo4j_conf_dir = services_dir / "neo4j"
+    if neo4j_conf_dir.exists():
+        shutil.rmtree(neo4j_conf_dir, ignore_errors=True)
 
     # Reset config
     _update_config(neo4j_url=None, neo4j_auth=None)
 
-    return {"success": True, "removed": str(svc_dir), "volumes_removed": remove_volumes}
+    return {"success": True, "data_removed": remove_volumes}
 
 
 def _wait_for_health(url: str, retries: int = 30, interval: float = 2.0) -> bool:
