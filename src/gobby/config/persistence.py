@@ -214,6 +214,14 @@ class MemoryConfig(BaseModel):
         default=0.82,
         description="Minimum cosine similarity for RELATES_TO_CODE edges between memory entities and code symbols",
     )
+    temporal_decay_half_life_days: float = Field(
+        default=30.0,
+        description=(
+            "Half-life in days for temporal decay scoring in memory search. "
+            "Memories lose half their score boost after this many days since last update. "
+            "Set to 0 to disable temporal decay."
+        ),
+    )
 
     @field_validator("crossref_threshold", "code_link_min_score")
     @classmethod
@@ -229,6 +237,14 @@ class MemoryConfig(BaseModel):
         """Validate crossref_max_links is positive."""
         if v < 1:
             raise ValueError("crossref_max_links must be at least 1")
+        return v
+
+    @field_validator("temporal_decay_half_life_days")
+    @classmethod
+    def validate_half_life(cls, v: float) -> float:
+        """Validate temporal_decay_half_life_days is non-negative."""
+        if v < 0:
+            raise ValueError("temporal_decay_half_life_days must be >= 0")
         return v
 
     @field_validator("backend")

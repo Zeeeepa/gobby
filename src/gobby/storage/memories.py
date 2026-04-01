@@ -405,7 +405,7 @@ class LocalMemoryManager:
 
         # Fetch more results to allow for tag filtering
         fetch_limit = limit * 3 if (tags_all or tags_any or tags_none) else limit
-        query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        query += " ORDER BY updated_at DESC LIMIT ? OFFSET ?"
         params.extend([fetch_limit, offset])
 
         rows = self.db.fetchall(query, tuple(params))
@@ -470,7 +470,7 @@ class LocalMemoryManager:
 
         # Fetch more results than needed to allow for tag filtering
         fetch_limit = limit * 3 if (tags_all or tags_any or tags_none) else limit
-        sql += " ORDER BY created_at DESC LIMIT ?"
+        sql += " ORDER BY updated_at DESC LIMIT ?"
         params.append(fetch_limit)
 
         rows = self.db.fetchall(sql, tuple(params))

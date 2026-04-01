@@ -12,6 +12,7 @@ from gobby.memory.components.ingestion import IngestionService
 from gobby.memory.context import build_memory_context
 from gobby.memory.neo4j_client import Neo4jClient
 from gobby.memory.protocol import MemoryBackendProtocol, MemoryRecord
+from gobby.memory.scoring import temporal_decay
 from gobby.memory.services.knowledge_graph import KnowledgeGraphService
 from gobby.memory.services.maintenance import (
     export_markdown as _export_markdown,
@@ -512,6 +513,7 @@ class MemoryManager:
         """
         if query and self._vector_store and self._embed_fn:
             query_embedding = await self._embed_fn(query, is_query=True)
+            half_life = getattr(self.config, "temporal_decay_half_life_days", 30.0)
 
             # Build filters for VectorStore
             filters: dict[str, Any] = {}
@@ -589,6 +591,7 @@ class MemoryManager:
                     base_score = 1.0 / (rank + 1)
                     if mem.source_type == "user":
                         base_score *= _USER_SOURCE_BOOST
+                    base_score *= temporal_decay(mem.updated_at, half_life)
                     scored.append((mem, base_score))
 
                 scored.sort(key=lambda x: x[1], reverse=True)
@@ -617,6 +620,7 @@ class MemoryManager:
                         continue
 
                     boosted = score * _USER_SOURCE_BOOST if mem.source_type == "user" else score
+                    boosted *= temporal_decay(mem.updated_at, half_life)
                     scored.append((mem, boosted))
 
                 scored.sort(key=lambda x: x[1], reverse=True)

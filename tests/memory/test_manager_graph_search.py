@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -45,7 +46,12 @@ def _make_manager(
     )
 
 
-def _mock_memory(memory_id: str, content: str, memory_type: str = "fact") -> MagicMock:
+def _mock_memory(
+    memory_id: str,
+    content: str,
+    memory_type: str = "fact",
+    updated_at: str | None = None,
+) -> MagicMock:
     """Create a mock Memory object."""
     m = MagicMock()
     m.id = memory_id
@@ -54,6 +60,7 @@ def _mock_memory(memory_id: str, content: str, memory_type: str = "fact") -> Mag
     m.source_type = "user"
     m.tags = []
     m.last_accessed_at = None
+    m.updated_at = updated_at or datetime.now(UTC).isoformat()
     return m
 
 
@@ -511,3 +518,111 @@ class TestCreateMemoryPassesMemoryId:
 
         # Graph is now queued via mark_pending_graph, not fired as background task
         manager.storage.mark_pending_graph.assert_called_once_with("test-mem-id")
+
+
+class TestTemporalDecayIntegration:
+    """Integration tests for temporal decay in search_memories."""
+
+    @pytest.mark.asyncio
+    async def test_older_memory_ranks_lower_graph_path(self) -> None:
+        """In graph-augmented search, an older memory should rank below a recent one."""
+        llm_service = MagicMock()
+        llm_service.get_default_provider = MagicMock(return_value=AsyncMock())
+
+        vs = AsyncMock()
+        embed_fn = AsyncMock(return_value=[0.1])
+
+        manager = _make_manager(
+            neo4j_url="http://localhost:7474",
+            llm_service=llm_service,
+            vector_store=vs,
+            embed_fn=embed_fn,
+        )
+        # Enable temporal decay with a short half-life for clear differentiation
+        object.__setattr__(manager.config, "temporal_decay_half_life_days", 30.0)
+
+        now = datetime.now(UTC)
+        recent = now - timedelta(days=1)
+        old = now - timedelta(days=90)
+
+        # Both memories rank equally in Qdrant (same position)
+        vs.search = AsyncMock(return_value=[("mem-recent", 0.9), ("mem-old", 0.9)])
+        manager._kg_service.search_entities_by_vector = AsyncMock(return_value=[])
+        manager._kg_service.find_related_memory_ids = AsyncMock(return_value=[])
+
+        mem_recent = _mock_memory("mem-recent", "recent content", updated_at=recent.isoformat())
+        mem_old = _mock_memory("mem-old", "old content", updated_at=old.isoformat())
+
+        manager.storage.get_memory = MagicMock(
+            side_effect=lambda mid: mem_recent if mid == "mem-recent" else mem_old
+        )
+
+        result = await manager.search_memories(query="test", limit=10)
+
+        result_ids = [m.id for m in result]
+        assert result_ids[0] == "mem-recent"
+        assert result_ids[1] == "mem-old"
+
+    @pytest.mark.asyncio
+    async def test_older_memory_ranks_lower_qdrant_only(self) -> None:
+        """In qdrant-only search, an older memory should rank below a recent one."""
+        vs = AsyncMock()
+        embed_fn = AsyncMock(return_value=[0.1])
+
+        manager = _make_manager(
+            vector_store=vs,
+            embed_fn=embed_fn,
+        )
+        object.__setattr__(manager.config, "temporal_decay_half_life_days", 30.0)
+
+        now = datetime.now(UTC)
+        recent = now - timedelta(days=1)
+        old = now - timedelta(days=90)
+
+        # Same cosine similarity score
+        vs.search = AsyncMock(return_value=[("mem-old", 0.9), ("mem-recent", 0.9)])
+
+        mem_recent = _mock_memory("mem-recent", "recent content", updated_at=recent.isoformat())
+        mem_old = _mock_memory("mem-old", "old content", updated_at=old.isoformat())
+
+        manager.storage.get_memory = MagicMock(
+            side_effect=lambda mid: mem_recent if mid == "mem-recent" else mem_old
+        )
+
+        result = await manager.search_memories(query="test", limit=10)
+
+        result_ids = [m.id for m in result]
+        assert result_ids[0] == "mem-recent"
+        assert result_ids[1] == "mem-old"
+
+    @pytest.mark.asyncio
+    async def test_decay_disabled_preserves_order(self) -> None:
+        """When half_life=0, temporal decay is disabled and order is unchanged."""
+        vs = AsyncMock()
+        embed_fn = AsyncMock(return_value=[0.1])
+
+        manager = _make_manager(
+            vector_store=vs,
+            embed_fn=embed_fn,
+        )
+        object.__setattr__(manager.config, "temporal_decay_half_life_days", 0.0)
+
+        now = datetime.now(UTC)
+        old = now - timedelta(days=365)
+
+        # mem-old comes first from Qdrant with higher score
+        vs.search = AsyncMock(return_value=[("mem-old", 0.95), ("mem-recent", 0.8)])
+
+        mem_recent = _mock_memory("mem-recent", "recent", updated_at=now.isoformat())
+        mem_old = _mock_memory("mem-old", "old", updated_at=old.isoformat())
+
+        manager.storage.get_memory = MagicMock(
+            side_effect=lambda mid: mem_recent if mid == "mem-recent" else mem_old
+        )
+
+        result = await manager.search_memories(query="test", limit=10)
+
+        # With decay disabled, original Qdrant ordering is preserved
+        result_ids = [m.id for m in result]
+        assert result_ids[0] == "mem-old"
+        assert result_ids[1] == "mem-recent"
