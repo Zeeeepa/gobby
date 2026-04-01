@@ -224,85 +224,75 @@ class TestTaskSearch:
         stats = manager.reindex_search(project_id)
 
         # Check stats
-        assert "item_count" in stats
-        assert stats["item_count"] > 0
+        assert "document_count" in stats
+        assert stats["document_count"] > 0
 
         # Search again should work
         results2 = manager.search_tasks("authentication", project_id=project_id)
         assert len(results1) == len(results2)
 
 
-class TestTaskSearcher:
-    """Tests for the TaskSearcher helper class."""
+class TestTaskFTS5Searcher:
+    """Tests for the TaskFTS5Searcher class."""
 
-    def test_build_searchable_content(self) -> None:
-        """Test build_searchable_content function."""
-        from gobby.storage.tasks._models import Task
-        from gobby.storage.tasks._search import build_searchable_content
-
-        # Create a mock task
-        task = Task(
-            id="test-id",
-            project_id="project",
-            seq_num=1,
-            title="Test Task Title",
-            description="A detailed description",
-            status="open",
-            priority=1,
-            task_type="feature",
-            category="code",
-            labels=["label1", "label2"],
-            created_at="2024-01-01",
-            updated_at="2024-01-01",
-        )
-
-        content = build_searchable_content(task)
-
-        assert "Test Task Title" in content
-        assert "detailed description" in content
-        assert "label1" in content
-        assert "label2" in content
-        assert "feature" in content
-        assert "code" in content
-
-    def test_task_searcher_fit_and_search(self, db_with_tasks) -> None:
-        """Test TaskSearcher fit and search."""
-        from gobby.storage.tasks._search import TaskSearcher
+    def test_fts5_searcher_search(self, db_with_tasks) -> None:
+        """Test TaskFTS5Searcher direct search."""
+        from gobby.storage.tasks._search import TaskFTS5Searcher
 
         db, manager, project_id = db_with_tasks
 
-        # Get tasks
-        tasks = manager.list_tasks(project_id=project_id, limit=100)
-
-        # Create and fit searcher
-        searcher = TaskSearcher()
-        searcher.fit(tasks)
-
-        # Search
+        searcher = TaskFTS5Searcher(db)
         results = searcher.search("authentication")
 
         assert len(results) > 0
-        # Results should be (task_id, score) tuples
         for task_id, score in results:
             assert isinstance(task_id, str)
             assert isinstance(score, float)
+            assert 0.0 <= score <= 1.0
 
-    def test_task_searcher_dirty_tracking(self, db_with_tasks) -> None:
-        """Test TaskSearcher dirty flag tracking."""
-        from gobby.storage.tasks._search import TaskSearcher
+    def test_fts5_searcher_with_filters(self, db_with_tasks) -> None:
+        """Test TaskFTS5Searcher with SQL filter push-down."""
+        from gobby.storage.tasks._search import TaskFTS5Searcher
 
         db, manager, project_id = db_with_tasks
-        tasks = manager.list_tasks(project_id=project_id, limit=100)
 
-        searcher = TaskSearcher()
+        searcher = TaskFTS5Searcher(db)
 
-        # Initially dirty
-        assert searcher.needs_refit()
+        # Search with project filter
+        results = searcher.search("authentication", project_id=project_id)
+        assert len(results) > 0
 
-        # After fit with real tasks, not dirty
-        searcher.fit(tasks)
-        assert not searcher.needs_refit()
+        # Search with non-matching project should return empty
+        results = searcher.search("authentication", project_id="nonexistent")
+        assert len(results) == 0
 
-        # After mark_dirty, dirty again
-        searcher.mark_dirty()
-        assert searcher.needs_refit()
+    def test_fts5_searcher_reindex(self, db_with_tasks) -> None:
+        """Test FTS5 index rebuild."""
+        from gobby.storage.tasks._search import TaskFTS5Searcher
+
+        db, manager, project_id = db_with_tasks
+
+        searcher = TaskFTS5Searcher(db)
+        stats = searcher.reindex()
+
+        assert stats["backend_type"] == "fts5"
+        assert stats["document_count"] > 0
+
+    def test_fts5_query_sanitization(self) -> None:
+        """Test FTS5 query sanitization."""
+        from gobby.search.fts5 import sanitize_fts_query
+
+        # Normal query
+        assert sanitize_fts_query("hello world") == '"hello" "world"'
+
+        # Special characters stripped
+        assert sanitize_fts_query("hello (world)") == '"hello" "world"'
+        assert sanitize_fts_query('key:value "quoted"') == '"keyvalue" "quoted"'
+
+        # Empty/whitespace
+        assert sanitize_fts_query("") == ""
+        assert sanitize_fts_query("   ") == ""
+
+        # Underscores and hyphens preserved
+        assert sanitize_fts_query("my_func") == '"my_func"'
+        assert sanitize_fts_query("some-thing") == '"some-thing"'

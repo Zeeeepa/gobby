@@ -121,6 +121,11 @@ class UnifiedSearcher:
         """Get the current configuration."""
         return self._config
 
+    @property
+    def _keyword_backend_name(self) -> str:
+        """Return the name of the keyword backend ('fts5' or 'tfidf')."""
+        return "fts5" if self._db is not None else "tfidf"
+
     def _get_keyword_backend(self) -> AsyncSearchBackend:
         """Get or create the keyword search backend (FTS5 or TF-IDF)."""
         if self._keyword_backend is None:
@@ -186,7 +191,7 @@ class UnifiedSearcher:
         """
         self._using_fallback = True
         self._fallback_reason = reason
-        self._active_backend = "keyword"
+        self._active_backend = self._keyword_backend_name
 
         # Fit keyword backend with provided items or cached items
         fit_items = items if items is not None else self._items
@@ -224,7 +229,7 @@ class UnifiedSearcher:
             # TF-IDF only
             tfidf = self._get_keyword_backend()
             await tfidf.fit_async(items)
-            self._active_backend = "tfidf"
+            self._active_backend = self._keyword_backend_name
             self._fitted = True
             self._fitted_mode = mode
 
@@ -293,12 +298,12 @@ class UnifiedSearcher:
                         f"Hybrid mode embedding failed: {e}",
                         error=e,
                     )
-                    self._active_backend = "tfidf"
+                    self._active_backend = self._keyword_backend_name
             else:
                 self._emit_fallback_event(
                     f"Hybrid mode: embedding unavailable for {self._config.embedding_model}"
                 )
-                self._active_backend = "tfidf"
+                self._active_backend = self._keyword_backend_name
 
             self._fitted = True
             self._fitted_mode = mode
