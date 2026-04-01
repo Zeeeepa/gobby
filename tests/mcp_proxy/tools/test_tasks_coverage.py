@@ -1475,6 +1475,9 @@ class TestCloseTaskTool:
                 "gobby.utils.git.normalize_commit_sha",
                 side_effect=lambda sha, cwd=None: sha,
             ),
+            patch(
+                "gobby.mcp_proxy.tools.tasks._lifecycle_close.LocalSessionManager"
+            ) as MockCloseSessionManager,
         ):
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
@@ -1483,6 +1486,11 @@ class TestCloseTaskTool:
             mock_session_manager.resolve_session_reference.return_value = "test-session"
             mock_session_manager.get.return_value = None
             MockSessionManager.return_value = mock_session_manager
+
+            # Patch the LocalSessionManager used inside close_task
+            mock_close_session_manager = MagicMock()
+            mock_close_session_manager.get.return_value = None
+            MockCloseSessionManager.return_value = mock_close_session_manager
 
             # Session variables with only this task claimed
             mock_sv_manager = MagicMock()
@@ -2191,6 +2199,9 @@ class TestSessionVariableMirroring:
                 "gobby.utils.git.normalize_commit_sha",
                 side_effect=lambda sha, cwd=None: sha,
             ),
+            patch(
+                "gobby.mcp_proxy.tools.tasks._lifecycle_close.LocalSessionManager"
+            ) as MockCloseSessionManager,
         ):
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
@@ -2199,6 +2210,11 @@ class TestSessionVariableMirroring:
             mock_session_manager.resolve_session_reference.return_value = "test-session"
             mock_session_manager.get.return_value = None
             MockSessionManager.return_value = mock_session_manager
+
+            # Patch the LocalSessionManager used inside close_task
+            mock_close_session_manager = MagicMock()
+            mock_close_session_manager.get.return_value = None
+            MockCloseSessionManager.return_value = mock_close_session_manager
 
             mock_sv_manager = MagicMock()
             mock_sv_manager.get_variables.return_value = {
