@@ -35,7 +35,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 176
+BASELINE_VERSION = 177
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v171) have been removed.
@@ -234,6 +234,13 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         "Drop savings_daily table (rollup replaced by direct ledger queries)",
         """
         DROP TABLE IF EXISTS savings_daily;
+        """,
+    ),
+    (
+        177,
+        "Add total_eligible_files column to code_indexed_projects",
+        """
+        ALTER TABLE code_indexed_projects ADD COLUMN total_eligible_files INTEGER;
         """,
     ),
 ]

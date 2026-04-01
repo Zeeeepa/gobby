@@ -866,6 +866,7 @@ CREATE TABLE code_indexed_projects (
     total_symbols INTEGER NOT NULL DEFAULT 0,
     last_indexed_at TEXT,
     index_duration_ms INTEGER,
+    total_eligible_files INTEGER,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
