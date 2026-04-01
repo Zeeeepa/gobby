@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS code_symbols (
     docstring TEXT,
     parent_symbol_id TEXT,
     content_hash TEXT NOT NULL,
+    summary TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

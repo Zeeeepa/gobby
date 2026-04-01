@@ -73,6 +73,22 @@ class CodeIndexConfig(BaseModel):
         ],
         description="Languages to index",
     )
+    summary_enabled: bool = Field(
+        default=True,
+        description="Enable LLM-generated symbol summaries",
+    )
+    summary_batch_size: int = Field(
+        default=20,
+        description="Max symbols to summarize per maintenance pass",
+    )
+    summary_provider: str = Field(
+        default="claude",
+        description="LLM provider for summary generation",
+    )
+    summary_model: str = Field(
+        default="haiku",
+        description="Model for summary generation (cheap/fast recommended)",
+    )
     content_extensions: list[str] = Field(
         default=[
             ".html",

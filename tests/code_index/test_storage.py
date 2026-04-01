@@ -386,3 +386,105 @@ def test_search_content_fts_no_match(code_storage: CodeIndexStorage) -> None:
     code_storage.upsert_content_chunks(_make_chunks())
     results = code_storage.search_content_fts("zzz_nonexistent_zzz", "proj-1")
     assert results == []
+
+
+# ── Summary freshness ──────────────────────────────────────────────────
+
+
+def test_upsert_nulls_summary_on_hash_change(
+    code_storage: CodeIndexStorage, sample_symbols: list[Symbol]
+) -> None:
+    """When content_hash changes, summary is cleared for regeneration."""
+    sym = sample_symbols[0]
+    code_storage.upsert_symbols([sym])
+    code_storage.update_symbol_summary(sym.id, "Greets a person by name.")
+
+    # Verify summary is set
+    retrieved = code_storage.get_symbol(sym.id)
+    assert retrieved is not None
+    assert retrieved.summary == "Greets a person by name."
+
+    # Re-upsert with different content_hash
+    sym.content_hash = "changed_hash"
+    code_storage.upsert_symbols([sym])
+
+    retrieved = code_storage.get_symbol(sym.id)
+    assert retrieved is not None
+    assert retrieved.summary is None, "Summary should be nulled when content_hash changes"
+
+
+def test_upsert_preserves_summary_on_same_hash(
+    code_storage: CodeIndexStorage, sample_symbols: list[Symbol]
+) -> None:
+    """When content_hash stays the same, summary is preserved."""
+    sym = sample_symbols[0]
+    code_storage.upsert_symbols([sym])
+    code_storage.update_symbol_summary(sym.id, "Greets a person by name.")
+
+    # Re-upsert with same content_hash
+    code_storage.upsert_symbols([sym])
+
+    retrieved = code_storage.get_symbol(sym.id)
+    assert retrieved is not None
+    assert retrieved.summary == "Greets a person by name."
+
+
+def test_get_unsummarized_symbols(
+    code_storage: CodeIndexStorage, sample_symbols: list[Symbol]
+) -> None:
+    """get_unsummarized_symbols returns only symbols without summaries."""
+    code_storage.upsert_symbols(sample_symbols)
+
+    # All three should be unsummarized
+    unsummarized = code_storage.get_unsummarized_symbols("proj-1")
+    assert len(unsummarized) == 3
+
+    # Summarize one
+    code_storage.update_symbol_summary(sample_symbols[0].id, "A greeting function.")
+
+    unsummarized = code_storage.get_unsummarized_symbols("proj-1")
+    assert len(unsummarized) == 2
+    assert all(s.id != sample_symbols[0].id for s in unsummarized)
+
+
+def test_get_unsummarized_symbols_filters_by_kind(
+    code_storage: CodeIndexStorage, sample_symbols: list[Symbol]
+) -> None:
+    """get_unsummarized_symbols respects the kinds filter."""
+    code_storage.upsert_symbols(sample_symbols)
+
+    # Only functions
+    unsummarized = code_storage.get_unsummarized_symbols("proj-1", kinds=["function"])
+    assert len(unsummarized) == 1
+    assert unsummarized[0].kind == "function"
+
+
+def test_get_unsummarized_symbols_respects_limit(
+    code_storage: CodeIndexStorage, sample_symbols: list[Symbol]
+) -> None:
+    """get_unsummarized_symbols respects the limit parameter."""
+    code_storage.upsert_symbols(sample_symbols)
+
+    unsummarized = code_storage.get_unsummarized_symbols("proj-1", limit=1)
+    assert len(unsummarized) == 1
+
+
+def test_update_symbol_summary(
+    code_storage: CodeIndexStorage, sample_symbols: list[Symbol]
+) -> None:
+    """update_symbol_summary sets the summary field."""
+    sym = sample_symbols[0]
+    code_storage.upsert_symbols([sym])
+
+    result = code_storage.update_symbol_summary(sym.id, "Returns a greeting string.")
+    assert result is True
+
+    retrieved = code_storage.get_symbol(sym.id)
+    assert retrieved is not None
+    assert retrieved.summary == "Returns a greeting string."
+
+
+def test_update_symbol_summary_nonexistent(code_storage: CodeIndexStorage) -> None:
+    """update_symbol_summary returns False for nonexistent symbol."""
+    result = code_storage.update_symbol_summary("nonexistent-id", "Some summary.")
+    assert result is False

@@ -35,7 +35,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 181
+BASELINE_VERSION = 182
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v171) have been removed.
@@ -47,39 +47,60 @@ _MIN_MIGRATION_VERSION = 171
 BASELINE_SCHEMA = (Path(__file__).parent / "baseline_schema.sql").read_text()
 
 
-def _setup_code_symbols_fts(db: LocalDatabase) -> None:
+def _setup_code_symbols_fts(db: LocalDatabase, *, include_summary: bool = False) -> None:
     """Create FTS5 triggers and populate from existing data.
 
     The FTS5 virtual table itself is created in BASELINE_SCHEMA (or the
     migration SQL), but triggers contain semicolons inside BEGIN...END
     which break the naive ';'-split parser. So we use executescript() here.
+
+    Args:
+        db: Database instance.
+        include_summary: If True, include summary column in FTS5 index.
+            Set to True for v182+ schemas that have the summary column.
     """
+    if include_summary:
+        cols = "name, qualified_name, signature, docstring, summary"
+        vals_insert = "new.name, new.qualified_name, new.signature, new.docstring, new.summary"
+        vals_delete = "old.name, old.qualified_name, old.signature, old.docstring, old.summary"
+    else:
+        cols = "name, qualified_name, signature, docstring"
+        vals_insert = "new.name, new.qualified_name, new.signature, new.docstring"
+        vals_delete = "old.name, old.qualified_name, old.signature, old.docstring"
+
     conn = db.connection
+    # Drop existing FTS table and triggers to ensure correct column set
     conn.executescript("""
-        CREATE VIRTUAL TABLE IF NOT EXISTS code_symbols_fts USING fts5(
-            name, qualified_name, signature, docstring,
+        DROP TRIGGER IF EXISTS code_symbols_ai;
+        DROP TRIGGER IF EXISTS code_symbols_ad;
+        DROP TRIGGER IF EXISTS code_symbols_au;
+        DROP TABLE IF EXISTS code_symbols_fts;
+    """)
+    conn.executescript(f"""
+        CREATE VIRTUAL TABLE code_symbols_fts USING fts5(
+            {cols},
             content='code_symbols', content_rowid='rowid'
         );
 
         CREATE TRIGGER IF NOT EXISTS code_symbols_ai AFTER INSERT ON code_symbols BEGIN
-            INSERT INTO code_symbols_fts(rowid, name, qualified_name, signature, docstring)
-            VALUES (new.rowid, new.name, new.qualified_name, new.signature, new.docstring);
+            INSERT INTO code_symbols_fts(rowid, {cols})
+            VALUES (new.rowid, {vals_insert});
         END;
 
         CREATE TRIGGER IF NOT EXISTS code_symbols_ad AFTER DELETE ON code_symbols BEGIN
-            INSERT INTO code_symbols_fts(code_symbols_fts, rowid, name, qualified_name, signature, docstring)
-            VALUES ('delete', old.rowid, old.name, old.qualified_name, old.signature, old.docstring);
+            INSERT INTO code_symbols_fts(code_symbols_fts, rowid, {cols})
+            VALUES ('delete', old.rowid, {vals_delete});
         END;
 
         CREATE TRIGGER IF NOT EXISTS code_symbols_au AFTER UPDATE ON code_symbols BEGIN
-            INSERT INTO code_symbols_fts(code_symbols_fts, rowid, name, qualified_name, signature, docstring)
-            VALUES ('delete', old.rowid, old.name, old.qualified_name, old.signature, old.docstring);
-            INSERT INTO code_symbols_fts(rowid, name, qualified_name, signature, docstring)
-            VALUES (new.rowid, new.name, new.qualified_name, new.signature, new.docstring);
+            INSERT INTO code_symbols_fts(code_symbols_fts, rowid, {cols})
+            VALUES ('delete', old.rowid, {vals_delete});
+            INSERT INTO code_symbols_fts(rowid, {cols})
+            VALUES (new.rowid, {vals_insert});
         END;
 
-        INSERT OR IGNORE INTO code_symbols_fts(rowid, name, qualified_name, signature, docstring)
-        SELECT rowid, name, qualified_name, signature, docstring FROM code_symbols;
+        INSERT OR IGNORE INTO code_symbols_fts(rowid, {cols})
+        SELECT rowid, {cols} FROM code_symbols;
     """)
 
 
@@ -181,7 +202,11 @@ def _setup_skills_fts(db: LocalDatabase) -> None:
 
 
 def _drop_summary_column(db: LocalDatabase) -> None:
-    """Drop summary column from code_symbols and rebuild FTS without it."""
+    """Drop summary column from code_symbols and rebuild FTS without it.
+
+    Note: This migration is immediately followed by v182 which re-adds the column.
+    Kept for databases that need to step through migrations sequentially.
+    """
     conn = db.connection
     # Drop triggers and FTS first — triggers reference summary, blocking DROP COLUMN
     conn.executescript("""
@@ -192,8 +217,15 @@ def _drop_summary_column(db: LocalDatabase) -> None:
     """)
     # Now safe to drop the column
     conn.execute("ALTER TABLE code_symbols DROP COLUMN summary")
-    # Rebuild FTS and triggers without summary
+    # Rebuild FTS and triggers (v182 will rebuild again with summary)
     _setup_code_symbols_fts(db)
+
+
+def _add_summary_column(db: LocalDatabase) -> None:
+    """Re-add summary column to code_symbols and rebuild FTS with it."""
+    db.connection.execute("ALTER TABLE code_symbols ADD COLUMN summary TEXT")
+    # Rebuild FTS with summary (drops and recreates table + triggers)
+    _setup_code_symbols_fts(db, include_summary=True)
 
 
 # Migrations beyond v171.
@@ -344,6 +376,11 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         181,
         "Add FTS5 search tables for tasks and skills",
         lambda db: (_setup_tasks_fts(db), _setup_skills_fts(db)),
+    ),
+    (
+        182,
+        "Re-add summary column to code_symbols and rebuild FTS",
+        _add_summary_column,
     ),
 ]
 

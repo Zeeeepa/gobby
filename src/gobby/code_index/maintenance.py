@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from gobby.code_index.indexer import CodeIndexer
+    from gobby.code_index.summarizer import SymbolSummarizer
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,8 @@ async def code_index_maintenance_loop(
     indexer: CodeIndexer,
     shutdown_flag: asyncio.Event | None = None,
     interval: int = 300,
+    summarizer: SymbolSummarizer | None = None,
+    summary_batch_size: int = 20,
 ) -> None:
     """Background loop that checks for stale indexed files.
 
@@ -28,6 +31,8 @@ async def code_index_maintenance_loop(
         indexer: CodeIndexer instance (used for storage access).
         shutdown_flag: Event that signals shutdown.
         interval: Seconds between maintenance runs.
+        summarizer: Optional SymbolSummarizer for generating summaries.
+        summary_batch_size: Max symbols to summarize per pass.
     """
     logger.info(f"Code index maintenance loop started (interval={interval}s)")
 
@@ -37,7 +42,7 @@ async def code_index_maintenance_loop(
             break
 
         try:
-            await _run_maintenance(indexer)
+            await _run_maintenance(indexer, summarizer, summary_batch_size)
         except Exception as e:
             logger.error(f"Code index maintenance error: {e}", exc_info=True)
 
@@ -54,8 +59,12 @@ async def code_index_maintenance_loop(
     logger.info("Code index maintenance loop stopped")
 
 
-async def _run_maintenance(indexer: CodeIndexer) -> None:
-    """Single maintenance pass: re-index via gcode, then recover unsynced files."""
+async def _run_maintenance(
+    indexer: CodeIndexer,
+    summarizer: SymbolSummarizer | None = None,
+    summary_batch_size: int = 20,
+) -> None:
+    """Single maintenance pass: re-index via gcode, recover unsynced files, generate summaries."""
     projects = indexer.storage.list_indexed_projects()
     gcode_bin = Path.home() / ".gobby" / "bin" / "gcode"
 
@@ -92,6 +101,10 @@ async def _run_maintenance(indexer: CodeIndexer) -> None:
         # Recover files where graph/vector sync was incomplete
         if gcode_available:
             await _recover_unsynced_files(indexer, project, gcode_bin)
+
+        # Generate summaries for unsummarized symbols
+        if summarizer:
+            await _summarize_unsummarized(indexer, project, summarizer, summary_batch_size)
 
 
 async def _recover_unsynced_files(
@@ -142,3 +155,42 @@ async def _recover_unsynced_files(
         logger.warning("Graph sync recovery timed out")
     except Exception as e:
         logger.warning(f"Graph sync recovery failed: {e}")
+
+
+async def _summarize_unsummarized(
+    indexer: CodeIndexer,
+    project: Any,
+    summarizer: SymbolSummarizer,
+    batch_size: int,
+) -> None:
+    """Generate summaries for symbols that don't have one yet."""
+    symbols = indexer.storage.get_unsummarized_symbols(project.id, limit=batch_size)
+    if not symbols:
+        return
+
+    root = Path(project.root_path)
+
+    def read_source(symbol: Any) -> str | None:
+        """Read symbol source from disk."""
+        full_path = root / symbol.file_path
+        if not full_path.exists():
+            return None
+        try:
+            lines = full_path.read_text(encoding="utf-8", errors="replace").splitlines()
+            # line_start/line_end are 1-indexed
+            start = max(0, symbol.line_start - 1)
+            end = symbol.line_end
+            return "\n".join(lines[start:end])
+        except Exception:
+            return None
+
+    results = await summarizer.summarize_batch(symbols, read_source)
+
+    for symbol_id, summary in results.items():
+        indexer.storage.update_symbol_summary(symbol_id, summary)
+
+    if results:
+        logger.info(
+            f"Generated {len(results)} summaries for {project.id} "
+            f"({len(symbols) - len(results)} skipped/failed)"
+        )

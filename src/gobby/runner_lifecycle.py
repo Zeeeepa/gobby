@@ -130,6 +130,16 @@ async def _init_subsystems(runner: GobbyRunner, rebuild_vector_store: Any) -> No
     if runner.code_indexer:
         from gobby.code_index.maintenance import code_index_maintenance_loop
 
+        # Build summarizer if LLM service is available and summaries are enabled
+        summarizer = None
+        if runner.config.code_index.summary_enabled and getattr(runner, "llm_service", None):
+            from gobby.code_index.summarizer import SymbolSummarizer
+
+            try:
+                summarizer = SymbolSummarizer(runner.llm_service, runner.config.code_index)
+            except Exception as e:
+                logger.warning(f"Failed to create SymbolSummarizer: {e}")
+
         shutdown_event = asyncio.Event()
         runner._code_index_shutdown = shutdown_event
         runner._code_index_task = asyncio.create_task(
@@ -137,6 +147,8 @@ async def _init_subsystems(runner: GobbyRunner, rebuild_vector_store: Any) -> No
                 runner.code_indexer,
                 shutdown_flag=shutdown_event,
                 interval=runner.config.code_index.maintenance_interval_seconds,
+                summarizer=summarizer,
+                summary_batch_size=runner.config.code_index.summary_batch_size,
             ),
             name="code-index-maintenance",
         )

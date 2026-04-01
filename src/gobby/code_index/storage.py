@@ -46,6 +46,7 @@ class CodeIndexStorage:
                 sym.docstring,
                 sym.parent_symbol_id,
                 sym.content_hash,
+                sym.summary,
                 sym.created_at,
                 now,
             )
@@ -57,9 +58,9 @@ class CodeIndexStorage:
                     id, project_id, file_path, name, qualified_name,
                     kind, language, byte_start, byte_end,
                     line_start, line_end, signature, docstring,
-                    parent_symbol_id, content_hash,
+                    parent_symbol_id, content_hash, summary,
                     created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name,
                     qualified_name=excluded.qualified_name,
@@ -73,6 +74,8 @@ class CodeIndexStorage:
                     parent_symbol_id=excluded.parent_symbol_id,
                     language=excluded.language,
                     content_hash=excluded.content_hash,
+                    summary=CASE WHEN excluded.content_hash != code_symbols.content_hash
+                                 THEN NULL ELSE code_symbols.summary END,
                     updated_at=excluded.updated_at
                 """,
                 rows,
@@ -401,6 +404,41 @@ class CodeIndexStorage:
         return [IndexedProject.from_row(r) for r in rows]
 
     # ── Summaries ────────────────────────────────────────────────────
+
+    def get_unsummarized_symbols(
+        self,
+        project_id: str,
+        kinds: list[str] | None = None,
+        limit: int = 20,
+    ) -> list[Symbol]:
+        """Get symbols that have no summary yet.
+
+        Args:
+            project_id: Project to query.
+            kinds: Symbol kinds to include (default: function, class, method).
+            limit: Max symbols to return.
+        """
+        if kinds is None:
+            kinds = ["function", "class", "method"]
+        placeholders = ",".join("?" for _ in kinds)
+        rows = self.db.fetchall(
+            f"""SELECT * FROM code_symbols
+                WHERE project_id = ? AND summary IS NULL
+                  AND kind IN ({placeholders})
+                ORDER BY updated_at DESC
+                LIMIT ?""",
+            (project_id, *kinds, limit),
+        )
+        return [Symbol.from_row(r) for r in rows]
+
+    def update_symbol_summary(self, symbol_id: str, summary: str) -> bool:
+        """Set the summary for a symbol. Returns True if updated."""
+        with self.db.transaction() as conn:
+            cursor = conn.execute(
+                "UPDATE code_symbols SET summary = ? WHERE id = ?",
+                (summary, symbol_id),
+            )
+            return cursor.rowcount > 0
 
     # ── Counts ───────────────────────────────────────────────────────
 
