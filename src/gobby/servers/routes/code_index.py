@@ -102,12 +102,11 @@ def create_code_index_router(server: HTTPServer) -> APIRouter:
                 content={"error": "project_id is required"},
             )
 
-        # Check project exists
+        # If project isn't indexed, that's already the desired state — be idempotent
         stats = await asyncio.to_thread(code_indexer.storage.get_project_stats, project_id)
         if stats is None:
             return JSONResponse(
-                status_code=404,
-                content={"error": f"No indexed project found for {project_id}"},
+                content={"status": "ok", "project_id": project_id, "note": "not indexed"},
             )
 
         await code_indexer.invalidate(project_id)
