@@ -137,6 +137,8 @@ class DiscordAdapter(BaseChannelAdapter):
             return
 
         try:
+            backoff = 1.0
+            max_backoff = 120.0
             retry_count = 0
             while True:
                 try:
@@ -220,12 +222,16 @@ class DiscordAdapter(BaseChannelAdapter):
                                         d = data.get("d", {})
                                         self._session_id = d.get("session_id")
                                         self._resume_gateway_url = d.get("resume_gateway_url")
+                                        backoff = 1.0
+                                        retry_count = 0
                                         logger.info(
                                             "Discord gateway: READY (session=%s)",
                                             self._session_id,
                                         )
 
                                     elif event_type == "RESUMED":
+                                        backoff = 1.0
+                                        retry_count = 0
                                         logger.info("Discord gateway: RESUMED successfully")
 
                                     elif event_type == "MESSAGE_CREATE":
@@ -239,17 +245,17 @@ class DiscordAdapter(BaseChannelAdapter):
                                 heartbeat_task.cancel()
 
                 except Exception as e:
-                    logger.warning("Discord gateway connection error: %s", e)
-                    delay = min(60, 5 * (2**retry_count)) + random.random()  # nosec B311
                     retry_count += 1
-                    if retry_count > 10:
-                        logger.error(
-                            "Discord gateway: exceeded max retries (%d), stopping", retry_count
-                        )
-                        break
+                    jitter = random.uniform(0, backoff * 0.5)  # nosec B311
+                    delay = min(backoff + jitter, max_backoff)
+                    logger.warning(
+                        "Discord gateway connection error (attempt %d, retry in %.1fs): %s",
+                        retry_count,
+                        delay,
+                        e,
+                    )
                     await asyncio.sleep(delay)
-                else:
-                    retry_count = 0  # Reset on successful connection
+                    backoff = min(backoff * 2, max_backoff)
         except asyncio.CancelledError:
             pass
 
