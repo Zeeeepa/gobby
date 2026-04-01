@@ -370,3 +370,138 @@ async def test_send_attachment_three_step_upload(
         assert step3_data["channel_id"] == "C12345"
         assert step3_data["thread_ts"] == "thread_1"
         assert step3_data["initial_comment"] == "Here's the file"
+
+
+# --- Block Kit support ---
+
+
+@pytest.mark.asyncio
+async def test_send_message_blocks(
+    adapter: SlackAdapter, channel_config: ChannelConfig, secret_resolver: Any
+) -> None:
+    """send_message with content_type='blocks' sends blocks array in payload."""
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = MagicMock(json=lambda: {"ok": True, "user_id": "U12345"})
+        await adapter.initialize(channel_config, secret_resolver)
+
+    blocks = '[{"type": "section", "text": {"type": "mrkdwn", "text": "Hello"}}]'
+    message = CommsMessage(
+        id="msg_blocks",
+        channel_id="C12345",
+        direction="outbound",
+        content=blocks,
+        created_at="2024-01-01T00:00:00Z",
+        content_type="blocks",
+        metadata_json={"fallback_text": "Hello fallback"},
+    )
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = MagicMock(
+            status_code=200, json=lambda: {"ok": True, "ts": "123.456"}
+        )
+        ts = await adapter.send_message(message)
+
+    assert ts == "123.456"
+    call_kwargs = mock_post.call_args[1]["json"]
+    assert call_kwargs["blocks"] == [
+        {"type": "section", "text": {"type": "mrkdwn", "text": "Hello"}}
+    ]
+    assert call_kwargs["text"] == "Hello fallback"
+
+
+@pytest.mark.asyncio
+async def test_send_message_markdown(
+    adapter: SlackAdapter, channel_config: ChannelConfig, secret_resolver: Any
+) -> None:
+    """send_message with content_type='markdown' wraps in mrkdwn section block."""
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = MagicMock(json=lambda: {"ok": True, "user_id": "U12345"})
+        await adapter.initialize(channel_config, secret_resolver)
+
+    message = CommsMessage(
+        id="msg_md",
+        channel_id="C12345",
+        direction="outbound",
+        content="*bold* and _italic_",
+        created_at="2024-01-01T00:00:00Z",
+        content_type="markdown",
+    )
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = MagicMock(
+            status_code=200, json=lambda: {"ok": True, "ts": "789.012"}
+        )
+        ts = await adapter.send_message(message)
+
+    assert ts == "789.012"
+    call_kwargs = mock_post.call_args[1]["json"]
+    assert call_kwargs["blocks"] == [
+        {"type": "section", "text": {"type": "mrkdwn", "text": "*bold* and _italic_"}}
+    ]
+    assert call_kwargs["text"] == "*bold* and _italic_"
+
+
+@pytest.mark.asyncio
+async def test_send_message_blocks_invalid_json(
+    adapter: SlackAdapter, channel_config: ChannelConfig, secret_resolver: Any
+) -> None:
+    """Malformed blocks JSON raises ValueError."""
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = MagicMock(json=lambda: {"ok": True, "user_id": "U12345"})
+        await adapter.initialize(channel_config, secret_resolver)
+
+    message = CommsMessage(
+        id="msg_bad",
+        channel_id="C12345",
+        direction="outbound",
+        content="not json",
+        created_at="2024-01-01T00:00:00Z",
+        content_type="blocks",
+    )
+
+    with pytest.raises(ValueError, match="Invalid Block Kit JSON"):
+        await adapter.send_message(message)
+
+
+@pytest.mark.asyncio
+async def test_send_message_blocks_not_list(
+    adapter: SlackAdapter, channel_config: ChannelConfig, secret_resolver: Any
+) -> None:
+    """Blocks content that is not a list raises ValueError."""
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = MagicMock(json=lambda: {"ok": True, "user_id": "U12345"})
+        await adapter.initialize(channel_config, secret_resolver)
+
+    message = CommsMessage(
+        id="msg_obj",
+        channel_id="C12345",
+        direction="outbound",
+        content='{"type": "section"}',
+        created_at="2024-01-01T00:00:00Z",
+        content_type="blocks",
+    )
+
+    with pytest.raises(ValueError, match="must be a JSON array"):
+        await adapter.send_message(message)
+
+
+@pytest.mark.asyncio
+async def test_send_message_blocks_missing_type(
+    adapter: SlackAdapter, channel_config: ChannelConfig, secret_resolver: Any
+) -> None:
+    """Block without type field raises ValueError."""
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = MagicMock(json=lambda: {"ok": True, "user_id": "U12345"})
+        await adapter.initialize(channel_config, secret_resolver)
+
+    message = CommsMessage(
+        id="msg_notype",
+        channel_id="C12345",
+        direction="outbound",
+        content='[{"text": "no type field"}]',
+        created_at="2024-01-01T00:00:00Z",
+        content_type="blocks",
+    )
+
+    with pytest.raises(ValueError, match="must be a dict with a 'type' field"):
+        await adapter.send_message(message)

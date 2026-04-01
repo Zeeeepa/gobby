@@ -95,11 +95,26 @@ class SlackAdapter(BaseChannelAdapter):
         self._bot_user_id = data.get("user_id")
 
     async def send_message(self, message: CommsMessage) -> str | None:
-        """Send message and return platform message ID."""
+        """Send message and return platform message ID.
+
+        Supports three content types:
+        - 'text' (default): plain text message
+        - 'blocks': Block Kit JSON array (message.content is JSON string)
+        - 'markdown': wraps content in a mrkdwn section block
+        """
         if not self._client:
             raise RuntimeError("Slack adapter not initialized")
         client = self._client
 
+        if message.content_type == "blocks":
+            return await self._send_blocks(client, message)
+        elif message.content_type == "markdown":
+            return await self._send_markdown(client, message)
+        else:
+            return await self._send_text(client, message)
+
+    async def _send_text(self, client: httpx.AsyncClient, message: CommsMessage) -> str | None:
+        """Send a plain text message, chunked if needed."""
         chunks = self.chunk_message(message.content, self.max_message_length)
         last_ts = None
 
@@ -118,6 +133,64 @@ class SlackAdapter(BaseChannelAdapter):
             if not data.get("ok"):
                 error_msg = data.get("error", "Unknown error")
                 raise ValueError(f"Failed to send Slack message: {error_msg}")
+
+            last_ts = data.get("ts")
+
+        return last_ts
+
+    async def _send_blocks(self, client: httpx.AsyncClient, message: CommsMessage) -> str | None:
+        """Send a Block Kit message (no chunking)."""
+        try:
+            blocks = json.loads(message.content)
+        except (json.JSONDecodeError, TypeError) as e:
+            raise ValueError(f"Invalid Block Kit JSON: {e}") from e
+
+        if not isinstance(blocks, list):
+            raise ValueError("Block Kit content must be a JSON array of blocks")
+        for i, block in enumerate(blocks):
+            if not isinstance(block, dict) or "type" not in block:
+                raise ValueError(f"Block at index {i} must be a dict with a 'type' field")
+
+        fallback = message.metadata_json.get("fallback_text", "Message from Gobby")
+        payload: dict[str, Any] = {
+            "channel": message.channel_id,
+            "blocks": blocks,
+            "text": fallback,
+        }
+        if message.platform_thread_id:
+            payload["thread_ts"] = message.platform_thread_id
+
+        response = await self._retry_request(
+            functools.partial(client.post, "chat.postMessage", json=payload)
+        )
+        data = response.json()
+        if not data.get("ok"):
+            raise ValueError(f"Failed to send Slack message: {data.get('error', 'Unknown error')}")
+
+        return data.get("ts")
+
+    async def _send_markdown(self, client: httpx.AsyncClient, message: CommsMessage) -> str | None:
+        """Send markdown content wrapped in a mrkdwn section block."""
+        chunks = self.chunk_message(message.content, self.max_message_length)
+        last_ts = None
+
+        for chunk in chunks:
+            payload: dict[str, Any] = {
+                "channel": message.channel_id,
+                "blocks": [{"type": "section", "text": {"type": "mrkdwn", "text": chunk}}],
+                "text": chunk,
+            }
+            if message.platform_thread_id:
+                payload["thread_ts"] = message.platform_thread_id
+
+            response = await self._retry_request(
+                functools.partial(client.post, "chat.postMessage", json=payload)
+            )
+            data = response.json()
+            if not data.get("ok"):
+                raise ValueError(
+                    f"Failed to send Slack message: {data.get('error', 'Unknown error')}"
+                )
 
             last_ts = data.get("ts")
 
