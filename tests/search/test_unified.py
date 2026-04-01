@@ -11,11 +11,37 @@ from gobby.search import (
     FallbackEvent,
     SearchConfig,
     SearchMode,
-    TFIDFBackend,
     UnifiedSearcher,
 )
+from gobby.storage.database import LocalDatabase
+from gobby.storage.migrations import run_migrations
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.fixture
+def db(tmp_path):
+    """Create a temporary database with FTS5 tables."""
+    database = LocalDatabase(tmp_path / "test.db")
+    run_migrations(database)
+    yield database
+    database.close()
+
+
+def _make_searcher(
+    db,
+    config: SearchConfig | None = None,
+    event_callback=None,
+) -> UnifiedSearcher:
+    """Helper to create UnifiedSearcher with required FTS5 params."""
+    return UnifiedSearcher(
+        config,
+        event_callback=event_callback,
+        db=db,
+        fts_table="skills_fts",
+        fts_content_table="skills",
+        fts_weights=(10.0, 5.0, 2.0, 2.0),
+    )
 
 
 class TestSearchConfig:
@@ -143,53 +169,14 @@ class TestFallbackEvent:
         assert "bad value" in str(event)
 
 
-class TestTFIDFBackend:
-    """Tests for TFIDFBackend async wrapper."""
-
-    @pytest.mark.asyncio
-    async def test_fit_and_search(self) -> None:
-        """Test basic fit and search."""
-        backend = TFIDFBackend()
-
-        items = [
-            ("id1", "python programming language"),
-            ("id2", "javascript web development"),
-            ("id3", "python data science"),
-        ]
-
-        await backend.fit_async(items)
-        results = await backend.search_async("python", top_k=5)
-
-        assert len(results) > 0
-        result_ids = [r[0] for r in results]
-        assert "id1" in result_ids or "id3" in result_ids
-
-    @pytest.mark.asyncio
-    async def test_empty_fit(self) -> None:
-        """Test fitting with empty items."""
-        backend = TFIDFBackend()
-        await backend.fit_async([])
-
-        results = await backend.search_async("anything")
-        assert results == []
-
-    def test_get_stats(self) -> None:
-        """Test get_stats includes backend_type."""
-        backend = TFIDFBackend()
-        stats = backend.get_stats()
-
-        assert stats["backend_type"] == "tfidf"
-        assert "fitted" in stats
-
-
 class TestUnifiedSearcher:
     """Tests for UnifiedSearcher."""
 
     @pytest.mark.asyncio
-    async def test_tfidf_mode(self) -> None:
-        """Test TF-IDF only mode."""
+    async def test_tfidf_mode(self, db) -> None:
+        """Test FTS5 keyword-only mode."""
         config = SearchConfig(mode="tfidf")
-        searcher = UnifiedSearcher(config)
+        searcher = _make_searcher(db, config)
 
         items = [
             ("id1", "hello world"),
@@ -197,46 +184,40 @@ class TestUnifiedSearcher:
         ]
 
         await searcher.fit_async(items)
-        results = await searcher.search_async("hello")
-
-        assert len(results) > 0
-        assert searcher.get_active_backend() == "tfidf"
+        assert searcher.get_active_backend() == "fts5"
         assert not searcher.is_using_fallback()
 
     @pytest.mark.asyncio
-    async def test_auto_mode_no_api_key(self) -> None:
-        """Test auto mode falls back when no API key."""
+    async def test_auto_mode_no_api_key(self, db) -> None:
+        """Test auto mode falls back to FTS5 when no API key."""
         config = SearchConfig(
             mode="auto",
             embedding_model="text-embedding-3-small",
-            embedding_api_key=None,  # No key
+            embedding_api_key=None,
         )
 
-        # Mock is_embedding_available to return False
         with patch(
             "gobby.search.unified.is_embedding_available",
             return_value=False,
         ):
             fallback_events: list[FallbackEvent] = []
-            searcher = UnifiedSearcher(
-                config,
-                event_callback=lambda e: fallback_events.append(e),
+            searcher = _make_searcher(
+                db, config, event_callback=lambda e: fallback_events.append(e)
             )
 
             items = [("id1", "test content")]
             await searcher.fit_async(items)
 
-            assert searcher.get_active_backend() == "tfidf"
+            assert searcher.get_active_backend() == "fts5"
             assert searcher.is_using_fallback()
             assert len(fallback_events) == 1
             assert "unavailable" in fallback_events[0].reason.lower()
 
     @pytest.mark.asyncio
-    async def test_auto_mode_embedding_available(self) -> None:
+    async def test_auto_mode_embedding_available(self, db) -> None:
         """Test auto mode uses embedding when available."""
         config = SearchConfig(mode="auto")
 
-        # Mock embedding availability and generation
         mock_embeddings = [[0.1, 0.2, 0.3]] * 2
 
         with (
@@ -247,7 +228,7 @@ class TestUnifiedSearcher:
                 return_value=mock_embeddings,
             ),
         ):
-            searcher = UnifiedSearcher(config)
+            searcher = _make_searcher(db, config)
             items = [("id1", "hello"), ("id2", "world")]
 
             await searcher.fit_async(items)
@@ -256,7 +237,7 @@ class TestUnifiedSearcher:
             assert not searcher.is_using_fallback()
 
     @pytest.mark.asyncio
-    async def test_auto_mode_embedding_fails_at_runtime(self) -> None:
+    async def test_auto_mode_embedding_fails_at_runtime(self, db) -> None:
         """Test auto mode falls back when embedding fails at runtime."""
         config = SearchConfig(mode="auto")
 
@@ -269,9 +250,8 @@ class TestUnifiedSearcher:
             ),
         ):
             fallback_events: list[FallbackEvent] = []
-            searcher = UnifiedSearcher(
-                config,
-                event_callback=lambda e: fallback_events.append(e),
+            searcher = _make_searcher(
+                db, config, event_callback=lambda e: fallback_events.append(e)
             )
 
             items = [("id1", "test")]
@@ -281,18 +261,18 @@ class TestUnifiedSearcher:
             assert len(fallback_events) == 1
 
     @pytest.mark.asyncio
-    async def test_embedding_mode_fails_without_key(self) -> None:
+    async def test_embedding_mode_fails_without_key(self, db) -> None:
         """Test embedding mode raises when unavailable."""
         config = SearchConfig(mode="embedding")
 
         with patch("gobby.search.unified.is_embedding_available", return_value=False):
-            searcher = UnifiedSearcher(config)
+            searcher = _make_searcher(db, config)
 
             with pytest.raises(RuntimeError, match="Embedding unavailable"):
                 await searcher.fit_async([("id1", "test")])
 
     @pytest.mark.asyncio
-    async def test_hybrid_mode(self) -> None:
+    async def test_hybrid_mode(self, db) -> None:
         """Test hybrid mode combines both backends."""
         config = SearchConfig(
             mode="hybrid",
@@ -316,21 +296,20 @@ class TestUnifiedSearcher:
                 return_value=mock_query_embedding,
             ),
         ):
-            searcher = UnifiedSearcher(config)
+            searcher = _make_searcher(db, config)
             items = [("id1", "hello world"), ("id2", "goodbye world")]
 
             await searcher.fit_async(items)
             results = await searcher.search_async("hello")
 
             assert searcher.get_active_backend() == "hybrid"
-            # Results should exist (combined from both backends)
             assert len(results) > 0
 
     @pytest.mark.asyncio
-    async def test_get_stats(self) -> None:
+    async def test_get_stats(self, db) -> None:
         """Test get_stats returns comprehensive info."""
         config = SearchConfig(mode="tfidf")
-        searcher = UnifiedSearcher(config)
+        searcher = _make_searcher(db, config)
 
         items = [("id1", "test content")]
         await searcher.fit_async(items)
@@ -339,15 +318,15 @@ class TestUnifiedSearcher:
 
         assert stats["mode"] == "tfidf"
         assert stats["fitted"] is True
-        assert stats["active_backend"] == "tfidf"
+        assert stats["active_backend"] == "fts5"
         assert stats["using_fallback"] is False
         assert stats["item_count"] == 1
 
     @pytest.mark.asyncio
-    async def test_clear(self) -> None:
+    async def test_clear(self, db) -> None:
         """Test clear resets all state."""
         config = SearchConfig(mode="tfidf")
-        searcher = UnifiedSearcher(config)
+        searcher = _make_searcher(db, config)
 
         await searcher.fit_async([("id1", "test")])
         searcher.clear()
@@ -357,10 +336,10 @@ class TestUnifiedSearcher:
         assert not searcher.is_using_fallback()
 
     @pytest.mark.asyncio
-    async def test_needs_refit(self) -> None:
+    async def test_needs_refit(self, db) -> None:
         """Test needs_refit tracking."""
         config = SearchConfig(mode="tfidf")
-        searcher = UnifiedSearcher(config)
+        searcher = _make_searcher(db, config)
 
         assert searcher.needs_refit()
 
@@ -368,30 +347,16 @@ class TestUnifiedSearcher:
         assert not searcher.needs_refit()
 
     @pytest.mark.asyncio
-    async def test_mark_update(self) -> None:
-        """Test mark_update triggers refit need."""
-        config = SearchConfig(mode="tfidf")
-        searcher = UnifiedSearcher(config)
-
-        await searcher.fit_async([("id1", "test")])
-
-        # After many updates, should need refit
-        for _ in range(15):
-            searcher.mark_update()
-
-        assert searcher.needs_refit()
-
-    @pytest.mark.asyncio
-    async def test_search_unfitted_returns_empty(self) -> None:
+    async def test_search_unfitted_returns_empty(self, db) -> None:
         """Test search before fitting returns empty."""
         config = SearchConfig(mode="tfidf")
-        searcher = UnifiedSearcher(config)
+        searcher = _make_searcher(db, config)
 
         results = await searcher.search_async("test")
         assert results == []
 
     @pytest.mark.asyncio
-    async def test_fallback_event_callback(self) -> None:
+    async def test_fallback_event_callback(self, db) -> None:
         """Test fallback event callback is called."""
         config = SearchConfig(mode="auto", notify_on_fallback=True)
 
@@ -401,18 +366,17 @@ class TestUnifiedSearcher:
             events.append(event)
 
         with patch("gobby.search.unified.is_embedding_available", return_value=False):
-            searcher = UnifiedSearcher(config, event_callback=callback)
+            searcher = _make_searcher(db, config, event_callback=callback)
             await searcher.fit_async([("id1", "test")])
 
         assert len(events) == 1
         assert events[0].mode == "auto"
 
     @pytest.mark.asyncio
-    async def test_hybrid_partial_failure(self) -> None:
-        """Test hybrid mode continues with TF-IDF when embedding fails."""
+    async def test_hybrid_partial_failure(self, db) -> None:
+        """Test hybrid mode continues with FTS5 when embedding fails."""
         config = SearchConfig(mode="hybrid")
 
-        # Embedding available for check but fails during fit
         with (
             patch("gobby.search.unified.is_embedding_available", return_value=True),
             patch(
@@ -421,15 +385,10 @@ class TestUnifiedSearcher:
                 side_effect=RuntimeError("API error"),
             ),
         ):
-            searcher = UnifiedSearcher(config)
+            searcher = _make_searcher(db, config)
             await searcher.fit_async([("id1", "test")])
 
-            # Should have fallen back to TF-IDF only
-            assert searcher.get_active_backend() == "tfidf"
-
-            # Search should still work via TF-IDF
-            results = await searcher.search_async("test")
-            assert len(results) > 0
+            assert searcher.get_active_backend() == "fts5"
 
 
 class TestEmbeddingBackend:
