@@ -297,27 +297,72 @@ class DiscordAdapter(BaseChannelAdapter):
         return response
 
     async def send_message(self, message: CommsMessage) -> str | None:
-        """Send message and return platform message ID."""
+        """Send message and return platform message ID.
+
+        Supports content types:
+        - 'text' (default): plain text, chunked if needed
+        - 'embed': Discord embed JSON (dict or list of dicts)
+        - 'markdown': sent as plain content (Discord natively supports markdown)
+        """
         if not self._client:
             raise RuntimeError("Discord adapter not initialized")
 
+        if message.content_type == "embed":
+            return await self._send_embed(message)
+        else:
+            return await self._send_text(message)
+
+    async def _send_text(self, message: CommsMessage) -> str | None:
+        """Send a plain text message, chunked if needed."""
         chunks = self.chunk_message(message.content, self.max_message_length)
         last_id = None
-
-        # Use platform_thread_id or the internal channel_id for routing
         channel_id = message.platform_thread_id or message.channel_id
 
         for chunk in chunks:
-            payload: dict[str, Any] = {
-                "content": chunk,
-            }
-
+            payload: dict[str, Any] = {"content": chunk}
             route = f"/channels/{channel_id}/messages"
             response = await self._rate_limited_request(route, "post", json=payload)
             data = response.json()
             last_id = data.get("id")
 
         return last_id
+
+    async def _send_embed(self, message: CommsMessage) -> str | None:
+        """Send a Discord embed message (no chunking)."""
+        try:
+            embed_data = json.loads(message.content)
+        except (json.JSONDecodeError, TypeError) as e:
+            raise ValueError(f"Invalid embed JSON: {e}") from e
+
+        if isinstance(embed_data, dict):
+            embed_data = [embed_data]
+        if not isinstance(embed_data, list):
+            raise ValueError("Embed content must be a JSON object or array of embed objects")
+
+        # Validate embed limits
+        for i, embed in enumerate(embed_data):
+            if not isinstance(embed, dict):
+                raise ValueError(f"Embed at index {i} must be a JSON object")
+            title = embed.get("title", "")
+            if len(title) > 256:
+                raise ValueError(f"Embed title exceeds 256 chars (got {len(title)})")
+            desc = embed.get("description", "")
+            if len(desc) > 4096:
+                raise ValueError(f"Embed description exceeds 4096 chars (got {len(desc)})")
+            fields = embed.get("fields", [])
+            if len(fields) > 25:
+                raise ValueError(f"Embed has {len(fields)} fields (max 25)")
+
+        channel_id = message.platform_thread_id or message.channel_id
+        payload: dict[str, Any] = {"embeds": embed_data}
+        fallback = message.metadata_json.get("fallback_text")
+        if fallback:
+            payload["content"] = fallback
+
+        route = f"/channels/{channel_id}/messages"
+        response = await self._rate_limited_request(route, "post", json=payload)
+        data = response.json()
+        return data.get("id")
 
     async def send_attachment(
         self, message: CommsMessage, attachment: CommsAttachment, file_path: Path

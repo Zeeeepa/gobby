@@ -353,3 +353,147 @@ def test_invalid_session_clears_state(adapter: DiscordAdapter) -> None:
     assert adapter._session_id is None
     assert adapter._resume_gateway_url is None
     assert adapter._sequence is None
+
+
+# --- Embed support ---
+
+
+@pytest.mark.asyncio
+async def test_send_message_embed(
+    adapter: DiscordAdapter,
+    channel_config: ChannelConfig,
+    secret_resolver: Callable[[str], str | None],
+) -> None:
+    """send_message with content_type='embed' sends embeds array in payload."""
+    channel_config.config_json["enable_gateway"] = False
+    await adapter.initialize(channel_config, secret_resolver)
+
+    embed = json.dumps({"title": "Test", "description": "Hello embed"})
+    message = CommsMessage(
+        id="msg_embed",
+        channel_id="channel_123",
+        direction="outbound",
+        content=embed,
+        created_at="2024-01-01T00:00:00Z",
+        content_type="embed",
+        metadata_json={"fallback_text": "Test fallback"},
+    )
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {}
+        mock_response.json.return_value = {"id": "embed_msg_1"}
+        mock_post.return_value = mock_response
+
+        msg_id = await adapter.send_message(message)
+
+    assert msg_id == "embed_msg_1"
+    call_kwargs = mock_post.call_args[1]["json"]
+    assert call_kwargs["embeds"] == [{"title": "Test", "description": "Hello embed"}]
+    assert call_kwargs["content"] == "Test fallback"
+
+
+@pytest.mark.asyncio
+async def test_send_message_embed_list(
+    adapter: DiscordAdapter,
+    channel_config: ChannelConfig,
+    secret_resolver: Callable[[str], str | None],
+) -> None:
+    """Embed list passed directly without wrapping."""
+    channel_config.config_json["enable_gateway"] = False
+    await adapter.initialize(channel_config, secret_resolver)
+
+    embeds = json.dumps([{"title": "Embed 1"}, {"title": "Embed 2"}])
+    message = CommsMessage(
+        id="msg_embeds",
+        channel_id="channel_123",
+        direction="outbound",
+        content=embeds,
+        created_at="2024-01-01T00:00:00Z",
+        content_type="embed",
+    )
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {}
+        mock_response.json.return_value = {"id": "embed_msg_2"}
+        mock_post.return_value = mock_response
+
+        msg_id = await adapter.send_message(message)
+
+    assert msg_id == "embed_msg_2"
+    call_kwargs = mock_post.call_args[1]["json"]
+    assert len(call_kwargs["embeds"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_send_message_embed_invalid_json(
+    adapter: DiscordAdapter,
+    channel_config: ChannelConfig,
+    secret_resolver: Callable[[str], str | None],
+) -> None:
+    """Malformed embed JSON raises ValueError."""
+    channel_config.config_json["enable_gateway"] = False
+    await adapter.initialize(channel_config, secret_resolver)
+
+    message = CommsMessage(
+        id="msg_bad",
+        channel_id="channel_123",
+        direction="outbound",
+        content="not json",
+        created_at="2024-01-01T00:00:00Z",
+        content_type="embed",
+    )
+
+    with pytest.raises(ValueError, match="Invalid embed JSON"):
+        await adapter.send_message(message)
+
+
+@pytest.mark.asyncio
+async def test_send_message_embed_title_too_long(
+    adapter: DiscordAdapter,
+    channel_config: ChannelConfig,
+    secret_resolver: Callable[[str], str | None],
+) -> None:
+    """Embed with title > 256 chars raises ValueError."""
+    channel_config.config_json["enable_gateway"] = False
+    await adapter.initialize(channel_config, secret_resolver)
+
+    embed = json.dumps({"title": "x" * 257})
+    message = CommsMessage(
+        id="msg_long_title",
+        channel_id="channel_123",
+        direction="outbound",
+        content=embed,
+        created_at="2024-01-01T00:00:00Z",
+        content_type="embed",
+    )
+
+    with pytest.raises(ValueError, match="title exceeds 256 chars"):
+        await adapter.send_message(message)
+
+
+@pytest.mark.asyncio
+async def test_send_message_embed_too_many_fields(
+    adapter: DiscordAdapter,
+    channel_config: ChannelConfig,
+    secret_resolver: Callable[[str], str | None],
+) -> None:
+    """Embed with > 25 fields raises ValueError."""
+    channel_config.config_json["enable_gateway"] = False
+    await adapter.initialize(channel_config, secret_resolver)
+
+    embed = json.dumps({"fields": [{"name": f"f{i}", "value": "v"} for i in range(26)]})
+    message = CommsMessage(
+        id="msg_fields",
+        channel_id="channel_123",
+        direction="outbound",
+        content=embed,
+        created_at="2024-01-01T00:00:00Z",
+        content_type="embed",
+    )
+
+    with pytest.raises(ValueError, match="26 fields"):
+        await adapter.send_message(message)
