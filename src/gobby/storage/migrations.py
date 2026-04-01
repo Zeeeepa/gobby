@@ -35,7 +35,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 179
+BASELINE_VERSION = 180
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v171) have been removed.
@@ -271,6 +271,11 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         179,
         "Drop summary column from code_symbols and rebuild FTS",
         _drop_summary_column,
+    ),
+    (
+        180,
+        "Rename web_chat channel type to gobby_chat",
+        "UPDATE comms_channels SET channel_type = 'gobby_chat' WHERE channel_type = 'web_chat'",
     ),
 ]
 

@@ -39,4 +39,4 @@ with contextlib.suppress(ImportError):
 with contextlib.suppress(ImportError):
     import gobby.communications.adapters.sms  # noqa: F401
 with contextlib.suppress(ImportError):
-    import gobby.communications.adapters.web_chat  # noqa: F401
+    import gobby.communications.adapters.gobby_chat  # noqa: F401

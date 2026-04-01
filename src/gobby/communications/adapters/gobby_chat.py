@@ -1,7 +1,7 @@
-"""Web chat channel adapter.
+"""Gobby Chat channel adapter.
 
 Wraps the existing WebSocket chat infrastructure as a communications
-channel adapter so that routing rules can target web_chat alongside
+channel adapter so that routing rules can target gobby_chat alongside
 external channels like Slack and Telegram.
 
 This adapter is an internal bridge — it doesn't call external APIs.
@@ -26,7 +26,7 @@ from gobby.communications.models import (
 logger = logging.getLogger(__name__)
 
 
-class WebChatAdapter(BaseChannelAdapter):
+class GobbyChatAdapter(BaseChannelAdapter):
     """Adapter that bridges the communications framework to WebSocket chat.
 
     Unlike external adapters (Slack, Telegram), this adapter doesn't use
@@ -48,7 +48,7 @@ class WebChatAdapter(BaseChannelAdapter):
 
     @property
     def channel_type(self) -> str:
-        return "web_chat"
+        return "gobby_chat"
 
     @property
     def max_message_length(self) -> int:
@@ -65,7 +65,7 @@ class WebChatAdapter(BaseChannelAdapter):
     async def initialize(
         self, config: ChannelConfig, secret_resolver: Callable[[str], str | None]
     ) -> None:
-        """Initialize the web chat adapter.
+        """Initialize the Gobby Chat adapter.
 
         The adapter reads an optional ``broadcast_ref`` from the channel
         config.  When wired through CommunicationsManager, the broadcast
@@ -74,7 +74,7 @@ class WebChatAdapter(BaseChannelAdapter):
         No external credentials are required.
         """
         self._initialized = True
-        logger.info("WebChatAdapter initialized")
+        logger.info("GobbyChatAdapter initialized")
 
     def set_broadcast(self, broadcast: Callable[..., Any]) -> None:
         """Inject the WebSocket broadcast callable after initialization.
@@ -96,11 +96,11 @@ class WebChatAdapter(BaseChannelAdapter):
         Returns the message ID as the platform message ID.
         """
         if not self._initialized:
-            raise RuntimeError("WebChatAdapter not initialized")
+            raise RuntimeError("GobbyChatAdapter not initialized")
 
         payload = {
             "type": "comms_message",
-            "channel_type": "web_chat",
+            "channel_type": "gobby_chat",
             "message_id": message.id,
             "content": message.content,
             "content_type": message.content_type,
@@ -113,11 +113,11 @@ class WebChatAdapter(BaseChannelAdapter):
             try:
                 await self._broadcast(payload)
             except Exception as e:
-                logger.error(f"Failed to broadcast web chat message: {e}", exc_info=True)
+                logger.error(f"Failed to broadcast Gobby Chat message: {e}", exc_info=True)
                 raise
         else:
             logger.warning(
-                "WebChatAdapter: no broadcast callable set, message not delivered to WebSocket clients"
+                "GobbyChatAdapter: no broadcast callable set, message not delivered to WebSocket clients"
             )
 
         return message.id
@@ -141,13 +141,13 @@ class WebChatAdapter(BaseChannelAdapter):
     ) -> list[CommsMessage]:
         """Not applicable — inbound messages arrive via WebSocket chat handler."""
         raise NotImplementedError(
-            "WebChatAdapter does not support webhooks; "
+            "GobbyChatAdapter does not support webhooks; "
             "inbound messages arrive via the WebSocket chat handler"
         )
 
     def verify_webhook(self, payload: bytes, headers: dict[str, str], secret: str) -> bool:
         """Not applicable — no inbound webhook support."""
-        raise NotImplementedError("WebChatAdapter does not support webhook verification")
+        raise NotImplementedError("GobbyChatAdapter does not support webhook verification")
 
     def parse_inbound(self, data: dict[str, Any]) -> CommsMessage | None:
         """Parse an inbound WebSocket chat message into a CommsMessage.
@@ -172,7 +172,7 @@ class WebChatAdapter(BaseChannelAdapter):
 
         return CommsMessage(
             id=data.get("message_id") or str(uuid4()),
-            channel_id="web_chat",
+            channel_id="gobby_chat",
             direction="inbound",
             content=content,
             created_at=datetime.now(UTC).isoformat(),
@@ -188,4 +188,4 @@ class WebChatAdapter(BaseChannelAdapter):
 
 
 # Register the adapter
-register_adapter("web_chat", WebChatAdapter)
+register_adapter("gobby_chat", GobbyChatAdapter)

@@ -117,36 +117,36 @@ class TestAttachments:
         assert "network error" in str(msg.error)
 
 
-class TestWebChatAutoCreate:
+class TestGobbyChatAutoCreate:
     @pytest.mark.asyncio
     @patch("gobby.communications.manager.get_adapter_class")
-    async def test_ensure_web_chat_channel_creates(self, mock_get_adapter, manager):
+    async def test_ensure_gobby_chat_channel_creates(self, mock_get_adapter, manager):
         manager._store.list_channels.return_value = []
         mock_get_adapter.return_value = MagicMock()  # something is registered
 
-        await manager._ensure_web_chat_channel()
+        await manager._ensure_gobby_chat_channel()
 
-        # created web_chat channel
+        # created gobby_chat channel
         manager._store.create_channel.assert_called_once()
         created = manager._store.create_channel.call_args[0][0]
-        assert created.channel_type == "web_chat"
-        assert created.name == "web_chat"
+        assert created.channel_type == "gobby_chat"
+        assert created.name == "gobby_chat"
 
     @pytest.mark.asyncio
-    async def test_ensure_web_chat_channel_already_exists(self, manager):
+    async def test_ensure_gobby_chat_channel_already_exists(self, manager):
         mock_channel = MagicMock()
-        mock_channel.channel_type = "web_chat"
+        mock_channel.channel_type = "gobby_chat"
         manager._store.list_channels.return_value = [mock_channel]
 
-        await manager._ensure_web_chat_channel()
+        await manager._ensure_gobby_chat_channel()
 
         manager._store.create_channel.assert_not_called()
 
     def test_set_websocket_broadcast(self, manager):
-        from gobby.communications.adapters.web_chat import WebChatAdapter
+        from gobby.communications.adapters.gobby_chat import GobbyChatAdapter
 
-        adapter_instance = MagicMock(spec=WebChatAdapter)
-        manager._adapters["web_chat"] = adapter_instance
+        adapter_instance = MagicMock(spec=GobbyChatAdapter)
+        manager._adapters["gobby_chat"] = adapter_instance
 
         mock_broadcast = MagicMock()
         manager.set_websocket_broadcast(mock_broadcast)

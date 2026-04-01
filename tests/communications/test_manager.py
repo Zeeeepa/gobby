@@ -91,7 +91,7 @@ async def test_start_loads_channels():
 
     assert "test-channel" in manager._adapters
     mock_adapter.initialize.assert_called_once()
-    # start() calls list_channels twice: once for _ensure_web_chat_channel (enabled_only=False)
+    # start() calls list_channels twice: once for _ensure_gobby_chat_channel (enabled_only=False)
     # and once for loading active channels (enabled_only=True)
     assert store.list_channels.call_count == 2
     store.list_channels.assert_any_call(enabled_only=False)

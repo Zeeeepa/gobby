@@ -83,8 +83,8 @@ class CommunicationsManager:
 
     async def start(self) -> None:
         """Load enabled channels from DB, initialize adapters, configure rate limiter."""
-        # Auto-create web_chat channel if none exists
-        await self._ensure_web_chat_channel()
+        # Auto-create gobby_chat channel if none exists
+        await self._ensure_gobby_chat_channel()
 
         channels = self._store.list_channels(enabled_only=True)
         for channel in channels:
@@ -629,26 +629,26 @@ class CommunicationsManager:
             except Exception as e:
                 logger.error(f"Failed to delete channel {name!r} from DB: {e}")
 
-    async def _ensure_web_chat_channel(self) -> None:
-        """Auto-create a web_chat channel if one doesn't already exist.
+    async def _ensure_gobby_chat_channel(self) -> None:
+        """Auto-create a gobby_chat channel if one doesn't already exist.
 
-        The web_chat channel is an internal bridge that allows routing
+        The gobby_chat channel is an internal bridge that allows routing
         rules to target the web UI.  Unlike external channels, it needs
         no credentials.
         """
         channels = self._store.list_channels(enabled_only=False)
-        if any(c.channel_type == "web_chat" for c in channels):
+        if any(c.channel_type == "gobby_chat" for c in channels):
             return
 
-        if get_adapter_class("web_chat") is None:
-            logger.debug("web_chat adapter not registered, skipping auto-create")
+        if get_adapter_class("gobby_chat") is None:
+            logger.debug("gobby_chat adapter not registered, skipping auto-create")
             return
 
         now = datetime.now(UTC).isoformat()
         channel = ChannelConfig(
             id=str(uuid.uuid4()),
-            channel_type="web_chat",
-            name="web_chat",
+            channel_type="gobby_chat",
+            name="gobby_chat",
             enabled=True,
             config_json={},
             created_at=now,
@@ -656,12 +656,12 @@ class CommunicationsManager:
         )
         try:
             self._store.create_channel(channel)
-            logger.info("Auto-created web_chat channel for unified routing")
+            logger.info("Auto-created gobby_chat channel for unified routing")
         except Exception as e:
-            logger.error(f"Failed to auto-create web_chat channel: {e}", exc_info=True)
+            logger.error(f"Failed to auto-create gobby_chat channel: {e}", exc_info=True)
 
     def set_websocket_broadcast(self, broadcast: Any) -> None:
-        """Wire the WebSocket broadcast callable into the web_chat adapter.
+        """Wire the WebSocket broadcast callable into the gobby_chat adapter.
 
         Called by GobbyRunner after both CommunicationsManager and
         WebSocketServer are initialized.
@@ -669,12 +669,12 @@ class CommunicationsManager:
         Args:
             broadcast: The WebSocketServer.broadcast async method.
         """
-        from gobby.communications.adapters.web_chat import WebChatAdapter
+        from gobby.communications.adapters.gobby_chat import GobbyChatAdapter
 
-        adapter = self._adapters.get("web_chat")
-        if isinstance(adapter, WebChatAdapter):
+        adapter = self._adapters.get("gobby_chat")
+        if isinstance(adapter, GobbyChatAdapter):
             adapter.set_broadcast(broadcast)
-            logger.info("WebChatAdapter wired to WebSocket broadcast")
+            logger.info("GobbyChatAdapter wired to WebSocket broadcast")
 
     def get_channel(self, channel_id: str) -> ChannelConfig | None:
         """Get a channel by ID.
