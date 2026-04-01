@@ -333,9 +333,7 @@ def init_services(runner: GobbyRunner) -> None:
             from gobby.code_index.graph import CodeGraph
             from gobby.code_index.indexer import CodeIndexer
             from gobby.code_index.parser import CodeParser
-            from gobby.code_index.searcher import CodeSearcher
             from gobby.code_index.storage import CodeIndexStorage
-            from gobby.code_index.summarizer import SymbolSummarizer
 
             ci_config = runner.config.code_index
             ci_storage = CodeIndexStorage(runner.database)
@@ -345,11 +343,6 @@ def init_services(runner: GobbyRunner) -> None:
             if runner.memory_manager and getattr(runner.memory_manager, "_neo4j_client", None):
                 ci_neo4j = runner.memory_manager._neo4j_client
             ci_graph = CodeGraph(neo4j_client=ci_neo4j)
-            ci_summarizer = (
-                SymbolSummarizer(runner.llm_service, ci_config)
-                if runner.llm_service and ci_config.summary_enabled
-                else None
-            )
 
             # Reuse memory embed_fn if available
             ci_embed_fn: Callable[..., Any] | None = None
@@ -379,20 +372,8 @@ def init_services(runner: GobbyRunner) -> None:
                 vector_store=ci_vector_store,
                 embed_fn=ci_embed_fn,
                 graph=ci_graph if ci_config.graph_enabled else None,
-                summarizer=ci_summarizer,
                 config=ci_config,
             )
-
-            # Create searcher and attach to indexer for http.py wiring
-            ci_searcher = CodeSearcher(
-                storage=ci_storage,
-                vector_store=ci_vector_store,
-                embed_fn=ci_embed_fn,
-                graph=ci_graph if ci_config.graph_enabled else None,
-                config=ci_config,
-            )
-            runner.code_indexer.searcher = ci_searcher
-            runner.symbol_summarizer = ci_summarizer
 
             logger.info("Code indexer initialized")
         except Exception as e:

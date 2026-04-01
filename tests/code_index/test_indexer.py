@@ -28,7 +28,7 @@ def parser(config: CodeIndexConfig) -> CodeParser:
 def indexer(
     code_storage: CodeIndexStorage, parser: CodeParser, config: CodeIndexConfig
 ) -> CodeIndexer:
-    """CodeIndexer with no vector/graph/summarizer backends."""
+    """CodeIndexer with no vector/graph backends."""
     return CodeIndexer(
         storage=code_storage,
         parser=parser,

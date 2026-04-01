@@ -1,6 +1,6 @@
 """Code indexer orchestrator.
 
-Coordinates: parse -> store -> embed -> graph -> summarize
+Coordinates: parse -> store -> embed -> graph
 for individual files and full directories.
 """
 
@@ -27,7 +27,6 @@ from gobby.code_index.models import (
 from gobby.code_index.parser import CodeParser
 from gobby.code_index.security import should_exclude
 from gobby.code_index.storage import CodeIndexStorage
-from gobby.code_index.summarizer import SymbolSummarizer
 from gobby.config.code_index import CodeIndexConfig
 
 logger = logging.getLogger(__name__)
@@ -83,7 +82,6 @@ class CodeIndexer:
         vector_store: Any | None = None,
         embed_fn: Callable[..., Any] | None = None,
         graph: CodeGraph | None = None,
-        summarizer: SymbolSummarizer | None = None,
         config: CodeIndexConfig | None = None,
     ) -> None:
         self._storage = storage
@@ -91,10 +89,7 @@ class CodeIndexer:
         self._vector_store = vector_store
         self._embed_fn = embed_fn
         self._graph = graph
-        self._summarizer = summarizer
         self._config = config or CodeIndexConfig()
-        # Set by runner.py after creation for http.py registry wiring
-        self.searcher: Any | None = None
         # Cache collections known to be missing to avoid repeated failed HTTP roundtrips
         self._missing_collections: set[str] = set()
 
@@ -105,10 +100,6 @@ class CodeIndexer:
     @property
     def graph(self) -> CodeGraph | None:
         return self._graph
-
-    @property
-    def summarizer(self) -> SymbolSummarizer | None:
-        return self._summarizer
 
     @property
     def config(self) -> CodeIndexConfig:
@@ -447,7 +438,7 @@ class CodeIndexer:
         if not symbols or self._embed_fn is None or self._vector_store is None:
             return 0
 
-        # Build text for embedding: name + signature + docstring + summary
+        # Build text for embedding: name + signature + docstring
         texts = []
         ids = []
         for sym in symbols:
@@ -456,8 +447,6 @@ class CodeIndexer:
                 parts.append(sym.signature)
             if sym.docstring:
                 parts.append(sym.docstring[:200])
-            if sym.summary:
-                parts.append(sym.summary)
             texts.append(" ".join(parts))
             ids.append(sym.id)
 
@@ -506,21 +495,6 @@ class CodeIndexer:
             logger.debug(f"Vector upsert failed: {e}")
 
         return count
-
-    async def reembed_symbols(self, symbol_ids: list[str], project_id: str) -> int:
-        """Re-embed specific symbols (e.g. after summary generation).
-
-        Fetches symbols from storage, rebuilds embedding text (now including
-        summary), and upserts to Qdrant.
-        """
-        if not symbol_ids or self._embed_fn is None or self._vector_store is None:
-            return 0
-
-        symbols = self._storage.get_symbols(symbol_ids)
-        if not symbols:
-            return 0
-
-        return await self._embed_symbols(symbols, project_id)
 
     async def _add_graph_data(
         self,

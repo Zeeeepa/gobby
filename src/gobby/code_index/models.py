@@ -127,6 +127,7 @@ class IndexedFile:
     content_hash: str
     symbol_count: int = 0
     byte_size: int = 0
+    graph_synced: int = 0
     indexed_at: str = ""
 
     def __post_init__(self) -> None:
@@ -148,6 +149,7 @@ class IndexedFile:
             content_hash=row["content_hash"],
             symbol_count=row["symbol_count"],
             byte_size=row["byte_size"],
+            graph_synced=row["graph_synced"] if "graph_synced" in row.keys() else 0,
             indexed_at=row["indexed_at"],
         )
 
@@ -160,6 +162,7 @@ class IndexedFile:
             "content_hash": self.content_hash,
             "symbol_count": self.symbol_count,
             "byte_size": self.byte_size,
+            "graph_synced": self.graph_synced,
             "indexed_at": self.indexed_at,
         }
 

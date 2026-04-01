@@ -262,45 +262,6 @@ def test_upsert_project_stats_updates(code_storage: CodeIndexStorage) -> None:
 # ── Summaries ───────────────────────────────────────────────────────────
 
 
-def test_update_symbol_summary(
-    code_storage: CodeIndexStorage, sample_symbols: list[Symbol]
-) -> None:
-    """Set and retrieve a symbol summary."""
-    sym = sample_symbols[0]
-    code_storage.upsert_symbols([sym])
-
-    code_storage.update_symbol_summary(sym.id, "Returns a greeting string.")
-    retrieved = code_storage.get_symbol(sym.id)
-    assert retrieved is not None
-    assert retrieved.summary == "Returns a greeting string."
-
-
-def test_get_symbols_without_summaries(
-    code_storage: CodeIndexStorage, sample_symbols: list[Symbol]
-) -> None:
-    """Returns symbols that have no summary yet."""
-    code_storage.upsert_symbols(sample_symbols)
-
-    # All three should lack summaries
-    unsummarized = code_storage.get_symbols_without_summaries("proj-1")
-    assert len(unsummarized) == 3
-
-    # Summarize one
-    code_storage.update_symbol_summary(sample_symbols[0].id, "A greeting function.")
-    unsummarized = code_storage.get_symbols_without_summaries("proj-1")
-    assert len(unsummarized) == 2
-
-
-def test_get_symbols_without_summaries_limit(
-    code_storage: CodeIndexStorage, sample_symbols: list[Symbol]
-) -> None:
-    """Limit parameter caps results."""
-    code_storage.upsert_symbols(sample_symbols)
-
-    unsummarized = code_storage.get_symbols_without_summaries("proj-1", limit=1)
-    assert len(unsummarized) == 1
-
-
 # ── Counts ──────────────────────────────────────────────────────────────
 
 

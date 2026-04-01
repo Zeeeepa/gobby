@@ -177,27 +177,6 @@ class HTTPServer:
             transcript_reader=services.transcript_reader,
             communications_manager=services.communications_manager,
         )
-        # Wire code index registry if code_indexer is available and native MCP enabled
-        code_indexer = getattr(services, "code_indexer", None)
-        if code_indexer is not None and getattr(code_indexer.config, "use_native_code_index", True):
-            try:
-                from gobby.mcp_proxy.tools.code import create_code_registry
-
-                code_registry = create_code_registry(
-                    storage=code_indexer.storage,
-                    indexer=code_indexer,
-                    searcher=code_indexer.searcher,
-                    graph=code_indexer.graph,
-                    summarizer=code_indexer.summarizer,
-                    config=code_indexer.config,
-                    project_id=services.project_id,
-                    db=services.database,
-                )
-                self._internal_manager.add_registry(code_registry)
-                logger.debug("Code index registry initialized")
-            except Exception as e:
-                logger.warning(f"Failed to initialize code index registry: {e}")
-
         registry_count = len(self._internal_manager)
         logger.debug(f"Internal registries initialized: {registry_count} registries")
 

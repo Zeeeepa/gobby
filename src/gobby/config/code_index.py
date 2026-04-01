@@ -10,11 +10,6 @@ class CodeIndexConfig(BaseModel):
         default=True,
         description="Enable code indexing via tree-sitter AST parsing",
     )
-    use_native_code_index: bool = Field(
-        default=True,
-        description="Use Python-native code index MCP server (gobby-code). "
-        "Set False to disable — agents use gcode CLI instead.",
-    )
     auto_index_on_commit: bool = Field(
         default=True,
         description="Auto-reindex changed files on git commit",
@@ -52,22 +47,6 @@ class CodeIndexConfig(BaseModel):
     graph_enabled: bool = Field(
         default=True,
         description="Enable Neo4j call/import graph",
-    )
-    summary_enabled: bool = Field(
-        default=True,
-        description="Enable AI-generated symbol summaries",
-    )
-    summary_provider: str = Field(
-        default="claude",
-        description="LLM provider for symbol summaries",
-    )
-    summary_model: str = Field(
-        default="haiku",
-        description="Model for symbol summaries (fast/cheap)",
-    )
-    summary_batch_size: int = Field(
-        default=50,
-        description="Number of symbols to summarize per batch",
     )
     qdrant_collection_prefix: str = Field(
         default="code_symbols_",

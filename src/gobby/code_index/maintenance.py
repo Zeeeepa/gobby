@@ -1,7 +1,7 @@
 """Background maintenance loop for code indexing.
 
 Periodically walks indexed projects, triggers re-indexing via gcode,
-and generates AI summaries for unsummarized symbols.
+and recovers files with incomplete graph/vector sync.
 """
 
 from __future__ import annotations
@@ -9,11 +9,10 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from gobby.code_index.indexer import CodeIndexer
-    from gobby.code_index.summarizer import SymbolSummarizer
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +21,6 @@ async def code_index_maintenance_loop(
     indexer: CodeIndexer,
     shutdown_flag: asyncio.Event | None = None,
     interval: int = 300,
-    summarizer: SymbolSummarizer | None = None,
 ) -> None:
     """Background loop that checks for stale indexed files.
 
@@ -30,7 +28,6 @@ async def code_index_maintenance_loop(
         indexer: CodeIndexer instance (used for storage access).
         shutdown_flag: Event that signals shutdown.
         interval: Seconds between maintenance runs.
-        summarizer: Optional SymbolSummarizer for generating AI summaries.
     """
     logger.info(f"Code index maintenance loop started (interval={interval}s)")
 
@@ -40,7 +37,7 @@ async def code_index_maintenance_loop(
             break
 
         try:
-            await _run_maintenance(indexer, summarizer)
+            await _run_maintenance(indexer)
         except Exception as e:
             logger.error(f"Code index maintenance error: {e}", exc_info=True)
 
@@ -57,11 +54,8 @@ async def code_index_maintenance_loop(
     logger.info("Code index maintenance loop stopped")
 
 
-async def _run_maintenance(
-    indexer: CodeIndexer,
-    summarizer: SymbolSummarizer | None = None,
-) -> None:
-    """Single maintenance pass: re-index via gcode, then generate summaries."""
+async def _run_maintenance(indexer: CodeIndexer) -> None:
+    """Single maintenance pass: re-index via gcode, then recover unsynced files."""
     projects = indexer.storage.list_indexed_projects()
     gcode_bin = Path.home() / ".gobby" / "bin" / "gcode"
 
@@ -95,31 +89,56 @@ async def _run_maintenance(
             except Exception as e:
                 logger.warning(f"Maintenance reindex failed for {project.id}: {e}")
 
-        # Generate summaries (Python only — needs LLM)
-        if summarizer is not None:
-            try:
-                unsummarized = indexer.storage.get_symbols_without_summaries(
-                    project_id=project.id, limit=50
-                )
-                if unsummarized:
-                    root = project.root_path
+        # Recover files where graph/vector sync was incomplete
+        if gcode_available:
+            await _recover_unsynced_files(indexer, project, gcode_bin)
 
-                    def source_reader(fp: str, bs: int, be: int, _root: str = root) -> str | None:
-                        full = Path(_root) / fp
-                        try:
-                            with open(full, "rb") as f:
-                                f.seek(bs)
-                                data = f.read(be - bs)
-                                if not data:
-                                    return None
-                                return data.decode("utf-8", errors="replace")
-                        except (OSError, ValueError):
-                            return None
 
-                    summaries = await summarizer.generate_summaries(unsummarized, source_reader)
-                    for sym_id, text in summaries.items():
-                        indexer.storage.update_symbol_summary(sym_id, text)
-                    if summaries:
-                        logger.debug(f"Generated {len(summaries)} summaries for {project.id}")
-            except Exception as e:
-                logger.warning(f"Summary generation failed for {project.id}: {e}")
+async def _recover_unsynced_files(
+    indexer: CodeIndexer,
+    project: Any,
+    gcode_bin: Path,
+) -> None:
+    """Re-trigger gcode for files with graph_synced=0."""
+    try:
+        unsynced = indexer.storage.get_unsynced_files(project.id, limit=100)
+    except Exception:
+        # Column may not exist yet (pre-migration 178)
+        return
+
+    if not unsynced:
+        return
+
+    logger.info(f"Recovering {len(unsynced)} unsynced files for {project.id}")
+    root = Path(project.root_path)
+    unsynced_paths = []
+    for f in unsynced:
+        full_path = root / f.file_path
+        if full_path.exists():
+            unsynced_paths.append(str(full_path))
+        else:
+            indexer.storage.delete_file(project.id, f.file_path)
+
+    if not unsynced_paths:
+        return
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            str(gcode_bin),
+            "index",
+            "--files",
+            *unsynced_paths,
+            "--quiet",
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+        if proc.returncode == 0:
+            logger.info(f"Recovered {len(unsynced_paths)} unsynced files for {project.id}")
+        else:
+            detail = stderr.decode().strip() if stderr else ""
+            logger.warning(f"Graph sync recovery failed (exit {proc.returncode}): {detail}")
+    except TimeoutError:
+        logger.warning("Graph sync recovery timed out")
+    except Exception as e:
+        logger.warning(f"Graph sync recovery failed: {e}")

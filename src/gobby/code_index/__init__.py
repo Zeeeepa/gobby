@@ -1,7 +1,7 @@
 """Native AST-based code indexing for Gobby.
 
-Provides tree-sitter parsing, symbol extraction, hybrid search,
-and MCP tool integration via the gobby-code internal server.
+Provides tree-sitter parsing, symbol extraction, and models.
+Search and MCP tools are handled by gcode (Rust CLI).
 """
 
 from gobby.code_index.hasher import file_content_hash, symbol_content_hash

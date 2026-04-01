@@ -35,7 +35,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 177
+BASELINE_VERSION = 178
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v171) have been removed.
@@ -241,6 +241,14 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         "Add total_eligible_files column to code_indexed_projects",
         """
         ALTER TABLE code_indexed_projects ADD COLUMN total_eligible_files INTEGER;
+        """,
+    ),
+    (
+        178,
+        "Add graph_synced column to code_indexed_files",
+        """
+        ALTER TABLE code_indexed_files ADD COLUMN graph_synced INTEGER NOT NULL DEFAULT 0;
+        CREATE INDEX idx_cif_graph_synced ON code_indexed_files(project_id, graph_synced);
         """,
     ),
 ]

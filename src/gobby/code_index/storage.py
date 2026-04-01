@@ -233,12 +233,13 @@ class CodeIndexStorage:
             conn.execute(
                 """INSERT INTO code_indexed_files (
                     id, project_id, file_path, language, content_hash,
-                    symbol_count, byte_size, indexed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    symbol_count, byte_size, graph_synced, indexed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     content_hash=excluded.content_hash,
                     symbol_count=excluded.symbol_count,
                     byte_size=excluded.byte_size,
+                    graph_synced=0,
                     indexed_at=excluded.indexed_at
                 """,
                 (
@@ -249,6 +250,7 @@ class CodeIndexStorage:
                     file.content_hash,
                     file.symbol_count,
                     file.byte_size,
+                    file.graph_synced,
                     file.indexed_at,
                 ),
             )
@@ -332,6 +334,16 @@ class CodeIndexStorage:
 
         return [row[0] for row in rows if row[0] not in current_paths]
 
+    def get_unsynced_files(self, project_id: str, limit: int = 100) -> list[IndexedFile]:
+        """Get files where graph/vector sync is incomplete (graph_synced=0)."""
+        rows = self.db.fetchall(
+            """SELECT * FROM code_indexed_files
+               WHERE project_id = ? AND graph_synced = 0
+               ORDER BY indexed_at LIMIT ?""",
+            (project_id, limit),
+        )
+        return [IndexedFile.from_row(r) for r in rows]
+
     def delete_file(self, project_id: str, file_path: str) -> None:
         """Delete a file record (symbols deleted separately)."""
         with self.db.transaction() as conn:
@@ -390,24 +402,6 @@ class CodeIndexStorage:
         return [IndexedProject.from_row(r) for r in rows]
 
     # ── Summaries ────────────────────────────────────────────────────
-
-    def update_symbol_summary(self, symbol_id: str, summary: str) -> None:
-        """Set AI-generated summary for a symbol."""
-        with self.db.transaction() as conn:
-            conn.execute(
-                "UPDATE code_symbols SET summary = ?, updated_at = datetime('now') WHERE id = ?",
-                (summary, symbol_id),
-            )
-
-    def get_symbols_without_summaries(self, project_id: str, limit: int = 50) -> list[Symbol]:
-        """Get symbols that need summaries generated."""
-        rows = self.db.fetchall(
-            """SELECT * FROM code_symbols
-               WHERE project_id = ? AND summary IS NULL
-               ORDER BY kind, name LIMIT ?""",
-            (project_id, limit),
-        )
-        return [Symbol.from_row(r) for r in rows]
 
     # ── Counts ───────────────────────────────────────────────────────
 

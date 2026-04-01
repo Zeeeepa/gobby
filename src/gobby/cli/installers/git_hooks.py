@@ -161,44 +161,11 @@ fi
 """,
     "post-commit": """
 # Gobby incremental code indexing after commit
-# NOTE: JSONL export moved to pre-push to avoid contamination in agent worktrees
 CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD 2>/dev/null)
 if [ -n "$CHANGED_FILES" ]; then
-    INDEXED=false
-
-    # Strategy 1: Daemon HTTP API (fast, async)
-    if command -v gobby >/dev/null 2>&1; then
-        GOBBY_PORT=60887
-        BOOTSTRAP_YAML="$HOME/.gobby/bootstrap.yaml"
-        if [ -f "$BOOTSTRAP_YAML" ]; then
-            _port=$(grep -E '^daemon_port:' "$BOOTSTRAP_YAML" 2>/dev/null | head -1 | sed 's/^daemon_port:[[:space:]]*//')
-            if [ -n "$_port" ]; then GOBBY_PORT="$_port"; fi
-        fi
-
-        PROJECT_ID=""
-        if [ -f .gobby/project.json ]; then
-            PROJECT_ID=$(python3 -c "import json; d=json.load(open('.gobby/project.json')); print(d.get('id','') or d.get('project_id',''))" 2>/dev/null || echo "")
-        fi
-        if [ -n "$PROJECT_ID" ]; then
-            FILES_JSON=$(echo "$CHANGED_FILES" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip().split('\\n')))" 2>/dev/null)
-            if [ -n "$FILES_JSON" ]; then
-                PAYLOAD=$(printf '{"project_id": "%s", "files": %s}' "$PROJECT_ID" "$FILES_JSON")
-                if curl -s -X POST "http://localhost:$GOBBY_PORT/api/code-index/incremental" \
-                    -H "Content-Type: application/json" \
-                    -d "$PAYLOAD" \
-                    >/dev/null 2>&1; then
-                    INDEXED=true
-                fi
-            fi
-        fi
-    fi
-
-    # Strategy 2: gcode CLI fallback (standalone, no daemon needed)
-    if [ "$INDEXED" = "false" ]; then
-        GCODE="$HOME/.gobby/bin/gcode"
-        if [ -x "$GCODE" ]; then
-            echo "$CHANGED_FILES" | tr '\n' '\0' | xargs -0 "$GCODE" index --files --quiet &
-        fi
+    GCODE="$HOME/.gobby/bin/gcode"
+    if [ -x "$GCODE" ]; then
+        echo "$CHANGED_FILES" | tr '\n' '\0' | xargs -0 "$GCODE" index --files --quiet &
     fi
 fi
 """,
