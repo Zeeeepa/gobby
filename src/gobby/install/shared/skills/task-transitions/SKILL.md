@@ -70,11 +70,7 @@ Fix ALL errors, warnings, and failures — including pre-existing ones.
 Once resolved:
 
 ```python
-call_tool("gobby", "set_variable", {
-    "name": "errors_resolved",
-    "value": true,
-    "session_id": "#session"
-})
+set_variable(name="errors_resolved", value=true, session_id="#session")
 ```
 
 ## Gate 4: Memory Review
@@ -86,11 +82,7 @@ Review your session for memories worth preserving:
 If nothing new was learned and no stale memories remain, clear the gate:
 
 ```python
-call_tool("gobby", "set_variable", {
-    "name": "memory_review_completed",
-    "value": true,
-    "session_id": "#session"
-})
+set_variable(name="memory_review_completed", value=true, session_id="#session")
 ```
 
 Do NOT create memories for bugs or errors — create tasks instead.
