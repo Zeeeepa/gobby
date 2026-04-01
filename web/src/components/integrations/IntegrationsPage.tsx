@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react'
 import { useIntegrations } from '../../hooks/useIntegrations'
 import type { Channel, ChannelType } from '../../hooks/useIntegrations'
 import { ChannelCard, CHANNEL_DISPLAY_NAMES } from './ChannelCard'
+import { ChannelForm } from './ChannelForm'
 import './IntegrationsPage.css'
 
 const CHANNEL_TYPES: ChannelType[] = ['slack', 'telegram', 'discord', 'teams', 'email', 'sms', 'gobby_chat']
@@ -14,13 +15,14 @@ export function IntegrationsPage() {
     setSearchText,
     channelTypeFilter,
     setChannelTypeFilter,
+    createChannel,
     removeChannel,
     updateChannel,
   } = useIntegrations()
 
   const [activeTab, setActiveTab] = useState<'channels' | 'messages'>('channels')
   const [showAddForm, setShowAddForm] = useState(false)
-  const [_editingChannel, setEditingChannel] = useState<Channel | null>(null)
+  const [editingChannel, setEditingChannel] = useState<Channel | null>(null)
   const [_selectedChannel, setSelectedChannel] = useState<Channel | null>(null)
   const [presetType, setPresetType] = useState<ChannelType | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -184,9 +186,32 @@ export function IntegrationsPage() {
         )}
       </div>
 
-      {/* Placeholder hooks for future sub-components */}
+      {/* Add/Edit modal */}
       {showAddForm && (
-        <div style={{ display: 'none' }} data-preset-type={presetType} />
+        <ChannelForm
+          mode="add"
+          presetType={presetType}
+          onSubmit={async (type, name, config, secrets) => {
+            const ok = await createChannel(type, name, config, secrets)
+            if (!ok) showError('Failed to add channel')
+            return ok
+          }}
+          onClose={() => setShowAddForm(false)}
+        />
+      )}
+      {editingChannel && (
+        <ChannelForm
+          mode="edit"
+          channel={editingChannel}
+          onSubmit={async (_type, _name, config, _secrets) => {
+            const updates: Record<string, unknown> = {}
+            if (Object.keys(config).length > 0) updates.config = config
+            const ok = await updateChannel(editingChannel.id, updates as { config?: Record<string, unknown> })
+            if (!ok) showError('Failed to update channel')
+            return ok
+          }}
+          onClose={() => setEditingChannel(null)}
+        />
       )}
     </div>
   )
