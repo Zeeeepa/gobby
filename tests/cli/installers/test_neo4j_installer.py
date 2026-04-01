@@ -98,13 +98,13 @@ class TestDockerComposeNeo4j:
         assert "neo4j" in profiles
         assert "all" in profiles
 
-    def test_compose_neo4j_uses_major_version_tag(self) -> None:
-        """Neo4j service uses neo4j:5 (major version), not a pinned minor."""
+    def test_compose_neo4j_uses_latest_tag(self) -> None:
+        """Neo4j service uses neo4j:latest."""
         from gobby.cli.installers.neo4j import _COMPOSE_SRC
 
         data = yaml.safe_load(_COMPOSE_SRC.read_text())
         image = data["services"]["neo4j"]["image"]
-        assert image == "neo4j:5"
+        assert image == "neo4j:latest"
 
 
 # ---------------------------------------------------------------------------
