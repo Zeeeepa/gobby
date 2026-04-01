@@ -113,6 +113,7 @@ def create_communications_registry(
         channel_type: str,
         name: str,
         config: dict[str, Any],
+        secrets: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Add a new communication channel."""
         try:
@@ -120,6 +121,7 @@ def create_communications_registry(
                 channel_type=channel_type,
                 name=name,
                 config=config,
+                secrets=secrets,
             )
             return {"success": True, "channel_id": ch.id}
         except Exception as e:

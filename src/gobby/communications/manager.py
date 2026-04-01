@@ -564,6 +564,25 @@ class CommunicationsManager:
             The created ChannelConfig.
         """
         now = datetime.now(UTC).isoformat()
+
+        # Store secrets in SecretStore and replace with $secret: references
+        if secrets:
+            for key, value in secrets.items():
+                if key == "webhook_secret":
+                    continue  # Handled via channel_config field
+                if not value:
+                    continue  # Skip empty values
+                # Channel-scoped secret name avoids collisions between channels
+                secret_name = f"COMMS_{channel_type.upper()}_{key.upper()}_{name.upper()}"
+                self._secret_store.set(
+                    name=secret_name,
+                    plaintext_value=str(value),
+                    category="comms",
+                    description=f"{channel_type} channel '{name}': {key}",
+                )
+                # Put reference in config so adapter resolves it
+                config[key] = f"$secret:{secret_name}"
+
         channel_config = ChannelConfig(
             id=str(uuid.uuid4()),
             channel_type=channel_type,

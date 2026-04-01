@@ -380,6 +380,60 @@ async def test_add_channel_creates_and_initializes():
 
 
 @pytest.mark.asyncio
+async def test_add_channel_stores_secrets_in_secret_store():
+    """add_channel() stores non-webhook secrets in SecretStore and puts $secret: refs in config."""
+    store = make_store()
+    secret_store = make_secret_store()
+    manager = CommunicationsManager(make_config(), store, secret_store, MagicMock())
+
+    mock_adapter = make_adapter(channel_type="slack")
+    mock_adapter_cls = MagicMock(return_value=mock_adapter)
+
+    secrets = {
+        "bot_token": "xoxb-test-token",
+        "signing_secret": "abc123",
+        "webhook_secret": "whsec_keep_separate",
+    }
+
+    with patch("gobby.communications.manager.get_adapter_class", return_value=mock_adapter_cls):
+        channel = await manager.add_channel("slack", "my-slack", {}, secrets=secrets)
+
+    # webhook_secret is on the channel config, not in SecretStore
+    assert channel.webhook_secret == "whsec_keep_separate"
+
+    # bot_token and signing_secret stored in SecretStore
+    assert secret_store.set.call_count == 2
+    set_calls = {call.kwargs["name"]: call for call in secret_store.set.call_args_list}
+    assert "COMMS_SLACK_BOT_TOKEN_MY-SLACK" in set_calls
+    assert "COMMS_SLACK_SIGNING_SECRET_MY-SLACK" in set_calls
+
+    # Config should have $secret: references
+    created_channel = store.create_channel.call_args[0][0]
+    assert created_channel.config_json["bot_token"] == "$secret:COMMS_SLACK_BOT_TOKEN_MY-SLACK"
+    assert created_channel.config_json["signing_secret"] == "$secret:COMMS_SLACK_SIGNING_SECRET_MY-SLACK"
+
+
+@pytest.mark.asyncio
+async def test_add_channel_skips_empty_secrets():
+    """add_channel() skips empty secret values."""
+    store = make_store()
+    secret_store = make_secret_store()
+    manager = CommunicationsManager(make_config(), store, secret_store, MagicMock())
+
+    mock_adapter = make_adapter(channel_type="slack")
+    mock_adapter_cls = MagicMock(return_value=mock_adapter)
+
+    secrets = {"bot_token": "xoxb-real", "signing_secret": "", "webhook_secret": ""}
+
+    with patch("gobby.communications.manager.get_adapter_class", return_value=mock_adapter_cls):
+        await manager.add_channel("slack", "my-slack", {}, secrets=secrets)
+
+    # Only bot_token stored (signing_secret and webhook_secret are empty)
+    assert secret_store.set.call_count == 1
+    assert secret_store.set.call_args.kwargs["name"] == "COMMS_SLACK_BOT_TOKEN_MY-SLACK"
+
+
+@pytest.mark.asyncio
 async def test_remove_channel_shuts_down_and_deletes():
     """remove_channel() shuts down adapter and deletes from DB."""
     channel = make_channel()
