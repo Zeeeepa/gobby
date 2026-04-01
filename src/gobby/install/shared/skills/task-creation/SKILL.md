@@ -1,6 +1,6 @@
 ---
 name: task-creation
-description: "How to create and claim tasks via gobby-tasks MCP. Covers progressive discovery, required fields, and writing effective validation criteria."
+description: "How to create tasks effectively via gobby-tasks MCP. Covers task types, priorities, when to use each, and writing effective validation criteria."
 category: core
 metadata:
   gobby:
@@ -9,42 +9,33 @@ metadata:
 
 # Task Creation
 
-Create and claim tasks via gobby-tasks MCP tools.
+Create and manage tasks via gobby-tasks MCP. Use progressive discovery for tool schemas.
 
 ---
 
-## Progressive Discovery
+## Task Types — When to Use Each
 
-Before calling any tool, discover it:
+| Type | When | Priority | Example |
+|------|------|----------|---------|
+| `bug` | Something is broken | 1 (high) | "Fix null pointer in session cleanup" |
+| `feature` | New capability | 2 (medium) | "Add webhook support for pipeline completion" |
+| `epic` | Large feature needing subtasks | 2 (medium) | "Implement knowledge graph integration" |
+| `chore` | Maintenance, cleanup | 3 (low) | "Update dependencies to latest versions" |
+| `refactor` | Restructure without behavior change | 3 (low) | "Extract validation logic from pipeline executor" |
+| `task` | General work that doesn't fit above | 2 (medium) | "Investigate memory leak in long sessions" |
 
-```python
-# 1. List servers (once per session)
-list_mcp_servers()
+**Nitpicks** — minor cleanup, typos, style fixes — use type `chore` with priority 4 (backlog) and label `["nitpick"]`.
 
-# 2. List tools on gobby-tasks (once per server)
-list_tools(server_name="gobby-tasks")
+### Priority Scale
 
-# 3. Get schema (once per tool)
-get_tool_schema(server_name="gobby-tasks", tool_name="create_task")
+| Priority | Meaning | Typical types |
+|----------|---------|---------------|
+| 1 | High — fix now | Bugs, blockers |
+| 2 | Medium — next up | Features, epics |
+| 3 | Low — when convenient | Chores, refactors |
+| 4 | Backlog — someday | Nitpicks, nice-to-haves |
 
-# 4. Call the tool
-call_tool("gobby-tasks", "create_task", {...})
-```
-
-## Creating a Task
-
-```python
-call_tool("gobby-tasks", "create_task", {
-    "title": "Imperative description of what to do",
-    "description": "Context, requirements, and acceptance criteria",
-    "category": "code",  # code | config | docs | test | research | planning | manual
-    "validation_criteria": "Observable criteria for 'done'",  # Required for category=code
-    "session_id": "#session",
-    "claim": true  # Auto-claim: sets status to in_progress
-})
-```
-
-### Required Fields
+## Required Fields
 
 | Field | When | Notes |
 |-------|------|-------|
@@ -53,9 +44,21 @@ call_tool("gobby-tasks", "create_task", {
 | `category` | Always | Determines validation behavior |
 | `validation_criteria` | `category=code` | Creation fails without it |
 
-### Writing Effective Validation Criteria
+### Categories
 
-Validation criteria are checked against the diff when closing. Write them so an independent reviewer can verify completion:
+| Category | Use for |
+|----------|---------|
+| `code` | Implementation — requires `validation_criteria` |
+| `config` | Configuration file changes |
+| `docs` | Documentation |
+| `test` | Test writing |
+| `research` | Investigation, no code output expected |
+| `planning` | Design, architecture |
+| `manual` | Requires manual verification |
+
+## Writing Effective Validation Criteria
+
+Validation criteria are checked against the diff when closing a task. Write them so an independent reviewer can verify completion.
 
 **Good:** "The `close_task` tests in `test_tasks_coverage.py` pass. `LocalSessionManager` is patched at the correct import path in both tests."
 
@@ -66,13 +69,21 @@ Criteria should be:
 - **Specific** — names files, functions, or behaviors
 - **Complete** — covers all acceptance conditions, not just the happy path
 
-## Claiming an Existing Task
+## Labels
 
-```python
-call_tool("gobby-tasks", "claim_task", {
-    "task_id": "#N",
-    "session_id": "#session"
-})
-```
+Use labels for cross-cutting concerns:
 
-This sets the task to `in_progress` and assigns it to your session. You must claim or create a task before editing files.
+| Label | When |
+|-------|------|
+| `nitpick` | Minor cleanup, typos, style |
+| `refactor` | Code restructuring |
+| `security` | Security-related work |
+| `performance` | Performance improvements |
+
+## Claiming
+
+Claim a task before editing files — this sets it to `in_progress` and assigns it to your session. You can auto-claim at creation time with `claim: true`, or claim an existing task separately.
+
+## Error Triage
+
+When you encounter bugs or issues unrelated to your current task, create a bug task for them immediately and continue with your current work. Every error is your error, even if you didn't cause it.
