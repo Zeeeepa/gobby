@@ -80,6 +80,10 @@ Use labels for cross-cutting concerns:
 | `security` | Security-related work |
 | `performance` | Performance improvements |
 
+## Plan Mode
+
+Do **not** create tasks during plan mode unless the user explicitly asks you to. Plan mode is for designing an approach, not organizing work into tasks. Only use task tools in plan mode if the user requests it.
+
 ## Claiming
 
 Claim a task before editing files — this sets it to `in_progress` and assigns it to your session. You can auto-claim at creation time with `claim: true`, or claim an existing task separately.
