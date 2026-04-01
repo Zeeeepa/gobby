@@ -1,4 +1,5 @@
 # Contributing to Gobby
+<!-- guardrail test -->
 
 Thank you for your interest in contributing to Gobby! This document provides guidelines and information for contributors.
 
