@@ -412,7 +412,7 @@ def _apply_baseline(db: LocalDatabase) -> None:
         )
 
     # FTS5 triggers use semicolons in BEGIN...END — can't go through the split
-    _setup_code_symbols_fts(db)
+    _setup_code_symbols_fts(db, include_summary=True)
     _setup_code_content_fts(db)
     _setup_tasks_fts(db)
     _setup_skills_fts(db)

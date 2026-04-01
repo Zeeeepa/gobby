@@ -914,7 +914,7 @@ CREATE INDEX idx_cs_kind ON code_symbols(kind);
 CREATE INDEX idx_cs_parent ON code_symbols(parent_symbol_id);
 
 CREATE VIRTUAL TABLE code_symbols_fts USING fts5(
-    name, qualified_name, signature, docstring,
+    name, qualified_name, signature, docstring, summary,
     content='code_symbols', content_rowid='rowid'
 );
 
