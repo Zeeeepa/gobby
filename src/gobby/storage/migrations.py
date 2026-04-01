@@ -35,7 +35,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 178
+BASELINE_VERSION = 179
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v171) have been removed.
@@ -57,29 +57,29 @@ def _setup_code_symbols_fts(db: LocalDatabase) -> None:
     conn = db.connection
     conn.executescript("""
         CREATE VIRTUAL TABLE IF NOT EXISTS code_symbols_fts USING fts5(
-            name, qualified_name, signature, docstring, summary,
+            name, qualified_name, signature, docstring,
             content='code_symbols', content_rowid='rowid'
         );
 
         CREATE TRIGGER IF NOT EXISTS code_symbols_ai AFTER INSERT ON code_symbols BEGIN
-            INSERT INTO code_symbols_fts(rowid, name, qualified_name, signature, docstring, summary)
-            VALUES (new.rowid, new.name, new.qualified_name, new.signature, new.docstring, new.summary);
+            INSERT INTO code_symbols_fts(rowid, name, qualified_name, signature, docstring)
+            VALUES (new.rowid, new.name, new.qualified_name, new.signature, new.docstring);
         END;
 
         CREATE TRIGGER IF NOT EXISTS code_symbols_ad AFTER DELETE ON code_symbols BEGIN
-            INSERT INTO code_symbols_fts(code_symbols_fts, rowid, name, qualified_name, signature, docstring, summary)
-            VALUES ('delete', old.rowid, old.name, old.qualified_name, old.signature, old.docstring, old.summary);
+            INSERT INTO code_symbols_fts(code_symbols_fts, rowid, name, qualified_name, signature, docstring)
+            VALUES ('delete', old.rowid, old.name, old.qualified_name, old.signature, old.docstring);
         END;
 
         CREATE TRIGGER IF NOT EXISTS code_symbols_au AFTER UPDATE ON code_symbols BEGIN
-            INSERT INTO code_symbols_fts(code_symbols_fts, rowid, name, qualified_name, signature, docstring, summary)
-            VALUES ('delete', old.rowid, old.name, old.qualified_name, old.signature, old.docstring, old.summary);
-            INSERT INTO code_symbols_fts(rowid, name, qualified_name, signature, docstring, summary)
-            VALUES (new.rowid, new.name, new.qualified_name, new.signature, new.docstring, new.summary);
+            INSERT INTO code_symbols_fts(code_symbols_fts, rowid, name, qualified_name, signature, docstring)
+            VALUES ('delete', old.rowid, old.name, old.qualified_name, old.signature, old.docstring);
+            INSERT INTO code_symbols_fts(rowid, name, qualified_name, signature, docstring)
+            VALUES (new.rowid, new.name, new.qualified_name, new.signature, new.docstring);
         END;
 
-        INSERT OR IGNORE INTO code_symbols_fts(rowid, name, qualified_name, signature, docstring, summary)
-        SELECT rowid, name, qualified_name, signature, docstring, summary FROM code_symbols;
+        INSERT OR IGNORE INTO code_symbols_fts(rowid, name, qualified_name, signature, docstring)
+        SELECT rowid, name, qualified_name, signature, docstring FROM code_symbols;
     """)
 
 
@@ -115,6 +115,22 @@ def _setup_code_content_fts(db: LocalDatabase) -> None:
         INSERT OR IGNORE INTO code_content_fts(rowid, content, file_path, language)
         SELECT rowid, content, file_path, language FROM code_content_chunks;
     """)
+
+
+def _drop_summary_column(db: LocalDatabase) -> None:
+    """Drop summary column from code_symbols and rebuild FTS without it."""
+    conn = db.connection
+    # Drop triggers and FTS first — triggers reference summary, blocking DROP COLUMN
+    conn.executescript("""
+        DROP TRIGGER IF EXISTS code_symbols_ai;
+        DROP TRIGGER IF EXISTS code_symbols_ad;
+        DROP TRIGGER IF EXISTS code_symbols_au;
+        DROP TABLE IF EXISTS code_symbols_fts;
+    """)
+    # Now safe to drop the column
+    conn.execute("ALTER TABLE code_symbols DROP COLUMN summary")
+    # Rebuild FTS and triggers without summary
+    _setup_code_symbols_fts(db)
 
 
 # Migrations beyond v171.
@@ -250,6 +266,11 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         ALTER TABLE code_indexed_files ADD COLUMN graph_synced INTEGER NOT NULL DEFAULT 0;
         CREATE INDEX idx_cif_graph_synced ON code_indexed_files(project_id, graph_synced);
         """,
+    ),
+    (
+        179,
+        "Drop summary column from code_symbols and rebuild FTS",
+        _drop_summary_column,
     ),
 ]
 

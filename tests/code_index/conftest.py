@@ -33,10 +33,12 @@ CREATE TABLE IF NOT EXISTS code_indexed_files (
     content_hash TEXT NOT NULL,
     symbol_count INTEGER NOT NULL DEFAULT 0,
     byte_size INTEGER NOT NULL DEFAULT 0,
+    graph_synced INTEGER NOT NULL DEFAULT 0,
     indexed_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(project_id, file_path)
 );
 CREATE INDEX IF NOT EXISTS idx_cif_project ON code_indexed_files(project_id);
+CREATE INDEX IF NOT EXISTS idx_cif_graph_synced ON code_indexed_files(project_id, graph_synced);
 
 CREATE TABLE IF NOT EXISTS code_symbols (
     id TEXT PRIMARY KEY,
@@ -54,7 +56,6 @@ CREATE TABLE IF NOT EXISTS code_symbols (
     docstring TEXT,
     parent_symbol_id TEXT,
     content_hash TEXT NOT NULL,
-    summary TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

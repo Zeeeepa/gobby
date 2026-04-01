@@ -35,7 +35,6 @@ class Symbol:
     docstring: str | None = None
     parent_symbol_id: str | None = None
     content_hash: str = ""
-    summary: str | None = None
     created_at: str = ""
     updated_at: str = ""
 
@@ -69,7 +68,6 @@ class Symbol:
             docstring=row["docstring"],
             parent_symbol_id=row["parent_symbol_id"],
             content_hash=row["content_hash"],
-            summary=row["summary"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
@@ -91,7 +89,6 @@ class Symbol:
             "docstring": self.docstring,
             "parent_symbol_id": self.parent_symbol_id,
             "content_hash": self.content_hash,
-            "summary": self.summary,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }

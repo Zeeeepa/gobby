@@ -902,7 +902,6 @@ CREATE TABLE code_symbols (
     docstring TEXT,
     parent_symbol_id TEXT,
     content_hash TEXT NOT NULL,
-    summary TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -914,7 +913,7 @@ CREATE INDEX idx_cs_kind ON code_symbols(kind);
 CREATE INDEX idx_cs_parent ON code_symbols(parent_symbol_id);
 
 CREATE VIRTUAL TABLE code_symbols_fts USING fts5(
-    name, qualified_name, signature, docstring, summary,
+    name, qualified_name, signature, docstring,
     content='code_symbols', content_rowid='rowid'
 );
 

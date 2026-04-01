@@ -46,7 +46,6 @@ class CodeIndexStorage:
                 sym.docstring,
                 sym.parent_symbol_id,
                 sym.content_hash,
-                sym.summary,
                 sym.created_at,
                 now,
             )
@@ -58,9 +57,9 @@ class CodeIndexStorage:
                     id, project_id, file_path, name, qualified_name,
                     kind, language, byte_start, byte_end,
                     line_start, line_end, signature, docstring,
-                    parent_symbol_id, content_hash, summary,
+                    parent_symbol_id, content_hash,
                     created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name,
                     qualified_name=excluded.qualified_name,
