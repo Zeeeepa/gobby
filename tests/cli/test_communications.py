@@ -82,14 +82,13 @@ def test_comms_channels_list(mock_daemon_client):
     assert "cc_123" in result.output
 
 
-def test_comms_channels_add(mock_daemon_client):
+def test_comms_channels_add_telegram(mock_daemon_client):
     runner = CliRunner()
 
     mock_response = MagicMock(spec=httpx.Response)
     mock_response.status_code = 201
     mock_daemon_client.call_http_api.return_value = mock_response
 
-    # Simulating standard input for prompts
     result = runner.invoke(
         comms, ["channels", "add", "telegram", "my-tg"], input="mytoken\nmychatid\n"
     )
@@ -97,15 +96,143 @@ def test_comms_channels_add(mock_daemon_client):
     assert result.exit_code == 0
     assert "Channel 'my-tg' added successfully" in result.output
 
-    # Check what was posted
     mock_daemon_client.call_http_api.assert_called_once_with(
         "/api/comms/channels",
         method="POST",
         json_data={
             "name": "my-tg",
             "channel_type": "telegram",
-            "config": {"bot_token": "mytoken", "chat_id": "mychatid"},
-            "enabled": True,
+            "config": {"chat_id": "mychatid"},
+            "secrets": {"bot_token": "mytoken"},
+        },
+    )
+
+
+def test_comms_channels_add_slack(mock_daemon_client):
+    runner = CliRunner()
+
+    mock_response = MagicMock(spec=httpx.Response)
+    mock_response.status_code = 201
+    mock_daemon_client.call_http_api.return_value = mock_response
+
+    result = runner.invoke(
+        comms, ["channels", "add", "slack", "my-slack"],
+        input="xoxb-token\nsigning-sec\nC12345\n",
+    )
+
+    assert result.exit_code == 0
+    mock_daemon_client.call_http_api.assert_called_once_with(
+        "/api/comms/channels",
+        method="POST",
+        json_data={
+            "name": "my-slack",
+            "channel_type": "slack",
+            "config": {"channel_id": "C12345"},
+            "secrets": {"bot_token": "xoxb-token", "signing_secret": "signing-sec"},
+        },
+    )
+
+
+def test_comms_channels_add_teams(mock_daemon_client):
+    runner = CliRunner()
+
+    mock_response = MagicMock(spec=httpx.Response)
+    mock_response.status_code = 201
+    mock_daemon_client.call_http_api.return_value = mock_response
+
+    result = runner.invoke(
+        comms, ["channels", "add", "teams", "my-teams"],
+        input="app-id-123\napp-pass-456\n",
+    )
+
+    assert result.exit_code == 0
+    mock_daemon_client.call_http_api.assert_called_once_with(
+        "/api/comms/channels",
+        method="POST",
+        json_data={
+            "name": "my-teams",
+            "channel_type": "teams",
+            "config": {},
+            "secrets": {"app_id": "app-id-123", "app_password": "app-pass-456"},
+        },
+    )
+
+
+def test_comms_channels_add_email(mock_daemon_client):
+    runner = CliRunner()
+
+    mock_response = MagicMock(spec=httpx.Response)
+    mock_response.status_code = 201
+    mock_daemon_client.call_http_api.return_value = mock_response
+
+    result = runner.invoke(
+        comms, ["channels", "add", "email", "my-email"],
+        input="secret-pw\nsmtp.example.com\n587\nimap.example.com\n993\nme@example.com\n",
+    )
+
+    assert result.exit_code == 0
+    mock_daemon_client.call_http_api.assert_called_once_with(
+        "/api/comms/channels",
+        method="POST",
+        json_data={
+            "name": "my-email",
+            "channel_type": "email",
+            "config": {
+                "smtp_host": "smtp.example.com",
+                "smtp_port": 587,
+                "imap_host": "imap.example.com",
+                "imap_port": 993,
+                "from_address": "me@example.com",
+            },
+            "secrets": {"password": "secret-pw"},
+        },
+    )
+
+
+def test_comms_channels_add_sms(mock_daemon_client):
+    runner = CliRunner()
+
+    mock_response = MagicMock(spec=httpx.Response)
+    mock_response.status_code = 201
+    mock_daemon_client.call_http_api.return_value = mock_response
+
+    result = runner.invoke(
+        comms, ["channels", "add", "sms", "my-sms"],
+        input="auth-token-123\nAC123456\n+15551234567\n",
+    )
+
+    assert result.exit_code == 0
+    mock_daemon_client.call_http_api.assert_called_once_with(
+        "/api/comms/channels",
+        method="POST",
+        json_data={
+            "name": "my-sms",
+            "channel_type": "sms",
+            "config": {"account_sid": "AC123456", "from_number": "+15551234567"},
+            "secrets": {"auth_token": "auth-token-123"},
+        },
+    )
+
+
+def test_comms_channels_add_gobby_chat(mock_daemon_client):
+    runner = CliRunner()
+
+    mock_response = MagicMock(spec=httpx.Response)
+    mock_response.status_code = 201
+    mock_daemon_client.call_http_api.return_value = mock_response
+
+    result = runner.invoke(comms, ["channels", "add", "gobby_chat", "my-gc"])
+
+    assert result.exit_code == 0
+    assert "No additional configuration" in result.output
+    mock_daemon_client.call_http_api.assert_called_once_with(
+        "/api/comms/channels",
+        method="POST",
+        json_data={
+            "name": "my-gc",
+            "channel_type": "gobby_chat",
+            "config": {},
+            "secrets": None,
         },
     )
 

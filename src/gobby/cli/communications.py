@@ -166,21 +166,36 @@ def channels_add_cmd(ctx: click.Context, channel_type: str, name: str) -> None:
     """
     client = get_daemon_client(ctx)
     config: dict[str, Any] = {}
+    secrets: dict[str, Any] = {}
 
     click.echo(f"Configuring {channel_type} channel: {name}")
 
-    if channel_type == "telegram":
-        config["bot_token"] = click.prompt("Bot Token (will be stored securely)", hide_input=True)
+    if channel_type == "slack":
+        secrets["bot_token"] = click.prompt("Bot Token", hide_input=True)
+        secrets["signing_secret"] = click.prompt("Signing Secret", hide_input=True)
+        config["channel_id"] = click.prompt("Channel ID (optional)", default="")
+    elif channel_type == "telegram":
+        secrets["bot_token"] = click.prompt("Bot Token", hide_input=True)
         config["chat_id"] = click.prompt("Chat ID (optional)", default="")
-    elif channel_type == "slack":
-        config["bot_token"] = click.prompt("Bot Token (will be stored securely)", hide_input=True)
-        config["signing_secret"] = click.prompt(
-            "Signing Secret (will be stored securely)", hide_input=True
-        )
-        config["channel_id"] = click.prompt("Channel ID (optional)", default="")
     elif channel_type == "discord":
-        config["bot_token"] = click.prompt("Bot Token (will be stored securely)", hide_input=True)
+        secrets["bot_token"] = click.prompt("Bot Token", hide_input=True)
         config["channel_id"] = click.prompt("Channel ID (optional)", default="")
+    elif channel_type == "teams":
+        secrets["app_id"] = click.prompt("App ID", hide_input=True)
+        secrets["app_password"] = click.prompt("App Password", hide_input=True)
+    elif channel_type == "email":
+        secrets["password"] = click.prompt("Password", hide_input=True)
+        config["smtp_host"] = click.prompt("SMTP Host")
+        config["smtp_port"] = click.prompt("SMTP Port", type=int)
+        config["imap_host"] = click.prompt("IMAP Host")
+        config["imap_port"] = click.prompt("IMAP Port", type=int)
+        config["from_address"] = click.prompt("From Address")
+    elif channel_type == "sms":
+        secrets["auth_token"] = click.prompt("Auth Token", hide_input=True)
+        config["account_sid"] = click.prompt("Account SID")
+        config["from_number"] = click.prompt("From Number")
+    elif channel_type == "gobby_chat":
+        click.echo("No additional configuration required.")
     else:
         click.echo("Enter raw JSON configuration for this channel type:")
         config_str = click.prompt("Config JSON", default="{}")
@@ -192,6 +207,7 @@ def channels_add_cmd(ctx: click.Context, channel_type: str, name: str) -> None:
 
     # Remove empty optional values
     config = {k: v for k, v in config.items() if v != ""}
+    secrets = {k: v for k, v in secrets.items() if v}
 
     try:
         response = client.call_http_api(
@@ -201,7 +217,7 @@ def channels_add_cmd(ctx: click.Context, channel_type: str, name: str) -> None:
                 "name": name,
                 "channel_type": channel_type,
                 "config": config,
-                "enabled": True,
+                "secrets": secrets if secrets else None,
             },
         )
         if response.status_code in (200, 201):
