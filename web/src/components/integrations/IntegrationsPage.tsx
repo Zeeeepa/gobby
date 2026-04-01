@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react'
 import { useIntegrations } from '../../hooks/useIntegrations'
 import type { Channel, ChannelType } from '../../hooks/useIntegrations'
 import { ChannelCard, CHANNEL_DISPLAY_NAMES } from './ChannelCard'
+import { ChannelDetail } from './ChannelDetail'
 import { ChannelForm } from './ChannelForm'
 import './IntegrationsPage.css'
 
@@ -18,12 +19,13 @@ export function IntegrationsPage() {
     createChannel,
     removeChannel,
     updateChannel,
+    fetchChannelStatus,
   } = useIntegrations()
 
   const [activeTab, setActiveTab] = useState<'channels' | 'messages'>('channels')
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null)
-  const [_selectedChannel, setSelectedChannel] = useState<Channel | null>(null)
+  const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null)
   const [presetType, setPresetType] = useState<ChannelType | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -213,6 +215,16 @@ export function IntegrationsPage() {
           onClose={() => setEditingChannel(null)}
         />
       )}
+
+      {/* Detail slide-out */}
+      <ChannelDetail
+        channel={selectedChannel}
+        onClose={() => setSelectedChannel(null)}
+        onEdit={(ch) => { setSelectedChannel(null); setEditingChannel(ch) }}
+        onToggleEnabled={(ch) => { handleToggleEnabled(ch); setSelectedChannel(null) }}
+        onRemove={(ch) => { handleRemove(ch); setSelectedChannel(null) }}
+        fetchStatus={fetchChannelStatus}
+      />
     </div>
   )
 }
