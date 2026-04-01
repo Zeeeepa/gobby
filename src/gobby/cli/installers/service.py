@@ -10,6 +10,7 @@ import os
 import re
 import subprocess  # nosec B404 # subprocess needed for launchctl/systemctl
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -435,6 +436,15 @@ def _macos_restart() -> dict[str, Any]:
 
     # Bootout the running service (stop + unload).
     _launchctl_bootout(quiet=True)
+
+    # Wait for launchd to fully unload the service entry.
+    # Without this, bootstrap races with bootout and fails with error 5
+    # (I/O error) when the stale domain entry hasn't been cleaned up yet.
+    for _ in range(30):  # up to ~3s
+        status = _get_service_status_macos()
+        if not status.get("enabled"):
+            break
+        time.sleep(0.1)
 
     # Bootstrap a fresh instance from the plist.
     try:

@@ -650,12 +650,14 @@ class TestMacOSEnable:
 class TestMacOSRestart:
     """Test macOS launchd restart."""
 
+    @patch("gobby.cli.installers.service._get_service_status_macos")
     @patch("gobby.cli.installers.service.subprocess.run")
     @patch("gobby.cli.installers.service._plist_path")
     def test_restart_bootout_bootstrap(
         self,
         mock_plist_path: MagicMock,
         mock_run: MagicMock,
+        mock_status: MagicMock,
         tmp_path: Path,
     ) -> None:
         """Restart does a full bootout + bootstrap cycle."""
@@ -664,6 +666,7 @@ class TestMacOSRestart:
         plist_file = tmp_path / LAUNCHD_PLIST_NAME
         plist_file.write_text("<plist>test</plist>")
         mock_plist_path.return_value = plist_file
+        mock_status.return_value = {"enabled": False}
 
         mock_run.side_effect = [
             MagicMock(returncode=0, stderr="", stdout=""),  # bootout
@@ -676,12 +679,14 @@ class TestMacOSRestart:
         assert "bootout" in result["method"]
         assert "bootstrap" in result["method"]
 
+    @patch("gobby.cli.installers.service._get_service_status_macos")
     @patch("gobby.cli.installers.service.subprocess.run")
     @patch("gobby.cli.installers.service._plist_path")
     def test_restart_bootstrap_failure(
         self,
         mock_plist_path: MagicMock,
         mock_run: MagicMock,
+        mock_status: MagicMock,
         tmp_path: Path,
     ) -> None:
         """Restart reports bootstrap error on failure."""
@@ -690,6 +695,7 @@ class TestMacOSRestart:
         plist_file = tmp_path / LAUNCHD_PLIST_NAME
         plist_file.write_text("<plist>test</plist>")
         mock_plist_path.return_value = plist_file
+        mock_status.return_value = {"enabled": False}
 
         mock_run.side_effect = [
             MagicMock(returncode=0, stderr="", stdout=""),  # bootout
@@ -700,6 +706,44 @@ class TestMacOSRestart:
 
         assert result["success"] is False
         assert "bootstrap" in result["error"]
+
+    @patch("gobby.cli.installers.service.time.sleep")
+    @patch("gobby.cli.installers.service._get_service_status_macos")
+    @patch("gobby.cli.installers.service.subprocess.run")
+    @patch("gobby.cli.installers.service._plist_path")
+    def test_restart_waits_for_bootout(
+        self,
+        mock_plist_path: MagicMock,
+        mock_run: MagicMock,
+        mock_status: MagicMock,
+        mock_sleep: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Restart polls until launchd fully unloads the service."""
+        from gobby.cli.installers.service import _macos_restart
+
+        plist_file = tmp_path / LAUNCHD_PLIST_NAME
+        plist_file.write_text("<plist>test</plist>")
+        mock_plist_path.return_value = plist_file
+
+        # Simulate launchd taking 3 polls to fully unload
+        mock_status.side_effect = [
+            {"enabled": True},
+            {"enabled": True},
+            {"enabled": True},
+            {"enabled": False},
+        ]
+
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stderr="", stdout=""),  # bootout
+            MagicMock(returncode=0, stderr="", stdout=""),  # bootstrap
+        ]
+
+        result = _macos_restart()
+
+        assert result["success"] is True
+        assert mock_status.call_count == 4
+        assert mock_sleep.call_count == 3
 
     @patch("gobby.cli.installers.service._plist_path")
     def test_restart_fails_when_no_plist(
