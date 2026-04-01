@@ -2,7 +2,7 @@ tags: [task-enforcement, enforcement, lifecycle, gobby, default]
 
 rules:
   require-error-triage-before-status:
-    description: "Gate task status transitions until all discovered errors are resolved"
+    description: "Gate task status transitions until all discovered errors, warnings, and failures are resolved"
     event: before_tool
     enabled: false
     priority: 50
@@ -17,11 +17,16 @@ rules:
           - "gobby-tasks:mark_task_review_approved"
         reason: |
           Before changing task status, run lint and tests on files you touched
-          and fix ALL errors you find — including pre-existing ones.
+          and fix ALL errors, warnings, and failures you find — including
+          pre-existing ones.
 
-          You own every error you see. Fix it. The only exception is something
-          so complex it genuinely requires multi-session planning — and even then,
-          try first.
+          You own every error, warning, and failure you see. Fix it. Do NOT
+          be lazy and simply file a task without first thoroughly investigating
+          the nature of the issue. If you can complete the fix this session
+          without compaction, you must do it — not defer it. The only exception
+          is something that genuinely requires multi-session planning with
+          architectural changes across many files — and even then, investigate
+          thoroughly before making that judgment call.
 
-          Once all errors are resolved:
+          Once all issues are resolved:
           set_variable(name="errors_resolved", value=true, session_id="<your Gobby Session ID>")

@@ -6,6 +6,7 @@ Summaries are cached in code_symbols.summary and invalidated on content_hash cha
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -56,7 +57,9 @@ class SymbolSummarizer:
         results: dict[str, str] = {}
 
         for sym in symbols[: self._batch_size]:
-            source = source_reader(sym.file_path, sym.byte_start, sym.byte_end)
+            source = await asyncio.to_thread(
+                source_reader, sym.file_path, sym.byte_start, sym.byte_end
+            )
             if source is None:
                 continue
 

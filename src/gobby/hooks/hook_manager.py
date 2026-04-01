@@ -795,6 +795,7 @@ class HookManager:
                 try:
                     asyncio.run_coroutine_threadsafe(coro, self._loop)
                 except Exception as e:
+                    coro.close()  # Prevent "coroutine never awaited" warning
                     self.logger.warning(f"_dispatch_session_summaries: failed to schedule: {e}")
                     if done_event:
                         done_event.set()

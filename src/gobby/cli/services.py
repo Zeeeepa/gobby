@@ -43,10 +43,12 @@ async def is_qdrant_healthy(url: str | None) -> bool:
             resp = await client.get(healthz_url, timeout=5)
             if resp.status_code == 200:
                 return True
-            logger.warning(f"Qdrant health check failed: {healthz_url} returned {resp.status_code}")
+            logger.warning(
+                "Qdrant health check failed: %s returned %s", healthz_url, resp.status_code
+            )
             return False
     except httpx.HTTPError as e:
-        logger.warning(f"Qdrant health check failed: {healthz_url} unreachable: {e}")
+        logger.warning("Qdrant health check failed: %s unreachable: %s", healthz_url, e)
         return False
 
 
