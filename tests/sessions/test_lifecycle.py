@@ -594,6 +594,168 @@ class TestProcessSessionTranscriptParsers:
         await manager._process_session_transcript("s1", None)
 
 
+class TestProcessSessionTranscriptJsonDispatch:
+    """Tests for .json file dispatch to parse_session_json."""
+
+    @pytest.mark.asyncio
+    async def test_gemini_json_uses_parse_session_json(self, tmp_path, manager):
+        """Gemini .json transcript dispatches to parse_session_json, not parse_lines."""
+        import json
+
+        transcript_path = tmp_path / "session-abc.json"
+        transcript_path.write_text(
+            json.dumps({"sessionId": "abc", "messages": [{"type": "user", "content": [{"text": "hi"}]}]})
+        )
+
+        session = MagicMock()
+        session.source = "gemini"
+        manager.session_manager.get.return_value = session
+
+        with patch("gobby.sessions.lifecycle.GeminiTranscriptParser") as MockParser:
+            MockParser.return_value.parse_session_json.return_value = []
+            # Ensure hasattr check passes
+            MockParser.return_value.parse_session_json.__name__ = "parse_session_json"
+            await manager._process_session_transcript("s1", str(transcript_path))
+            MockParser.return_value.parse_session_json.assert_called_once()
+            MockParser.return_value.parse_lines.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_jsonl_still_uses_parse_lines(self, tmp_path, manager):
+        """JSONL transcripts still use parse_lines even for Gemini."""
+        transcript_path = tmp_path / "transcript.jsonl"
+        transcript_path.write_text('{"type": "message"}\n')
+
+        session = MagicMock()
+        session.source = "gemini"
+        manager.session_manager.get.return_value = session
+
+        with patch("gobby.sessions.lifecycle.GeminiTranscriptParser") as MockParser:
+            MockParser.return_value.parse_lines.return_value = []
+            await manager._process_session_transcript("s1", str(transcript_path))
+            MockParser.return_value.parse_lines.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_invalid_json_returns_early(self, tmp_path, manager):
+        """Invalid JSON in .json file logs error and returns without crashing."""
+        transcript_path = tmp_path / "session-bad.json"
+        transcript_path.write_text("{invalid json content")
+
+        session = MagicMock()
+        session.source = "gemini"
+        manager.session_manager.get.return_value = session
+
+        # Should not raise
+        await manager._process_session_transcript("s1", str(transcript_path))
+        manager.session_manager.update_usage.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_json_messages_aggregate_tokens(self, tmp_path, manager):
+        """Token usage from parse_session_json messages is aggregated and saved."""
+        import json
+
+        from gobby.sessions.transcripts.base import ParsedMessage, TokenUsage
+
+        transcript_path = tmp_path / "session-tok.json"
+        transcript_path.write_text(json.dumps({"sessionId": "tok", "messages": []}))
+
+        session = MagicMock()
+        session.source = "gemini"
+        manager.session_manager.get.return_value = session
+
+        msg = MagicMock(spec=ParsedMessage)
+        msg.model = "gemini-2.5-pro"
+        msg.usage = TokenUsage(input_tokens=100, output_tokens=50, total_cost_usd=None)
+
+        with patch("gobby.sessions.lifecycle.GeminiTranscriptParser") as MockParser:
+            MockParser.return_value.parse_session_json.return_value = [msg]
+            MockParser.return_value.parse_session_json.__name__ = "parse_session_json"
+            await manager._process_session_transcript("s1", str(transcript_path))
+
+        manager.session_manager.update_usage.assert_called_once()
+        call_kwargs = manager.session_manager.update_usage.call_args
+        assert call_kwargs.kwargs["input_tokens"] == 100
+        assert call_kwargs.kwargs["output_tokens"] == 50
+
+
+class TestProcessSessionTranscriptTokenPreservation:
+    """Tests for preserving hook-captured tokens when transcript yields 0."""
+
+    @pytest.mark.asyncio
+    async def test_zero_tokens_preserves_existing_nonzero(self, tmp_path, manager):
+        """When transcript yields 0 tokens but session has existing tokens, don't overwrite."""
+        transcript_path = tmp_path / "transcript.jsonl"
+        transcript_path.write_text('{"type": "message"}\n')
+
+        session = MagicMock()
+        session.source = "claude"
+        session.usage_input_tokens = 5000
+        session.usage_output_tokens = 2000
+
+        # First get() returns session for parser selection, second for preservation check
+        manager.session_manager.get.return_value = session
+
+        with patch("gobby.sessions.lifecycle.ClaudeTranscriptParser") as MockParser:
+            # Parser returns messages with no usage
+            msg = MagicMock()
+            msg.model = None
+            msg.usage = None
+            MockParser.return_value.parse_lines.return_value = [msg]
+            await manager._process_session_transcript("s1", str(transcript_path))
+
+        # update_usage should NOT be called — preserving existing values
+        manager.session_manager.update_usage.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_zero_tokens_updates_when_existing_also_zero(self, tmp_path, manager):
+        """When both transcript and existing are 0, update_usage is still called (nothing to preserve)."""
+        transcript_path = tmp_path / "transcript.jsonl"
+        transcript_path.write_text('{"type": "message"}\n')
+
+        session = MagicMock()
+        session.source = "claude"
+        session.usage_input_tokens = 0
+        session.usage_output_tokens = 0
+
+        manager.session_manager.get.return_value = session
+
+        with patch("gobby.sessions.lifecycle.ClaudeTranscriptParser") as MockParser:
+            msg = MagicMock()
+            msg.model = None
+            msg.usage = None
+            MockParser.return_value.parse_lines.return_value = [msg]
+            await manager._process_session_transcript("s1", str(transcript_path))
+
+        # Both are 0, so no preservation needed — update proceeds (harmless write of zeros)
+        manager.session_manager.update_usage.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_nonzero_tokens_always_updates(self, tmp_path, manager):
+        """When transcript yields real tokens, always update regardless of existing values."""
+        from gobby.sessions.transcripts.base import ParsedMessage, TokenUsage
+
+        transcript_path = tmp_path / "transcript.jsonl"
+        transcript_path.write_text('{"type": "message"}\n')
+
+        session = MagicMock()
+        session.source = "claude"
+        session.usage_input_tokens = 5000
+        session.usage_output_tokens = 2000
+        manager.session_manager.get.return_value = session
+
+        msg = MagicMock(spec=ParsedMessage)
+        msg.model = "claude-sonnet-4-6"
+        msg.usage = TokenUsage(input_tokens=8000, output_tokens=3000, total_cost_usd=0.05)
+
+        with patch("gobby.sessions.lifecycle.ClaudeTranscriptParser") as MockParser:
+            MockParser.return_value.parse_lines.return_value = [msg]
+            await manager._process_session_transcript("s1", str(transcript_path))
+
+        manager.session_manager.update_usage.assert_called_once()
+        call_kwargs = manager.session_manager.update_usage.call_args
+        assert call_kwargs.kwargs["input_tokens"] == 8000
+        assert call_kwargs.kwargs["output_tokens"] == 3000
+
+
 class TestProcessPendingTranscriptsArchive:
     """Tests for transcript archive and message purge logic."""
 

@@ -7,6 +7,7 @@ Handles background jobs for:
 """
 
 import asyncio
+import json
 import logging
 import os
 import tempfile
@@ -405,12 +406,12 @@ class SessionLifecycleManager:
         # Read entire file
         try:
             with open(transcript_path, encoding="utf-8") as f:
-                lines = f.readlines()
+                raw = f.read()
         except Exception as e:
             logger.error(f"Error reading transcript {transcript_path}: {e}")
             raise
 
-        if not lines:
+        if not raw.strip():
             return
 
         # Parse all lines
@@ -430,7 +431,19 @@ class SessionLifecycleManager:
             parser = ClaudeTranscriptParser()
         # Default (claude or unknown) uses Claude transcript format
 
-        messages = parser.parse_lines(lines, start_index=0)
+        # Gemini stores sessions as single JSON files, not JSONL.
+        # Dispatch to parse_session_json() for .json files so the parser
+        # can iterate the messages array instead of treating the whole
+        # file as one malformed JSONL line.
+        if transcript_path.endswith(".json") and hasattr(parser, "parse_session_json"):
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError as e:
+                logger.error(f"Invalid JSON in transcript {transcript_path}: {e}")
+                return
+            messages = parser.parse_session_json(data)
+        else:
+            messages = parser.parse_lines(raw.splitlines(keepends=True), start_index=0)
 
         if not messages:
             return
@@ -453,6 +466,19 @@ class SessionLifecycleManager:
                 cache_read_tokens += msg.usage.cache_read_tokens
                 if msg.usage.total_cost_usd:
                     total_cost_usd += msg.usage.total_cost_usd
+
+        # Don't overwrite existing non-zero token counts with zeros.
+        # Hook handlers (AFTER_MODEL) capture tokens during the live session;
+        # if the transcript yields no usage (e.g. Gemini JSON sessions where
+        # usage metadata isn't embedded in messages), preserve the hook values.
+        if input_tokens == 0 and output_tokens == 0:
+            existing = self.session_manager.get(session_id)
+            if existing and (existing.usage_input_tokens or existing.usage_output_tokens):
+                logger.debug(
+                    f"Transcript yielded 0 tokens for {session_id} but session already has "
+                    f"{existing.usage_input_tokens}/{existing.usage_output_tokens} — preserving"
+                )
+                return
 
         # Calculate cost from tokens when transcript provides no cost
         if total_cost_usd == 0.0 and input_tokens > 0 and last_model:
