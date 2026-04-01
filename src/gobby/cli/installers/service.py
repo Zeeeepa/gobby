@@ -8,6 +8,7 @@ systemd on Linux) so the daemon starts automatically on boot.
 import logging
 import os
 import re
+import shutil
 import subprocess  # nosec B404 # subprocess needed for launchctl/systemctl
 import sys
 import time
@@ -163,6 +164,36 @@ def _build_path(exe: Path) -> str:
     return ":".join(parts)
 
 
+def _ensure_cli_on_path(project_root: str) -> dict[str, Any]:
+    """Ensure the gobby CLI is globally available via ``uv tool install -e``.
+
+    Only needed in dev mode where the CLI isn't installed system-wide.
+    Non-fatal — returns a status dict, never raises.
+    """
+    if shutil.which("gobby"):
+        return {"cli_installed": False, "cli_note": "gobby already on PATH"}
+
+    uv = shutil.which("uv")
+    if not uv:
+        return {"cli_installed": False, "cli_note": "uv not found — install manually"}
+
+    try:
+        result = subprocess.run(  # nosec B603 B607 # hardcoded uv command
+            [uv, "tool", "install", "-e", project_root],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode == 0:
+            return {"cli_installed": True, "cli_note": "installed via uv tool install -e"}
+        return {
+            "cli_installed": False,
+            "cli_note": f"uv tool install failed: {result.stderr or result.stdout}",
+        }
+    except (subprocess.TimeoutExpired, OSError) as e:
+        return {"cli_installed": False, "cli_note": f"uv tool install failed: {e}"}
+
+
 # ---------------------------------------------------------------------------
 # macOS (launchd)
 # ---------------------------------------------------------------------------
@@ -211,12 +242,18 @@ def install_service_macos(*, verbose: bool = False) -> dict[str, Any]:
                 "plist_file": str(plist_file),
             }
 
-    return {
+    result_dict: dict[str, Any] = {
         "success": True,
         "plist_file": str(plist_file),
         "platform": "macos",
         **ctx,
     }
+
+    if ctx["mode"] == "dev":
+        cli_result = _ensure_cli_on_path(str(ctx["working_directory"]))
+        result_dict.update(cli_result)
+
+    return result_dict
 
 
 def uninstall_service_macos() -> dict[str, Any]:
@@ -536,6 +573,11 @@ def install_service_linux(*, verbose: bool = False) -> dict[str, Any]:
     }
     if warnings:
         result_dict["warnings"] = warnings
+
+    if ctx["mode"] == "dev":
+        cli_result = _ensure_cli_on_path(str(ctx["working_directory"]))
+        result_dict.update(cli_result)
+
     return result_dict
 
 

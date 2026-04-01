@@ -50,6 +50,9 @@ def install(verbose: bool) -> None:
     if result.get("unit_file"):
         click.echo(f"  Unit: {result['unit_file']}")
 
+    if result.get("cli_note") and result.get("mode") == "dev":
+        click.echo(f"  CLI: {result['cli_note']}")
+
     if result.get("warnings"):
         click.echo("")
         for warning in result["warnings"]:
