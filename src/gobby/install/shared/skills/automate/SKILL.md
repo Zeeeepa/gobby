@@ -6,9 +6,7 @@ category: authoring
 injectionFormat: full
 triggers: automate, build pipeline, create pipeline, author pipeline, write pipeline, design pipeline, build agent, create agent definition, author agent, design agent, schedule, cron, set up cron
 metadata:
-  gobby:
-    audience: interactive
-    depth: 0
+  category: authoring
 ---
 
 # Automation Skill
