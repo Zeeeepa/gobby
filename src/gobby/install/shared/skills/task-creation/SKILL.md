@@ -46,6 +46,8 @@ Create and manage tasks via gobby-tasks MCP. Use progressive discovery for tool 
 | `category` | Always | Determines validation behavior |
 | `validation_criteria` | `category=code` | Creation fails without it |
 
+> **Note:** `session_id` is read automatically from session context — you do not need to pass it to task tools.
+
 ### Categories
 
 | Category | Use for |

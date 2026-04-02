@@ -303,7 +303,6 @@ class ToolProxyService:
         tool_name: str,
         arguments: dict[str, Any] | None = None,
         session_id: str | None = None,
-        call_context: dict[str, Any] | None = None,
         strip_unknown: bool = False,
     ) -> Any:
         """Execute a tool with optional pre-validation.
@@ -371,7 +370,6 @@ class ToolProxyService:
                     tool_name,
                     arguments,
                     session_id,
-                    call_context=call_context,
                     strip_unknown=strip_unknown,
                 )
             return {
@@ -422,7 +420,7 @@ class ToolProxyService:
             if self._internal_manager and self._internal_manager.is_internal(server_name):
                 registry = self._internal_manager.get_registry(server_name)
                 if registry:
-                    return await registry.call(tool_name, arguments, context=call_context)
+                    return await registry.call(tool_name, arguments)
 
                 error_msg = f"Internal server '{server_name}' not found"
                 suggestion = self._get_server_suggestion(server_name)
@@ -619,7 +617,6 @@ class ToolProxyService:
         tool_name: str,
         arguments: dict[str, Any] | None = None,
         session_id: str | None = None,
-        call_context: dict[str, Any] | None = None,
     ) -> Any:
         """
         Call a tool by name, automatically resolving the server.
@@ -646,6 +643,4 @@ class ToolProxyService:
             }
 
         logger.debug(f"Routing tool '{tool_name}' to server '{server_name}'")
-        return await self.call_tool(
-            server_name, tool_name, arguments, session_id, call_context=call_context
-        )
+        return await self.call_tool(server_name, tool_name, arguments, session_id)

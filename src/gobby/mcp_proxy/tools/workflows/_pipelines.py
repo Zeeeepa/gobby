@@ -5,7 +5,6 @@ Contains helpers and a register_pipeline_tools() function that adds all
 pipeline-related MCP tools to a given InternalToolRegistry.
 """
 
-import asyncio
 import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
@@ -33,6 +32,8 @@ from gobby.mcp_proxy.tools.workflows._pipeline_query import (
 )
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
+from gobby.utils.project_context import get_project_context
+from gobby.utils.session_context import get_current_session_id
 
 if TYPE_CHECKING:
     from gobby.storage.sessions import LocalSessionManager
@@ -107,18 +108,6 @@ def _auto_subscribe_lineage(
             )
 
 
-def _resolve_session_ref(ref: str, session_manager: "LocalSessionManager | None") -> str:
-    """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
-    if session_manager is None:
-        logger.warning(f"session_manager is None; returning raw session ref {ref!r}")
-        return ref
-    from gobby.utils.project_context import get_project_context
-
-    project_ctx = get_project_context()
-    project_id = project_ctx.get("id") if project_ctx else None
-    return str(session_manager.resolve_session_reference(ref, project_id))
-
-
 def register_pipeline_tools(
     registry: InternalToolRegistry,
     loader: Any | None = None,
@@ -149,10 +138,6 @@ def register_pipeline_tools(
     if _def_manager is None and db is not None:
         _def_manager = LocalWorkflowDefinitionManager(db)
     _completion_registry = completion_registry
-
-    def _resolve_session(ref: str) -> str:
-        """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
-        return _resolve_session_ref(ref, session_manager)
 
     # Register dynamic tools for pipelines with expose_as_tool=True
     _register_exposed_pipeline_tools(
@@ -258,29 +243,22 @@ def register_pipeline_tools(
     @registry.tool(
         name="run_pipeline",
         description=(
-            "Run a pipeline by name with given inputs. Requires session_id; "
-            "project_id is derived from the session. Always returns immediately "
+            "Run a pipeline by name with given inputs. "
+            "project_id is derived from session context. Always returns immediately "
             "with execution_id. You will be notified when the pipeline completes."
         ),
     )
     async def _run_pipeline(
         name: str,
-        session_id: str,
         inputs: dict[str, Any] | None = None,
         continuation_prompt: str | None = None,
     ) -> dict[str, Any]:
-        # Resolve session reference and derive project_id
-        try:
-            resolved_id = _resolve_session(session_id)
-        except ValueError as e:
-            return {"success": False, "error": f"Invalid session_id: {e}"}
+        resolved_id = get_current_session_id()
+        if not resolved_id:
+            return {"success": False, "error": "No session context available"}
 
-        project_id = ""
-        if session_manager is not None:
-            session = await asyncio.to_thread(session_manager.get, resolved_id)
-            if session is None:
-                return {"success": False, "error": f"Session '{session_id}' not found"}
-            project_id = session.project_id
+        project_ctx = get_project_context()
+        project_id = project_ctx.get("id", "") if project_ctx else ""
 
         result = await run_pipeline(
             loader=_loader,
@@ -316,21 +294,14 @@ def register_pipeline_tools(
     )
     async def _resume_pipeline(
         execution_id: str,
-        session_id: str,
         from_step: str | None = None,
     ) -> dict[str, Any]:
-        # Resolve session reference and derive project_id
-        try:
-            resolved_id = _resolve_session(session_id)
-        except ValueError as e:
-            return {"success": False, "error": f"Invalid session_id: {e}"}
+        resolved_id = get_current_session_id()
+        if not resolved_id:
+            return {"success": False, "error": "No session context available"}
 
-        project_id = ""
-        if session_manager is not None:
-            session = await asyncio.to_thread(session_manager.get, resolved_id)
-            if session is None:
-                return {"success": False, "error": f"Session '{session_id}' not found"}
-            project_id = session.project_id
+        project_ctx = get_project_context()
+        project_id = project_ctx.get("id", "") if project_ctx else ""
 
         em = _get_execution_manager()
         result = await resume_pipeline(
@@ -636,23 +607,16 @@ def _create_pipeline_tool(
     pipeline_name = pipeline.name
 
     async def _execute_pipeline(**kwargs: Any) -> dict[str, Any]:
-        session_id = kwargs.pop("session_id", None)
+        # Pop meta-parameters (session_id may still arrive from old callers)
+        kwargs.pop("session_id", None)
         continuation_prompt = kwargs.pop("continuation_prompt", None)
-        if not session_id:
-            return {"success": False, "error": "session_id is required"}
 
-        # Resolve session reference and derive project_id
-        try:
-            resolved_id = _resolve_session_ref(session_id, session_manager)
-        except ValueError as e:
-            return {"success": False, "error": f"Invalid session_id: {e}"}
+        resolved_id = get_current_session_id()
+        if not resolved_id:
+            return {"success": False, "error": "No session context available"}
 
-        project_id = ""
-        if session_manager is not None:
-            session = await asyncio.to_thread(session_manager.get, resolved_id)
-            if session is None:
-                return {"success": False, "error": f"Session '{session_id}' not found"}
-            project_id = session.project_id
+        project_ctx = get_project_context()
+        project_id = project_ctx.get("id", "") if project_ctx else ""
 
         result = await run_pipeline(
             loader=loader,
@@ -719,13 +683,6 @@ def _build_input_schema(pipeline: Any) -> dict[str, Any]:
                 "type": "string",
                 "default": input_def,
             }
-
-    # Add session_id as a required meta-parameter for all exposed pipelines
-    properties["session_id"] = {
-        "type": "string",
-        "description": "Session ID of the caller (required; project_id is derived from this)",
-    }
-    required.append("session_id")
 
     # Add continuation_prompt as optional meta-parameter
     properties["continuation_prompt"] = {

@@ -58,8 +58,7 @@ If `pending=True`, skip to **Phase 3** immediately.
    result = call_tool("gobby-tasks", "create_task", {
        "title": "<first_heading>",
        "description": content,
-       "task_type": "epic",
-
+       "task_type": "epic"
    })
    task_id = result["task"]["id"]
    ```
@@ -92,8 +91,7 @@ If `pending=True`, skip to **Phase 3** immediately.
            "priority": backup.get("priority"),
            "labels": backup.get("labels", []),
            "validation_criteria": backup.get("validation_criteria"),
-           "category": backup.get("category"),
-    
+           "category": backup.get("category")
        })
        task_id = result["task"]["id"]
    ```
