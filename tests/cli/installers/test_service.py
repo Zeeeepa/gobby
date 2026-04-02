@@ -407,10 +407,20 @@ class TestPlatformDispatch:
     @patch("gobby.cli.installers.service.sys")
     def test_install_unsupported_platform(self, mock_sys: MagicMock) -> None:
         """install_service returns error on unsupported platform."""
-        mock_sys.platform = "win32"
+        mock_sys.platform = "freebsd"
         result = install_service()
         assert result["success"] is False
         assert "Unsupported platform" in result["error"]
+
+    @patch("gobby.cli.installers.service_windows.install_service_windows")
+    @patch("gobby.cli.installers.service.sys")
+    def test_install_dispatches_win32(self, mock_sys: MagicMock, mock_install: MagicMock) -> None:
+        """install_service dispatches to Windows on win32."""
+        mock_sys.platform = "win32"
+        mock_install.return_value = {"success": True}
+        result = install_service()
+        mock_install.assert_called_once_with(verbose=False)
+        assert result["success"] is True
 
     @patch("gobby.cli.installers.service.sys")
     @patch("gobby.cli.installers.service.uninstall_service_macos")

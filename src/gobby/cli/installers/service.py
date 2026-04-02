@@ -67,6 +67,13 @@ def _is_dev_mode() -> bool:
     return _find_project_from_cwd() is not None
 
 
+def _venv_python(project_root: Path) -> Path:
+    """Return the venv python path, platform-aware."""
+    if sys.platform == "win32":
+        return project_root / ".venv" / "Scripts" / "python.exe"
+    return project_root / ".venv" / "bin" / "python3"
+
+
 def _find_project_from_cwd() -> Path | None:
     """Find a gobby project root from CWD (or parents).
 
@@ -81,7 +88,7 @@ def _find_project_from_cwd() -> Path | None:
 
     cwd = Path.cwd().resolve()
     for directory in [cwd, *cwd.parents]:
-        venv_python = directory / ".venv" / "bin" / "python3"
+        venv_python = _venv_python(directory)
         if (directory / "pyproject.toml").exists() and venv_python.exists():
             if has_gobby_pyproject(directory):
                 return directory
@@ -119,7 +126,7 @@ def _resolve_install_context(*, verbose: bool = False) -> dict[str, str | bool]:
             # sys.executable is NOT in the project (global install),
             # but CWD IS the project — use the project's .venv python
             project_root = cwd_project
-            dev_exe = cwd_project / ".venv" / "bin" / "python3"
+            dev_exe = _venv_python(cwd_project)
 
         return {
             "python_executable": str(dev_exe),
@@ -157,11 +164,16 @@ def _find_project_root(exe: Path) -> Path:
 
 def _build_path(exe: Path) -> str:
     """Build a PATH that includes the executable's bin directory."""
+    sep = os.pathsep
     exe_dir = str(exe.parent)
-    system_path = os.environ.get("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
+    if sys.platform == "win32":
+        default_path = os.path.expandvars(r"%SystemRoot%\system32;%SystemRoot%")
+    else:
+        default_path = "/usr/bin:/bin:/usr/sbin:/sbin"
+    system_path = os.environ.get("PATH", default_path)
     # Ensure exe dir is first so the right python/gobby is found
-    parts = [exe_dir] + [p for p in system_path.split(":") if p != exe_dir]
-    return ":".join(parts)
+    parts = [exe_dir] + [p for p in system_path.split(sep) if p != exe_dir]
+    return sep.join(parts)
 
 
 def _ensure_cli_on_path(project_root: str) -> dict[str, Any]:
@@ -830,13 +842,14 @@ def install_service(*, verbose: bool = False) -> dict[str, Any]:
         return install_service_macos(verbose=verbose)
     elif sys.platform == "linux":
         return install_service_linux(verbose=verbose)
+    elif sys.platform == "win32":
+        from gobby.cli.installers.service_windows import install_service_windows
+
+        return install_service_windows(verbose=verbose)
     else:
         return {
             "success": False,
-            "error": (
-                f"Unsupported platform: {sys.platform}. "
-                "On Windows, use Task Scheduler or NSSM to register gobby as a service manually."
-            ),
+            "error": f"Unsupported platform: {sys.platform}",
         }
 
 
@@ -846,6 +859,10 @@ def uninstall_service() -> dict[str, Any]:
         return uninstall_service_macos()
     elif sys.platform == "linux":
         return uninstall_service_linux()
+    elif sys.platform == "win32":
+        from gobby.cli.installers.service_windows import uninstall_service_windows
+
+        return uninstall_service_windows()
     else:
         return {"success": False, "error": f"Unsupported platform: {sys.platform}"}
 
@@ -856,6 +873,10 @@ def enable_service() -> dict[str, Any]:
         return enable_service_macos()
     elif sys.platform == "linux":
         return enable_service_linux()
+    elif sys.platform == "win32":
+        from gobby.cli.installers.service_windows import enable_service_windows
+
+        return enable_service_windows()
     else:
         return {"success": False, "error": f"Unsupported platform: {sys.platform}"}
 
@@ -866,6 +887,10 @@ def disable_service() -> dict[str, Any]:
         return disable_service_macos()
     elif sys.platform == "linux":
         return disable_service_linux()
+    elif sys.platform == "win32":
+        from gobby.cli.installers.service_windows import disable_service_windows
+
+        return disable_service_windows()
     else:
         return {"success": False, "error": f"Unsupported platform: {sys.platform}"}
 
@@ -876,6 +901,10 @@ def get_service_status() -> dict[str, Any]:
         return _get_service_status_macos()
     elif sys.platform == "linux":
         return _get_service_status_linux()
+    elif sys.platform == "win32":
+        from gobby.cli.installers.service_windows import _get_service_status_windows
+
+        return _get_service_status_windows()
     else:
         return {"installed": False, "enabled": False, "running": False, "platform": sys.platform}
 
@@ -886,6 +915,10 @@ def service_restart() -> dict[str, Any]:
         return _macos_restart()
     elif sys.platform == "linux":
         return _linux_restart()
+    elif sys.platform == "win32":
+        from gobby.cli.installers.service_windows import _windows_restart
+
+        return _windows_restart()
     else:
         return {"success": False, "error": f"Unsupported platform: {sys.platform}"}
 
@@ -896,6 +929,10 @@ def service_start() -> dict[str, Any]:
         return _macos_start()
     elif sys.platform == "linux":
         return _linux_start()
+    elif sys.platform == "win32":
+        from gobby.cli.installers.service_windows import _windows_start
+
+        return _windows_start()
     else:
         return {"success": False, "error": f"Unsupported platform: {sys.platform}"}
 
@@ -906,5 +943,9 @@ def service_stop() -> dict[str, Any]:
         return _macos_stop()
     elif sys.platform == "linux":
         return _linux_stop()
+    elif sys.platform == "win32":
+        from gobby.cli.installers.service_windows import _windows_stop
+
+        return _windows_stop()
     else:
         return {"success": False, "error": f"Unsupported platform: {sys.platform}"}
