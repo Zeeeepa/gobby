@@ -99,65 +99,9 @@ async def _run_maintenance(
             except Exception as e:
                 logger.warning(f"Maintenance reindex failed for {project.id}: {e}")
 
-        # Recover files where graph/vector sync was incomplete
-        if gcode_available:
-            await _recover_unsynced_files(indexer, project, gcode_bin)
-
         # Generate summaries for unsummarized symbols
         if summarizer:
             await _summarize_unsummarized(indexer, project, summarizer, summary_batch_size)
-
-
-async def _recover_unsynced_files(
-    indexer: CodeIndexer,
-    project: Any,
-    gcode_bin: Path,
-) -> None:
-    """Re-trigger gcode for files with graph_synced=0."""
-    try:
-        unsynced = indexer.storage.get_unsynced_files(project.id, limit=100)
-    except Exception:
-        # Column may not exist yet (pre-migration 178)
-        return
-
-    if not unsynced:
-        return
-
-    logger.info(f"Recovering {len(unsynced)} unsynced files for {project.id}")
-    root = Path(project.root_path)
-    unsynced_paths = []
-    for f in unsynced:
-        full_path = root / f.file_path
-        if full_path.exists():
-            unsynced_paths.append(str(full_path))
-        else:
-            indexer.storage.delete_file(project.id, f.file_path)
-
-    if not unsynced_paths:
-        return
-
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            str(gcode_bin),
-            "index",
-            "--project",
-            str(project.root_path),
-            "--files",
-            *unsynced_paths,
-            "--quiet",
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
-        if proc.returncode == 0:
-            logger.info(f"Recovered {len(unsynced_paths)} unsynced files for {project.id}")
-        else:
-            detail = stderr.decode().strip() if stderr else ""
-            logger.warning(f"Graph sync recovery failed (exit {proc.returncode}): {detail}")
-    except TimeoutError:
-        logger.warning("Graph sync recovery timed out")
-    except Exception as e:
-        logger.warning(f"Graph sync recovery failed: {e}")
 
 
 async def _summarize_unsummarized(

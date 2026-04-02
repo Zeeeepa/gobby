@@ -9,7 +9,14 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from gobby.code_index.models import ContentChunk, IndexedFile, IndexedProject, Symbol
+from gobby.code_index.models import (
+    CallRelation,
+    ContentChunk,
+    ImportRelation,
+    IndexedFile,
+    IndexedProject,
+    Symbol,
+)
 from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
@@ -235,13 +242,14 @@ class CodeIndexStorage:
             conn.execute(
                 """INSERT INTO code_indexed_files (
                     id, project_id, file_path, language, content_hash,
-                    symbol_count, byte_size, graph_synced, indexed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    symbol_count, byte_size, graph_synced, vectors_synced, indexed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     content_hash=excluded.content_hash,
                     symbol_count=excluded.symbol_count,
                     byte_size=excluded.byte_size,
                     graph_synced=0,
+                    vectors_synced=0,
                     indexed_at=excluded.indexed_at
                 """,
                 (
@@ -253,6 +261,7 @@ class CodeIndexStorage:
                     file.symbol_count,
                     file.byte_size,
                     file.graph_synced,
+                    file.vectors_synced,
                     file.indexed_at,
                 ),
             )
@@ -345,6 +354,151 @@ class CodeIndexStorage:
             (project_id, limit),
         )
         return [IndexedFile.from_row(r) for r in rows]
+
+    def get_pending_sync_files(
+        self,
+        project_id: str,
+        limit: int = 50,
+        *,
+        vectors: bool = True,
+        graph: bool = True,
+    ) -> list[IndexedFile]:
+        """Get files needing external sync (vectors_synced=0 or graph_synced=0).
+
+        Args:
+            project_id: Project to query.
+            limit: Max files to return.
+            vectors: Include files needing vector sync.
+            graph: Include files needing graph sync.
+        """
+        conditions = []
+        if vectors:
+            conditions.append("vectors_synced = 0")
+        if graph:
+            conditions.append("graph_synced = 0")
+        if not conditions:
+            return []
+        where = " OR ".join(conditions)
+        rows = self.db.fetchall(
+            f"""SELECT * FROM code_indexed_files
+                WHERE project_id = ? AND ({where})
+                ORDER BY indexed_at LIMIT ?""",
+            (project_id, limit),
+        )
+        return [IndexedFile.from_row(r) for r in rows]
+
+    def mark_vectors_synced(self, file_id: str) -> bool:
+        """Mark a file's vectors as synced. Returns True if updated."""
+        with self.db.transaction() as conn:
+            cursor = conn.execute(
+                "UPDATE code_indexed_files SET vectors_synced = 1 WHERE id = ?",
+                (file_id,),
+            )
+            return cursor.rowcount > 0
+
+    def mark_graph_synced(self, file_id: str) -> bool:
+        """Mark a file's graph edges as synced. Returns True if updated."""
+        with self.db.transaction() as conn:
+            cursor = conn.execute(
+                "UPDATE code_indexed_files SET graph_synced = 1 WHERE id = ?",
+                (file_id,),
+            )
+            return cursor.rowcount > 0
+
+    # ── Imports & Calls ─────────────────────────────────────────────
+
+    def upsert_imports(
+        self,
+        project_id: str,
+        file_path: str,
+        imports: list[ImportRelation],
+    ) -> int:
+        """Replace import relations for a file. Returns count inserted."""
+        with self.db.transaction() as conn:
+            conn.execute(
+                "DELETE FROM code_imports WHERE project_id = ? AND source_file = ?",
+                (project_id, file_path),
+            )
+            if not imports:
+                return 0
+            conn.executemany(
+                """INSERT OR IGNORE INTO code_imports
+                   (project_id, source_file, target_module)
+                   VALUES (?, ?, ?)""",
+                [(project_id, imp.source_file, imp.target_module) for imp in imports],
+            )
+            return len(imports)
+
+    def upsert_calls(
+        self,
+        project_id: str,
+        file_path: str,
+        calls: list[CallRelation],
+    ) -> int:
+        """Replace call relations for a file. Returns count inserted."""
+        with self.db.transaction() as conn:
+            conn.execute(
+                "DELETE FROM code_calls WHERE project_id = ? AND file_path = ?",
+                (project_id, file_path),
+            )
+            if not calls:
+                return 0
+            conn.executemany(
+                """INSERT OR IGNORE INTO code_calls
+                   (project_id, caller_symbol_id, callee_name, file_path, line)
+                   VALUES (?, ?, ?, ?, ?)""",
+                [
+                    (project_id, c.caller_symbol_id, c.callee_name, c.file_path, c.line)
+                    for c in calls
+                ],
+            )
+            return len(calls)
+
+    def get_imports_for_file(self, project_id: str, file_path: str) -> list[dict[str, Any]]:
+        """Get import relations for a file (for graph sync)."""
+        rows = self.db.fetchall(
+            """SELECT source_file, target_module FROM code_imports
+               WHERE project_id = ? AND source_file = ?""",
+            (project_id, file_path),
+        )
+        return [
+            {"source_file": r["source_file"], "target_module": r["target_module"]} for r in rows
+        ]
+
+    def get_calls_for_file(self, project_id: str, file_path: str) -> list[dict[str, Any]]:
+        """Get call relations for a file (for graph sync)."""
+        rows = self.db.fetchall(
+            """SELECT caller_symbol_id, callee_name, file_path, line FROM code_calls
+               WHERE project_id = ? AND file_path = ?""",
+            (project_id, file_path),
+        )
+        return [
+            {
+                "caller_symbol_id": r["caller_symbol_id"],
+                "callee_name": r["callee_name"],
+                "file_path": r["file_path"],
+                "line": r["line"],
+            }
+            for r in rows
+        ]
+
+    def delete_imports_for_file(self, project_id: str, file_path: str) -> int:
+        """Delete import relations for a file. Returns count deleted."""
+        with self.db.transaction() as conn:
+            cursor = conn.execute(
+                "DELETE FROM code_imports WHERE project_id = ? AND source_file = ?",
+                (project_id, file_path),
+            )
+            return cursor.rowcount
+
+    def delete_calls_for_file(self, project_id: str, file_path: str) -> int:
+        """Delete call relations for a file. Returns count deleted."""
+        with self.db.transaction() as conn:
+            cursor = conn.execute(
+                "DELETE FROM code_calls WHERE project_id = ? AND file_path = ?",
+                (project_id, file_path),
+            )
+            return cursor.rowcount
 
     def delete_file(self, project_id: str, file_path: str) -> None:
         """Delete a file record (symbols deleted separately)."""

@@ -89,6 +89,14 @@ class CodeIndexConfig(BaseModel):
         default="haiku",
         description="Model for summary generation (cheap/fast recommended)",
     )
+    sync_worker_interval_seconds: float = Field(
+        default=5.0,
+        description="Sync worker poll interval in seconds",
+    )
+    sync_worker_batch_size: int = Field(
+        default=50,
+        description="Max files to sync per poll iteration",
+    )
     content_extensions: list[str] = Field(
         default=[
             ".html",

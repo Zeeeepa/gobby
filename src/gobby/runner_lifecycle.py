@@ -153,6 +153,24 @@ async def _init_subsystems(runner: GobbyRunner, rebuild_vector_store: Any) -> No
             name="code-index-maintenance",
         )
 
+    # Code index sync worker (external store sync: Qdrant embeddings, Neo4j edges)
+    runner._sync_worker_task = None
+    if runner.code_indexer:
+        from gobby.code_index.sync_worker import sync_worker_loop
+
+        sync_shutdown = asyncio.Event()
+        runner._sync_worker_shutdown = sync_shutdown
+        runner._sync_worker_task = asyncio.create_task(
+            sync_worker_loop(
+                storage=runner.code_indexer.storage,
+                vector_store=runner.vector_store,
+                graph=runner.code_indexer.graph,
+                config=runner.config.code_index,
+                shutdown_flag=sync_shutdown,
+            ),
+            name="code-index-sync-worker",
+        )
+
     # Resume interrupted pipelines and fail non-resumable stale executions
     if runner.pipeline_executor and runner.pipeline_execution_manager and runner.workflow_loader:
         try:
@@ -497,6 +515,20 @@ async def run_daemon(runner: GobbyRunner) -> None:
             runner._code_index_task.cancel()
             try:
                 await asyncio.wait_for(runner._code_index_task, timeout=2.0)
+            except (asyncio.CancelledError, TimeoutError):
+                pass
+
+        # Cancel code index sync worker
+        if hasattr(runner, "_sync_worker_shutdown") and runner._sync_worker_shutdown:
+            runner._sync_worker_shutdown.set()
+        if (
+            hasattr(runner, "_sync_worker_task")
+            and runner._sync_worker_task
+            and not runner._sync_worker_task.done()
+        ):
+            runner._sync_worker_task.cancel()
+            try:
+                await asyncio.wait_for(runner._sync_worker_task, timeout=5.0)
             except (asyncio.CancelledError, TimeoutError):
                 pass
 

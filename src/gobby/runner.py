@@ -96,6 +96,8 @@ class GobbyRunner:
     _metric_snapshot_task: asyncio.Task[None] | None
     _code_index_task: asyncio.Task[None] | None
     _code_index_shutdown: asyncio.Event | None
+    _sync_worker_task: asyncio.Task[None] | None
+    _sync_worker_shutdown: asyncio.Event | None
     _websocket_task: asyncio.Task[None] | None
     _subsystem_init_task: asyncio.Task[None] | None
 

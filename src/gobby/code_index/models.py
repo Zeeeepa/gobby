@@ -130,6 +130,7 @@ class IndexedFile:
     symbol_count: int = 0
     byte_size: int = 0
     graph_synced: int = 0
+    vectors_synced: int = 0
     indexed_at: str = ""
 
     def __post_init__(self) -> None:
@@ -152,6 +153,7 @@ class IndexedFile:
             symbol_count=row["symbol_count"],
             byte_size=row["byte_size"],
             graph_synced=row["graph_synced"] if "graph_synced" in row.keys() else 0,
+            vectors_synced=row["vectors_synced"] if "vectors_synced" in row.keys() else 0,
             indexed_at=row["indexed_at"],
         )
 
@@ -165,6 +167,7 @@ class IndexedFile:
             "symbol_count": self.symbol_count,
             "byte_size": self.byte_size,
             "graph_synced": self.graph_synced,
+            "vectors_synced": self.vectors_synced,
             "indexed_at": self.indexed_at,
         }
 

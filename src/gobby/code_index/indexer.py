@@ -249,6 +249,8 @@ class CodeIndexer:
         self._storage.delete_symbols_for_file(project_id, file_path)
         self._storage.delete_file(project_id, file_path)
         self._storage.delete_content_chunks_for_file(project_id, file_path)
+        self._storage.delete_imports_for_file(project_id, file_path)
+        self._storage.delete_calls_for_file(project_id, file_path)
 
         if self._graph is not None and self._graph.available:
             await self._graph.delete_file(file_path=file_path, project_id=project_id)
@@ -321,6 +323,10 @@ class CodeIndexer:
             )
         )
 
+        # Store import/call relations in SQLite (for daemon sync worker)
+        self._storage.upsert_imports(project_id, rel_path, parse_result.imports)
+        self._storage.upsert_calls(project_id, rel_path, parse_result.calls)
+
         # Index content chunks for full-text content search
         try:
             source = path.read_bytes()
@@ -335,17 +341,23 @@ class CodeIndexer:
         except Exception as e:
             logger.debug(f"Content chunk indexing failed for {file_path}: {e}")
 
+        file_id = IndexedFile.make_id(project_id, rel_path)
+
         # Embed symbols (async, non-blocking on failure)
         if self._vector_store is not None and self._embed_fn is not None:
             try:
-                await self._embed_symbols(symbols, project_id)
+                count = await self._embed_symbols(symbols, project_id)
+                if count > 0:
+                    self._storage.mark_vectors_synced(file_id)
             except Exception as e:
                 logger.debug(f"Embedding failed for {file_path}: {e}")
 
         # Add graph relationships (async, non-blocking on failure)
         if self._graph is not None and self._graph.available:
             try:
-                await self._add_graph_data(project_id, rel_path, parse_result, symbols)
+                count = await self._add_graph_data(project_id, rel_path, parse_result, symbols)
+                if count > 0:
+                    self._storage.mark_graph_synced(file_id)
             except Exception as e:
                 logger.debug(f"Graph update failed for {file_path}: {e}")
 

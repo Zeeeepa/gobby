@@ -35,7 +35,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 182
+BASELINE_VERSION = 183
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v171) have been removed.
@@ -381,6 +381,35 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         182,
         "Re-add summary column to code_symbols and rebuild FTS",
         _add_summary_column,
+    ),
+    (
+        183,
+        "Add vectors_synced column and import/call relation tables",
+        """
+        ALTER TABLE code_indexed_files ADD COLUMN vectors_synced INTEGER NOT NULL DEFAULT 0;
+        UPDATE code_indexed_files SET vectors_synced = 1;
+        CREATE INDEX idx_cif_vectors_synced ON code_indexed_files(project_id, vectors_synced);
+
+        CREATE TABLE IF NOT EXISTS code_imports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id TEXT NOT NULL,
+            source_file TEXT NOT NULL,
+            target_module TEXT NOT NULL,
+            UNIQUE(project_id, source_file, target_module)
+        );
+        CREATE INDEX IF NOT EXISTS idx_ci_file ON code_imports(project_id, source_file);
+
+        CREATE TABLE IF NOT EXISTS code_calls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id TEXT NOT NULL,
+            caller_symbol_id TEXT NOT NULL,
+            callee_name TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            line INTEGER NOT NULL DEFAULT 0,
+            UNIQUE(project_id, caller_symbol_id, callee_name, file_path, line)
+        );
+        CREATE INDEX IF NOT EXISTS idx_cc_file ON code_calls(project_id, file_path);
+        """,
     ),
 ]
 
