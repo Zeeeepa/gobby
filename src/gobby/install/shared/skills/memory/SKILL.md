@@ -15,6 +15,9 @@ metadata:
 
 Gobby's memory system (gobby-memory MCP) stores persistent facts across sessions. Use progressive discovery for tool schemas — this skill teaches judgment, not API reference.
 
+> **Note:** Claude Code's native memory system (~/.claude/projects/.../memory/) is disabled by Gobby rules.
+> All memory operations go through **gobby-memory** MCP. Do not read or write to the native memory filesystem — those operations will be blocked.
+
 ---
 
 ## When to Use Memory

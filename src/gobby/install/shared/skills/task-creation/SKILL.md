@@ -11,6 +11,9 @@ metadata:
 
 Create and manage tasks via gobby-tasks MCP. Use progressive discovery for tool schemas.
 
+> **Note:** Claude Code's native task system (TodoWrite/TodoRead) is disabled by Gobby rules.
+> All task operations go through **gobby-tasks** MCP. Do not use native Claude task tools — they will be blocked.
+
 ---
 
 ## Task Types — When to Use Each
