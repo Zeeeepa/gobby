@@ -2101,7 +2101,6 @@ class TestToolSchemas:
             "reason",
             "changes_summary",
             "skip_validation",
-            "session_id",
             "override_justification",
             "commit_sha",
         ]

@@ -270,37 +270,15 @@ def test_decorator_brief_param() -> None:
 
 
 @pytest.mark.asyncio
-async def test_context_injected_as_simplenamespace() -> None:
-    """When context dict is passed to call(), tools declaring _context receive a SimpleNamespace."""
-    import types
-
-    registry = InternalToolRegistry(name="test-registry")
-    captured: list[Any] = []
-
-    @registry.tool(name="capture_ctx", description="Captures context")
-    def capture_ctx(query: str, _context: Any = None) -> dict[str, Any]:
-        captured.append(_context)
-        return {"query": query}
-
-    ctx = {"session_id": "sess-1", "conversation_id": "conv-1"}
-    result = await registry.call("capture_ctx", {"query": "hello"}, context=ctx)
-
-    assert result["query"] == "hello"
-    assert len(captured) == 1
-    assert isinstance(captured[0], types.SimpleNamespace)
-    assert captured[0].session_id == "sess-1"
-    assert captured[0].conversation_id == "conv-1"
-
-
-@pytest.mark.asyncio
-async def test_context_not_injected_when_tool_lacks_param() -> None:
-    """Passing context to a tool that doesn't declare _context should not cause errors."""
+async def test_context_param_is_ignored() -> None:
+    """context parameter to call() is deprecated and ignored — tools use SessionContext ContextVar."""
     registry = InternalToolRegistry(name="test-registry")
 
-    @registry.tool(name="no_ctx", description="No context param")
-    def no_ctx(query: str) -> dict[str, Any]:
+    @registry.tool(name="simple", description="Simple tool")
+    def simple(query: str) -> dict[str, Any]:
         return {"query": query}
 
+    # Passing context should not cause errors — it's silently ignored
     ctx = {"session_id": "sess-1", "conversation_id": "conv-1"}
-    result = await registry.call("no_ctx", {"query": "hello"}, context=ctx)
+    result = await registry.call("simple", {"query": "hello"}, context=ctx)
     assert result["query"] == "hello"

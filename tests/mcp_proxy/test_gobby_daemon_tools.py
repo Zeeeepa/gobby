@@ -220,7 +220,7 @@ class TestGobbyDaemonToolsCallTool:
         )
 
         tools_handler.tool_proxy.call_tool.assert_called_once_with(
-            "test-server", "test-tool", {"key": "value"}, None, call_context=None
+            "test-server", "test-tool", {"key": "value"}, None
         )
         # MCP layer strips "success" from successful responses (server.py:140-142)
         assert "success" not in result
@@ -260,7 +260,7 @@ class TestGobbyDaemonToolsCallTool:
         )
 
         tools_handler.tool_proxy.call_tool.assert_called_once_with(
-            "server", "no-args-tool", None, None, call_context=None
+            "server", "no-args-tool", None, None
         )
 
     @pytest.mark.asyncio

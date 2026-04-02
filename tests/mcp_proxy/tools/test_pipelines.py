@@ -10,7 +10,19 @@ import pytest
 from gobby.workflows.definitions import PipelineDefinition, PipelineStep
 from gobby.workflows.loader_cache import DiscoveredWorkflow
 
+from gobby.utils.project_context import set_project_context, reset_project_context
+from gobby.utils.session_context import session_context_for_test
+
 pytestmark = pytest.mark.unit
+
+
+@pytest.fixture(autouse=True)
+def _session_and_project_context():
+    """Provide session and project context for all pipeline tests."""
+    token = set_project_context({"id": "proj-test", "name": "test-project"})
+    with session_context_for_test("sess-1"):
+        yield
+    reset_project_context(token)
 
 
 @pytest.fixture
@@ -347,7 +359,7 @@ class TestRunPipelineTool:
 
         await registry.call(
             "run_pipeline",
-            {"name": "deploy", "inputs": {}, "session_id": "sess-1"},
+            {"name": "deploy", "inputs": {}},
         )
 
         mock_loader.load_pipeline.assert_called_once_with("deploy")
@@ -376,7 +388,7 @@ class TestRunPipelineTool:
 
         result = await registry.call(
             "run_pipeline",
-            {"name": "deploy", "inputs": {"env": "prod"}, "session_id": "sess-1"},
+            {"name": "deploy", "inputs": {"env": "prod"}},
         )
 
         # Execution record pre-created
@@ -409,7 +421,7 @@ class TestRunPipelineTool:
 
         result = await registry.call(
             "run_pipeline",
-            {"name": "deploy", "inputs": {}, "session_id": "sess-1"},
+            {"name": "deploy", "inputs": {}},
         )
 
         assert result["success"] is True
@@ -455,7 +467,7 @@ class TestRunPipelineTool:
 
         result = await registry.call(
             "run_pipeline",
-            {"name": "deploy", "inputs": {}, "session_id": "sess-1"},
+            {"name": "deploy", "inputs": {}},
         )
 
         assert result["success"] is True
@@ -479,7 +491,7 @@ class TestRunPipelineTool:
 
         result = await registry.call(
             "run_pipeline",
-            {"name": "nonexistent", "inputs": {}, "session_id": "sess-1"},
+            {"name": "nonexistent", "inputs": {}},
         )
 
         assert result["success"] is False
@@ -513,7 +525,7 @@ class TestRunPipelineTool:
 
         result = await registry.call(
             "run_pipeline",
-            {"name": "deploy", "inputs": {}, "session_id": "sess-1"},
+            {"name": "deploy", "inputs": {}},
         )
 
         # Fire-and-forget: returns success/running immediately
@@ -536,7 +548,7 @@ class TestRunPipelineTool:
 
         result = await registry.call(
             "run_pipeline",
-            {"name": "deploy", "inputs": {}, "session_id": "sess-1"},
+            {"name": "deploy", "inputs": {}},
         )
 
         assert result["success"] is False
@@ -1195,7 +1207,7 @@ class TestDynamicPipelineTools:
 
         result = await registry.call(
             "pipeline:run-tests",
-            {"filter": "test_api", "session_id": "sess-1"},
+            {"filter": "test_api"},
         )
 
         assert result["success"] is True

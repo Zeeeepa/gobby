@@ -535,6 +535,10 @@ async def call_mcp_tool(
 
         # Set project context from session_id or stdio proxy headers
         ctx_token = _set_context_for_request(server, arguments, request)
+        # Strip session_id from arguments — it's consumed by context setup above,
+        # not by individual tools (they read from SessionContext ContextVar).
+        if isinstance(arguments, dict):
+            arguments.pop("session_id", None)
         try:
             # Route through ToolProxyService for consistent error enrichment
             if server.tool_proxy:
@@ -619,6 +623,9 @@ async def mcp_proxy(
 
         # Set project context from session_id or stdio proxy headers
         ctx_token = _set_context_for_request(server, arguments, request)
+        # Strip session_id from arguments — consumed by context setup above.
+        if isinstance(arguments, dict):
+            arguments.pop("session_id", None)
         try:
             # Route through ToolProxyService for consistent error enrichment
             if server.tool_proxy:

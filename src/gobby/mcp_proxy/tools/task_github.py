@@ -88,13 +88,14 @@ def create_github_registry(
 
     def import_github_issues(
         repo: str,
-        session_id: str,
         labels: list[str] | None = None,
         state: str = "open",
         parent_task_id: str | None = None,
     ) -> dict[str, Any]:
         """Import GitHub issues as gobby tasks with deduplication."""
-        logger.info("Importing GitHub issues from %s (session=%s)", repo, session_id)
+        from gobby.utils.session_context import get_current_session_id
+
+        logger.info("Importing GitHub issues from %s (session=%s)", repo, get_current_session_id())
         # Validate repo format
         if "/" not in repo or repo.count("/") != 1:
             return {
@@ -177,10 +178,6 @@ def create_github_registry(
                     "type": "string",
                     "description": 'GitHub repo in "owner/repo" format',
                 },
-                "session_id": {
-                    "type": "string",
-                    "description": "Your session ID for tracking",
-                },
                 "labels": {
                     "type": "array",
                     "items": {"type": "string"},
@@ -198,7 +195,7 @@ def create_github_registry(
                     "default": None,
                 },
             },
-            "required": ["repo", "session_id"],
+            "required": ["repo"],
         },
         func=import_github_issues,
     )

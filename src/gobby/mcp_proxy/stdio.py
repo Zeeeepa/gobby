@@ -429,6 +429,7 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
         tool_name: str,
         arguments: str | dict[str, Any] | None = None,
         args: str | dict[str, Any] | None = None,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Execute a tool on a connected MCP server.
@@ -441,6 +442,10 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
             tool_name: Name of the specific tool to execute
             arguments: Dictionary of arguments required by the tool (optional)
             args: Alias for arguments. Accepts dict or JSON string. Use 'arguments' preferred.
+            session_id: Session ID (accepts #N, N, UUID, or prefix). Propagated to
+                the daemon via X-Gobby-Session-Id header so tools can read it from
+                the SessionContext ContextVar. Individual tools do not need session_id
+                in their own arguments.
 
         Returns:
             Dictionary with success status and tool execution result
@@ -480,6 +485,14 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
         if isinstance(final_args, dict):
             for leaked_key in ("server_name", "tool_name"):
                 final_args.pop(leaked_key, None)
+
+        # Inject session_id into args so _request() sniffing picks it up
+        # and sets the X-Gobby-Session-Id header for the daemon.
+        if session_id:
+            if final_args is None:
+                final_args = {}
+            final_args["session_id"] = session_id
+
         return await proxy.call_tool(server_name, tool_name, final_args)
 
     @mcp.tool()

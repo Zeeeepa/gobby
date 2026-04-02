@@ -644,10 +644,6 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     "type": "string",
                     "description": "Task ID with saved expansion spec",
                 },
-                "session_id": {
-                    "type": "string",
-                    "description": "Session ID for tracking created tasks",
-                },
                 "project": {
                     "type": "string",
                     "description": "Project name or UUID for task resolution",
@@ -658,7 +654,7 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     "default": False,
                 },
             },
-            "required": ["parent_task_id", "session_id"],
+            "required": ["parent_task_id"],
         },
         func=execute_expansion,
     )

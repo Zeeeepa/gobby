@@ -604,18 +604,21 @@ def create_clones_registry(
     # ===== claim_clone =====
     async def claim_clone(
         clone_id: str,
-        session_id: str,
     ) -> dict[str, Any]:
         """
         Claim a clone for an agent session.
 
         Args:
             clone_id: Clone ID to claim
-            session_id: Session ID claiming ownership
 
         Returns:
             Dict with success status
         """
+        from gobby.utils.session_context import get_current_session_id
+
+        session_id = get_current_session_id()
+        if not session_id:
+            return {"success": False, "error": "No session context available"}
         clone = clone_storage.get(clone_id)
         if not clone:
             return {"success": False, "error": f"Clone not found: {clone_id}"}
@@ -642,12 +645,8 @@ def create_clones_registry(
                     "type": "string",
                     "description": "Clone ID to claim",
                 },
-                "session_id": {
-                    "type": "string",
-                    "description": "Session ID claiming ownership",
-                },
             },
-            "required": ["clone_id", "session_id"],
+            "required": ["clone_id"],
         },
         func=claim_clone,
     )

@@ -80,29 +80,34 @@ def create_session_registry(ctx: RegistryContext) -> InternalToolRegistry:
         func=link_task_to_session,
     )
 
-    def get_session_tasks(session_id: str) -> dict[str, Any]:
+    def get_session_tasks(session_id: str | None = None) -> dict[str, Any]:
         """Get all tasks associated with a session."""
+        from gobby.utils.session_context import get_current_session_id
+
+        effective_session_id = session_id or get_current_session_id()
+        if not effective_session_id:
+            return {"error": "No session_id provided and no session context available."}
         # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
         try:
-            resolved_session_id = ctx.resolve_session_id(session_id)
+            resolved_session_id = ctx.resolve_session_id(effective_session_id)
         except ValueError as e:
-            return {"error": f"Invalid session_id '{session_id}': {e}"}
+            return {"error": f"Invalid session_id '{effective_session_id}': {e}"}
 
         tasks = ctx.session_task_manager.get_session_tasks(resolved_session_id)
         return {"session_id": resolved_session_id, "tasks": tasks}
 
     registry.register(
         name="get_session_tasks",
-        description="Get all tasks associated with a session. Accepts #N, N, UUID, or prefix for session_id.",
+        description="Get all tasks associated with a session. Defaults to current session. Accepts #N, N, UUID, or prefix for session_id.",
         input_schema={
             "type": "object",
             "properties": {
                 "session_id": {
                     "type": "string",
-                    "description": "Session reference (accepts #N, N, UUID, or prefix)",
+                    "description": "Session reference (accepts #N, N, UUID, or prefix). Defaults to current session.",
+                    "default": None,
                 },
             },
-            "required": ["session_id"],
         },
         func=get_session_tasks,
     )

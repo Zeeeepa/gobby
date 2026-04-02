@@ -274,10 +274,6 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     "description": "Acceptance criteria for task completion. REQUIRED when category='code' — creation fails without it. Describe what 'done' looks like — validate_task checks the diff against this.",
                     "default": None,
                 },
-                "session_id": {
-                    "type": "string",
-                    "description": "Your session ID (accepts #N, N, UUID, or prefix). Required to track which session created the task.",
-                },
                 "claim": {
                     "type": "boolean",
                     "description": "If true, auto-claim the task (set assignee to session_id and status to in_progress). Default: false - task is created with status 'open' and no assignee.",
@@ -299,7 +295,7 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     "default": None,
                 },
             },
-            "required": ["title", "session_id", "category"],
+            "required": ["title", "category"],
         },
         func=create_task,
     )

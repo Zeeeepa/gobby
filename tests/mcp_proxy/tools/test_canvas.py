@@ -265,18 +265,17 @@ async def test_cancel_conversation_canvases():
 
 
 async def test_render_surface_with_context_conversation_id(registry):
-    """_context.conversation_id should be used when conversation_id param is not passed."""
-    import types
+    """SessionContext conversation_id should be used when conversation_id param is not passed."""
+    from gobby.utils.session_context import session_context_for_test
 
     tool = registry.get_tool("render_surface")
-    ctx = types.SimpleNamespace(session_id="sess-1", conversation_id="conv-from-ctx")
 
-    result = await tool(
-        components={"t": {"type": "Text"}},
-        root_id="t",
-        blocking=False,
-        _context=ctx,
-    )
+    with session_context_for_test("sess-1", conversation_id="conv-from-ctx"):
+        result = await tool(
+            components={"t": {"type": "Text"}},
+            root_id="t",
+            blocking=False,
+        )
 
     assert result["success"] is True
     canvas = get_canvas(result["canvas_id"])
@@ -285,18 +284,17 @@ async def test_render_surface_with_context_conversation_id(registry):
 
 
 async def test_render_surface_with_context_session_id_fallback(registry):
-    """_context.session_id should be used as fallback when conversation_id is absent."""
-    import types
+    """SessionContext session_id should be used as fallback when conversation_id is absent."""
+    from gobby.utils.session_context import session_context_for_test
 
     tool = registry.get_tool("render_surface")
-    ctx = types.SimpleNamespace(session_id="sess-fallback")
 
-    result = await tool(
-        components={"t": {"type": "Text"}},
-        root_id="t",
-        blocking=False,
-        _context=ctx,
-    )
+    with session_context_for_test("sess-fallback"):
+        result = await tool(
+            components={"t": {"type": "Text"}},
+            root_id="t",
+            blocking=False,
+        )
 
     assert result["success"] is True
     canvas = get_canvas(result["canvas_id"])
@@ -305,19 +303,18 @@ async def test_render_surface_with_context_session_id_fallback(registry):
 
 
 async def test_render_surface_explicit_conversation_id_takes_priority(registry):
-    """Explicit conversation_id param should take priority over _context."""
-    import types
+    """Explicit conversation_id param should take priority over SessionContext."""
+    from gobby.utils.session_context import session_context_for_test
 
     tool = registry.get_tool("render_surface")
-    ctx = types.SimpleNamespace(session_id="sess-1", conversation_id="conv-from-ctx")
 
-    result = await tool(
-        components={"t": {"type": "Text"}},
-        root_id="t",
-        conversation_id="explicit-conv",
-        blocking=False,
-        _context=ctx,
-    )
+    with session_context_for_test("sess-1", conversation_id="conv-from-ctx"):
+        result = await tool(
+            components={"t": {"type": "Text"}},
+            root_id="t",
+            conversation_id="explicit-conv",
+            blocking=False,
+        )
 
     assert result["success"] is True
     canvas = get_canvas(result["canvas_id"])

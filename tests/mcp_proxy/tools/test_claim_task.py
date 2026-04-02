@@ -314,9 +314,10 @@ class TestClaimTaskTool:
         # Verify claim_task tool exists
         assert claim_tool_schema is not None, "claim_task tool not registered"
 
-        # Verify session_id is in required fields
+        # session_id is no longer in the schema — it's read from SessionContext ContextVar
         schema = registry.get_schema("claim_task")
-        assert "session_id" in schema["inputSchema"]["required"]
+        assert "session_id" not in schema["inputSchema"].get("required", [])
+        assert "task_id" in schema["inputSchema"]["required"]
 
     @pytest.mark.asyncio
     async def test_claim_task_session_link_failure_does_not_fail_claim(
@@ -375,7 +376,8 @@ class TestClaimTaskSchema:
 
         # Required parameters
         assert "task_id" in props
-        assert "session_id" in props
+        # session_id is no longer in the schema — read from SessionContext ContextVar
+        assert "session_id" not in props
 
         # Optional parameters
         assert "force" in props
@@ -383,7 +385,6 @@ class TestClaimTaskSchema:
 
         # Required fields
         assert "task_id" in schema["inputSchema"]["required"]
-        assert "session_id" in schema["inputSchema"]["required"]
 
     def test_claim_task_schema_has_description(self, mock_task_manager, mock_sync_manager) -> None:
         """Test claim_task has helpful description."""

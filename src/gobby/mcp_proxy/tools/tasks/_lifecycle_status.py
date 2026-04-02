@@ -178,11 +178,6 @@ def register_escalate_task(registry: InternalToolRegistry, ctx: RegistryContext)
                     "type": "string",
                     "description": "Why the task is being escalated (e.g., 'blocked by external dependency', 'needs architectural decision')",
                 },
-                "session_id": {
-                    "type": "string",
-                    "description": "Your session ID (accepts #N, N, UUID, or prefix). Optional.",
-                    "default": None,
-                },
             },
             "required": ["task_id", "reason"],
         },
@@ -298,17 +293,13 @@ def register_mark_task_review_approved(
                     "type": "string",
                     "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID",
                 },
-                "session_id": {
-                    "type": "string",
-                    "description": "Your session ID (accepts #N, N, UUID, or prefix). The session approving the task.",
-                },
                 "approval_notes": {
                     "type": "string",
                     "description": "Optional notes about the approval.",
                     "default": None,
                 },
             },
-            "required": ["task_id", "session_id"],
+            "required": ["task_id"],
         },
         func=mark_task_review_approved,
     )
@@ -415,17 +406,13 @@ def register_mark_task_needs_review(registry: InternalToolRegistry, ctx: Registr
                     "type": "string",
                     "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID",
                 },
-                "session_id": {
-                    "type": "string",
-                    "description": "Your session ID (accepts #N, N, UUID, or prefix). The session marking the task for review.",
-                },
                 "review_notes": {
                     "type": "string",
                     "description": "Optional notes for the reviewer explaining what was done and what to verify.",
                     "default": None,
                 },
             },
-            "required": ["task_id", "session_id"],
+            "required": ["task_id"],
         },
         func=mark_task_needs_review,
     )

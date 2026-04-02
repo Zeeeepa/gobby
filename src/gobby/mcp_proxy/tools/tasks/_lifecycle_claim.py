@@ -118,17 +118,13 @@ def register_claim_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
                     "type": "string",
                     "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID",
                 },
-                "session_id": {
-                    "type": "string",
-                    "description": "Your session ID (accepts #N, N, UUID, or prefix). The session claiming the task.",
-                },
                 "force": {
                     "type": "boolean",
                     "description": "Override existing claim by another session (default: False)",
                     "default": False,
                 },
             },
-            "required": ["task_id", "session_id"],
+            "required": ["task_id"],
         },
         func=claim_task,
     )

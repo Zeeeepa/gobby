@@ -383,11 +383,6 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
                     ),
                     "default": False,
                 },
-                "session_id": {
-                    "type": "string",
-                    "description": "Your session ID (accepts #N, N, UUID, or prefix). Pass this to track which session closed the task.",
-                    "default": None,
-                },
                 "override_justification": {
                     "type": "string",
                     "description": (

@@ -99,15 +99,17 @@ async def test_create_task(mock_task_manager, mock_sync_manager):
 
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
-        result = await registry.call(
-            "create_task",
-            {
-                "title": "Test Task",
-                "priority": 1,
-                "session_id": "test-session",
-                "category": "research",
-            },
-        )
+        from gobby.utils.session_context import session_context_for_test
+
+        with session_context_for_test("test-session"):
+            result = await registry.call(
+                "create_task",
+                {
+                    "title": "Test Task",
+                    "priority": 1,
+                    "category": "research",
+                },
+            )
 
         mock_task_manager.create_task_with_decomposition.assert_called_with(
             project_id="test-project-id",
@@ -148,10 +150,13 @@ async def test_create_task_with_session_id(mock_task_manager, mock_sync_manager)
 
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
-        result = await registry.call(
-            "create_task",
-            {"title": "Test Task", "session_id": "session-abc123", "category": "research"},
-        )
+        from gobby.utils.session_context import session_context_for_test
+
+        with session_context_for_test("session-abc123"):
+            result = await registry.call(
+                "create_task",
+                {"title": "Test Task", "category": "research"},
+            )
 
         mock_task_manager.create_task_with_decomposition.assert_called_with(
             project_id="test-project-id",

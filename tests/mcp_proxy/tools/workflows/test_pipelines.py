@@ -113,16 +113,6 @@ class TestAutoSubscribeLineage:
 # ═══════════════════════════════════════════════════════════════════════
 
 
-class TestResolveSessionRef:
-    """Tests for _resolve_session_ref helper."""
-
-    def test_returns_raw_ref_when_no_session_manager(self) -> None:
-        from gobby.mcp_proxy.tools.workflows._pipelines import _resolve_session_ref
-
-        result = _resolve_session_ref("sess-123", None)
-        assert result == "sess-123"
-
-
 # ═══════════════════════════════════════════════════════════════════════
 # _build_input_schema
 # ═══════════════════════════════════════════════════════════════════════
@@ -178,15 +168,16 @@ class TestBuildInputSchema:
         assert schema["properties"]["mode"]["type"] == "string"
         assert schema["properties"]["mode"]["default"] == "fast"
 
-    def test_always_includes_session_id(self) -> None:
+    def test_no_longer_includes_session_id(self) -> None:
+        """session_id is read from SessionContext ContextVar, not from pipeline schema."""
         from gobby.mcp_proxy.tools.workflows._pipelines import _build_input_schema
 
         pipeline = MagicMock()
         pipeline.inputs = {}
 
         schema = _build_input_schema(pipeline)
-        assert "session_id" in schema["properties"]
-        assert "session_id" in schema["required"]
+        assert "session_id" not in schema["properties"]
+        assert "session_id" not in schema.get("required", [])
 
     def test_includes_continuation_prompt(self) -> None:
         from gobby.mcp_proxy.tools.workflows._pipelines import _build_input_schema

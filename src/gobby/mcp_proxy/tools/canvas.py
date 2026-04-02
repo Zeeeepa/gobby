@@ -251,14 +251,15 @@ def create_canvas_registry(
         blocking: bool = True,
         timeout: float = 300.0,
         conversation_id: str | None = None,
-        _context: Any = None,
     ) -> dict[str, Any]:
         """Render an inline A2UI surface."""
+        from gobby.utils.session_context import get_session_context
+
         actual_convo_id = conversation_id
-        if not actual_convo_id and _context:
-            actual_convo_id = getattr(_context, "conversation_id", None) or getattr(
-                _context, "session_id", None
-            )
+        if not actual_convo_id:
+            ctx = get_session_context()
+            if ctx:
+                actual_convo_id = ctx.conversation_id or ctx.session_id
 
         if not actual_convo_id:
             return {"success": False, "error": "conversation_id (or session context) is required"}
@@ -342,14 +343,15 @@ def create_canvas_registry(
         components: dict[str, Any] | None = None,
         data_model: dict[str, Any] | None = None,
         conversation_id: str | None = None,
-        _context: Any = None,
     ) -> dict[str, Any]:
         """Update an existing A2UI surface."""
+        from gobby.utils.session_context import get_session_context
+
         actual_convo_id = conversation_id
-        if not actual_convo_id and _context:
-            actual_convo_id = getattr(_context, "conversation_id", None) or getattr(
-                _context, "session_id", None
-            )
+        if not actual_convo_id:
+            ctx = get_session_context()
+            if ctx:
+                actual_convo_id = ctx.conversation_id or ctx.session_id
 
         if not actual_convo_id:
             return {"success": False, "error": "conversation_id (or session context) is required"}
@@ -462,14 +464,15 @@ def create_canvas_registry(
         width: int | None = None,
         height: int | None = None,
         conversation_id: str | None = None,
-        _context: Any = None,
     ) -> dict[str, Any]:
         """Present a local HTML file in the Canvas panel sandbox."""
+        from gobby.utils.session_context import get_session_context
+
         actual_convo_id = conversation_id
-        if not actual_convo_id and _context:
-            actual_convo_id = getattr(_context, "conversation_id", None) or getattr(
-                _context, "session_id", None
-            )
+        if not actual_convo_id:
+            ctx = get_session_context()
+            if ctx:
+                actual_convo_id = ctx.conversation_id or ctx.session_id
 
         if not actual_convo_id:
             return {"success": False, "error": "conversation_id (or session context) is required"}
@@ -534,14 +537,15 @@ def create_canvas_registry(
         file_path: str,
         title: str | None = None,
         conversation_id: str | None = None,
-        _context: Any = None,
     ) -> dict[str, Any]:
         """Show a file in the artifacts panel."""
+        from gobby.utils.session_context import get_session_context
+
         actual_convo_id = conversation_id
-        if not actual_convo_id and _context:
-            actual_convo_id = getattr(_context, "conversation_id", None) or getattr(
-                _context, "session_id", None
-            )
+        if not actual_convo_id:
+            ctx = get_session_context()
+            if ctx:
+                actual_convo_id = ctx.conversation_id or ctx.session_id
 
         if not actual_convo_id:
             return {"success": False, "error": "conversation_id (or session context) is required"}

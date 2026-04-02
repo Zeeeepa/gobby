@@ -240,8 +240,8 @@ class InternalToolRegistry:
         Args:
             name: Tool name
             arguments: Tool arguments
-            context: Optional context dict to inject as ``_context`` (SimpleNamespace)
-                for tools that declare that parameter.
+            context: Deprecated — previously injected as ``_context`` SimpleNamespace.
+                Tools now read from SessionContext ContextVar directly. Ignored.
 
         Returns:
             Tool execution result
@@ -258,13 +258,9 @@ class InternalToolRegistry:
         # Coerce string arguments to declared schema types
         coerced_arguments = self._coerce_arguments(arguments, tool.input_schema)
 
-        # Inspect signature once for both _context injection and kwarg filtering
+        # Inspect signature for kwarg filtering
         sig = inspect.signature(tool.func)
         params = sig.parameters
-
-        # Inject _context for tools that declare it
-        if context and "_context" in params:
-            coerced_arguments["_context"] = types.SimpleNamespace(**context)
 
         # Strip unknown kwargs (unless function accepts **kwargs)
         has_var_keyword = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())

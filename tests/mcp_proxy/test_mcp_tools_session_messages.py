@@ -414,11 +414,11 @@ async def test_set_handoff_context_no_session(mock_session_manager, full_session
     mock_session_manager.list.return_value = []
 
     result = await full_sessions_registry.call(
-        "set_handoff_context", {"session_id": "nonexistent", "content": "## Handoff"}
+        "set_handoff_context", {"content": "## Handoff"}
     )
 
     assert "error" in result
-    assert "No session found" in result["error"]
+    assert "No session context available" in result["error"]
 
 
 @pytest.mark.asyncio
@@ -428,9 +428,12 @@ async def test_set_handoff_context_agent_authored(mock_session_manager, full_ses
     mock_session_manager.resolve_session_reference.return_value = "sess-abc"
     mock_session_manager.get.return_value = mock_session
 
-    result = await full_sessions_registry.call(
-        "set_handoff_context", {"session_id": "sess-abc", "content": "## My Summary"}
-    )
+    from gobby.utils.session_context import session_context_for_test
+
+    with session_context_for_test("sess-abc"):
+        result = await full_sessions_registry.call(
+            "set_handoff_context", {"content": "## My Summary"}
+        )
 
     assert result["success"] is True
     assert result["mode"] == "agent_authored"

@@ -649,9 +649,12 @@ class TestClaimClone:
         )
         mock_clone_storage.claim.return_value = MagicMock()
 
-        result = await registry.call(
-            "claim_clone", {"clone_id": "clone-123", "session_id": "sess-1"}
-        )
+        from gobby.utils.session_context import session_context_for_test
+
+        with session_context_for_test("sess-1"):
+            result = await registry.call(
+                "claim_clone", {"clone_id": "clone-123"}
+            )
 
         assert result["success"] is True
         mock_clone_storage.claim.assert_called_once_with("clone-123", "sess-1")
@@ -675,9 +678,12 @@ class TestClaimClone:
             updated_at="now",
         )
 
-        result = await registry.call(
-            "claim_clone", {"clone_id": "clone-123", "session_id": "sess-1"}
-        )
+        from gobby.utils.session_context import session_context_for_test
+
+        with session_context_for_test("sess-1"):
+            result = await registry.call(
+                "claim_clone", {"clone_id": "clone-123"}
+            )
 
         assert result["success"] is False
         assert "already claimed" in result["error"]
@@ -703,9 +709,12 @@ class TestClaimClone:
         )
         mock_clone_storage.claim.return_value = MagicMock()
 
-        result = await registry.call(
-            "claim_clone", {"clone_id": "clone-123", "session_id": "sess-1"}
-        )
+        from gobby.utils.session_context import session_context_for_test
+
+        with session_context_for_test("sess-1"):
+            result = await registry.call(
+                "claim_clone", {"clone_id": "clone-123"}
+            )
 
         assert result["success"] is True
 
@@ -714,9 +723,12 @@ class TestClaimClone:
         """Claim fails when clone not found."""
         mock_clone_storage.get.return_value = None
 
-        result = await registry.call(
-            "claim_clone", {"clone_id": "nonexistent", "session_id": "sess-1"}
-        )
+        from gobby.utils.session_context import session_context_for_test
+
+        with session_context_for_test("sess-1"):
+            result = await registry.call(
+                "claim_clone", {"clone_id": "nonexistent"}
+            )
 
         assert result["success"] is False
         assert "not found" in result["error"].lower()

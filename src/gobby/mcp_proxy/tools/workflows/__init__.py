@@ -136,14 +136,17 @@ def create_workflows_registry(
 
     @registry.tool(
         name="get_workflow_status",
-        description="Get workflow status for a session. Shows all active workflow instances and session variables. Accepts #N, N, UUID, or prefix for session_id.",
+        description="Get workflow status for the current session. Shows all active workflow instances and session variables.",
     )
     def _get_workflow_status(session_id: str | None = None) -> dict[str, Any]:
         if _session_manager is None:
             return {"error": "Workflow tools require database connection"}
+        from gobby.utils.session_context import get_current_session_id
+
+        effective_session_id = session_id or get_current_session_id()
         return get_workflow_status(
             _session_manager,
-            session_id,
+            effective_session_id,
             instance_manager=_instance_manager,
             session_var_manager=_session_var_manager,
         )
