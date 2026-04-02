@@ -297,7 +297,7 @@ async def _generate_full_summary(
             format_turns_for_llm,
         )
 
-        last_turns = parser.extract_turns_since_clear(turns, max_turns=50)
+        last_turns = parser.extract_turns_since_clear(turns)
         last_messages = parser.extract_last_messages(turns, num_pairs=2)
         last_messages_str = format_turns_for_llm(last_messages) if last_messages else ""
 

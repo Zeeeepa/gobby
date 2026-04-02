@@ -60,10 +60,10 @@ class CursorTranscriptParser(BaseTranscriptParser):
         return messages
 
     def extract_turns_since_clear(
-        self, turns: list[dict[str, Any]], max_turns: int = 50
+        self, turns: list[dict[str, Any]], max_turns: int | None = None
     ) -> list[dict[str, Any]]:
         """Extract recent turns. Cursor doesn't have a /clear equivalent."""
-        return turns[-max_turns:] if len(turns) > max_turns else turns
+        return turns[-max_turns:] if max_turns and len(turns) > max_turns else turns
 
     def is_session_boundary(self, turn: dict[str, Any]) -> bool:
         """Cursor doesn't have session boundaries within a stream."""

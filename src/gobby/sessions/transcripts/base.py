@@ -136,10 +136,10 @@ class TranscriptParser(Protocol):
         ...
 
     def extract_turns_since_clear(
-        self, turns: list[dict[str, Any]], max_turns: int = 50
+        self, turns: list[dict[str, Any]], max_turns: int | None = None
     ) -> list[dict[str, Any]]:
         """
-        Extract turns since the most recent session boundary, up to max_turns.
+        Extract turns since the most recent session boundary.
 
         What constitutes a "session boundary" varies by CLI:
         - Claude Code: /clear command
@@ -148,7 +148,7 @@ class TranscriptParser(Protocol):
 
         Args:
             turns: List of all transcript turns
-            max_turns: Maximum number of turns to extract
+            max_turns: Maximum number of turns to extract (None = no limit)
 
         Returns:
             List of turns representing the current conversation segment

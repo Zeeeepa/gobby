@@ -147,14 +147,14 @@ class GeminiTranscriptParser(BaseTranscriptParser):
         return messages
 
     def extract_turns_since_clear(
-        self, turns: list[dict[str, Any]], max_turns: int = 50
+        self, turns: list[dict[str, Any]], max_turns: int | None = None
     ) -> list[dict[str, Any]]:
         """
         Extract turns since the most recent session boundary.
         For Gemini, we might look for specific clear events or just return the tail.
         """
-        # Placeholder: just return last N turns for now until we know the clear signal
-        return turns[-max_turns:] if len(turns) > max_turns else turns
+        # Placeholder: just return all turns until we know the clear signal
+        return turns[-max_turns:] if max_turns and len(turns) > max_turns else turns
 
     def is_session_boundary(self, turn: dict[str, Any]) -> bool:
         """

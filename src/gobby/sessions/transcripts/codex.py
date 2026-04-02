@@ -45,11 +45,11 @@ class CodexTranscriptParser(BaseTranscriptParser):
         return messages
 
     def extract_turns_since_clear(
-        self, turns: list[dict[str, Any]], max_turns: int = 50
+        self, turns: list[dict[str, Any]], max_turns: int | None = None
     ) -> list[dict[str, Any]]:
         # Codex likely uses a new session or clear command
-        # For now, default to tail
-        return turns[-max_turns:] if len(turns) > max_turns else turns
+        # For now, default to returning all turns
+        return turns[-max_turns:] if max_turns and len(turns) > max_turns else turns
 
     def is_session_boundary(self, turn: dict[str, Any]) -> bool:
         return False

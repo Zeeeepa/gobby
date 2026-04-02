@@ -87,20 +87,20 @@ class ClaudeTranscriptParser(BaseTranscriptParser):
         return messages
 
     def extract_turns_since_clear(
-        self, turns: list[dict[str, Any]], max_turns: int = 50
+        self, turns: list[dict[str, Any]], max_turns: int | None = None
     ) -> list[dict[str, Any]]:
         """
-        Extract turns since the most recent /clear, up to max_turns.
+        Extract turns since the most recent /clear.
 
         Logic:
         1. Find most recent /clear in the transcript (handling consecutive /clears as one boundary)
         2. Start from the turn AFTER the last /clear
-        3. Go back up to max_turns but stop if we hit another /clear
+        3. If max_turns is set, cap the result size
         4. Consecutive /clear commands are treated as a single conversation boundary
 
         Args:
             turns: List of all transcript turns
-            max_turns: Maximum number of turns to extract (default: 50)
+            max_turns: Maximum number of turns to extract (None = no limit)
 
         Returns:
             List of turns representing the current conversation segment
@@ -122,80 +122,35 @@ class ClaudeTranscriptParser(BaseTranscriptParser):
         most_recent_clear_idx = None
         for i in range(len(turns) - 1, -1, -1):
             if self.is_session_boundary(turns[i]):
-                # Found a /clear - this is the most recent one
                 most_recent_clear_idx = i
                 break
 
-        # If no /clear found, just take the last max_turns
+        # If no /clear found, return all turns (or last max_turns if capped)
         if most_recent_clear_idx is None:
-            result = turns[-max_turns:] if len(turns) > max_turns else turns
+            result = turns[-max_turns:] if max_turns and len(turns) > max_turns else turns
             result, removed = self._validate_tool_pairing(result)
             if removed:
                 self.logger.debug(f"Removed {len(removed)} orphaned tool_results: {removed}")
             return result
 
-        # Start after this /clear (which is the last in any cluster since we scanned backwards)
+        # Start after the most recent /clear
         start_idx = most_recent_clear_idx + 1
         end_idx = len(turns)
 
-        # Now go backwards from the /clear we found to check for:
-        # 1. Another /clear (conversation boundary)
-        # 2. Max turns limit
-        # We want at most max_turns AFTER the most recent /clear
-        # So if we have 150 total turns and most_recent_clear is at 100,
-        # we want to limit to turns 101-150 (50 turns) if end is at 150
+        # Apply max_turns cap if set
+        if max_turns and (end_idx - start_idx) > max_turns:
+            start_idx = end_idx - max_turns
 
-        # If the segment after most_recent_clear is already <= max_turns, we're done
-        segment_size = end_idx - start_idx
-        if segment_size <= max_turns:
-            # Check if there's a previous /clear we should respect
-            search_idx = most_recent_clear_idx - 1
-
-            # Skip consecutive /clears going backwards
-            while search_idx >= 0 and self.is_session_boundary(turns[search_idx]):
-                search_idx -= 1
-
-            # Search for previous /clear boundary (no max_turns limit since current segment is small)
-            for i in range(search_idx, -1, -1):
+            # But make sure we don't cross a /clear boundary
+            for i in range(most_recent_clear_idx - 1, start_idx - 1, -1):
                 if self.is_session_boundary(turns[i]):
-                    # Found previous /clear - make sure we start after it
                     boundary_idx = i
-                    # Skip forward over consecutive /clears
                     while boundary_idx < most_recent_clear_idx and self.is_session_boundary(
                         turns[boundary_idx + 1]
                     ):
                         boundary_idx += 1
-                    start_idx = max(start_idx, boundary_idx + 1)
+                    start_idx = boundary_idx + 1
                     break
-
-            result = turns[start_idx:end_idx]
-            result, removed = self._validate_tool_pairing(result)
-            if removed:
-                self.logger.debug(f"Removed {len(removed)} orphaned tool_results: {removed}")
-            return result
-
-        # Segment is > max_turns, so we need to limit it
-        # Take the last max_turns from the segment
-        start_idx = end_idx - max_turns
-
-        # But make sure we don't cross a /clear boundary
-        search_idx = most_recent_clear_idx - 1
-
-        # Skip consecutive /clears going backwards
-        while search_idx >= 0 and self.is_session_boundary(turns[search_idx]):
-            search_idx -= 1
-
-        # Check if there's a /clear between start_idx and most_recent_clear_idx
-        for i in range(most_recent_clear_idx - 1, start_idx - 1, -1):
-            if self.is_session_boundary(turns[i]):
-                # Found a /clear in our window - start after it
-                boundary_idx = i
-                while boundary_idx < most_recent_clear_idx and self.is_session_boundary(
-                    turns[boundary_idx + 1]
-                ):
-                    boundary_idx += 1
-                start_idx = boundary_idx + 1
-                break
 
         result = turns[start_idx:end_idx]
         result, removed = self._validate_tool_pairing(result)
