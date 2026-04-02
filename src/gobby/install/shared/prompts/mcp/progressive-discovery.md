@@ -42,7 +42,7 @@ WRONG — Loading all schemas upfront (wastes 30-40K tokens):
 
 RIGHT — Just-in-time discovery:
   get_tool_schema("gobby-tasks", "create_task")  # Learn required params
-  call_tool("gobby-tasks", "create_task", {"title": "Fix bug", "session_id": "#123"})
+  call_tool("gobby-tasks", "create_task", {"title": "Fix bug", "category": "code"})
 </common_mistakes>
 
 <variables>
@@ -52,7 +52,6 @@ Call directly: set_variable(name="flag", value=true, session_id="#123")
 
 <rules>
 - Create/claim a task before using Edit, Write, or NotebookEdit tools
-- Pass session_id to create_task (required), claim_task (required), and close_task (optional, for tracking)
 - NEVER load all tool schemas upfront — use progressive discovery
 </rules>
 

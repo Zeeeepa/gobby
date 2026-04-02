@@ -43,7 +43,6 @@ Create and manage tasks via gobby-tasks MCP. Use progressive discovery for tool 
 | Field | When | Notes |
 |-------|------|-------|
 | `title` | Always | Imperative form: "Fix X", "Add Y" |
-| `session_id` | Always | Your Gobby session ID |
 | `category` | Always | Determines validation behavior |
 | `validation_criteria` | `category=code` | Creation fails without it |
 

@@ -48,7 +48,6 @@ Pass `commit_sha` to `close_task` to link and close in one call:
 ```python
 call_tool("gobby-tasks", "close_task", {
     "task_id": "#N",
-    "session_id": "#session",
     "commit_sha": "abc1234",
     "changes_summary": "What changed and why"
 })
@@ -97,7 +96,7 @@ Do NOT create memories for bugs or errors — create tasks instead.
 3. set_variable(errors_resolved=true)
 4. Review memories → save/delete/clear gate
 5. set_variable(memory_review_completed=true)
-6. close_task(task_id, commit_sha, changes_summary, session_id)
+6. close_task(task_id, commit_sha, changes_summary)
 ```
 
 ## Review Flow (autonomous/pipeline agents)
@@ -109,7 +108,6 @@ Autonomous agents **must** use the review flow — they cannot close tasks direc
 ```python
 call_tool("gobby-tasks", "mark_task_needs_review", {
     "task_id": "#N",
-    "session_id": "#session",
     "review_notes": "What was done and what to verify"
 })
 ```
@@ -121,7 +119,6 @@ Commits are auto-linked from your session. All four gates still apply before thi
 ```python
 call_tool("gobby-tasks", "mark_task_review_approved", {
     "task_id": "#N",
-    "session_id": "#session",
     "approval_notes": "Verified: tests pass, changes match spec"
 })
 ```
@@ -146,7 +143,6 @@ For tasks that don't require code changes:
 call_tool("gobby-tasks", "close_task", {
     "task_id": "#N",
     "reason": "duplicate",  # or obsolete, wont_fix, already_implemented, out_of_repo
-    "session_id": "#session",
     "changes_summary": "Why no changes were needed"
 })
 ```
@@ -162,5 +158,4 @@ Gates 3-4 still apply. `changes_summary` is still required — explain why no ch
 | File task instead of fixing error | Gate 3 blocks — `errors_resolved` not set | Investigate and fix first |
 | Skip memory review | Gate 4 blocks — `memory_review_completed` not set | Review or explicitly clear |
 | Omit `changes_summary` | close_task rejects — required for leaf tasks | Describe what changed and why |
-| Omit `session_id` | Task not linked to session | Always pass your session ID |
 | Use mark_task_* in interactive session | Blocked by rule | Use `close_task` — user is the reviewer |

@@ -259,11 +259,11 @@ def delete_rule(
     if row is None or row.workflow_type != "rule":
         return {"success": False, "error": f"Rule '{name}' not found"}
 
-    if row.tags and "gobby" in row.tags and not force:
+    if row.source == "bundled" and not force:
         return {
             "success": False,
             "error": (
-                f"Rule '{name}' is bundled with Gobby and will be re-created on restart. "
+                f"Rule '{name}' is a template and will be re-created on restart. "
                 "Use force=True to delete anyway."
             ),
         }

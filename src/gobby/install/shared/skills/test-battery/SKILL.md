@@ -301,7 +301,6 @@ if clone.clone:
 ```python
 call_tool("gobby-tasks", "close_task", {
     "task_id": "<epic_id>",
-    "session_id": "<session_id>",
     "changes_summary": "Orchestration complete via test battery. All tasks processed."
 })
 ```

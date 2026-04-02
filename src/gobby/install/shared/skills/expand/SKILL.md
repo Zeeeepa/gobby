@@ -22,15 +22,9 @@ mechanically validates and executes the expansion.
 
 ## Session Context
 
-**IMPORTANT**: Use the `session_id` from your SessionStart hook context.
-
-Look for `Gobby Session Ref:` or `Gobby Session ID:` in your system context:
-```
-Gobby Session Ref: #5
-Gobby Session ID: <uuid>
-```
-
-**Note**: All `session_id` parameters accept #N, N, UUID, or prefix formats.
+Session identity is automatically provided via context — most task tools no longer require
+an explicit `session_id` parameter. Tools like `set_variable` and `get_variable` still
+require it — use the value from `Gobby Session ID:` in your system context.
 
 ## Tool Schema Reminder
 
@@ -65,7 +59,7 @@ If `pending=True`, skip to **Phase 3** immediately.
        "title": "<first_heading>",
        "description": content,
        "task_type": "epic",
-       "session_id": "<session_id>"
+
    })
    task_id = result["task"]["id"]
    ```
@@ -99,7 +93,7 @@ If `pending=True`, skip to **Phase 3** immediately.
            "labels": backup.get("labels", []),
            "validation_criteria": backup.get("validation_criteria"),
            "category": backup.get("category"),
-           "session_id": "<session_id>"
+    
        })
        task_id = result["task"]["id"]
    ```
@@ -150,8 +144,7 @@ if not validation["valid"]:
 
 # Execute
 result = call_tool("gobby-tasks", "execute_expansion", {
-    "task_id": "<ref>",
-    "session_id": "<session_id>"
+    "task_id": "<ref>"
 })
 
 # Wire affected files
