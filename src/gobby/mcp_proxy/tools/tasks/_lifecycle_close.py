@@ -34,7 +34,6 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
         reason: str = "completed",
         changes_summary: str | None = None,
         skip_validation: bool = False,
-        session_id: str | None = None,
         override_justification: str | None = None,
         commit_sha: str | None = None,
     ) -> dict[str, Any]:
@@ -52,13 +51,15 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
                 For completed tasks: describe what was changed and why.
                 For no-work closes (duplicate, wont_fix, obsolete): explain why no changes were needed.
             skip_validation: Skip all validation checks
-            session_id: Session ID where task is being closed (auto-links to session)
             override_justification: Why agent bypassed validation (stored for audit).
             commit_sha: Git commit SHA to link before closing. Convenience for link + close in one call.
 
         Returns:
             Closed task or error with validation feedback
         """
+        from gobby.utils.session_context import get_current_session_id
+
+        session_id = get_current_session_id()
         # Resolve task reference (supports #N, path, UUID formats)
         try:
             resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
@@ -129,7 +130,7 @@ def register_close_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
         if resolved_session_id:
             try:
                 _session = _session_manager.get(resolved_session_id)
-            except (KeyError, ValueError) as e:
+            except (KeyError, ValueError, TypeError) as e:
                 logger.debug(f"Best-effort session lookup failed: {e}")
 
         # Check for linked commits (unless parent with all children closed or epic)

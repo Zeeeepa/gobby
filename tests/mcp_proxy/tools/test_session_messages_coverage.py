@@ -18,6 +18,7 @@ import pytest
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.sessions import create_session_messages_registry
+from gobby.utils.session_context import session_context_for_test
 from gobby.workflows.summary_actions import format_turns_for_llm as _format_turns_for_llm
 
 pytestmark = pytest.mark.unit
@@ -79,7 +80,8 @@ class TestSetHandoffContext:
         registry = create_test_registry(session_manager=session_manager)
         set_context = registry.get_tool("set_handoff_context")
 
-        result = await set_context(session_id="sess-123", content="## My Handoff")
+        with session_context_for_test("sess-123"):
+            result = await set_context(content="## My Handoff")
 
         assert result["success"] is True
         assert result["mode"] == "agent_authored"
@@ -101,9 +103,10 @@ class TestSetHandoffContext:
         registry = create_test_registry(session_manager=session_manager)
         set_context = registry.get_tool("set_handoff_context")
 
-        result = await set_context(
-            session_id="sess-123", content="## Handoff", set_handoff_ready=False
-        )
+        with session_context_for_test("sess-123"):
+            result = await set_context(
+                content="## Handoff", set_handoff_ready=False
+            )
 
         assert result["success"] is True
         session_manager.update_summary.assert_called_once()
@@ -149,9 +152,10 @@ class TestSetHandoffContext:
         )
         set_context = registry.get_tool("set_handoff_context")
 
-        result = await set_context(
-            session_id="sess-123", content="## Handoff", to_session="sess-456"
-        )
+        with session_context_for_test("sess-123"):
+            result = await set_context(
+                content="## Handoff", to_session="sess-456"
+            )
 
         assert result["success"] is True
         assert result["send_result"]["success"] is True
@@ -172,7 +176,8 @@ class TestSetHandoffContext:
         registry = create_test_registry(session_manager=session_manager)
         set_context = registry.get_tool("set_handoff_context")
 
-        result = await set_context(session_id="nonexistent", content="## Handoff")
+        with session_context_for_test("nonexistent"):
+            result = await set_context(content="## Handoff")
 
         assert result["success"] is False
         assert "Not found" in result["error"]

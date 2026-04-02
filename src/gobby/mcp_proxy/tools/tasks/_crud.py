@@ -32,7 +32,6 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
     async def create_task(
         title: str,
-        session_id: str,
         category: str,
         description: str | None = None,
         priority: int = 2,
@@ -54,7 +53,6 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
         Args:
             title: Task title
-            session_id: Your session ID for tracking (REQUIRED).
             description: Detailed description
             priority: Priority level (1=High, 2=Medium, 3=Low)
             task_type: Task type (task, bug, feature, epic)
@@ -69,7 +67,13 @@ def create_crud_registry(ctx: RegistryContext) -> InternalToolRegistry:
         Returns:
             Created task dict with id (minimal) or full task details based on config.
         """
-        # Resolve session_id first — needed for project resolution and DB insert
+        from gobby.utils.session_context import get_current_session_id
+
+        session_id = get_current_session_id()
+        if not session_id:
+            return {"error": "No session context available. Ensure session_id is set."}
+
+        # Resolve session_id — needed for project resolution and DB insert
         try:
             resolved_session_id = ctx.resolve_session_id(session_id)
         except ValueError as e:

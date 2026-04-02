@@ -76,16 +76,17 @@ def register_action_tools(
         description="Capture current dirty files as baseline for session-aware commit detection.",
     )
     async def capture_baseline_dirty_files_tool(
-        session_id: str = "",
         project_path: str | None = None,
     ) -> dict[str, Any]:
         """
         Capture current dirty files as a baseline and persist to session variables.
 
         Args:
-            session_id: Session ID (auto-injected by dispatch)
             project_path: Path to the project directory for git status check
         """
+        from gobby.utils.session_context import get_current_session_id
+
+        session_id = get_current_session_id()
         try:
             dirty_files = get_dirty_files(project_path)
             baseline = sorted(dirty_files)
@@ -116,15 +117,18 @@ def register_action_tools(
         ),
     )
     async def synthesize_title_from_prompt_tool(
-        session_id: str,
         prompt_text: str = "",
     ) -> dict[str, Any]:
         """Synthesize a session title from the user's prompt.
 
         Args:
-            session_id: Session ID (auto-injected by hook manager)
             prompt_text: The user's prompt text (auto-injected by hook manager)
         """
+        from gobby.utils.session_context import get_current_session_id
+
+        session_id = get_current_session_id()
+        if not session_id:
+            return {"success": False, "error": "No session context available"}
         # --- Guard: skip if prompt is too short or a slash command ---
         text = (prompt_text or "").strip()
         if len(text) < 10:

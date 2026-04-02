@@ -358,20 +358,19 @@ def create_sync_registry(
         name="sync_import",
         description="Import tasks from .gobby/tasks.jsonl into the database.",
     )
-    async def sync_import_tool(session_id: str) -> dict[str, Any]:
-        """
-        Import tasks from JSONL file using session for project resolution.
+    async def sync_import_tool() -> dict[str, Any]:
+        """Import tasks from JSONL file using session for project resolution."""
+        from gobby.utils.session_context import get_current_session_id
 
-        Args:
-            session_id: Session ID for project-scoped sync
-        """
+        session_id = get_current_session_id()
         if not session_manager:
             return {"success": False, "error": "Session manager not available"}
         try:
             project_id = None
-            session = await asyncio.to_thread(session_manager.get, session_id)
-            if session:
-                project_id = session.project_id
+            if session_id:
+                session = await asyncio.to_thread(session_manager.get, session_id)
+                if session:
+                    project_id = session.project_id
             await asyncio.to_thread(sync_manager.import_from_jsonl, project_id=project_id)
             return {"success": True, "imported": True}
         except Exception as e:
@@ -381,20 +380,19 @@ def create_sync_registry(
         name="sync_export",
         description="Export tasks from the database to .gobby/tasks.jsonl.",
     )
-    async def sync_export_tool(session_id: str) -> dict[str, Any]:
-        """
-        Export tasks to JSONL file using session for project resolution.
+    async def sync_export_tool() -> dict[str, Any]:
+        """Export tasks to JSONL file using session for project resolution."""
+        from gobby.utils.session_context import get_current_session_id
 
-        Args:
-            session_id: Session ID for project-scoped sync
-        """
+        session_id = get_current_session_id()
         if not session_manager:
             return {"success": False, "error": "Session manager not available"}
         try:
             project_id = None
-            session = await asyncio.to_thread(session_manager.get, session_id)
-            if session:
-                project_id = session.project_id
+            if session_id:
+                session = await asyncio.to_thread(session_manager.get, session_id)
+                if session:
+                    project_id = session.project_id
             await asyncio.to_thread(sync_manager.export_to_jsonl, project_id=project_id)
             return {"success": True, "exported": True}
         except Exception as e:

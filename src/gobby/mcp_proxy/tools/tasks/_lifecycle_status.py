@@ -108,7 +108,6 @@ def register_escalate_task(registry: InternalToolRegistry, ctx: RegistryContext)
     def escalate_task(
         task_id: str,
         reason: str,
-        session_id: str | None = None,
     ) -> dict[str, Any]:
         """Escalate a task for human intervention.
 
@@ -118,11 +117,13 @@ def register_escalate_task(registry: InternalToolRegistry, ctx: RegistryContext)
         Args:
             task_id: Task reference (#N, path, or UUID)
             reason: Why the task is being escalated
-            session_id: Optional session ID for tracking
 
         Returns:
             Empty dict on success, or error dict with details.
         """
+        from gobby.utils.session_context import get_current_session_id
+
+        session_id = get_current_session_id()
         try:
             resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
         except (TaskNotFoundError, ValueError) as e:
@@ -196,7 +197,6 @@ def register_mark_task_review_approved(
 
     def mark_task_review_approved(
         task_id: str,
-        session_id: str,
         approval_notes: str | None = None,
     ) -> dict[str, Any]:
         """Approve a task after review.
@@ -206,12 +206,17 @@ def register_mark_task_review_approved(
 
         Args:
             task_id: Task reference (#N, path, or UUID)
-            session_id: Session ID approving the task
             approval_notes: Optional notes about the approval
 
         Returns:
             Empty dict on success, or error dict with details.
         """
+        from gobby.utils.session_context import get_current_session_id
+
+        session_id = get_current_session_id()
+        if not session_id:
+            return {"error": "No session context available. Ensure session_id is set."}
+
         try:
             resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)
         except TaskNotFoundError as e:
@@ -314,7 +319,6 @@ def register_mark_task_needs_review(registry: InternalToolRegistry, ctx: Registr
 
     def mark_task_needs_review(
         task_id: str,
-        session_id: str,
         review_notes: str | None = None,
     ) -> dict[str, Any]:
         """Mark a task as ready for review.
@@ -324,12 +328,17 @@ def register_mark_task_needs_review(registry: InternalToolRegistry, ctx: Registr
 
         Args:
             task_id: Task reference (#N, path, or UUID)
-            session_id: Session ID marking the task for review
             review_notes: Optional notes for the reviewer
 
         Returns:
             Empty dict on success, or error dict with details.
         """
+        from gobby.utils.session_context import get_current_session_id
+
+        session_id = get_current_session_id()
+        if not session_id:
+            return {"error": "No session context available. Ensure session_id is set."}
+
         # Resolve task reference (supports #N, path, UUID formats)
         try:
             resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)

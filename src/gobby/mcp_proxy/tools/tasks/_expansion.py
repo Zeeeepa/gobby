@@ -242,7 +242,6 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
     async def execute_expansion(
         parent_task_id: str,
-        session_id: str,
         project: str | None = None,
         tdd: bool = False,
     ) -> dict[str, Any]:
@@ -253,12 +252,17 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
         Args:
             parent_task_id: Task ID with saved expansion spec
-            session_id: Session ID for tracking created tasks
             project: Project name or UUID for task resolution (optional)
 
         Returns:
             {"created": ["#N", ...], "count": int} or {"error": str}
         """
+        from gobby.utils.session_context import get_current_session_id
+
+        session_id = get_current_session_id()
+        if not session_id:
+            return {"error": "No session context available. Ensure session_id is set."}
+
         # Get project context
         try:
             project_id = ctx.resolve_project_filter(project)

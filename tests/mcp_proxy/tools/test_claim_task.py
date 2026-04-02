@@ -14,6 +14,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from gobby.utils.session_context import session_context_for_test
+
 from gobby.mcp_proxy.tools.tasks import create_task_registry
 from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.sync.tasks import TaskSyncManager
@@ -74,6 +76,12 @@ def claimed_task():
 class TestClaimTaskTool:
     """Tests for the claim_task MCP tool."""
 
+    @pytest.fixture(autouse=True)
+    def _set_session_context(self):
+        """Set session context for all tests — claim_task reads from ContextVar."""
+        with session_context_for_test("my-session-id"):
+            yield
+
     @pytest.mark.asyncio
     async def test_claim_task_success(self, mock_task_manager, mock_sync_manager, sample_task):
         """Test successfully claiming an unclaimed task."""
@@ -104,7 +112,7 @@ class TestClaimTaskTool:
                 "claim_task",
                 {
                     "task_id": sample_task.id,
-                    "session_id": "my-session-id",
+
                 },
             )
 
@@ -135,7 +143,7 @@ class TestClaimTaskTool:
             "claim_task",
             {
                 "task_id": claimed_task.id,
-                "session_id": "my-session-id",
+
             },
         )
 
@@ -180,7 +188,7 @@ class TestClaimTaskTool:
                 "claim_task",
                 {
                     "task_id": claimed_task.id,
-                    "session_id": "my-session-id",
+
                     "force": True,
                 },
             )
@@ -233,7 +241,7 @@ class TestClaimTaskTool:
                 "claim_task",
                 {
                     "task_id": task_claimed_by_self.id,
-                    "session_id": "my-session-id",
+
                 },
             )
 
@@ -251,7 +259,7 @@ class TestClaimTaskTool:
             "claim_task",
             {
                 "task_id": "00000000-0000-0000-0000-000000000000",
-                "session_id": "my-session-id",
+
             },
         )
 
@@ -283,7 +291,7 @@ class TestClaimTaskTool:
                     "claim_task",
                     {
                         "task_id": "#42",  # Reference format
-                        "session_id": "my-session-id",
+    
                     },
                 )
 
@@ -332,7 +340,7 @@ class TestClaimTaskTool:
                 "claim_task",
                 {
                     "task_id": sample_task.id,
-                    "session_id": "my-session-id",
+
                 },
             )
 
@@ -394,6 +402,11 @@ class TestClaimTaskSchema:
 class TestClaimTaskSessionVariables:
     """Tests for claim_task setting task_claimed session variable."""
 
+    @pytest.fixture(autouse=True)
+    def _set_session_context(self):
+        with session_context_for_test("my-session-id"):
+            yield
+
     @pytest.mark.asyncio
     async def test_claim_task_sets_task_claimed_via_session_variables(
         self, mock_task_manager, mock_sync_manager, sample_task
@@ -429,7 +442,7 @@ class TestClaimTaskSessionVariables:
 
             result = await registry.call(
                 "claim_task",
-                {"task_id": sample_task.id, "session_id": "my-session-id"},
+                {"task_id": sample_task.id},
             )
 
             assert "error" not in result
@@ -445,6 +458,11 @@ class TestClaimTaskSessionVariables:
 
 class TestClaimTaskVsUpdateTask:
     """Tests demonstrating why claim_task provides value over update_task."""
+
+    @pytest.fixture(autouse=True)
+    def _set_session_context(self):
+        with session_context_for_test("my-session-id"):
+            yield
 
     @pytest.mark.asyncio
     async def test_claim_task_is_atomic_operation(
@@ -474,7 +492,7 @@ class TestClaimTaskVsUpdateTask:
                 "claim_task",
                 {
                     "task_id": sample_task.id,
-                    "session_id": "my-session-id",
+
                 },
             )
 
@@ -502,7 +520,7 @@ class TestClaimTaskVsUpdateTask:
             "claim_task",
             {
                 "task_id": claimed_task.id,
-                "session_id": "my-session-id",
+
             },
         )
 

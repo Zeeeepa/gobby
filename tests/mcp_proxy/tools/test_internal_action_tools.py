@@ -12,6 +12,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from gobby.utils.session_context import session_context_for_test
+
 pytestmark = pytest.mark.unit
 
 
@@ -221,10 +223,11 @@ class TestSessionSetHandoffContext:
 
     @pytest.mark.asyncio
     async def test_agent_authored_path(self, session_registry) -> None:
-        result = await session_registry.call(
-            "set_handoff_context",
-            {"session_id": "sess-1", "content": "## Test handoff"},
-        )
+        with session_context_for_test("sess-1"):
+            result = await session_registry.call(
+                "set_handoff_context",
+                {"content": "## Test handoff"},
+            )
         assert result["success"] is True
         assert result["mode"] == "agent_authored"
 

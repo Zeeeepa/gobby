@@ -57,9 +57,12 @@ async def test_task_verbosity_reduction():
     registry = create_task_registry(mock_manager, mock_sync)
 
     # Test create
-    result = await registry.call(
-        "create_task", {"title": "test", "session_id": "test-session", "category": "research"}
-    )
+    from gobby.utils.session_context import session_context_for_test
+
+    with session_context_for_test("test-session"):
+        result = await registry.call(
+            "create_task", {"title": "test", "category": "research"}
+        )
     assert result["id"] == "task-123"
     # Should NOT contain full dict in improved version
     assert "description" not in result

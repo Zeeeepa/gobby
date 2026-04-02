@@ -21,7 +21,6 @@ def register_claim_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
 
     def claim_task(
         task_id: str,
-        session_id: str,
         force: bool = False,
     ) -> dict[str, Any]:
         """Claim a task for the current session.
@@ -32,12 +31,17 @@ def register_claim_task(registry: InternalToolRegistry, ctx: RegistryContext) ->
 
         Args:
             task_id: Task reference (#N, path, or UUID)
-            session_id: Session ID claiming the task
             force: Override existing claim by another session (default: False)
 
         Returns:
             Empty dict on success, or error dict with conflict information.
         """
+        from gobby.utils.session_context import get_current_session_id
+
+        session_id = get_current_session_id()
+        if not session_id:
+            return {"error": "No session context available. Ensure session_id is set."}
+
         # Resolve task reference (supports #N, path, UUID formats)
         try:
             resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)

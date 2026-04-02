@@ -17,6 +17,7 @@ import pytest
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.sessions import create_session_messages_registry
 from gobby.mcp_proxy.tools.sessions._actions import _sanitize_title
+from gobby.utils.session_context import session_context_for_test
 
 pytestmark = pytest.mark.unit
 
@@ -94,30 +95,33 @@ class TestToolRegistration:
 class TestGuardClauses:
     @pytest.mark.asyncio
     async def test_skips_short_prompt(self, registry) -> None:
-        result = await registry.call(
-            "synthesize_title_from_prompt",
-            {"session_id": "sess-123", "prompt_text": "hi"},
-        )
+        with session_context_for_test("sess-123"):
+            result = await registry.call(
+                "synthesize_title_from_prompt",
+                {"prompt_text": "hi"},
+            )
         assert result["success"] is True
         assert result["skipped"] is True
         assert result["reason"] == "prompt_too_short"
 
     @pytest.mark.asyncio
     async def test_skips_empty_prompt(self, registry) -> None:
-        result = await registry.call(
-            "synthesize_title_from_prompt",
-            {"session_id": "sess-123", "prompt_text": ""},
-        )
+        with session_context_for_test("sess-123"):
+            result = await registry.call(
+                "synthesize_title_from_prompt",
+                {"prompt_text": ""},
+            )
         assert result["success"] is True
         assert result["skipped"] is True
         assert result["reason"] == "prompt_too_short"
 
     @pytest.mark.asyncio
     async def test_skips_slash_command(self, registry) -> None:
-        result = await registry.call(
-            "synthesize_title_from_prompt",
-            {"session_id": "sess-123", "prompt_text": "/commit -m 'fix stuff'"},
-        )
+        with session_context_for_test("sess-123"):
+            result = await registry.call(
+                "synthesize_title_from_prompt",
+                {"prompt_text": "/commit -m 'fix stuff'"},
+            )
         assert result["success"] is True
         assert result["skipped"] is True
         assert result["reason"] == "slash_command"
@@ -127,13 +131,13 @@ class TestGuardClauses:
         mock_session.title = "Already Has a Title"
         mock_session_manager.get.return_value = mock_session
 
-        result = await registry.call(
-            "synthesize_title_from_prompt",
-            {
-                "session_id": "sess-123",
-                "prompt_text": "Help me build a REST API",
-            },
-        )
+        with session_context_for_test("sess-123"):
+            result = await registry.call(
+                "synthesize_title_from_prompt",
+                {
+                    "prompt_text": "Help me build a REST API",
+                },
+            )
         assert result["success"] is True
         assert result["skipped"] is True
         assert result["reason"] == "title_already_set"
@@ -150,13 +154,13 @@ class TestGuardClauses:
             "gobby.prompts.loader.PromptLoader.load",
             side_effect=FileNotFoundError("not found"),
         ):
-            result = await registry.call(
-                "synthesize_title_from_prompt",
-                {
-                    "session_id": "sess-123",
-                    "prompt_text": "Help me build a REST API",
-                },
-            )
+            with session_context_for_test("sess-123"):
+                result = await registry.call(
+                    "synthesize_title_from_prompt",
+                    {
+                        "prompt_text": "Help me build a REST API",
+                    },
+                )
         assert result["success"] is True
         assert "skipped" not in result
         assert "title" in result
@@ -184,13 +188,13 @@ class TestHappyPath:
         mock_session_manager,
         mock_llm_provider,
     ) -> None:
-        result = await registry.call(
-            "synthesize_title_from_prompt",
-            {
-                "session_id": "sess-123",
-                "prompt_text": "Help me implement user authentication with JWT tokens",
-            },
-        )
+        with session_context_for_test("sess-123"):
+            result = await registry.call(
+                "synthesize_title_from_prompt",
+                {
+                    "prompt_text": "Help me implement user authentication with JWT tokens",
+                },
+            )
         assert result["success"] is True
         assert result["title"] == "Implement Auth System"
         mock_session_manager.update_title.assert_called_once_with(
@@ -203,13 +207,13 @@ class TestHappyPath:
         registry,
         mock_llm_provider,
     ) -> None:
-        await registry.call(
-            "synthesize_title_from_prompt",
-            {
-                "session_id": "sess-123",
-                "prompt_text": "Refactor the database layer to use connection pooling",
-            },
-        )
+        with session_context_for_test("sess-123"):
+            await registry.call(
+                "synthesize_title_from_prompt",
+                {
+                    "prompt_text": "Refactor the database layer to use connection pooling",
+                },
+            )
         mock_llm_provider.generate_text.assert_awaited_once()
         call_kwargs = mock_llm_provider.generate_text.call_args
         assert call_kwargs.kwargs["max_tokens"] == 30
@@ -226,13 +230,13 @@ class TestHappyPath:
             "gobby.workflows.summary_actions._rename_tmux_window",
             new_callable=AsyncMock,
         ) as mock_rename:
-            result = await registry.call(
-                "synthesize_title_from_prompt",
-                {
-                    "session_id": "sess-123",
-                    "prompt_text": "Add dark mode support to the frontend",
-                },
-            )
+            with session_context_for_test("sess-123"):
+                result = await registry.call(
+                    "synthesize_title_from_prompt",
+                    {
+                        "prompt_text": "Add dark mode support to the frontend",
+                    },
+                )
             assert result["success"] is True
             mock_rename.assert_awaited_once()
 
@@ -246,13 +250,13 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_missing_session(self, registry, mock_session_manager) -> None:
         mock_session_manager.get.return_value = None
-        result = await registry.call(
-            "synthesize_title_from_prompt",
-            {
-                "session_id": "nonexistent",
-                "prompt_text": "Help me debug this error",
-            },
-        )
+        with session_context_for_test("nonexistent"):
+            result = await registry.call(
+                "synthesize_title_from_prompt",
+                {
+                    "prompt_text": "Help me debug this error",
+                },
+            )
         assert result["success"] is False
         assert "not found" in result["error"]
 
@@ -264,13 +268,13 @@ class TestErrorHandling:
             llm_service=None,
             db=None,
         )
-        result = await reg.call(
-            "synthesize_title_from_prompt",
-            {
-                "session_id": "sess-123",
-                "prompt_text": "Help me build a REST API",
-            },
-        )
+        with session_context_for_test("sess-123"):
+            result = await reg.call(
+                "synthesize_title_from_prompt",
+                {
+                    "prompt_text": "Help me build a REST API",
+                },
+            )
         assert result["success"] is False
         assert "LLM service" in result["error"]
 
@@ -281,13 +285,13 @@ class TestErrorHandling:
             "gobby.prompts.loader.PromptLoader.load",
             side_effect=FileNotFoundError("not found"),
         ):
-            result = await registry.call(
-                "synthesize_title_from_prompt",
-                {
-                    "session_id": "sess-123",
-                    "prompt_text": "Help me build a REST API with pagination",
-                },
-            )
+            with session_context_for_test("sess-123"):
+                result = await registry.call(
+                    "synthesize_title_from_prompt",
+                    {
+                        "prompt_text": "Help me build a REST API with pagination",
+                    },
+                )
         assert result["success"] is False
         assert "timed out" in result["error"].lower()
 

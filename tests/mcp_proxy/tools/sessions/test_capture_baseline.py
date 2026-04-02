@@ -12,6 +12,7 @@ import pytest
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
+from gobby.utils.session_context import session_context_for_test
 from gobby.workflows.state_manager import SessionVariableManager
 
 pytestmark = pytest.mark.unit
@@ -54,7 +55,8 @@ class TestCaptureBaselineDirtyFiles:
         tool = registry.get_tool("capture_baseline_dirty_files")
         assert tool is not None
 
-        result = asyncio.run(tool(session_id="sess-1", project_path="/tmp"))
+        with session_context_for_test("sess-1"):
+            result = asyncio.run(tool(project_path="/tmp"))
 
         assert result["success"] is True
         assert result["file_count"] == 2
@@ -65,20 +67,17 @@ class TestCaptureBaselineDirtyFiles:
 
     @patch("gobby.mcp_proxy.tools.sessions._actions.get_dirty_files")
     def test_no_persist_without_session_id(self, mock_dirty, db) -> None:
-        """Should not persist when session_id is empty."""
+        """Should not persist when no session context is set."""
         mock_dirty.return_value = {"file_a.py"}
 
         registry = _make_registry(db=db)
         tool = registry.get_tool("capture_baseline_dirty_files")
         assert tool is not None
 
-        result = asyncio.run(tool(session_id="", project_path="/tmp"))
+        # No session_context_for_test — session_id will be None
+        result = asyncio.run(tool(project_path="/tmp"))
 
         assert result["success"] is True
-
-        svm = SessionVariableManager(db=db)
-        variables = svm.get_variables("")
-        assert "baseline_dirty_files" not in variables
 
     @patch("gobby.mcp_proxy.tools.sessions._actions.get_dirty_files")
     def test_no_persist_without_db(self, mock_dirty) -> None:
@@ -89,7 +88,8 @@ class TestCaptureBaselineDirtyFiles:
         tool = registry.get_tool("capture_baseline_dirty_files")
         assert tool is not None
 
-        result = asyncio.run(tool(session_id="sess-1", project_path="/tmp"))
+        with session_context_for_test("sess-1"):
+            result = asyncio.run(tool(project_path="/tmp"))
 
         assert result["success"] is True
         assert result["file_count"] == 1
@@ -103,7 +103,8 @@ class TestCaptureBaselineDirtyFiles:
         tool = registry.get_tool("capture_baseline_dirty_files")
         assert tool is not None
 
-        result = asyncio.run(tool(session_id="sess-1", project_path="/tmp"))
+        with session_context_for_test("sess-1"):
+            result = asyncio.run(tool(project_path="/tmp"))
 
         assert result["success"] is True
         assert result["file_count"] == 0

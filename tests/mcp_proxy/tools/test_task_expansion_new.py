@@ -15,6 +15,7 @@ from gobby.mcp_proxy.tools.tasks._context import RegistryContext
 from gobby.mcp_proxy.tools.tasks._expansion import create_expansion_registry
 from gobby.storage.tasks import LocalTaskManager
 from gobby.sync.tasks import TaskSyncManager
+from gobby.utils.session_context import session_context_for_test
 
 pytestmark = pytest.mark.unit
 
@@ -207,7 +208,8 @@ class TestExecuteExpansion:
         await save_fn(task_id=parent_task, spec=spec)
 
         # Execute the expansion
-        result = await execute_fn(parent_task_id=parent_task, session_id=test_session)
+        with session_context_for_test(test_session):
+            result = await execute_fn(parent_task_id=parent_task)
 
         assert "error" not in result
         assert result["count"] == 2
@@ -236,7 +238,8 @@ class TestExecuteExpansion:
         """Test executing when no pending expansion."""
         execute_fn = expansion_registry["execute_expansion"].func
 
-        result = await execute_fn(parent_task_id=parent_task, session_id=test_session)
+        with session_context_for_test(test_session):
+            result = await execute_fn(parent_task_id=parent_task)
 
         assert "error" in result
         assert "no pending" in result["error"].lower()
@@ -264,7 +267,8 @@ class TestExecuteExpansion:
         }
         await save_fn(task_id=parent_task, spec=spec)
 
-        result = await execute_fn(parent_task_id=parent_task, session_id=test_session)
+        with session_context_for_test(test_session):
+            result = await execute_fn(parent_task_id=parent_task)
 
         assert result["count"] == 3
 
@@ -288,7 +292,8 @@ class TestExecuteExpansion:
         """Test executing expansion on non-existent task."""
         execute_fn = expansion_registry["execute_expansion"].func
 
-        result = await execute_fn(parent_task_id="nonexistent", session_id=test_session)
+        with session_context_for_test(test_session):
+            result = await execute_fn(parent_task_id="nonexistent")
 
         assert "error" in result
         assert "not found" in result["error"].lower()
@@ -352,7 +357,8 @@ class TestGetExpansionSpec:
         # Save and execute
         spec = {"subtasks": [{"title": "Task 1"}]}
         await save_fn(task_id=parent_task, spec=spec)
-        await execute_fn(parent_task_id=parent_task, session_id=test_session)
+        with session_context_for_test(test_session):
+            await execute_fn(parent_task_id=parent_task)
 
         # Get should now show not pending
         result = await get_fn(task_id=parent_task)
@@ -725,7 +731,8 @@ class TestExpansionWithSeqNum:
             ]
         }
         await save_fn(task_id=parent_id, spec=spec)
-        exec_result = await execute_fn(parent_task_id=parent_id, session_id=test_session)
+        with session_context_for_test(test_session):
+            exec_result = await execute_fn(parent_task_id=parent_id)
 
         # All refs should be #N format
         for ref in exec_result["created"]:
@@ -756,7 +763,8 @@ class TestPlanFileReference:
             ],
         }
         await save_fn(task_id=parent_task, spec=spec)
-        result = await execute_fn(parent_task_id=parent_task, session_id=test_session)
+        with session_context_for_test(test_session):
+            result = await execute_fn(parent_task_id=parent_task)
 
         assert result["count"] == 2
 
@@ -793,7 +801,8 @@ class TestPlanFileReference:
             ],
         }
         await save_fn(task_id=parent_task, spec=spec)
-        result = await execute_fn(parent_task_id=parent_task, session_id=test_session)
+        with session_context_for_test(test_session):
+            result = await execute_fn(parent_task_id=parent_task)
 
         assert result["count"] == 1
 

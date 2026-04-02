@@ -15,6 +15,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from gobby.utils.session_context import session_context_for_test
+
 from gobby.mcp_proxy.tools.tasks import (
     SKIP_REASONS,
     create_task_registry,
@@ -117,6 +119,11 @@ class TestSkipReasons:
 class TestCreateTaskTool:
     """Tests for create_task MCP tool."""
 
+    @pytest.fixture(autouse=True)
+    def _set_session_context(self):
+        with session_context_for_test("test-session"):
+            yield
+
     @pytest.mark.asyncio
     async def test_create_task_minimal(self, mock_task_manager, mock_sync_manager):
         """Test create_task with minimal arguments."""
@@ -140,7 +147,7 @@ class TestCreateTaskTool:
 
             result = await registry.call(
                 "create_task",
-                {"title": "New Task", "session_id": "test-session", "category": "research"},
+                {"title": "New Task", "category": "research"},
             )
 
             assert result == {
@@ -174,7 +181,7 @@ class TestCreateTaskTool:
                     "create_task",
                     {
                         "title": "Blocker Task",
-                        "session_id": "test-session",
+                       
                         "category": "research",
                         "blocks": [
                             "550e8400-e29b-41d4-a716-446655440003",
@@ -225,7 +232,7 @@ class TestCreateTaskTool:
                         "create_task",
                         {
                             "title": "Dependent Task",
-                            "session_id": "test-session",
+                           
                             "category": "research",
                             "depends_on": ["blocker-1", "blocker-2"],
                         },
@@ -278,7 +285,7 @@ class TestCreateTaskTool:
                         "create_task",
                         {
                             "title": "Partial Deps Task",
-                            "session_id": "test-session",
+                           
                             "category": "research",
                             "depends_on": ["valid-ref", "invalid-ref"],
                         },
@@ -314,7 +321,7 @@ class TestCreateTaskTool:
                 "create_task",
                 {
                     "title": "Labeled Task",
-                    "session_id": "test-session",
+                   
                     "category": "research",
                     "labels": ["urgent", "bug"],
                 },
@@ -338,7 +345,7 @@ class TestCreateTaskTool:
                 "create_task",
                 {
                     "title": "Implement new feature",
-                    "session_id": "test-session",
+                   
                     "category": "code",
                 },
             )
@@ -369,7 +376,7 @@ class TestCreateTaskTool:
                 "create_task",
                 {
                     "title": "Implement new feature",
-                    "session_id": "test-session",
+                   
                     "category": "code",
                     "validation_criteria": "Tests pass and feature works",
                 },
@@ -401,7 +408,7 @@ class TestCreateTaskTool:
                 "create_task",
                 {
                     "title": "Research auth options",
-                    "session_id": "test-session",
+                   
                     "category": "research",
                 },
             )
@@ -445,7 +452,6 @@ class TestCreateTaskTool:
                         "labels": ["important"],
                         "category": "automated",
                         "validation_criteria": "Must pass tests",
-                        "session_id": "sess-123",
                     },
                 )
 
@@ -478,7 +484,7 @@ class TestCreateTaskTool:
 
             await registry.call(
                 "create_task",
-                {"title": "Task", "session_id": "test-session", "category": "research"},
+                {"title": "Task", "category": "research"},
             )
 
             # When no project context, should fall back to PERSONAL_PROJECT_ID
@@ -515,7 +521,7 @@ class TestCreateTaskTool:
 
             result = await registry.call(
                 "create_task",
-                {"title": "Full Task", "session_id": "test-session", "category": "research"},
+                {"title": "Full Task", "category": "research"},
             )
 
             # Should return full task dict, not minimal
@@ -553,7 +559,7 @@ class TestCreateTaskTool:
 
             result = await registry.call(
                 "create_task",
-                {"title": "Task", "session_id": "test-session", "category": "research"},
+                {"title": "Task", "category": "research"},
             )
 
             # Without claim=True, update_task should NOT be called (no auto-claim)
@@ -599,7 +605,7 @@ class TestCreateTaskTool:
 
                 result = await registry.call(
                     "create_task",
-                    {"title": "New Task", "session_id": "test-session", "category": "research"},
+                    {"title": "New Task", "category": "research"},
                 )
 
                 # Task should be created
@@ -655,7 +661,7 @@ class TestCreateTaskTool:
                     "create_task",
                     {
                         "title": "New Task",
-                        "session_id": "test-session",
+                       
                         "category": "research",
                         "claim": True,
                     },
@@ -726,7 +732,7 @@ class TestCreateTaskTool:
                     "create_task",
                     {
                         "title": "New Task",
-                        "session_id": "test-session",
+                       
                         "category": "research",
                         "claim": True,
                     },
@@ -1146,6 +1152,11 @@ class TestLabelTools:
 class TestCloseTaskTool:
     """Tests for close_task MCP tool."""
 
+    @pytest.fixture(autouse=True)
+    def _set_session_context(self):
+        with session_context_for_test("test-session"):
+            yield
+
     @pytest.mark.asyncio
     async def test_close_task_not_found(self, mock_task_manager, mock_sync_manager):
         """Test close_task returns error when task not found."""
@@ -1443,7 +1454,6 @@ class TestCloseTaskTool:
                 {
                     "task_id": "550e8400-e29b-41d4-a716-446655440000",
                     "reason": "out_of_repo",
-                    "session_id": "550e8400-e29b-41d4-a716-446655440000",
                     "changes_summary": "test changes",
                 },
             )
@@ -1522,7 +1532,7 @@ class TestCloseTaskTool:
                 "close_task",
                 {
                     "task_id": task_uuid,
-                    "session_id": "test-session",
+                   
                     "changes_summary": "test changes",
                 },
             )
@@ -1816,6 +1826,11 @@ class TestListTasksTool:
 class TestSessionIntegrationTools:
     """Tests for session integration MCP tools."""
 
+    @pytest.fixture(autouse=True)
+    def _set_session_context(self):
+        with session_context_for_test("sess-123"):
+            yield
+
     @pytest.mark.asyncio
     async def test_link_task_to_session_success(self, mock_task_manager, mock_sync_manager):
         """Test link_task_to_session creates a link."""
@@ -1839,7 +1854,6 @@ class TestSessionIntegrationTools:
                 "link_task_to_session",
                 {
                     "task_id": "550e8400-e29b-41d4-a716-446655440000",
-                    "session_id": "sess-123",
                     "action": "worked_on",
                 },
             )
@@ -1853,14 +1867,21 @@ class TestSessionIntegrationTools:
     async def test_link_task_to_session_missing_session_id(
         self, mock_task_manager, mock_sync_manager
     ):
-        """Test link_task_to_session requires session_id."""
-        registry = create_task_registry(mock_task_manager, mock_sync_manager)
+        """Test link_task_to_session requires session context."""
+        from gobby.utils.session_context import reset_session_context, set_session_context
 
-        result = await registry.call(
-            "link_task_to_session", {"task_id": "550e8400-e29b-41d4-a716-446655440000"}
-        )
+        # Override autouse fixture: clear session context
+        token = set_session_context(None)
+        try:
+            registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
-        assert "error" in result
+            result = await registry.call(
+                "link_task_to_session", {"task_id": "550e8400-e29b-41d4-a716-446655440000"}
+            )
+
+            assert "error" in result
+        finally:
+            reset_session_context(token)
 
     @pytest.mark.asyncio
     async def test_link_task_to_session_error(self, mock_task_manager, mock_sync_manager):
@@ -1876,7 +1897,7 @@ class TestSessionIntegrationTools:
 
             result = await registry.call(
                 "link_task_to_session",
-                {"task_id": "00000000-0000-0000-0000-000000000000", "session_id": "sess-123"},
+                {"task_id": "00000000-0000-0000-0000-000000000000"},
             )
 
             assert "error" in result
@@ -2132,6 +2153,11 @@ class TestSessionVariableMirroring:
     require-task-close rule never blocks the stop hook.
     """
 
+    @pytest.fixture(autouse=True)
+    def _set_session_context(self):
+        with session_context_for_test("test-session"):
+            yield
+
     @pytest.mark.asyncio
     async def test_claim_task_mirrors_to_session_variables(
         self, mock_task_manager, mock_sync_manager
@@ -2168,7 +2194,7 @@ class TestSessionVariableMirroring:
 
             result = await registry.call(
                 "claim_task",
-                {"task_id": task_uuid, "session_id": "test-session"},
+                {"task_id": task_uuid},
             )
 
             assert "error" not in result
@@ -2242,7 +2268,7 @@ class TestSessionVariableMirroring:
 
             result = await registry.call(
                 "close_task",
-                {"task_id": task_uuid, "session_id": "test-session", "changes_summary": "done"},
+                {"task_id": task_uuid, "changes_summary": "done"},
             )
 
             assert "error" not in result
@@ -2299,7 +2325,7 @@ class TestSessionVariableMirroring:
                     "create_task",
                     {
                         "title": "New Task",
-                        "session_id": "test-session",
+                       
                         "category": "research",
                         "claim": True,
                     },

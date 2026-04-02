@@ -7,6 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from gobby.utils.session_context import session_context_for_test
+
 from gobby.mcp_proxy.tools.tasks import create_task_registry
 from gobby.mcp_proxy.tools.tasks._lifecycle import _is_uuid
 from gobby.storage.tasks import LocalTaskManager, Task
@@ -519,6 +521,11 @@ class TestLabels:
 class TestEscalateTask:
     """Tests for escalate_task tool."""
 
+    @pytest.fixture(autouse=True)
+    def _set_session_context(self):
+        with session_context_for_test("my-session"):
+            yield
+
     @pytest.mark.asyncio
     async def test_escalate_success(self, mock_task_manager, mock_sync_manager):
         task = _make_task(status="in_progress")
@@ -567,7 +574,6 @@ class TestEscalateTask:
             {
                 "task_id": task.id,
                 "reason": "blocked",
-                "session_id": "my-session",
             },
         )
         assert "error" not in result
@@ -581,6 +587,11 @@ class TestEscalateTask:
 class TestMarkTaskReviewApproved:
     """Tests for mark_task_review_approved tool."""
 
+    @pytest.fixture(autouse=True)
+    def _set_session_context(self):
+        with session_context_for_test("sess-1"):
+            yield
+
     @pytest.mark.asyncio
     async def test_approve_needs_review(self, mock_task_manager, mock_sync_manager):
         task = _make_task(status="needs_review")
@@ -590,7 +601,7 @@ class TestMarkTaskReviewApproved:
 
         result = await registry.call(
             "mark_task_review_approved",
-            {"task_id": task.id, "session_id": "sess-1"},
+            {"task_id": task.id},
         )
         assert "error" not in result
 
@@ -602,7 +613,7 @@ class TestMarkTaskReviewApproved:
 
         result = await registry.call(
             "mark_task_review_approved",
-            {"task_id": task.id, "session_id": "sess-1"},
+            {"task_id": task.id},
         )
         assert "error" in result
         assert "closed" in result["error"]
@@ -618,7 +629,7 @@ class TestMarkTaskReviewApproved:
             "mark_task_review_approved",
             {
                 "task_id": task.id,
-                "session_id": "sess-1",
+
                 "approval_notes": "Looks good",
             },
         )
@@ -636,7 +647,7 @@ class TestMarkTaskReviewApproved:
 
         result = await registry.call(
             "mark_task_review_approved",
-            {"task_id": task.id, "session_id": "sess-1"},
+            {"task_id": task.id},
         )
         assert "error" in result
         assert "Failed to approve" in result["error"]
@@ -650,6 +661,11 @@ class TestMarkTaskReviewApproved:
 class TestMarkTaskNeedsReview:
     """Tests for mark_task_needs_review tool."""
 
+    @pytest.fixture(autouse=True)
+    def _set_session_context(self):
+        with session_context_for_test("sess-1"):
+            yield
+
     @pytest.mark.asyncio
     async def test_mark_needs_review_success(self, mock_task_manager, mock_sync_manager):
         task = _make_task(status="in_progress")
@@ -659,7 +675,7 @@ class TestMarkTaskNeedsReview:
 
         result = await registry.call(
             "mark_task_needs_review",
-            {"task_id": task.id, "session_id": "sess-1"},
+            {"task_id": task.id},
         )
         assert "error" not in result
 
@@ -674,7 +690,7 @@ class TestMarkTaskNeedsReview:
             "mark_task_needs_review",
             {
                 "task_id": task.id,
-                "session_id": "sess-1",
+
                 "review_notes": "Please check the output",
             },
         )
@@ -691,7 +707,7 @@ class TestMarkTaskNeedsReview:
 
         result = await registry.call(
             "mark_task_needs_review",
-            {"task_id": task.id, "session_id": "sess-1"},
+            {"task_id": task.id},
         )
         assert "error" in result
         assert "Failed to mark" in result["error"]
@@ -703,7 +719,7 @@ class TestMarkTaskNeedsReview:
 
         result = await registry.call(
             "mark_task_needs_review",
-            {"task_id": "550e8400-e29b-41d4-a716-446655440000", "session_id": "s"},
+            {"task_id": "550e8400-e29b-41d4-a716-446655440000"},
         )
         assert "error" in result
 

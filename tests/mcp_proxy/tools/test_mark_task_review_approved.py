@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from gobby.storage.tasks import Task
+from gobby.utils.session_context import session_context_for_test
 
 pytestmark = pytest.mark.unit
 
@@ -91,6 +92,11 @@ def lifecycle_registry(mock_task_manager, mock_sync_manager):
 class TestMarkTaskReviewApproved:
     """Tests for mark_task_review_approved lifecycle tool."""
 
+    @pytest.fixture(autouse=True)
+    def _set_session_context(self):
+        with session_context_for_test("session-abc"):
+            yield
+
     def test_approve_needs_review_task(
         self, lifecycle_registry, mock_task_manager, sample_task_needs_review
     ) -> None:
@@ -101,7 +107,7 @@ class TestMarkTaskReviewApproved:
         tool_func = lifecycle_registry._tools["mark_task_review_approved"].func
         result = tool_func(
             task_id="#42",
-            session_id="session-abc",
+
         )
 
         assert "error" not in result
@@ -119,7 +125,7 @@ class TestMarkTaskReviewApproved:
         tool_func = lifecycle_registry._tools["mark_task_review_approved"].func
         result = tool_func(
             task_id="#42",
-            session_id="session-abc",
+
         )
 
         assert "error" not in result
@@ -133,7 +139,7 @@ class TestMarkTaskReviewApproved:
         tool_func = lifecycle_registry._tools["mark_task_review_approved"].func
         result = tool_func(
             task_id="#42",
-            session_id="session-abc",
+
         )
 
         assert "error" in result
@@ -157,7 +163,7 @@ class TestMarkTaskReviewApproved:
         tool_func = lifecycle_registry._tools["mark_task_review_approved"].func
         result = tool_func(
             task_id="#42",
-            session_id="session-abc",
+
         )
 
         assert "error" in result
@@ -173,7 +179,7 @@ class TestMarkTaskReviewApproved:
         tool_func = lifecycle_registry._tools["mark_task_review_approved"].func
         result = tool_func(
             task_id="#42",
-            session_id="session-abc",
+
             approval_notes="Looks good, all tests pass.",
         )
 
@@ -195,7 +201,7 @@ class TestMarkTaskReviewApproved:
             tool_func = lifecycle_registry._tools["mark_task_review_approved"].func
             result = tool_func(
                 task_id="#999",
-                session_id="session-abc",
+    
             )
 
         assert "error" in result

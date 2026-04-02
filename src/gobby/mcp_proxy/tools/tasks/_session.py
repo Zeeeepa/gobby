@@ -28,12 +28,14 @@ def create_session_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
     def link_task_to_session(
         task_id: str,
-        session_id: str | None = None,
         action: str = "worked_on",
     ) -> dict[str, Any]:
-        """Link a task to a session."""
+        """Link a task to the current session."""
+        from gobby.utils.session_context import get_current_session_id
+
+        session_id = get_current_session_id()
         if not session_id:
-            return {"error": "session_id is required"}
+            return {"error": "No session context available. Ensure session_id is set."}
 
         try:
             resolved_id = resolve_task_id_for_mcp(ctx.task_manager, task_id)

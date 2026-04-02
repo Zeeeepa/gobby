@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.utils.session_context import session_context_for_test
 
 pytestmark = pytest.mark.unit
 
@@ -90,7 +91,8 @@ class TestSetHandoffContext:
         registry = InternalToolRegistry(name="test", description="test")
         register_handoff_tools(registry, session_manager=None)  # type: ignore[arg-type]
 
-        result = await registry.call("set_handoff_context", {"session_id": "s1"})
+        with session_context_for_test("s1"):
+            result = await registry.call("set_handoff_context", {})
         assert result["success"] is False
         assert "not available" in result["error"]
 

@@ -81,7 +81,6 @@ def register_handoff_tools(
         ),
     )
     async def set_handoff_context(
-        session_id: str,
         content: str | None = None,
         to_session: str | None = None,
         notes: str | None = None,
@@ -91,10 +90,9 @@ def register_handoff_tools(
         set_handoff_ready: bool = True,
     ) -> dict[str, Any]:
         """
-        Set handoff context for a session.
+        Set handoff context for the current session.
 
         Args:
-            session_id: Session reference - supports #N, N (seq_num), UUID, or prefix (REQUIRED)
             content: Agent-authored handoff content (fast path, skips transcript analysis)
             to_session: Target session to send handoff context to via P2P message
             notes: Additional notes to include in handoff
@@ -106,6 +104,12 @@ def register_handoff_tools(
         Returns:
             Success status, markdown lengths, and context summary
         """
+        from gobby.utils.session_context import get_current_session_id
+
+        session_id = get_current_session_id()
+        if not session_id:
+            return {"success": False, "error": "No session context available"}
+
         if session_manager is None:
             return {"success": False, "error": "Session manager not available"}
 
