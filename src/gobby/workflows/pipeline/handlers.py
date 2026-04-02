@@ -25,11 +25,48 @@ async def execute_mcp_step(
     if not tool_proxy:
         raise RuntimeError("tool_proxy_getter returned None")
 
-    result = await tool_proxy.call_tool(
-        mcp_config.server,
-        mcp_config.tool,
-        mcp_config.arguments or {},
+    # Set project + session context for pipeline MCP steps.
+    # Previously missing — tools called by pipelines got None from
+    # get_project_context() and had no session ContextVar.
+    from gobby.utils.session_context import (
+        SessionContext,
+        reset_session_context,
+        set_session_context,
     )
+
+    session_token = None
+    project_token = None
+    pipeline_session_id = context.get("session_id")
+    try:
+        if pipeline_session_id:
+            session_token = set_session_context(SessionContext(session_id=pipeline_session_id))
+            # Set project context from session
+            if hasattr(tool_proxy, "_mcp_manager"):
+                mgr = tool_proxy._mcp_manager
+                if hasattr(mgr, "session_manager") and mgr.session_manager:
+                    try:
+                        from gobby.utils.project_context import set_project_context_from_session
+
+                        project_token = set_project_context_from_session(
+                            pipeline_session_id, mgr.session_manager, mgr.session_manager.db
+                        )
+                    except Exception as ctx_err:
+                        logger.debug(
+                            f"Failed to set project context for pipeline MCP step: {ctx_err}"
+                        )
+
+        result = await tool_proxy.call_tool(
+            mcp_config.server,
+            mcp_config.tool,
+            mcp_config.arguments or {},
+        )
+    finally:
+        if session_token is not None:
+            reset_session_context(session_token)
+        if project_token is not None:
+            from gobby.utils.project_context import reset_project_context
+
+            reset_project_context(project_token)
 
     # Convert MCP SDK CallToolResult to a serializable dict
     if hasattr(result, "content") and hasattr(result, "isError"):

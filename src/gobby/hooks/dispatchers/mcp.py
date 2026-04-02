@@ -224,8 +224,50 @@ def dispatch_mcp_calls(
         if "query" not in arguments and arguments.get("prompt_text"):
             arguments["query"] = arguments["prompt_text"]
 
-        async def _call(s: str, t: str, args: dict[str, Any]) -> dict[str, Any] | None:
+        # Resolve session_id for context setting (needed for both project and session ContextVars)
+        _event_session_id: str = arguments.get("session_id", "")
+
+        async def _call(
+            s: str,
+            t: str,
+            args: dict[str, Any],
+            *,
+            _sid: str = _event_session_id,
+        ) -> dict[str, Any] | None:
+            # Set project + session context for this dispatch path.
+            # Previously missing — tools called by rules got None from
+            # get_project_context() and had no session ContextVar.
+            from gobby.utils.session_context import (
+                SessionContext,
+                reset_session_context,
+                set_session_context,
+            )
+
+            session_token = None
+            project_token = None
             try:
+                if _sid:
+                    session_token = set_session_context(SessionContext(session_id=_sid))
+                    # Set project context from session (fixes pre-existing gap)
+                    try:
+                        proxy = _get_proxy()
+                        if proxy and hasattr(proxy, "_mcp_manager"):
+                            mgr = proxy._mcp_manager
+                            if hasattr(mgr, "session_manager") and mgr.session_manager:
+                                from gobby.utils.project_context import (
+                                    set_project_context_from_session,
+                                )
+
+                                project_token = set_project_context_from_session(
+                                    _sid,
+                                    mgr.session_manager,
+                                    mgr.session_manager.db,
+                                )
+                    except Exception as ctx_err:
+                        logger.debug(
+                            f"dispatch_mcp_calls: failed to set project context: {ctx_err}"
+                        )
+
                 proxy = _get_proxy()
                 if not proxy:
                     logger.warning("dispatch_mcp_calls: tool_proxy_getter returned None")
@@ -246,6 +288,13 @@ def dispatch_mcp_calls(
             except Exception as exc:
                 logger.error(f"dispatch_mcp_calls: {s}/{t} failed: {exc}", exc_info=True)
                 return {"success": False, "error": str(exc)}
+            finally:
+                if session_token is not None:
+                    reset_session_context(session_token)
+                if project_token is not None:
+                    from gobby.utils.project_context import reset_project_context
+
+                    reset_project_context(project_token)
 
         # If we need to capture the result, always run blocking
         if needs_capture:

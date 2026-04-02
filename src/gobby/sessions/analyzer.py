@@ -7,6 +7,7 @@ autonomous continuity without relying on manual /clear boundaries.
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -207,6 +208,11 @@ class TranscriptAnalyzer:
             server = tool_input.get("server_name")
             tool = tool_input.get("tool_name")
             args = tool_input.get("arguments", {})
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except (json.JSONDecodeError, TypeError):
+                    args = {}
 
             if server == "gobby-tasks":
                 # Track all task interactions for task_progress
@@ -278,6 +284,11 @@ class TranscriptAnalyzer:
             server = tool_input.get("server_name", "unknown")
             tool = tool_input.get("tool_name", "unknown")
             args = tool_input.get("arguments", {})
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except (json.JSONDecodeError, TypeError):
+                    args = {}
 
             # Enhanced formatting for gobby-tasks operations
             if server == "gobby-tasks":
