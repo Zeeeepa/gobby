@@ -161,20 +161,29 @@ class GobbyDaemonTools:
         When session_id is provided and a workflow is active, checks that the
         tool is not blocked by the current workflow step's blocked_tools setting.
         """
-        # Set session's project context for this call
-        token = None
+        # Set session's project + session context for this call
+        project_token = None
+        session_token = None
         call_context = None
         if session_id:
-            token = self._resolve_and_set_project_context(session_id)
+            project_token = self._resolve_and_set_project_context(session_id)
             # Build call_context so internal tools (e.g. canvas) can access
             # conversation_id without the caller having to pass it explicitly.
+            conversation_id = None
             if self._session_manager:
                 session = self._session_manager.get(session_id)
                 if session:
+                    conversation_id = session.external_id
                     call_context = {
                         "session_id": session_id,
-                        "conversation_id": session.external_id,
+                        "conversation_id": conversation_id,
                     }
+            # Set session context ContextVar
+            from gobby.utils.session_context import SessionContext, set_session_context
+
+            session_token = set_session_context(
+                SessionContext(session_id=session_id, conversation_id=conversation_id)
+            )
         # Coerce string arguments to dict (agents often stringify JSON)
         if isinstance(arguments, str):
             try:
@@ -204,10 +213,14 @@ class GobbyDaemonTools:
                 server_name, tool_name, effective_arguments, session_id, call_context=call_context
             )
         finally:
-            if token is not None:
+            if project_token is not None:
                 from gobby.utils.project_context import reset_project_context
 
-                reset_project_context(token)
+                reset_project_context(project_token)
+            if session_token is not None:
+                from gobby.utils.session_context import reset_session_context
+
+                reset_session_context(session_token)
 
         # Check if result indicates an error:
         # - Old pattern: {"success": False, "error": ...}

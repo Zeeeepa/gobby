@@ -20,6 +20,11 @@ from gobby.utils.project_context import (
     set_project_context,
     set_project_context_from_session,
 )
+from gobby.utils.session_context import (
+    SessionContext,
+    reset_session_context,
+    set_session_context,
+)
 
 if TYPE_CHECKING:
     from gobby.mcp_proxy.manager import MCPClientManager
@@ -29,10 +34,20 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _set_project_context_for_request(
+class _ContextTokens:
+    """Holds project + session context tokens for cleanup."""
+
+    __slots__ = ("project", "session")
+
+    def __init__(self) -> None:
+        self.project: Any = None
+        self.session: Any = None
+
+
+def _set_context_for_request(
     server: "HTTPServer", arguments: Any, request: Request | None = None
-) -> Any:
-    """Set project context var from the best available source.
+) -> _ContextTokens:
+    """Set project and session context vars from the best available source.
 
     Priority:
       1. session_id from tool arguments (most specific — tool knows its session)
@@ -43,8 +58,10 @@ def _set_project_context_for_request(
     project_id is always correct. The daemon's CWD is NOT — it points to the
     gobby project regardless of which project the caller is in.
 
-    Returns a context var token for reset, or None.
+    Returns a _ContextTokens with project and session tokens for reset.
     """
+    tokens = _ContextTokens()
+
     # 1. Try session_id from tool arguments
     session_id = arguments.get("session_id") if isinstance(arguments, dict) else None
 
@@ -74,12 +91,26 @@ def _set_project_context_for_request(
                 resolved_id = None
 
         if resolved_id:
+            # Set session context (always, when we have a resolved UUID)
+            conversation_id = None
+            try:
+                session = server.session_manager.get(resolved_id)
+                if session:
+                    conversation_id = session.external_id
+            except Exception as e:
+                logger.debug(f"Failed to get session for context: {e}")
+            tokens.session = set_session_context(
+                SessionContext(session_id=resolved_id, conversation_id=conversation_id)
+            )
+
+            # Set project context
             try:
                 token = set_project_context_from_session(
                     resolved_id, server.session_manager, server.session_manager.db
                 )
                 if token is not None:
-                    return token
+                    tokens.project = token
+                    return tokens
             except Exception as e:
                 logger.debug(f"Failed to set project context from session_id '{resolved_id}': {e}")
 
@@ -95,25 +126,28 @@ def _set_project_context_for_request(
                     pm = LocalProjectManager(server.session_manager.db)
                     project = pm.get(project_id)
                     if project:
-                        return set_project_context(
+                        tokens.project = set_project_context(
                             {
                                 "id": project.id,
                                 "name": project.name,
                                 "project_path": project.repo_path,
                             }
                         )
+                        return tokens
                 except Exception as e:
                     logger.debug(f"Failed to enrich project context for '{project_id}': {e}")
             # Minimal fallback — id alone is enough for scoping
-            return set_project_context({"id": project_id})
+            tokens.project = set_project_context({"id": project_id})
 
-    return None
+    return tokens
 
 
-def _reset_project_context(token: Any) -> None:
-    """Reset project context var if a token was set."""
-    if token is not None:
-        reset_project_context(token)
+def _reset_context(tokens: _ContextTokens) -> None:
+    """Reset project and session context vars."""
+    if tokens.project is not None:
+        reset_project_context(tokens.project)
+    if tokens.session is not None:
+        reset_session_context(tokens.session)
 
 
 def _process_tool_proxy_result(
@@ -500,7 +534,7 @@ async def call_mcp_tool(
             )
 
         # Set project context from session_id or stdio proxy headers
-        ctx_token = _set_project_context_for_request(server, arguments, request)
+        ctx_token = _set_context_for_request(server, arguments, request)
         try:
             # Route through ToolProxyService for consistent error enrichment
             if server.tool_proxy:
@@ -542,7 +576,7 @@ async def call_mcp_tool(
                     status_code=500, detail={"success": False, "error": error_msg}
                 ) from e
         finally:
-            _reset_project_context(ctx_token)
+            _reset_context(ctx_token)
 
     except HTTPException:
         raise
@@ -584,7 +618,7 @@ async def mcp_proxy(
             ) from e
 
         # Set project context from session_id or stdio proxy headers
-        ctx_token = _set_project_context_for_request(server, arguments, request)
+        ctx_token = _set_context_for_request(server, arguments, request)
         try:
             # Route through ToolProxyService for consistent error enrichment
             if server.tool_proxy:
@@ -659,7 +693,7 @@ async def mcp_proxy(
                 ) from e
 
         finally:
-            _reset_project_context(ctx_token)
+            _reset_context(ctx_token)
 
     except HTTPException:
         raise

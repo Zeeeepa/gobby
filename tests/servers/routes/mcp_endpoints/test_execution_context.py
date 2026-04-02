@@ -1,7 +1,8 @@
-"""Tests for _set_project_context_for_request in execution.py.
+"""Tests for _set_context_for_request in execution.py.
 
 Verifies that #N session references are resolved to UUIDs before
 setting project context, preventing cross-project resolution.
+Also verifies that session context is set alongside project context.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from gobby.servers.routes.mcp.endpoints.execution import _set_project_context_for_request
+from gobby.servers.routes.mcp.endpoints.execution import _set_context_for_request
 
 pytestmark = pytest.mark.unit
 
@@ -41,8 +42,8 @@ def _make_request(
     return request
 
 
-class TestSetProjectContextForRequest:
-    """Tests for _set_project_context_for_request."""
+class TestSetContextForRequest:
+    """Tests for _set_context_for_request."""
 
     def test_hash_n_ref_resolved_before_context_set(self) -> None:
         """#N reference should be resolved to UUID via resolve_session_reference."""
@@ -56,16 +57,19 @@ class TestSetProjectContextForRequest:
             ) as mock_resolve,
             patch(
                 "gobby.servers.routes.mcp.endpoints.execution.set_project_context_from_session",
-                return_value="token",
+                return_value="project_token",
             ) as mock_set_ctx,
+            patch(
+                "gobby.servers.routes.mcp.endpoints.execution.set_session_context",
+            ),
         ):
-            token = _set_project_context_for_request(server, {"session_id": "#5"}, request)
+            tokens = _set_context_for_request(server, {"session_id": "#5"}, request)
 
         mock_resolve.assert_called_once_with(server.session_manager.db, "#5", PROJECT_ID)
         mock_set_ctx.assert_called_once_with(
             SESSION_UUID, server.session_manager, server.session_manager.db
         )
-        assert token == "token"
+        assert tokens.project == "project_token"
 
     def test_numeric_string_ref_resolved(self) -> None:
         """Plain numeric string '5' should be treated as #N reference."""
@@ -81,8 +85,11 @@ class TestSetProjectContextForRequest:
                 "gobby.servers.routes.mcp.endpoints.execution.set_project_context_from_session",
                 return_value="token",
             ),
+            patch(
+                "gobby.servers.routes.mcp.endpoints.execution.set_session_context",
+            ),
         ):
-            _set_project_context_for_request(server, {"session_id": "5"}, request)
+            _set_context_for_request(server, {"session_id": "5"}, request)
 
         mock_resolve.assert_called_once_with(server.session_manager.db, "5", PROJECT_ID)
 
@@ -100,8 +107,11 @@ class TestSetProjectContextForRequest:
                 "gobby.servers.routes.mcp.endpoints.execution.set_project_context_from_session",
                 return_value="token",
             ),
+            patch(
+                "gobby.servers.routes.mcp.endpoints.execution.set_session_context",
+            ),
         ):
-            _set_project_context_for_request(server, {"session_id": "#5"}, request)
+            _set_context_for_request(server, {"session_id": "#5"}, request)
 
         mock_resolve.assert_called_once_with(server.session_manager.db, "#5", None)
 
@@ -123,12 +133,12 @@ class TestSetProjectContextForRequest:
                 return_value="header_token",
             ),
         ):
-            token = _set_project_context_for_request(server, {"session_id": "#99"}, request)
+            tokens = _set_context_for_request(server, {"session_id": "#99"}, request)
 
         # Should NOT have tried set_project_context_from_session
         mock_set_ctx.assert_not_called()
         # Should have fallen through to header-based fallback
-        assert token == "header_token"
+        assert tokens.project == "header_token"
 
     def test_uuid_session_id_skips_resolution(self) -> None:
         """UUID session_id should bypass resolve_session_reference entirely."""
@@ -143,8 +153,11 @@ class TestSetProjectContextForRequest:
                 "gobby.servers.routes.mcp.endpoints.execution.set_project_context_from_session",
                 return_value="token",
             ) as mock_set_ctx,
+            patch(
+                "gobby.servers.routes.mcp.endpoints.execution.set_session_context",
+            ),
         ):
-            _set_project_context_for_request(server, {"session_id": SESSION_UUID}, request)
+            _set_context_for_request(server, {"session_id": SESSION_UUID}, request)
 
         mock_resolve.assert_not_called()
         mock_set_ctx.assert_called_once_with(
@@ -168,11 +181,11 @@ class TestSetProjectContextForRequest:
                 return_value="header_token",
             ),
         ):
-            token = _set_project_context_for_request(server, {}, request)
+            tokens = _set_context_for_request(server, {}, request)
 
         mock_resolve.assert_not_called()
         mock_set_ctx.assert_not_called()
-        assert token == "header_token"
+        assert tokens.project == "header_token"
 
     def test_uuid_prefix_not_treated_as_seq_num(self) -> None:
         """UUID prefix like 'a1b2c3' should not be treated as a #N ref."""
@@ -187,8 +200,11 @@ class TestSetProjectContextForRequest:
                 "gobby.servers.routes.mcp.endpoints.execution.set_project_context_from_session",
                 return_value="token",
             ),
+            patch(
+                "gobby.servers.routes.mcp.endpoints.execution.set_session_context",
+            ),
         ):
-            _set_project_context_for_request(server, {"session_id": "a1b2c3"}, request)
+            _set_context_for_request(server, {"session_id": "a1b2c3"}, request)
 
         # UUID prefix is not all digits — should NOT go through resolve_session_reference
         mock_resolve.assert_not_called()
@@ -207,8 +223,11 @@ class TestSetProjectContextForRequest:
                 "gobby.servers.routes.mcp.endpoints.execution.set_project_context_from_session",
                 return_value="token",
             ),
+            patch(
+                "gobby.servers.routes.mcp.endpoints.execution.set_session_context",
+            ),
         ):
             # No session_id in arguments — falls to header
-            _set_project_context_for_request(server, {}, request)
+            _set_context_for_request(server, {}, request)
 
         mock_resolve.assert_called_once_with(server.session_manager.db, "#7", PROJECT_ID)
