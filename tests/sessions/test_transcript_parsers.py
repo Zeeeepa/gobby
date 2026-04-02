@@ -284,6 +284,12 @@ class TestClaudeTranscriptParser:
         extracted = parser.extract_turns_since_clear(turns, max_turns=5)
         assert len(extracted) == 5
 
+    def test_extract_turns_since_clear_no_cap(self, parser) -> None:
+        """Default (no max_turns) returns all turns without truncation."""
+        turns = [{"type": "user"}] * 200
+        extracted = parser.extract_turns_since_clear(turns)
+        assert len(extracted) == 200
+
     def test_extract_turns_since_clear_with_boundary(self, parser) -> None:
         turns = [
             {"type": "user", "message": {"content": "before"}},
@@ -995,6 +1001,10 @@ class TestCodexTranscriptParser:
         small_turns = [{"role": "user"}] * 10
         extracted = parser.extract_turns_since_clear(small_turns, max_turns=50)
         assert len(extracted) == 10
+
+        # Default (no max_turns) returns all turns
+        extracted = parser.extract_turns_since_clear(turns)
+        assert len(extracted) == 100
 
     def test_codex_is_session_boundary(self, parser) -> None:
         """Test is_session_boundary always returns False for Codex."""
