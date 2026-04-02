@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from gobby.mcp_proxy.stdio import (
+    _strip_none,
     check_daemon_http_health,
     create_stdio_mcp_server,
     get_daemon_pid,
@@ -722,3 +723,53 @@ class TestEnsureDaemonRunningFailures:
                                     with pytest.raises(SystemExit):
                                         await ensure_daemon_running()
                                     mock_exit.assert_called_with(1)
+
+
+class TestStripNone:
+    """Tests for _strip_none utility that prevents null fields in MCP payloads."""
+
+    def test_strips_none_from_flat_dict(self) -> None:
+        assert _strip_none({"a": 1, "b": None, "c": "x"}) == {"a": 1, "c": "x"}
+
+    def test_strips_none_from_nested_dict(self) -> None:
+        result = _strip_none({"outer": {"inner": None, "keep": 1}, "top": None})
+        assert result == {"outer": {"keep": 1}}
+
+    def test_strips_none_from_list_elements(self) -> None:
+        result = _strip_none([{"a": None, "b": 1}, {"c": None}])
+        assert result == [{"b": 1}, {}]
+
+    def test_preserves_falsy_non_none_values(self) -> None:
+        data = {"zero": 0, "false": False, "empty_str": "", "empty_list": []}
+        assert _strip_none(data) == data
+
+    def test_handles_already_clean_data(self) -> None:
+        data = {"a": 1, "b": "hello", "c": [1, 2, 3]}
+        assert _strip_none(data) == data
+
+    def test_returns_non_dict_non_list_unchanged(self) -> None:
+        assert _strip_none("hello") == "hello"
+        assert _strip_none(42) == 42
+        assert _strip_none(True) is True
+
+    def test_handles_tool_schema_with_null_defaults(self) -> None:
+        """Reproduce the exact pattern that breaks LMStudio Jinja templates."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "opt": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "title": "Opt",
+                },
+            },
+            "required": ["name"],
+            "title": "exampleArguments",
+        }
+        result = _strip_none(schema)
+        # "default": None should be stripped
+        assert "default" not in result["properties"]["opt"]
+        # Everything else preserved
+        assert result["properties"]["name"] == {"type": "string"}
+        assert result["required"] == ["name"]

@@ -25,6 +25,22 @@ from gobby.mcp_proxy.daemon_control import (
 from gobby.mcp_proxy.instructions import build_gobby_instructions
 from gobby.mcp_proxy.registries import setup_internal_registries
 
+
+def _strip_none(obj: Any) -> Any:
+    """Recursively strip None values from dicts.
+
+    Prevents ``null`` fields in JSON payloads sent over MCP, which break
+    strict Jinja prompt templates (e.g. Nemotron Super in LMStudio).
+    The MCP SDK's ``exclude_none`` only covers Pydantic model fields —
+    raw dicts like ``inputSchema`` pass through unchanged.
+    """
+    if isinstance(obj, dict):
+        return {k: _strip_none(v) for k, v in obj.items() if v is not None}
+    if isinstance(obj, list):
+        return [_strip_none(item) for item in obj]
+    return obj
+
+
 LLM_TASK_TOOLS = (
     "close_task",
     "expand_task",
@@ -107,7 +123,7 @@ class DaemonProxy:
                 )
                 if resp.status_code == 200:
                     data: dict[str, Any] = resp.json()
-                    return data
+                    return _strip_none(data)
                 else:
                     return {"success": False, "error": f"HTTP {resp.status_code}: {resp.text}"}
         except httpx.ConnectError:
@@ -347,6 +363,13 @@ def create_stdio_mcp_server() -> FastMCP:
     proxy = DaemonProxy(config.daemon_port)
 
     register_proxy_tools(mcp, proxy)
+
+    # Strip null values from tool inputSchemas to prevent Jinja template
+    # errors in LMStudio with strict models (e.g., Nemotron Super).
+    # The MCP SDK's exclude_none doesn't recurse into raw dict fields.
+    for tool in mcp._tool_manager._tools.values():
+        if tool.parameters:
+            tool.parameters = _strip_none(tool.parameters)
 
     return mcp
 
