@@ -663,16 +663,15 @@ class TestKillAgentSelfTerminationViaRunId:
         registry = create_agents_registry(runner)
         kill_agent = registry._tools["kill_agent"].func
 
-        # Simulate _context with session_id matching the agent's session
-        context = MagicMock()
-        context.session_id = "sess-456"
+        # Set session context matching the agent's session (self-termination)
+        from gobby.utils.session_context import session_context_for_test
 
-        with patch(
+        with session_context_for_test("sess-456"), patch(
             "gobby.mcp_proxy.tools.agents._kill_agent_process",
             new_callable=AsyncMock,
             return_value={"success": True},
         ):
-            result = await kill_agent(run_id="run-123", _context=context)
+            result = await kill_agent(run_id="run-123")
 
         assert result["success"] is True
         # Should call complete_run (success), not cancel_run (cancelled)
@@ -681,7 +680,7 @@ class TestKillAgentSelfTerminationViaRunId:
 
     @pytest.mark.asyncio
     async def test_run_id_parent_kill_defaults_to_cancelled(self):
-        """When parent kills agent via run_id, _context doesn't match, default to cancelled."""
+        """When parent kills agent via run_id, session context doesn't match, default to cancelled."""
         runner = _make_runner_with_run_storage()
         mock_run = _make_mock_agent_run(
             run_id="run-123",
@@ -695,16 +694,15 @@ class TestKillAgentSelfTerminationViaRunId:
         registry = create_agents_registry(runner)
         kill_agent = registry._tools["kill_agent"].func
 
-        # Simulate _context with different session_id (parent killing child)
-        context = MagicMock()
-        context.session_id = "sess-parent"
+        # Set session context with different session_id (parent killing child)
+        from gobby.utils.session_context import session_context_for_test
 
-        with patch(
+        with session_context_for_test("sess-parent"), patch(
             "gobby.mcp_proxy.tools.agents._kill_agent_process",
             new_callable=AsyncMock,
             return_value={"success": True},
         ):
-            result = await kill_agent(run_id="run-123", _context=context)
+            result = await kill_agent(run_id="run-123")
 
         assert result["success"] is True
         runner.cancel_run.assert_called_once_with("run-123")
