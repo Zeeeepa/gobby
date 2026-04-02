@@ -366,6 +366,12 @@ class ClaudeLLMProvider(LLMProvider):
         if not cli_path:
             raise RuntimeError("Generation unavailable (Claude CLI not found)")
 
+        # Capture stderr from Claude CLI subprocess for diagnostics
+        stderr_lines: list[str] = []
+
+        def _on_stderr(line: str) -> None:
+            stderr_lines.append(line)
+
         # Configure Claude Agent SDK
         # Use tools=[] to disable all tools for pure text generation
         options = ClaudeAgentOptions(
@@ -377,11 +383,13 @@ class ClaudeLLMProvider(LLMProvider):
             mcp_servers={},
             permission_mode="default",
             cli_path=cli_path,
+            stderr=_on_stderr,
         )
         _max_tokens = max_tokens
 
         # Run async query
         async def _run_query() -> str:
+            stderr_lines.clear()
             result_text = ""
             message_count = 0
             async for message in query(prompt=prompt, options=options):
@@ -410,7 +418,10 @@ class ClaudeLLMProvider(LLMProvider):
             return result_text
 
         def _on_retry(attempt: int, error: Exception) -> None:
-            self.logger.warning(f"generate_text failed (attempt {attempt + 1}), retrying: {error}")
+            stderr_ctx = f" stderr={stderr_lines}" if stderr_lines else ""
+            self.logger.warning(
+                f"generate_text failed (attempt {attempt + 1}), retrying: {error}{stderr_ctx}"
+            )
 
         try:
             result: str = await self._retry_async(
@@ -421,7 +432,10 @@ class ClaudeLLMProvider(LLMProvider):
                 result = result[: _max_tokens * 4]
             return result
         except Exception as e:
-            self.logger.error(f"Failed to generate text with Claude: {e}", exc_info=True)
+            stderr_ctx = f" stderr={stderr_lines}" if stderr_lines else ""
+            self.logger.error(
+                f"Failed to generate text with Claude: {e}{stderr_ctx}", exc_info=True
+            )
             raise RuntimeError(f"Failed to generate text with Claude: {e}") from e
 
     async def _generate_text_litellm(

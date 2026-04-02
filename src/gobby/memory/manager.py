@@ -128,6 +128,7 @@ class MemoryManager:
                     code_link_min_score=config.code_link_min_score,
                     code_symbol_collection_prefix=collection_prefix,
                     embedding_dim=embedding_dim,
+                    model=config.kg_model,
                 )
                 logger.debug("KnowledgeGraphService initialized")
             except Exception as e:

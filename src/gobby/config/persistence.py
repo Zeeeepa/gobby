@@ -210,6 +210,14 @@ class MemoryConfig(BaseModel):
         default=60,
         description="Minimum seconds between access stat updates for the same memory",
     )
+    kg_provider: str = Field(
+        default="claude",
+        description="LLM provider for knowledge graph entity/relationship extraction",
+    )
+    kg_model: str = Field(
+        default="haiku",
+        description="Model for KG extraction (cheap/fast recommended)",
+    )
     code_link_min_score: float = Field(
         default=0.82,
         description="Minimum cosine similarity for RELATES_TO_CODE edges between memory entities and code symbols",

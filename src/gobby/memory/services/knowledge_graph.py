@@ -61,6 +61,7 @@ class KnowledgeGraphService:
         code_link_min_score: float = 0.82,
         code_symbol_collection_prefix: str = "code_symbols_",
         embedding_dim: int = 768,
+        model: str = "haiku",
     ):
         self._neo4j = neo4j_client
         self._llm = llm_provider
@@ -70,6 +71,7 @@ class KnowledgeGraphService:
         self._code_link_min_score = code_link_min_score
         self._code_symbol_collection_prefix = code_symbol_collection_prefix
         self._embedding_dim = embedding_dim
+        self._model = model
         self._vector_index_ensured = False
 
     # -----------------------------------------------------------------------
@@ -189,7 +191,7 @@ class KnowledgeGraphService:
             "memory/extract_entities",
             {"content": content},
         )
-        response = await self._llm.generate_json(prompt)
+        response = await self._llm.generate_json(prompt, model=self._model)
         raw_entities = response.get("entities", [])
         return [
             Entity(name=e["entity"], entity_type=e["entity_type"])
@@ -208,7 +210,7 @@ class KnowledgeGraphService:
             "memory/extract_relations",
             {"content": content, "entities": entities_json},
         )
-        response = await self._llm.generate_json(prompt)
+        response = await self._llm.generate_json(prompt, model=self._model)
         raw_relations = response.get("relations", [])
         return [
             Relationship(
@@ -250,7 +252,7 @@ class KnowledgeGraphService:
             "memory/delete_relations",
             {"existing_relations": existing_json, "new_relations": new_relations_json},
         )
-        response = await self._llm.generate_json(prompt)
+        response = await self._llm.generate_json(prompt, model=self._model)
         to_delete = response.get("relations_to_delete", [])
 
         for rel in to_delete:
