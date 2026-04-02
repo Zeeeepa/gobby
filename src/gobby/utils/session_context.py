@@ -65,6 +65,34 @@ def reset_session_context(token: contextvars.Token[SessionContext | None]) -> No
     _current_session_context.reset(token)
 
 
+def resolve_session_ref(
+    session_manager: Any,
+    ref: str,
+) -> str:
+    """Resolve a session reference (#N, N, UUID, or prefix) to UUID.
+
+    Uses the current project context from ContextVar for scoping.
+    Shared utility replacing duplicated closures in cross-session tools.
+
+    Args:
+        session_manager: LocalSessionManager instance
+        ref: Session reference string
+
+    Returns:
+        Resolved UUID string
+
+    Raises:
+        ValueError: If session cannot be resolved
+    """
+    if session_manager is None:
+        return ref
+    from gobby.utils.project_context import get_project_context
+
+    project_ctx = get_project_context()
+    project_id = project_ctx.get("id") if project_ctx else None
+    return str(session_manager.resolve_session_reference(ref, project_id))
+
+
 @contextmanager
 def session_context_for_test(
     session_id: str = "test-session-id",

@@ -89,7 +89,7 @@ If (a): Run expand-task pipeline with `wait_for_completion: true`:
 ```python
 call_tool("gobby-workflows", "run_pipeline", {
     "name": "expand-task",
-    "inputs": {"task_id": "<epic_id>", "session_id": "<session_id>"},
+    "inputs": {"task_id": "<epic_id>"},
     "wait_for_completion": true,
     "wait_timeout": 600
 })
@@ -99,7 +99,7 @@ If (b): Run expand-task with the plan file:
 ```python
 call_tool("gobby-workflows", "run_pipeline", {
     "name": "expand-task",
-    "inputs": {"task_id": "<epic_id>", "plan_file": "<path>", "session_id": "<session_id>"},
+    "inputs": {"task_id": "<epic_id>", "plan_file": "<path>"},
     "wait_for_completion": true,
     "wait_timeout": 600
 })

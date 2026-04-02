@@ -99,16 +99,12 @@ def create_agents_registry(
         InternalToolRegistry with all agent tools registered.
     """
     from gobby.utils.project_context import get_project_context
+    from gobby.utils.session_context import resolve_session_ref
 
     agent_run_manager = LocalAgentRunManager(db) if db else runner.run_storage
 
     def _resolve_session_id(ref: str) -> str:
-        """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
-        if session_manager is None:
-            return ref  # No resolution available, return as-is
-        project_ctx = get_project_context()
-        project_id = project_ctx.get("id") if project_ctx else None
-        return str(session_manager.resolve_session_reference(ref, project_id))
+        return resolve_session_ref(session_manager, ref)
 
     registry = InternalToolRegistry(
         name="gobby-agents",

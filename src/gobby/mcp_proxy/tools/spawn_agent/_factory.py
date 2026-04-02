@@ -118,13 +118,10 @@ def create_spawn_agent_registry(
         InternalToolRegistry with spawn_agent tool registered.
     """
 
+    from gobby.utils.session_context import resolve_session_ref
+
     def _resolve_session_id(ref: str) -> str:
-        """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
-        if session_manager is None:
-            return ref  # No resolution available, return as-is
-        ctx = get_project_context()
-        project_id = ctx.get("id") if ctx else None
-        return str(session_manager.resolve_session_reference(ref, project_id))
+        return resolve_session_ref(session_manager, ref)
 
     registry = InternalToolRegistry(
         name="gobby-spawn-agent",

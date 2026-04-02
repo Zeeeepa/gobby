@@ -31,26 +31,10 @@ def register_message_tools(
         transcript_reader: Optional TranscriptReader for JSONL + gzip fallback reads
     """
 
-    # Resolves session reference to UUID using the provided session manager.
-    # Accepts #N, N, UUID, or prefix.
+    from gobby.utils.session_context import resolve_session_ref
+
     def _resolve_session_id(session_id: str) -> str:
-        """Resolve session reference (#N, N, UUID, or prefix) to UUID.
-
-        Returns:
-            str: Resolved UUID on success
-
-        Raises:
-            ValueError: If session reference cannot be resolved (when session_manager exists)
-        """
-        if not session_manager:
-            return session_id  # Fall back to raw value if no manager (backward compat)
-
-        from gobby.utils.project_context import get_project_context
-
-        project_ctx = get_project_context()
-        project_id = project_ctx.get("id") if project_ctx else None
-
-        return session_manager.resolve_session_reference(session_id, project_id)
+        return resolve_session_ref(session_manager, session_id)
 
     @registry.tool(
         name="get_session_messages",

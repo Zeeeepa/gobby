@@ -30,14 +30,10 @@ def register_handoff_tools(
         transcript_processor: Transcript processor for parsing transcripts (optional)
         inter_session_message_manager: For sending P2P messages between sessions (optional)
     """
-    from gobby.utils.project_context import get_project_context
+    from gobby.utils.session_context import resolve_session_ref
 
     def _resolve_session_id(ref: str) -> str:
-        """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
-        project_ctx = get_project_context()
-        project_id = project_ctx.get("id") if project_ctx else None
-
-        return session_manager.resolve_session_reference(ref, project_id)
+        return resolve_session_ref(session_manager, ref)
 
     def _send_to_peer(from_session_id: str, to_session_ref: str, content: str) -> dict[str, Any]:
         """Send handoff content to a peer session via P2P message."""

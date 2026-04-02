@@ -32,14 +32,10 @@ def register_commits_tools(
         db: Database for dependency injection (optional)
     """
 
+    from gobby.utils.session_context import resolve_session_ref
+
     def _resolve_session_id(ref: str) -> str:
-        """Resolve session reference (#N, N, UUID, or prefix) to UUID."""
-        from gobby.utils.project_context import get_project_context
-
-        project_ctx = get_project_context()
-        project_id = project_ctx.get("id") if project_ctx else None
-
-        return session_manager.resolve_session_reference(ref, project_id)
+        return resolve_session_ref(session_manager, ref)
 
     @registry.tool(
         name="get_session_commits",
