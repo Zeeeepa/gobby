@@ -50,8 +50,8 @@ def _sync_bundled(db):
 
 
 def _get_rule(manager, name):
-    """Get a bundled rule by name (templates included since bundled rules are templates)."""
-    return manager.get_by_name(name, include_templates=True)
+    """Get a bundled rule by name."""
+    return manager.get_by_name(name)
 
 
 STOP_GATES_RULES = {

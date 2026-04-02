@@ -218,17 +218,17 @@ class TestDeleteAgentDefinition:
         assert result["success"] is False
         assert "not found" in result["error"]
 
-    def test_template_protected(self, tmp_path: Path) -> None:
+    def test_bundled_protected(self, tmp_path: Path) -> None:
         mgr = _setup(tmp_path)
-        _insert_agent(mgr, "tpl-agent", source="template")
-        result = delete_agent_definition(mgr, "tpl-agent")
+        _insert_agent(mgr, "bundled-agent", source="bundled")
+        result = delete_agent_definition(mgr, "bundled-agent")
         assert result["success"] is False
-        assert "template" in result["error"]
+        assert "bundled" in result["error"]
 
-    def test_template_force_delete(self, tmp_path: Path) -> None:
+    def test_bundled_force_delete(self, tmp_path: Path) -> None:
         mgr = _setup(tmp_path)
-        _insert_agent(mgr, "tpl-agent", source="template")
-        result = delete_agent_definition(mgr, "tpl-agent", force=True)
+        _insert_agent(mgr, "bundled-agent", source="bundled")
+        result = delete_agent_definition(mgr, "bundled-agent", force=True)
         assert result["success"] is True
 
     def test_deleted_not_in_list(self, tmp_path: Path) -> None:

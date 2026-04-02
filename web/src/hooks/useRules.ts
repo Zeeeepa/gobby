@@ -13,6 +13,7 @@ export interface RuleSummary {
   source: string
   tags: string[] | null
   effect: Record<string, unknown> | null
+  has_template_update?: boolean
 }
 
 export interface RuleDetail extends RuleSummary {

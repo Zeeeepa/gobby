@@ -287,14 +287,14 @@ class TestDeleteRule:
         assert row is None  # Not visible without include_deleted
 
     def test_protects_bundled_rule(self, def_manager, rule_tools) -> None:
-        _create_test_rule(def_manager, name="bundled-rule", source="template")
+        _create_test_rule(def_manager, name="bundled-rule", source="bundled")
 
         result = rule_tools["delete_rule"](name="bundled-rule")
         assert result["success"] is False
         assert "bundled" in result["error"].lower()
 
     def test_force_deletes_bundled(self, def_manager, rule_tools) -> None:
-        _create_test_rule(def_manager, name="bundled-rule", source="template")
+        _create_test_rule(def_manager, name="bundled-rule", source="bundled")
 
         result = rule_tools["delete_rule"](name="bundled-rule", force=True)
         assert result["success"] is True

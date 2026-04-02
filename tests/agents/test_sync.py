@@ -24,10 +24,9 @@ class TestSyncBundledAgents:
 
     @pytest.mark.unit
     def test_sync_creates_bundled_agents(self, tmp_path: Path) -> None:
-        """Test that sync creates bundled agent definitions in workflow_definitions."""
+        """Test that sync creates installed agent definitions directly."""
         db = _setup_db(tmp_path)
 
-        # Create a fake agents directory with one YAML file
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
         (agents_dir / "test-agent.yaml").write_text(
@@ -43,18 +42,18 @@ class TestSyncBundledAgents:
         assert result["skipped"] == 0
         assert result["errors"] == []
 
-        # Verify the agent was created in workflow_definitions
+        # Verify the agent was created as installed (not template)
         mgr = LocalWorkflowDefinitionManager(db)
         rows = mgr.list_all(workflow_type="agent")
         row = next((r for r in rows if r.name == "test-agent"), None)
         assert row is not None
-        assert row.source == "template"
+        assert row.source == "installed"
         body = AgentDefinitionBody.model_validate_json(row.definition_json)
         assert body.name == "test-agent"
 
     @pytest.mark.unit
     def test_sync_skips_unchanged(self, tmp_path: Path) -> None:
-        """Test that sync skips agents that haven't changed."""
+        """Test that sync skips agents that already exist."""
         db = _setup_db(tmp_path)
 
         agents_dir = tmp_path / "agents"
@@ -75,8 +74,8 @@ class TestSyncBundledAgents:
             assert result2["updated"] == 0
 
     @pytest.mark.unit
-    def test_sync_updates_changed(self, tmp_path: Path) -> None:
-        """Test that sync updates agents when content changes."""
+    def test_sync_does_not_overwrite_existing(self, tmp_path: Path) -> None:
+        """Test that sync does not overwrite existing rows (drift detected at runtime)."""
         db = _setup_db(tmp_path)
 
         agents_dir = tmp_path / "agents"
@@ -95,19 +94,19 @@ class TestSyncBundledAgents:
                 "name: test-agent\ndescription: Updated description\nprovider: claude\nmode: terminal\n"
             )
 
-            # Second sync — should update
+            # Second sync — should skip (no overwrite)
             result2 = sync_bundled_agents(db)
-            assert result2["updated"] == 1
+            assert result2["skipped"] == 1
             assert result2["synced"] == 0
-            assert result2["skipped"] == 0
+            assert result2["updated"] == 0
 
-        # Verify updated content
+        # Verify content was NOT updated (preserved user's version)
         mgr = LocalWorkflowDefinitionManager(db)
         rows = mgr.list_all(workflow_type="agent")
         row = next((r for r in rows if r.name == "test-agent"), None)
         assert row is not None
         body = AgentDefinitionBody.model_validate_json(row.definition_json)
-        assert body.description == "Updated description"
+        assert body.description == "A test agent"  # Original, not updated
 
     @pytest.mark.unit
     def test_sync_multiple_agents(self, tmp_path: Path) -> None:
@@ -160,51 +159,31 @@ class TestSyncBundledAgents:
         assert len(result["errors"]) == 1
 
     @pytest.mark.unit
-    def test_sync_propagates_to_installed_copy(self, tmp_path: Path) -> None:
-        """Test that sync propagates definition changes to installed copies."""
+    def test_sync_respects_soft_deletes(self, tmp_path: Path) -> None:
+        """Test that sync does not re-create soft-deleted agents."""
         db = _setup_db(tmp_path)
 
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
-        yaml_file = agents_dir / "test-agent.yaml"
-        yaml_file.write_text(
-            "name: test-agent\ndescription: Original\nprovider: claude\nmode: terminal\n"
+        (agents_dir / "test-agent.yaml").write_text(
+            "name: test-agent\ndescription: A test agent\nprovider: claude\nmode: terminal\n"
         )
 
         mgr = LocalWorkflowDefinitionManager(db)
 
         with patch("gobby.agents.sync.get_bundled_agents_path", return_value=agents_dir):
-            # First sync — creates template
+            # First sync — creates installed row
             sync_bundled_agents(db)
 
-        # Create an installed copy (mimics install_all_templates)
-        template_row = mgr.get_by_name("test-agent", include_templates=True)
-        assert template_row is not None
-        mgr.install_from_template(template_row.id)
+            # Soft-delete the row
+            row = mgr.get_by_name("test-agent")
+            assert row is not None
+            mgr.delete(row.id)
 
-        installed_row = mgr.get_by_name("test-agent")
-        assert installed_row is not None
-        assert installed_row.source == "installed"
-        original_body = AgentDefinitionBody.model_validate_json(installed_row.definition_json)
-        assert original_body.description == "Original"
-
-        # Modify the template YAML
-        yaml_file.write_text(
-            "name: test-agent\ndescription: Updated v2\nprovider: claude\nmode: terminal\n"
-        )
-
-        with patch("gobby.agents.sync.get_bundled_agents_path", return_value=agents_dir):
-            # Second sync — should update template AND propagate to installed copy
+            # Second sync — should skip the soft-deleted row
             result = sync_bundled_agents(db)
-
-        assert result["updated"] == 1
-
-        # Verify the installed copy was updated
-        installed_row = mgr.get_by_name("test-agent")
-        assert installed_row is not None
-        assert installed_row.source == "installed"
-        updated_body = AgentDefinitionBody.model_validate_json(installed_row.definition_json)
-        assert updated_body.description == "Updated v2"
+            assert result["skipped"] == 1
+            assert result["synced"] == 0
 
     @pytest.mark.integration
     def test_sync_with_real_bundled_agents(self, tmp_path: Path) -> None:

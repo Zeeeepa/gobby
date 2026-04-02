@@ -9,63 +9,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from gobby.workflows.sync import (
-    ensure_gobby_tag_on_installed,
     resolve_sync_placeholders,
     sync_bundled_variables,
 )
 
 pytestmark = pytest.mark.unit
-
-
-# ---------------------------------------------------------------------------
-# Path helpers
-# ---------------------------------------------------------------------------
-
-
-class TestEnsureGobbyTag:
-    def test_adds_gobby_tag(self) -> None:
-        mgr = MagicMock()
-        row = MagicMock()
-        row.id = "r1"
-        row.source = "template"
-        row.tags = ["other"]
-        mgr.list_all.return_value = [row]
-
-        ensure_gobby_tag_on_installed(mgr, "rule")
-        mgr.update.assert_called_once_with("r1", tags=["other", "gobby"])
-
-    def test_skips_when_tag_present(self) -> None:
-        mgr = MagicMock()
-        row = MagicMock()
-        row.id = "r1"
-        row.source = "template"
-        row.tags = ["gobby", "other"]
-        mgr.list_all.return_value = [row]
-
-        ensure_gobby_tag_on_installed(mgr, "rule")
-        mgr.update.assert_not_called()
-
-    def test_skips_non_template_sources(self) -> None:
-        mgr = MagicMock()
-        row = MagicMock()
-        row.id = "r1"
-        row.source = "project"
-        row.tags = []
-        mgr.list_all.return_value = [row]
-
-        ensure_gobby_tag_on_installed(mgr, "rule")
-        mgr.update.assert_not_called()
-
-    def test_handles_none_tags(self) -> None:
-        mgr = MagicMock()
-        row = MagicMock()
-        row.id = "r1"
-        row.source = "template"
-        row.tags = None
-        mgr.list_all.return_value = [row]
-
-        ensure_gobby_tag_on_installed(mgr, "rule")
-        mgr.update.assert_called_once_with("r1", tags=["gobby"])
 
 
 # ---------------------------------------------------------------------------

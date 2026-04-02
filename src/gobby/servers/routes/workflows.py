@@ -119,9 +119,17 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
                 enabled=enabled,
                 include_deleted=include_deleted,
             )
+            definitions = [r.to_dict() for r in rows]
+
+            # Annotate with template drift info
+            from gobby.workflows.template_hashes import get_template_hash_cache
+
+            cache = get_template_hash_cache()
+            cache.annotate_rows(definitions)
+
             return {
                 "status": "success",
-                "definitions": [r.to_dict() for r in rows],
+                "definitions": definitions,
                 "count": len(rows),
             }
         except Exception as e:
@@ -278,6 +286,38 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
             status_code=410,
             detail="Template installation is no longer needed. Definitions are installed directly during sync.",
         )
+
+    @router.post("/{definition_id}/restore-from-template")
+    async def restore_from_template(definition_id: str) -> dict[str, Any]:
+        """Restore an installed definition to match its bundled template."""
+        try:
+            from gobby.workflows.template_hashes import get_template_hash_cache
+
+            manager = _get_manager()
+            row = manager.get(definition_id)
+            cache = get_template_hash_cache()
+
+            if not cache.has_drift(row):
+                return {"status": "success", "message": "Definition already matches template"}
+
+            # Re-read the template file and update the definition
+            template_json = cache.get_template_json(row.name)
+            if template_json is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No bundled template found for '{row.name}'",
+                )
+
+            updated = manager.update(row.id, definition_json=template_json)
+            await _broadcast_workflow("workflow_updated", definition_id)
+            return {"status": "success", "definition": updated.to_dict()}
+        except HTTPException:
+            raise
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except Exception as e:
+            logger.error(f"Error restoring from template: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/{definition_id}/move-to-project")
     async def move_to_project(definition_id: str, request: MoveToProjectRequest) -> dict[str, Any]:

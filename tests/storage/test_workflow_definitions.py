@@ -251,51 +251,18 @@ def test_get_by_name_not_found(manager: LocalWorkflowDefinitionManager) -> None:
     assert result is None
 
 
-def test_get_by_name_excludes_templates_by_default(
+
+def test_get_by_name_returns_installed_rows(
     manager: LocalWorkflowDefinitionManager,
 ) -> None:
-    """get_by_name should not return template-only rows by default."""
+    """get_by_name should return installed rows."""
     manager.create(
-        name="template-rule",
-        definition_json=SAMPLE_DEFINITION,
-        source="template",
-    )
-
-    result = manager.get_by_name("template-rule")
-    assert result is None
-
-
-def test_get_by_name_includes_templates_when_opted_in(
-    manager: LocalWorkflowDefinitionManager,
-) -> None:
-    """get_by_name should return templates when include_templates=True."""
-    manager.create(
-        name="template-rule",
-        definition_json=SAMPLE_DEFINITION,
-        source="template",
-    )
-
-    result = manager.get_by_name("template-rule", include_templates=True)
-    assert result is not None
-    assert result.source == "template"
-
-
-def test_get_by_name_prefers_installed_over_template(
-    manager: LocalWorkflowDefinitionManager,
-) -> None:
-    """When both installed and template exist, get_by_name returns installed."""
-    manager.create(
-        name="dual-rule",
-        definition_json=SAMPLE_DEFINITION,
-        source="template",
-    )
-    manager.create(
-        name="dual-rule",
+        name="installed-rule",
         definition_json=SAMPLE_DEFINITION,
         source="installed",
     )
 
-    result = manager.get_by_name("dual-rule")
+    result = manager.get_by_name("installed-rule")
     assert result is not None
     assert result.source == "installed"
 
@@ -539,61 +506,6 @@ def test_duplicate_nonexistent_raises(manager: LocalWorkflowDefinitionManager) -
 # =============================================================================
 
 
-def test_install_from_template(manager: LocalWorkflowDefinitionManager) -> None:
-    """Test creating an installed copy from a template definition."""
-    bundled = manager.create(
-        name="bundled-rule",
-        definition_json=SAMPLE_DEFINITION,
-        source="template",
-        enabled=True,
-    )
-
-    installed = manager.install_from_template(bundled.id)
-
-    assert installed.id != bundled.id
-    assert installed.name == bundled.name
-    assert installed.source == "installed"
-    assert installed.enabled is True
-    assert installed.definition_json == bundled.definition_json
-
-    # Bundled original should be disabled
-    original = manager.get(bundled.id)
-    assert original.enabled is False
-
-
-def test_install_from_template_preserves_disabled(manager: LocalWorkflowDefinitionManager) -> None:
-    """Test that installing a disabled template produces a disabled installed copy."""
-    bundled = manager.create(
-        name="disabled-rule",
-        definition_json=SAMPLE_DEFINITION,
-        source="template",
-        enabled=False,
-    )
-
-    installed = manager.install_from_template(bundled.id)
-
-    assert installed.enabled is False
-
-
-def test_install_from_template_rejects_non_template(
-    manager: LocalWorkflowDefinitionManager,
-) -> None:
-    """Test that installing a non-template item raises ValueError."""
-    installed = manager.create(
-        name="custom-item", definition_json=SAMPLE_DEFINITION, source="installed"
-    )
-
-    with pytest.raises(ValueError, match="not a template"):
-        manager.install_from_template(installed.id)
-
-
-def test_install_from_template_rejects_duplicate(manager: LocalWorkflowDefinitionManager) -> None:
-    """Test that installing when an installed copy already exists raises ValueError."""
-    bundled = manager.create(name="dup-test", definition_json=SAMPLE_DEFINITION, source="template")
-    manager.create(name="dup-test", definition_json=SAMPLE_DEFINITION, source="installed")
-
-    with pytest.raises(ValueError, match="already exists"):
-        manager.install_from_template(bundled.id)
 
 
 # =============================================================================
@@ -640,41 +552,3 @@ def test_move_to_global(db: LocalDatabase, manager: LocalWorkflowDefinitionManag
     assert moved.project_id is None
 
 
-def test_move_template_raises(manager: LocalWorkflowDefinitionManager) -> None:
-    """Test that moving a template definition raises ValueError."""
-    row = manager.create(
-        name="template-move-test",
-        definition_json=SAMPLE_DEFINITION,
-        source="template",
-    )
-
-    with pytest.raises(ValueError, match="Cannot move a template"):
-        manager.move_to_project(row.id, "proj-1")
-
-    with pytest.raises(ValueError, match="Cannot move a template"):
-        manager.move_to_global(row.id)
-
-
-def test_install_all_templates(manager: LocalWorkflowDefinitionManager) -> None:
-    """Test bulk installation of all eligible template definitions."""
-    manager.create(
-        name="b1", definition_json=SAMPLE_DEFINITION, source="template", workflow_type="rule"
-    )
-    manager.create(
-        name="b2", definition_json=SAMPLE_DEFINITION, source="template", workflow_type="rule"
-    )
-    # Already has a custom counterpart - should be skipped
-    manager.create(
-        name="b3", definition_json=SAMPLE_DEFINITION, source="template", workflow_type="rule"
-    )
-    manager.create(
-        name="b3", definition_json=SAMPLE_DEFINITION, source="installed", workflow_type="rule"
-    )
-
-    created = manager.install_all_templates(workflow_type="rule")
-
-    # b1 and b2 should be installed, b3 skipped (already has installed copy)
-    names = {r.name for r in created}
-    assert "b1" in names
-    assert "b2" in names
-    assert "b3" not in names

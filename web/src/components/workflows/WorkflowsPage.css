@@ -399,6 +399,22 @@
   color: #facc15;
 }
 
+.workflows-card-badge--drift {
+  background: #2a2010;
+  color: #f59e0b;
+  font-weight: 500;
+}
+
+.workflows-action-btn--drift {
+  color: #f59e0b;
+  font-weight: 500;
+}
+
+.workflows-action-btn--drift:hover {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.1);
+}
+
 /* Card footer: toggle + actions */
 .workflows-card-footer {
   display: flex;

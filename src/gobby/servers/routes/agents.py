@@ -157,6 +157,9 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
                 f"(id={getattr(row, 'id', '?')}): {e}"
             )
             return None
+        from gobby.workflows.template_hashes import get_template_hash_cache
+
+        cache = get_template_hash_cache()
         return {
             "definition": body.model_dump(exclude_none=True),
             "source": row.source,
@@ -165,6 +168,7 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
             "deleted_at": row.deleted_at,
             "tags": row.tags,
             "sources": body.sources,
+            "has_template_update": cache.has_drift(row),
         }
 
     @router.get("/definitions")

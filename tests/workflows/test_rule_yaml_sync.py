@@ -67,7 +67,7 @@ rules:
         assert len(rows) == 1
         assert rows[0].name == "no-push"
         assert rows[0].workflow_type == "rule"
-        assert rows[0].source == "template"
+        assert rows[0].source == "installed"
 
     def test_rule_definition_json_is_valid(self, db, manager, rules_dir) -> None:
         """The stored definition_json should be a valid RuleDefinitionBody."""
@@ -282,12 +282,14 @@ rules:
       reason: "Version 2."
 """
         )
+        # Sync no longer overwrites — existing rows are preserved
         result2 = sync_bundled_rules(db, rules_dir)
-        assert result2["updated"] == 1
+        assert result2["skipped"] == 1
 
+        # Original version preserved (drift detected at runtime, not overwritten)
         rows = manager.list_all(workflow_type="rule")
         body2 = json.loads(rows[0].definition_json)
-        assert body2["effects"][0]["reason"] == "Version 2."
+        assert body2["effects"][0]["reason"] == "Version 1."
 
     def test_soft_deleted_template_restored_on_resync(self, db, manager, rules_dir) -> None:
         """A soft-deleted template rule should be restored on re-sync."""
@@ -307,19 +309,19 @@ rules:
         manager.delete(rows[0].id)
 
         # Verify it's soft-deleted
-        deleted = manager.get_by_name("delete-me", include_deleted=True, include_templates=True)
+        deleted = manager.get_by_name("delete-me", include_deleted=True)
         assert deleted is not None
         assert deleted.deleted_at is not None
 
+        # Re-sync — should respect the soft-delete and skip
         result2 = sync_bundled_rules(db, rules_dir)
-        assert result2["updated"] == 1
-        assert result2["skipped"] == 0
+        assert result2["skipped"] == 1
+        assert result2["synced"] == 0
 
-        # Verify it's restored (disabled)
-        restored = manager.get_by_name("delete-me", include_deleted=False, include_templates=True)
-        assert restored is not None
-        assert restored.deleted_at is None
-        assert restored.enabled is False
+        # Verify it's still soft-deleted (not restored)
+        still_deleted = manager.get_by_name("delete-me", include_deleted=True)
+        assert still_deleted is not None
+        assert still_deleted.deleted_at is not None
 
 
 class TestInvalidRuleYaml:

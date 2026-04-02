@@ -43,7 +43,7 @@ def _sync_bundled(db: LocalDatabase) -> None:
 
 def _get_rule(manager, name) -> RuleDefinitionBody:
     """Get a bundled rule by name and parse its body."""
-    row = manager.get_by_name(name, include_templates=True)
+    row = manager.get_by_name(name)
     assert row is not None, f"Rule {name!r} not found after sync"
     return RuleDefinitionBody.model_validate_json(row.definition_json)
 
@@ -109,14 +109,14 @@ class TestDestructiveShellSync:
             "no-force-push-interactive",
         }
         for name in interactive_rules:
-            row = manager.get_by_name(name, include_templates=True)
+            row = manager.get_by_name(name)
             assert row is not None, f"{name} not found"
             assert "default" in row.tags, f"{name} missing 'default' tag"
 
     def test_autonomous_rules_no_default_tag(self, db, manager) -> None:
         _sync_bundled(db)
         for name in AUTONOMOUS_SHELL_RULES:
-            row = manager.get_by_name(name, include_templates=True)
+            row = manager.get_by_name(name)
             assert row is not None, f"{name} not found"
             assert "default" not in row.tags, f"{name} should NOT have 'default' tag"
 
@@ -276,8 +276,8 @@ class TestInteractiveShellPatterns:
     def test_higher_priority_than_autonomous(self, db, manager) -> None:
         for auto_name in AUTONOMOUS_SHELL_RULES:
             inter_name = f"{auto_name}-interactive"
-            auto_row = manager.get_by_name(auto_name, include_templates=True)
-            inter_row = manager.get_by_name(inter_name, include_templates=True)
+            auto_row = manager.get_by_name(auto_name)
+            inter_row = manager.get_by_name(inter_name)
             assert auto_row is not None and inter_row is not None
             assert inter_row.priority > auto_row.priority, (
                 f"{inter_name} priority should be > {auto_name}"
@@ -332,7 +332,7 @@ class TestNoRemoteExec:
         assert self.body.when is None
 
     def test_has_default_tag(self, db, manager) -> None:
-        row = manager.get_by_name("no-remote-exec", include_templates=True)
+        row = manager.get_by_name("no-remote-exec")
         assert "default" in row.tags
 
 

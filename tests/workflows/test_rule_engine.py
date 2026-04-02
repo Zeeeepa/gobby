@@ -822,26 +822,6 @@ class TestMcpCallToolUnwrapping:
 
 
 class TestToggleRuleRejectsTemplate:
-    def test_toggle_rule_rejects_template(
-        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
-    ) -> None:
-        """toggle_rule should return error for template-only rules."""
-        from gobby.mcp_proxy.tools.workflows._rules import toggle_rule
-
-        manager.create(
-            name="template-only-rule",
-            definition_json=RuleDefinitionBody(
-                event=RuleEvent.STOP,
-                effects=[RuleEffect(type="block", reason="template")],
-            ).model_dump_json(),
-            workflow_type="rule",
-            source="template",
-        )
-
-        result = toggle_rule(manager, name="template-only-rule", enabled=True)
-        assert result["success"] is False
-        assert "template" in result["error"]
-
     def test_toggle_rule_works_for_installed(
         self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
     ) -> None:

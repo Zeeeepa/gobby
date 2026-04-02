@@ -21,6 +21,7 @@ export interface WorkflowSummary {
 export interface WorkflowDetail extends WorkflowSummary {
   definition_json: string
   canvas_json: string | null
+  has_template_update?: boolean
 }
 
 function getBaseUrl(): string {

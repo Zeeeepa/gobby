@@ -361,15 +361,6 @@ class TestUpdateVariable:
         assert result["success"] is False
         assert "not found" in result["error"]
 
-    def test_update_variable_rejects_template(self) -> None:
-        from gobby.mcp_proxy.tools.workflows._variables import update_variable
-
-        template = _make_var_row("tmpl_var", source="template")
-        mgr = _mock_def_manager(existing=template)
-        result = update_variable(mgr, "tmpl_var", value="x")
-        assert result["success"] is False
-        assert "template" in result["error"]
-
 
 class TestDeleteVariable:
     """Tests for delete_variable."""
@@ -391,17 +382,17 @@ class TestDeleteVariable:
     def test_delete_variable_protects_bundled(self) -> None:
         from gobby.mcp_proxy.tools.workflows._variables import delete_variable
 
-        bundled = _make_var_row("bundled_var", source="template")
+        bundled = _make_var_row("bundled_var", source="bundled")
         mgr = _mock_def_manager(existing=bundled)
         result = delete_variable(mgr, "bundled_var")
         assert result["success"] is False
-        assert "template" in result["error"]
+        assert "bundled" in result["error"]
         mgr.delete.assert_not_called()
 
     def test_delete_variable_force_overrides_protection(self) -> None:
         from gobby.mcp_proxy.tools.workflows._variables import delete_variable
 
-        bundled = _make_var_row("bundled_var", source="template")
+        bundled = _make_var_row("bundled_var", source="bundled")
         mgr = _mock_def_manager(existing=bundled)
         mgr.delete.return_value = True
 
@@ -463,20 +454,6 @@ class TestListVariables:
         names = [v["name"] for v in result["variables"]]
         assert "var_a" in names
         assert "var_b" in names
-
-    def test_list_variables_excludes_templates(self) -> None:
-        from gobby.mcp_proxy.tools.workflows._variables import list_variables
-
-        rows = [
-            _make_var_row("user_var", source="user"),
-            _make_var_row("tmpl_var", source="template"),
-        ]
-        mgr = MagicMock()
-        mgr.list_all.return_value = rows
-        result = list_variables(mgr)
-
-        assert result["count"] == 1
-        assert result["variables"][0]["name"] == "user_var"
 
 
 class TestGetVariableDefinition:

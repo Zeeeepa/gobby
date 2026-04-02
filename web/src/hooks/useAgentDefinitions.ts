@@ -13,6 +13,7 @@ export interface AgentDefInfo {
   source: string
   sources?: string[] | null
   db_id: string | null
+  has_template_update?: boolean
 }
 
 export function useAgentDefinitions(projectId?: string | null, sourceFilter?: string) {

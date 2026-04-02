@@ -74,11 +74,11 @@ rules:
 
         # Verify rules exist in DB
         mgr = LocalWorkflowDefinitionManager(db)
-        mode_rule = mgr.get_by_name("init-mode-level", include_templates=True)
+        mode_rule = mgr.get_by_name("init-mode-level")
         assert mode_rule is not None
         assert mode_rule.enabled
 
-        stop_rule = mgr.get_by_name("init-stop-attempts", include_templates=True)
+        stop_rule = mgr.get_by_name("init-stop-attempts")
         assert stop_rule is not None
         assert stop_rule.enabled
 
@@ -120,7 +120,7 @@ class TestBundledVariablesSync:
         assert len(rows) >= 18
         for row in rows:
             assert row.workflow_type == "variable"
-            assert row.source == "template"
+            assert row.source == "installed"
 
     def test_multi_variable_file_format(self, db, tmp_path) -> None:
         """A file with variables: dict should create multiple variable rows."""
@@ -146,14 +146,14 @@ variables:
         assert result["errors"] == []
 
         mgr = LocalWorkflowDefinitionManager(db)
-        var_a = mgr.get_by_name("my_var_a", include_templates=True)
+        var_a = mgr.get_by_name("my_var_a")
         assert var_a is not None
         assert var_a.workflow_type == "variable"
         body_a = json.loads(var_a.definition_json)
         assert body_a["value"] is True
         assert "test-tag" in (var_a.tags or [])
 
-        var_b = mgr.get_by_name("my_var_b", include_templates=True)
+        var_b = mgr.get_by_name("my_var_b")
         assert var_b is not None
         body_b = json.loads(var_b.definition_json)
         assert body_b["value"] == 42

@@ -313,6 +313,18 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
     }
   }, [fetchRules])
 
+  const handleRestoreFromTemplate = useCallback(async (rule: RuleSummary) => {
+    if (!await confirm({ title: 'Restore from template?', description: `Reset "${rule.name}" to the bundled template version? Your customizations will be lost.`, confirmLabel: 'Restore' })) return
+    try {
+      const res = await fetch(`/api/workflows/${rule.id}/restore-from-template`, {
+        method: 'POST',
+      })
+      if (res.ok) await fetchRules()
+    } catch (e) {
+      console.error('Failed to restore rule from template:', e)
+    }
+  }, [fetchRules])
+
   useEffect(() => {
     onEventTypesChange(eventTypes)
   }, [eventTypes, onEventTypesChange])
@@ -373,6 +385,7 @@ export function RulesTab({ searchText, sourceFilter, devMode, showCreateModal, o
                 onInstall={() => installFromTemplate(rule.id)}
                 onMoveToProject={() => handleMoveToProject(rule)}
                 onMoveToGlobal={() => handleMoveToGlobal(rule)}
+                onRestoreFromTemplate={() => handleRestoreFromTemplate(rule)}
               />
             ))}
           </div>
@@ -412,7 +425,7 @@ function getEffectType(effect: Record<string, unknown> | null): string | null {
   return null
 }
 
-function RuleCard({ rule, devMode, projectId, isInstalled, onCardClick, onToggle, onDelete, onDuplicate, onDownload, onInstall, onMoveToProject, onMoveToGlobal }: {
+function RuleCard({ rule, devMode, projectId, isInstalled, onCardClick, onToggle, onDelete, onDuplicate, onDownload, onInstall, onMoveToProject, onMoveToGlobal, onRestoreFromTemplate }: {
   rule: RuleSummary
   devMode: boolean
   projectId?: string
@@ -425,6 +438,7 @@ function RuleCard({ rule, devMode, projectId, isInstalled, onCardClick, onToggle
   onInstall: () => void
   onMoveToProject: () => void
   onMoveToGlobal: () => void
+  onRestoreFromTemplate: () => void
 }) {
   const effectType = getEffectType(rule.effect)
   const isTemplate = rule.source === 'template'
@@ -453,6 +467,9 @@ function RuleCard({ rule, devMode, projectId, isInstalled, onCardClick, onToggle
             <span className={`rules-card-effect rules-card-effect--${effectType}`}>{effectType}</span>
           )}
           <span className="rules-card-priority">P{rule.priority}</span>
+          {rule.has_template_update && (
+            <span className="workflows-card-badge workflows-card-badge--drift">Template updated</span>
+          )}
         </div>
       </div>
 
@@ -510,6 +527,9 @@ function RuleCard({ rule, devMode, projectId, isInstalled, onCardClick, onToggle
               )}
               {rule.source === 'project' && (
                 <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onMoveToGlobal() }} title="Move to global scope">To Global</button>
+              )}
+              {rule.has_template_update && (
+                <button type="button" className="workflows-action-btn workflows-action-btn--drift" onClick={e => { e.stopPropagation(); onRestoreFromTemplate() }} title="Restore to bundled template version">Restore</button>
               )}
               <button type="button" className="workflows-action-icon" onClick={e => { e.stopPropagation(); onDuplicate() }} title="Duplicate" aria-label="Duplicate rule">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5.5" y="5.5" width="9" height="9" rx="1.5" /><path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" /></svg>

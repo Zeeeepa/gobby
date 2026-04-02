@@ -207,6 +207,18 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, showCreate, on
     }
   }, [fetchWorkflows])
 
+  const handleRestoreFromTemplate = useCallback(async (wf: WorkflowDetail) => {
+    if (!await confirm({ title: 'Restore from template?', description: `Reset "${wf.name}" to the bundled template version? Your customizations will be lost.`, confirmLabel: 'Restore' })) return
+    try {
+      const res = await fetch(`/api/workflows/${wf.id}/restore-from-template`, {
+        method: 'POST',
+      })
+      if (res.ok) fetchWorkflows({ include_deleted: true })
+    } catch (e) {
+      console.error('Failed to restore workflow from template:', e)
+    }
+  }, [fetchWorkflows])
+
   const handleCardClick = useCallback(async (wf: WorkflowDetail) => {
     setEditingWorkflow(wf)
     setSidebarView('form')
@@ -310,6 +322,9 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, showCreate, on
                     {wf.tags && wf.tags.map(tag => (
                       <span className="workflows-card-badge" key={tag}>{tag}</span>
                     ))}
+                    {wf.has_template_update && (
+                      <span className="workflows-card-badge workflows-card-badge--drift">Template updated</span>
+                    )}
                   </div>
 
                   <div className="workflows-card-footer">
@@ -373,6 +388,9 @@ export function PipelinesTab({ searchText, sourceFilter, devMode, showCreate, on
                           )}
                           {wf.source === 'project' && (
                             <button type="button" className="workflows-action-btn" onClick={() => handleMoveToGlobal(wf)} title="Move to global scope">To Global</button>
+                          )}
+                          {wf.has_template_update && (
+                            <button type="button" className="workflows-action-btn workflows-action-btn--drift" onClick={() => handleRestoreFromTemplate(wf)} title="Restore to bundled template version">Restore</button>
                           )}
                           <button type="button" className="workflows-action-icon" onClick={() => handleDuplicate(wf)} title="Duplicate" aria-label="Duplicate workflow">
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5.5" y="5.5" width="9" height="9" rx="1.5" /><path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" /></svg>

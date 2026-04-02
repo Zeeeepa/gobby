@@ -34,7 +34,10 @@ def _rule_brief(row: WorkflowDefinitionRow) -> dict[str, Any]:
 
 def _rule_summary(row: WorkflowDefinitionRow) -> dict[str, Any]:
     """Build a summary dict for a rule row, including parsed definition fields."""
+    from gobby.workflows.template_hashes import get_template_hash_cache
+
     body = json.loads(row.definition_json)
+    cache = get_template_hash_cache()
     return {
         "id": row.id,
         "name": row.name,
@@ -49,6 +52,7 @@ def _rule_summary(row: WorkflowDefinitionRow) -> dict[str, Any]:
         "source": row.source,
         "tags": row.tags,
         "project_id": row.project_id,
+        "has_template_update": cache.has_drift(row),
     }
 
 

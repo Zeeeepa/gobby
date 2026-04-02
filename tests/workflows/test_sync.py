@@ -5,7 +5,6 @@ Tests sync edge cases, error handling, orphan cleanup, and variable sync.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -60,168 +59,6 @@ class TestResolveSyncPlaceholders:
             result = resolve_sync_placeholders("run {{ gobby_bin }} tasks")
             assert "-m gobby" in result
             assert "{{ gobby_bin }}" not in result
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# propagate_to_installed
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestPropagateToInstalled:
-    """Tests for propagate_to_installed."""
-
-    def test_propagates_definition_json_change(
-        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
-    ) -> None:
-        from gobby.workflows.sync import propagate_to_installed
-
-        # Create template and installed rows
-        manager.create(
-            name="test-rule",
-            definition_json='{"old": true}',
-            workflow_type="rule",
-            source="template",
-        )
-        manager.create(
-            name="test-rule",
-            definition_json='{"old": true}',
-            workflow_type="rule",
-            source="installed",
-            enabled=True,
-        )
-
-        propagate_to_installed(manager, "test-rule", '{"new": true}')
-
-        # Verify installed copy updated
-        installed_row = db.fetchone(
-            "SELECT definition_json FROM workflow_definitions WHERE name = ? AND source = 'installed'",
-            ("test-rule",),
-        )
-        assert installed_row is not None
-        assert json.loads(installed_row["definition_json"]) == {"new": True}
-
-    def test_no_installed_copy_does_nothing(
-        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
-    ) -> None:
-        from gobby.workflows.sync import propagate_to_installed
-
-        # No installed row - should not raise
-        propagate_to_installed(manager, "nonexistent", '{"new": true}')
-
-    def test_propagates_tags_change(
-        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
-    ) -> None:
-        from gobby.workflows.sync import propagate_to_installed
-
-        manager.create(
-            name="tag-rule",
-            definition_json='{"v": 1}',
-            workflow_type="rule",
-            source="template",
-            tags=["gobby"],
-        )
-        manager.create(
-            name="tag-rule",
-            definition_json='{"v": 1}',
-            workflow_type="rule",
-            source="installed",
-            tags=["old-tag"],
-        )
-
-        propagate_to_installed(manager, "tag-rule", '{"v": 1}', tags=["gobby", "new-tag"])
-
-        installed_row = db.fetchone(
-            "SELECT tags FROM workflow_definitions WHERE name = ? AND source = 'installed'",
-            ("tag-rule",),
-        )
-        assert installed_row is not None
-        tags = json.loads(installed_row["tags"])
-        assert "gobby" in tags
-        assert "new-tag" in tags
-
-    def test_same_definition_same_tags_no_update(
-        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
-    ) -> None:
-        from gobby.workflows.sync import propagate_to_installed
-
-        manager.create(
-            name="same-rule",
-            definition_json='{"v": 1}',
-            workflow_type="rule",
-            source="installed",
-        )
-
-        # Same definition, no tags change - should not call update
-        propagate_to_installed(manager, "same-rule", '{"v": 1}')
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# ensure_tag_on_installed
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class TestEnsureTagOnInstalled:
-    """Tests for ensure_tag_on_installed."""
-
-    def test_adds_tag_to_untagged_template(
-        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
-    ) -> None:
-        from gobby.workflows.sync import ensure_tag_on_installed
-
-        manager.create(
-            name="untagged-rule",
-            definition_json='{"v": 1}',
-            workflow_type="rule",
-            source="template",
-            tags=[],
-        )
-
-        ensure_tag_on_installed(manager, "rule", "gobby")
-
-        row = manager.get_by_name("untagged-rule", include_templates=True)
-        assert row is not None
-        assert "gobby" in (row.tags or [])
-
-    def test_skips_rows_with_different_owner_tag(
-        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
-    ) -> None:
-        from gobby.workflows.sync import ensure_tag_on_installed
-
-        manager.create(
-            name="user-rule",
-            definition_json='{"v": 1}',
-            workflow_type="rule",
-            source="template",
-            tags=["user"],
-        )
-
-        ensure_tag_on_installed(manager, "rule", "gobby")
-
-        row = manager.get_by_name("user-rule", include_templates=True)
-        assert row is not None
-        assert "gobby" not in (row.tags or [])
-
-    def test_skips_non_template_non_installed_sources(
-        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
-    ) -> None:
-        from gobby.workflows.sync import ensure_tag_on_installed
-
-        manager.create(
-            name="custom-rule",
-            definition_json='{"v": 1}',
-            workflow_type="rule",
-            source="custom",
-            tags=[],
-        )
-
-        ensure_tag_on_installed(manager, "rule", "gobby")
-
-        row = db.fetchone(
-            "SELECT tags FROM workflow_definitions WHERE name = ?",
-            ("custom-rule",),
-        )
-        tags = json.loads(row["tags"]) if row and row["tags"] else []
-        assert "gobby" not in tags
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -302,13 +139,13 @@ rules:
     def test_user_tag_collision_skips(self, db: LocalDatabase, tmp_path: Path) -> None:
         from gobby.workflows.sync import sync_bundled_rules
 
-        # Create a gobby template
+        # Create a gobby-tagged installed rule
         manager = LocalWorkflowDefinitionManager(db)
         manager.create(
             name="collision-rule",
             definition_json='{"event": "before_tool", "effects": [{"type": "log", "message": "v1"}]}',
             workflow_type="rule",
-            source="template",
+            source="installed",
             tags=["gobby"],
         )
 
@@ -492,7 +329,7 @@ variables:
         result = sync_bundled_variables(db, variables_path=var_dir)
         assert len(result["errors"]) == 1
 
-    def test_updates_changed_variable(self, db: LocalDatabase, tmp_path: Path) -> None:
+    def test_does_not_overwrite_existing_variable(self, db: LocalDatabase, tmp_path: Path) -> None:
         from gobby.workflows.sync import sync_bundled_variables
 
         var_dir = tmp_path / "variables"
@@ -515,8 +352,9 @@ variables:
     value: "v2"
 """
         )
+        # Sync no longer overwrites — drift detected at runtime
         result = sync_bundled_variables(db, variables_path=var_dir)
-        assert result["updated"] == 1
+        assert result["skipped"] == 1
 
     def test_skips_unchanged_variable(self, db: LocalDatabase, tmp_path: Path) -> None:
         from gobby.workflows.sync import sync_bundled_variables
@@ -555,7 +393,7 @@ variables:
         result = sync_bundled_variables(db, variables_path=var_dir)
         assert result["orphaned"] >= 1
 
-    def test_restores_soft_deleted_template(self, db: LocalDatabase, tmp_path: Path) -> None:
+    def test_respects_soft_deleted_variable(self, db: LocalDatabase, tmp_path: Path) -> None:
         from gobby.workflows.sync import sync_bundled_variables
 
         var_dir = tmp_path / "variables"
@@ -571,12 +409,13 @@ variables:
         sync_bundled_variables(db, variables_path=var_dir)
 
         manager = LocalWorkflowDefinitionManager(db)
-        row = manager.get_by_name("restore_var", include_templates=True)
+        row = manager.get_by_name("restore_var")
         assert row is not None
         manager.delete(row.id)
 
+        # Sync respects soft-deletes — does not re-create
         result = sync_bundled_variables(db, variables_path=var_dir)
-        assert result["updated"] >= 1
+        assert result["skipped"] == 1
 
     def test_handles_yaml_parse_error(self, db: LocalDatabase, tmp_path: Path) -> None:
         from gobby.workflows.sync import sync_bundled_variables

@@ -778,6 +778,19 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
     }
   }, [fetchDefinitions])
 
+  const handleRestoreFromTemplate = useCallback(async (item: AgentDefInfo) => {
+    if (!item.db_id) return
+    if (!await confirm({ title: 'Restore from template?', description: `Reset "${item.definition.name}" to the bundled template version? Your customizations will be lost.`, confirmLabel: 'Restore' })) return
+    try {
+      const res = await fetch(`${getBaseUrl()}/api/workflows/${item.db_id}/restore-from-template`, {
+        method: 'POST',
+      })
+      if (res.ok) fetchDefinitions(true)
+    } catch (e) {
+      console.error('Failed to restore agent from template:', e)
+    }
+  }, [fetchDefinitions])
+
   const handleImport = async (name: string) => {
     setImportingName(name)
     setImportResult(null)
@@ -885,6 +898,9 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
                       <span className="agent-def-badge agent-def-badge--dim">
                         {d.timeout}s
                       </span>
+                      {item.has_template_update && (
+                        <span className="workflows-card-badge workflows-card-badge--drift">Template updated</span>
+                      )}
                     </div>
                   </button>
 
@@ -945,6 +961,9 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
                           )}
                           {item.source === 'project' && item.db_id && (
                             <button type="button" className="workflows-action-btn" onClick={() => handleMoveToGlobal(item)} title="Move to global scope">To Global</button>
+                          )}
+                          {item.has_template_update && item.db_id && (
+                            <button type="button" className="workflows-action-btn workflows-action-btn--drift" onClick={() => handleRestoreFromTemplate(item)} title="Restore to bundled template version">Restore</button>
                           )}
                           <button type="button" className="workflows-action-icon" onClick={() => handleDuplicate(item)} title="Duplicate" aria-label="Duplicate agent">
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5.5" y="5.5" width="9" height="9" rx="1.5" /><path d="M10.5 5.5V2.5a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h3" /></svg>

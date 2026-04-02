@@ -106,7 +106,7 @@ class TestResetMemoryTrackingOnStart:
 
     def test_event_and_effect(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("reset-memory-tracking-on-start", include_templates=True)
+        row = manager.get_by_name("reset-memory-tracking-on-start")
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "session_start"
@@ -115,7 +115,7 @@ class TestResetMemoryTrackingOnStart:
 
     def test_has_when_condition(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("reset-memory-tracking-on-start", include_templates=True)
+        row = manager.get_by_name("reset-memory-tracking-on-start")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.when is not None
         assert "clear" in body.when
@@ -132,7 +132,7 @@ class TestMemoryRecallOnPrompt:
 
     def test_event_and_effect(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("memory-recall-on-prompt", include_templates=True)
+        row = manager.get_by_name("memory-recall-on-prompt")
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_agent"
@@ -143,7 +143,7 @@ class TestMemoryRecallOnPrompt:
     def test_not_background(self, db, manager) -> None:
         """Recall must block to inject context."""
         _sync_bundled(db)
-        row = manager.get_by_name("memory-recall-on-prompt", include_templates=True)
+        row = manager.get_by_name("memory-recall-on-prompt")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.effects[0].background is False
 
@@ -158,7 +158,7 @@ class TestMemoryCaptureNudge:
 
     def test_event_and_effect(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("memory-capture-nudge", include_templates=True)
+        row = manager.get_by_name("memory-capture-nudge")
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_agent"
@@ -169,7 +169,7 @@ class TestMemoryCaptureNudge:
     def test_has_when_condition(self, db, manager) -> None:
         """Only nudge on substantial prompts (not slash commands)."""
         _sync_bundled(db)
-        row = manager.get_by_name("memory-capture-nudge", include_templates=True)
+        row = manager.get_by_name("memory-capture-nudge")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.when is not None
         assert "prompt" in body.when
@@ -185,7 +185,7 @@ class TestRequireMemoryReviewBeforeStatus:
 
     def test_event_and_effect(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("require-memory-review-before-status", include_templates=True)
+        row = manager.get_by_name("require-memory-review-before-status")
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_tool"
@@ -196,7 +196,7 @@ class TestRequireMemoryReviewBeforeStatus:
     def test_blocks_all_status_transitions(self, db, manager) -> None:
         """Should block close_task, mark_task_needs_review, and mark_task_review_approved."""
         _sync_bundled(db)
-        row = manager.get_by_name("require-memory-review-before-status", include_templates=True)
+        row = manager.get_by_name("require-memory-review-before-status")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         mcp_tools = body.effects[0].mcp_tools
         assert "gobby-tasks:close_task" in mcp_tools
@@ -206,7 +206,7 @@ class TestRequireMemoryReviewBeforeStatus:
     def test_has_when_condition(self, db, manager) -> None:
         """Only block when memory_review_completed is not set."""
         _sync_bundled(db)
-        row = manager.get_by_name("require-memory-review-before-status", include_templates=True)
+        row = manager.get_by_name("require-memory-review-before-status")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.when is not None
         assert "memory_review_completed" in body.when
@@ -222,7 +222,7 @@ class TestClearMemoryReviewOnCreate:
 
     def test_event_and_effect(self, db, manager) -> None:
         _sync_bundled(db)
-        row = manager.get_by_name("clear-memory-review-on-create", include_templates=True)
+        row = manager.get_by_name("clear-memory-review-on-create")
         assert row is not None
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "before_tool"
@@ -233,7 +233,7 @@ class TestClearMemoryReviewOnCreate:
     def test_has_when_condition(self, db, manager) -> None:
         """Must match create_memory on gobby-memory server."""
         _sync_bundled(db)
-        row = manager.get_by_name("clear-memory-review-on-create", include_templates=True)
+        row = manager.get_by_name("clear-memory-review-on-create")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.when is not None
         assert "create_memory" in body.when
