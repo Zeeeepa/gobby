@@ -139,7 +139,7 @@ class TestDetectionHelpers:
 class TestInstallCommand:
     @pytest.fixture(autouse=True)
     def _mock_docker_services(self) -> Any:
-        """Mock Docker service installers — tests here focus on CLI-specific hooks."""
+        """Mock Docker service and local embeddings installers — tests here focus on CLI-specific hooks."""
         qdrant_result = {"success": True, "qdrant_url": "http://localhost:6333"}
         neo4j_result = {
             "success": True,
@@ -150,6 +150,10 @@ class TestInstallCommand:
         with (
             patch("gobby.cli.install.install_qdrant", return_value=qdrant_result),
             patch("gobby.cli.install.install_neo4j", return_value=neo4j_result),
+            patch(
+                "gobby.cli.install_setup._install_local_embeddings",
+                return_value={"installed": False, "skipped": True, "reason": "already installed"},
+            ),
         ):
             yield
 
@@ -395,9 +399,7 @@ class TestInstallCommand:
             "hooks_installed": ["PreToolUse"],
             "mcp_configured": True,
         }
-        result = runner.invoke(
-            install, ["--claude", "--no-ext-services"], catch_exceptions=False
-        )
+        result = runner.invoke(install, ["--claude", "--no-ext-services"], catch_exceptions=False)
         assert result.exit_code == 0
         mock_qdrant.assert_not_called()
         mock_neo4j.assert_not_called()

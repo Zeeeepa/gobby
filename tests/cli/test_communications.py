@@ -116,7 +116,8 @@ def test_comms_channels_add_slack(mock_daemon_client):
     mock_daemon_client.call_http_api.return_value = mock_response
 
     result = runner.invoke(
-        comms, ["channels", "add", "slack", "my-slack"],
+        comms,
+        ["channels", "add", "slack", "my-slack"],
         input="xoxb-token\nsigning-sec\nC12345\n",
     )
 
@@ -141,7 +142,8 @@ def test_comms_channels_add_teams(mock_daemon_client):
     mock_daemon_client.call_http_api.return_value = mock_response
 
     result = runner.invoke(
-        comms, ["channels", "add", "teams", "my-teams"],
+        comms,
+        ["channels", "add", "teams", "my-teams"],
         input="app-id-123\napp-pass-456\n",
     )
 
@@ -166,7 +168,8 @@ def test_comms_channels_add_email(mock_daemon_client):
     mock_daemon_client.call_http_api.return_value = mock_response
 
     result = runner.invoke(
-        comms, ["channels", "add", "email", "my-email"],
+        comms,
+        ["channels", "add", "email", "my-email"],
         input="secret-pw\nsmtp.example.com\n587\nimap.example.com\n993\nme@example.com\n",
     )
 
@@ -197,7 +200,8 @@ def test_comms_channels_add_sms(mock_daemon_client):
     mock_daemon_client.call_http_api.return_value = mock_response
 
     result = runner.invoke(
-        comms, ["channels", "add", "sms", "my-sms"],
+        comms,
+        ["channels", "add", "sms", "my-sms"],
         input="auth-token-123\nAC123456\n+15551234567\n",
     )
 

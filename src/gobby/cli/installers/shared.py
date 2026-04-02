@@ -268,9 +268,8 @@ def sync_bundled_content_to_db(
             logger.warning(msg)
             result["errors"].append(msg)
 
-    # Auto-install templates so bundled skills are immediately active.
-    # Existing users: skills already source='installed' from migration; skipped.
-    # New users: templates created then immediately installed.
+    # Auto-install skill templates so bundled skills are immediately active.
+    # Skills have their own template system — leave as-is.
     try:
         from gobby.storage.skills import LocalSkillManager
 
@@ -284,28 +283,8 @@ def sync_bundled_content_to_db(
         logger.warning(msg)
         result["errors"].append(msg)
 
-    # Auto-install and enable gobby-tagged workflow definition templates.
-    # Creates source='installed' copies of templates tagged "gobby" and enables them.
-    try:
-        from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
-
-        wf_manager = LocalWorkflowDefinitionManager(db)
-        installed = wf_manager.install_all_templates(tag="gobby")
-        if installed:
-            with db.transaction() as conn:
-                ids = [row.id for row in installed]
-                placeholders = ",".join("?" * len(ids))
-                conn.execute(
-                    f"UPDATE workflow_definitions SET enabled = 1, updated_at = datetime('now') "
-                    f"WHERE id IN ({placeholders})",
-                    ids,
-                )
-            logger.info(f"Auto-installed and enabled {len(installed)} gobby-tagged definitions")
-            result["details"]["workflow_definitions"] = {"auto_installed": len(installed)}
-    except Exception as e:
-        msg = f"Failed to auto-install workflow definition templates: {e}"
-        logger.warning(msg)
-        result["errors"].append(msg)
+    # Workflow definitions are now created as installed rows directly by the
+    # sync functions above — no separate install step needed.
 
     # Sync user templates from .gobby/workflows/ and ~/.gobby/workflows/ back to DB.
     # Skip in dev mode — bundled templates are managed directly in source tree.
@@ -382,17 +361,8 @@ def _sync_user_templates_to_db(db: "DatabaseProtocol") -> int:
         except Exception as e:
             logger.warning(f"Failed to sync user {content_type} from {path}: {e}")
 
-    # Auto-install user-tagged templates (without enabling — user controls activation)
-    try:
-        from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
-
-        wf_manager = LocalWorkflowDefinitionManager(db)
-        installed = wf_manager.install_all_templates(tag="user")
-        if installed:
-            total += len(installed)
-            logger.info(f"Auto-installed {len(installed)} user-tagged definition templates")
-    except Exception as e:
-        logger.warning(f"Failed to auto-install user templates: {e}")
+    # User templates are now created as installed rows directly by the
+    # sync functions above — no separate install step needed.
 
     return total
 

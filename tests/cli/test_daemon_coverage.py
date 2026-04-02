@@ -137,9 +137,7 @@ class TestStopCommand:
         return_value={"installed": False, "running": False},
     )
     @patch("gobby.cli.daemon.stop_daemon_util", return_value=False)
-    def test_stop_failure(
-        self, _stop: MagicMock, _svc: MagicMock, runner: CliRunner
-    ) -> None:
+    def test_stop_failure(self, _stop: MagicMock, _svc: MagicMock, runner: CliRunner) -> None:
         config = MagicMock()
         result = runner.invoke(stop, [], obj={"config": config}, catch_exceptions=False)
         assert result.exit_code == 1

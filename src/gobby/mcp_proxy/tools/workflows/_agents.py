@@ -103,7 +103,7 @@ def get_agent_definition(
     Returns:
         Dict with success and full agent detail, or error if not found
     """
-    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
+    row = def_manager.get_by_name(name)
     if row is None or row.workflow_type != "agent":
         return {"success": False, "error": f"Agent definition '{name}' not found"}
 
@@ -155,10 +155,8 @@ def create_agent_definition(
     except Exception as e:
         return {"success": False, "error": f"Validation failed: {e}"}
 
-    # Check for duplicate name (including templates)
-    existing = def_manager.get_by_name(name) or def_manager.get_by_name(
-        name, include_templates=True
-    )
+    # Check for duplicate name
+    existing = def_manager.get_by_name(name)
     if existing is not None:
         return {"success": False, "error": f"Agent definition '{name}' already exists"}
 
@@ -200,7 +198,7 @@ def toggle_agent_definition(
     Returns:
         Dict with success and updated agent, or error if not found
     """
-    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
+    row = def_manager.get_by_name(name)
     if row is None or row.workflow_type != "agent":
         return {"success": False, "error": f"Agent definition '{name}' not found"}
 
@@ -230,11 +228,11 @@ def delete_agent_definition(
     Returns:
         Dict with success, or error if not found/protected
     """
-    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
+    row = def_manager.get_by_name(name)
     if row is None or row.workflow_type != "agent":
         return {"success": False, "error": f"Agent definition '{name}' not found"}
 
-    if row.source in ("bundled", "template") and not force:
+    if row.source == "bundled" and not force:
         return {
             "success": False,
             "error": (
@@ -265,6 +263,9 @@ def update_agent_rules(
     name: str,
     add: list[str] | None = None,
     remove: list[str] | None = None,
+    *,
+    project_path: Path | None = None,
+    make_global_template: bool = False,
 ) -> dict[str, Any]:
     """
     Add or remove rules from an agent definition's workflows.rules list.
@@ -274,11 +275,13 @@ def update_agent_rules(
         name: Agent name
         add: Rule names to add
         remove: Rule names to remove
+        project_path: Project root for auto-export
+        make_global_template: If True, export to ~/.gobby/workflows/ instead
 
     Returns:
         Dict with success and updated rules list
     """
-    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
+    row = def_manager.get_by_name(name)
     if row is None or row.workflow_type != "agent":
         return {"success": False, "error": f"Agent definition '{name}' not found"}
 
@@ -296,8 +299,15 @@ def update_agent_rules(
     workflows["rules"] = rules
     body["workflows"] = workflows
 
-    def_manager.update(row.id, definition_json=json.dumps(body))
+    updated = def_manager.update(row.id, definition_json=json.dumps(body))
     logger.info(f"Updated rules for agent '{name}': {rules}")
+
+    try:
+        from gobby.mcp_proxy.tools.workflows._auto_export import auto_export_definition
+
+        auto_export_definition(updated, project_path, make_global=make_global_template)
+    except Exception as e:
+        logger.warning(f"Failed to auto-export agent '{name}': {e}")
 
     return {"success": True, "rules": rules}
 
@@ -307,6 +317,9 @@ def update_agent_variables(
     name: str,
     set_vars: dict[str, Any] | None = None,
     remove: list[str] | None = None,
+    *,
+    project_path: Path | None = None,
+    make_global_template: bool = False,
 ) -> dict[str, Any]:
     """
     Set or remove variables from an agent definition's workflows.variables dict.
@@ -316,11 +329,13 @@ def update_agent_variables(
         name: Agent name
         set_vars: Variables to set (key-value pairs)
         remove: Variable keys to remove
+        project_path: Project root for auto-export
+        make_global_template: If True, export to ~/.gobby/workflows/ instead
 
     Returns:
         Dict with success and updated variables dict
     """
-    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
+    row = def_manager.get_by_name(name)
     if row is None or row.workflow_type != "agent":
         return {"success": False, "error": f"Agent definition '{name}' not found"}
 
@@ -337,8 +352,15 @@ def update_agent_variables(
     workflows["variables"] = variables
     body["workflows"] = workflows
 
-    def_manager.update(row.id, definition_json=json.dumps(body))
+    updated = def_manager.update(row.id, definition_json=json.dumps(body))
     logger.info(f"Updated variables for agent '{name}': {list(variables.keys())}")
+
+    try:
+        from gobby.mcp_proxy.tools.workflows._auto_export import auto_export_definition
+
+        auto_export_definition(updated, project_path, make_global=make_global_template)
+    except Exception as e:
+        logger.warning(f"Failed to auto-export agent '{name}': {e}")
 
     return {"success": True, "variables": variables}
 
@@ -347,6 +369,9 @@ def update_agent_steps(
     def_manager: LocalWorkflowDefinitionManager,
     name: str,
     steps: list[dict[str, Any]] | None = None,
+    *,
+    project_path: Path | None = None,
+    make_global_template: bool = False,
 ) -> dict[str, Any]:
     """
     Replace an agent's steps entirely.
@@ -355,11 +380,13 @@ def update_agent_steps(
         def_manager: Definition storage manager
         name: Agent name
         steps: New steps list (or None to clear)
+        project_path: Project root for auto-export
+        make_global_template: If True, export to ~/.gobby/workflows/ instead
 
     Returns:
         Dict with success and updated steps info
     """
-    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
+    row = def_manager.get_by_name(name)
     if row is None or row.workflow_type != "agent":
         return {"success": False, "error": f"Agent definition '{name}' not found"}
 
@@ -372,7 +399,14 @@ def update_agent_steps(
     except Exception as e:
         return {"success": False, "error": f"Validation failed: {e}"}
 
-    def_manager.update(row.id, definition_json=json.dumps(body))
+    updated = def_manager.update(row.id, definition_json=json.dumps(body))
     logger.info(f"Updated steps for agent '{name}': {len(steps or [])} steps")
+
+    try:
+        from gobby.mcp_proxy.tools.workflows._auto_export import auto_export_definition
+
+        auto_export_definition(updated, project_path, make_global=make_global_template)
+    except Exception as e:
+        logger.warning(f"Failed to auto-export agent '{name}': {e}")
 
     return {"success": True, "steps": steps, "step_count": len(steps or [])}

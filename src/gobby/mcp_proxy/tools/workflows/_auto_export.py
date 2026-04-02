@@ -23,18 +23,18 @@ logger = logging.getLogger(__name__)
 
 
 def has_gobby_name_collision(db: DatabaseProtocol, name: str) -> bool:
-    """Check if a name collides with a bundled gobby template.
+    """Check if a name collides with a bundled gobby definition.
 
     Args:
         db: Database connection
         name: Definition name to check
 
     Returns:
-        True if a gobby-tagged template with this name exists
+        True if a gobby-tagged definition with this name exists
     """
     row = db.fetchone(
         "SELECT id FROM workflow_definitions "
-        "WHERE name = ? AND source = 'template' AND tags LIKE '%\"gobby\"%' "
+        "WHERE name = ? AND tags LIKE '%\"gobby\"%' "
         "AND deleted_at IS NULL",
         (name,),
     )

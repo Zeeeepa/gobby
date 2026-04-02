@@ -1,4 +1,8 @@
-"""Pipeline definition synchronization from bundled YAML templates."""
+"""Pipeline definition synchronization from bundled YAML templates.
+
+Single-row model: templates live on disk only. The DB holds installed rows
+directly — no intermediate template rows, no propagation.
+"""
 
 import json
 import logging
@@ -11,7 +15,6 @@ from pydantic import ValidationError
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 from gobby.workflows.definitions import PipelineDefinition, WorkflowDefinition
-from gobby.workflows.sync_rules import ensure_tag_on_installed, propagate_to_installed
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +31,8 @@ def get_bundled_pipelines_path() -> Path:
 def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
     """Sync bundled pipeline definitions from install/shared/workflows/pipelines/ to the database.
 
-    This function:
-    1. Walks all .yaml files in the bundled pipelines directory
-    2. Parses each and validates it has a 'name' field
-    3. Creates new records or updates changed content (idempotent)
-    4. All records are created with source='template' and project_id=None
+    Creates installed rows directly from template files. Existing rows are
+    never overwritten — drift is detected via hash comparison at runtime.
 
     Args:
         db: Database connection
@@ -56,7 +56,7 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
         return result
 
     manager = LocalWorkflowDefinitionManager(db)
-    parsed_names: set[str] = set()  # Collect names during main loop for orphan scan
+    on_disk: set[str] = set()
 
     for yaml_file in sorted(workflows_path.glob("*.yaml")):
         try:
@@ -73,7 +73,7 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
                 )
                 continue
 
-            # Validate against Pydantic schema before any DB operations
+            # Validate against Pydantic schema
             schema_cls = (
                 PipelineDefinition if data.get("type") == "pipeline" else WorkflowDefinition
             )
@@ -87,10 +87,9 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
                 continue
 
             name = data["name"]
-            parsed_names.add(name)
+            on_disk.add(name)
             definition_json = json.dumps(data)
 
-            # Derive metadata from the YAML content
             yaml_type = data.get("type", "")
             workflow_type = yaml_type if yaml_type in VALID_WORKFLOW_TYPES else "pipeline"
             description = data.get("description", "")
@@ -99,110 +98,20 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
             priority = data.get("priority", 100)
             sources_list = data.get("sources")
 
-            # Check if workflow already exists (global scope, including soft-deleted)
-            existing = manager.get_by_name(name, include_deleted=True, include_templates=True)
+            # Check if pipeline already exists (any source, including soft-deleted)
+            existing = manager.get_by_name(name, include_deleted=True)
 
             if existing is not None:
-                # If soft-deleted template, restore it so templates are always available
+                # Respect soft-deletes
                 if existing.deleted_at is not None:
-                    if existing.source == "template":
-                        manager.restore(existing.id)
-                        manager.update(
-                            existing.id,
-                            name=name,
-                            definition_json=definition_json,
-                            workflow_type=workflow_type,
-                            project_id=None,
-                            description=description,
-                            version=version,
-                            enabled=False,
-                            priority=priority,
-                            sources=sources_list,
-                            source="template",
-                            tags=["gobby"],
-                        )
-                        logger.info(
-                            "Restored soft-deleted bundled workflow",
-                            extra={"workflow": name},
-                        )
-                        result["updated"] += 1
-                    else:
-                        logger.debug(
-                            "Non-template workflow is soft-deleted, skipping sync",
-                            extra={"workflow": name},
-                        )
-                        result["skipped"] += 1
+                    result["skipped"] += 1
                     continue
 
-                if existing.source == "template":
-                    # Compare definition_json content to detect changes
-                    if existing.definition_json == definition_json:
-                        logger.debug(
-                            "Workflow already up to date, skipping", extra={"workflow": name}
-                        )
-                        result["skipped"] += 1
-                    else:
-                        # Atomic in-place update (preserves id and user's enabled toggle)
-                        manager.update(
-                            existing.id,
-                            name=name,
-                            definition_json=definition_json,
-                            workflow_type=workflow_type,
-                            project_id=None,
-                            description=description,
-                            version=version,
-                            enabled=existing.enabled,
-                            priority=priority,
-                            sources=sources_list,
-                            source="template",
-                            tags=["gobby"],
-                        )
-                        # Propagate definition changes to installed copy
-                        propagate_to_installed(manager, name, definition_json)
-                        logger.info("Updated bundled workflow definition", extra={"workflow": name})
-                        result["updated"] += 1
-                else:
-                    # Non-template workflow with same name shadows the template.
-                    # Look up the actual template row and update it if changed,
-                    # then propagate to the installed copy.
-                    template_row = manager.db.fetchone(
-                        "SELECT * FROM workflow_definitions "
-                        "WHERE name = ? AND source = 'template' AND deleted_at IS NULL",
-                        (name,),
-                    )
-                    if template_row:
-                        from gobby.storage.workflow_definitions import WorkflowDefinitionRow
-
-                        tpl = WorkflowDefinitionRow.from_row(template_row)
-                        if tpl.definition_json != definition_json:
-                            manager.update(
-                                tpl.id,
-                                definition_json=definition_json,
-                                description=description,
-                                version=version,
-                                enabled=tpl.enabled,
-                                priority=priority,
-                                sources=sources_list,
-                                source="template",
-                                tags=["gobby"],
-                            )
-                            propagate_to_installed(manager, name, definition_json)
-                            logger.info(
-                                "Updated shadowed workflow template and propagated",
-                                extra={"workflow": name},
-                            )
-                            result["updated"] += 1
-                        else:
-                            result["skipped"] += 1
-                    else:
-                        logger.debug(
-                            "Workflow exists with non-template source, no template to update",
-                            extra={"workflow": name, "source": existing.source},
-                        )
-                        result["skipped"] += 1
+                # Row exists and is active — skip (no overwrite)
+                result["skipped"] += 1
                 continue
 
-            # Create the workflow definition in the database
+            # Create new installed row directly
             manager.create(
                 name=name,
                 definition_json=definition_json,
@@ -213,7 +122,7 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
                 enabled=enabled,
                 priority=priority,
                 sources=sources_list,
-                source="template",
+                source="installed",
                 tags=["gobby"],
             )
             logger.info("Synced bundled workflow definition", extra={"workflow": name})
@@ -227,48 +136,21 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
             )
             result["errors"].append(error_msg)
 
-    # Orphan cleanup: soft-delete template workflows whose YAML was removed.
-    # Scoped by gobby tag to prevent cross-tag cascade damage.
-    # Uses parsed_names collected during the main loop above (no re-parsing).
+    # Orphan cleanup: soft-delete pipeline rows whose YAML was removed.
+    # Only touch gobby-tagged pipeline-type rows.
     tag_filter = '%"gobby"%'
-
-    # Only orphan-clean 'pipeline' type — other types (rule, variable, agent)
-    # have their own sync functions with their own orphan cleanup.
     orphan_rows = db.fetchall(
         "SELECT id, name FROM workflow_definitions "
-        "WHERE source = 'template' AND workflow_type = 'pipeline' "
+        "WHERE workflow_type = 'pipeline' "
         "AND tags LIKE ? AND deleted_at IS NULL",
         (tag_filter,),
     )
     result["orphaned"] = 0
-    orphaned_names: set[str] = set()
     for row in orphan_rows:
-        if row["name"] not in parsed_names:
+        if row["name"] not in on_disk:
             manager.delete(row["id"])
-            orphaned_names.add(row["name"])
             logger.info("Soft-deleted orphaned bundled workflow", extra={"workflow": row["name"]})
             result["orphaned"] += 1
-
-    # Cascade: soft-delete installed copies of orphaned templates,
-    # scoped by tag to prevent cross-tag cascade damage
-    result["cascaded"] = 0
-    for name in orphaned_names:
-        installed_rows = db.fetchall(
-            "SELECT id FROM workflow_definitions "
-            "WHERE name = ? AND source = 'installed' "
-            "AND workflow_type = 'pipeline' "
-            "AND tags LIKE ? AND deleted_at IS NULL",
-            (name, tag_filter),
-        )
-        for inst_row in installed_rows:
-            manager.delete(inst_row["id"])
-            result["cascaded"] += 1
-            logger.info(
-                "Soft-deleted installed copy of orphaned workflow", extra={"workflow": name}
-            )
-
-    ensure_tag_on_installed(manager, "workflow")
-    ensure_tag_on_installed(manager, "pipeline")
 
     total = result["synced"] + result["updated"] + result["skipped"]
     logger.info(
@@ -277,7 +159,7 @@ def sync_bundled_pipelines(db: DatabaseProtocol) -> dict[str, Any]:
             "synced": result["synced"],
             "updated": result["updated"],
             "skipped": result["skipped"],
-            "orphaned": result["orphaned"],
+            "orphaned": result.get("orphaned", 0),
             "total": total,
         },
     )

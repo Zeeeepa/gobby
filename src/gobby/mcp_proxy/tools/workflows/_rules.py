@@ -80,7 +80,6 @@ def list_rules(
     enabled: bool | None = None,
     project_id: str | None = None,
     brief: bool = False,
-    include_templates: bool = False,
 ) -> dict[str, Any]:
     """
     List rules with optional filters.
@@ -95,23 +94,16 @@ def list_rules(
         enabled: Filter by enabled status
         project_id: Filter by project ID
         brief: If True, return minimal fields (name, event, group, enabled)
-        include_templates: If True, include source='template' rows in results
 
     Returns:
         Dict with success, rules list, and count
     """
     if event:
-        rows = def_manager.list_rules_by_event(
-            event, project_id=project_id, enabled=enabled, include_templates=include_templates
-        )
+        rows = def_manager.list_rules_by_event(event, project_id=project_id, enabled=enabled)
     elif group:
-        rows = def_manager.list_rules_by_group(
-            group, project_id=project_id, enabled=enabled, include_templates=include_templates
-        )
+        rows = def_manager.list_rules_by_group(group, project_id=project_id, enabled=enabled)
     else:
         rows = def_manager.list_all(workflow_type="rule", enabled=enabled, project_id=project_id)
-        if not include_templates:
-            rows = [r for r in rows if r.source != "template"]
 
     formatter = _rule_brief if brief else _rule_summary
     rules = [formatter(r) for r in rows]
@@ -132,7 +124,7 @@ def get_rule(
     Returns:
         Dict with success and full rule detail, or error if not found
     """
-    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
+    row = def_manager.get_by_name(name)
     if row is None or row.workflow_type != "rule":
         return {"success": False, "error": f"Rule '{name}' not found"}
 
@@ -155,12 +147,9 @@ def toggle_rule(
     Returns:
         Dict with success and updated rule, or error if not found
     """
-    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
+    row = def_manager.get_by_name(name)
     if row is None or row.workflow_type != "rule":
         return {"success": False, "error": f"Rule '{name}' not found"}
-
-    if row.source == "template":
-        return {"success": False, "error": f"Rule '{name}' is a template — install it first"}
 
     updated = def_manager.update(row.id, enabled=enabled)
     logger.info(f"Toggled rule '{name}' enabled={enabled}")
@@ -207,10 +196,8 @@ def create_rule(
             "error": f"Rule '{name}' conflicts with a bundled gobby template. Choose a different name.",
         }
 
-    # Check for duplicate name (including templates)
-    existing = def_manager.get_by_name(name) or def_manager.get_by_name(
-        name, include_templates=True
-    )
+    # Check for duplicate name
+    existing = def_manager.get_by_name(name)
     if existing is not None:
         return {"success": False, "error": f"Rule '{name}' already exists"}
 
@@ -264,11 +251,11 @@ def delete_rule(
     Returns:
         Dict with success, or error if not found/protected
     """
-    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
+    row = def_manager.get_by_name(name)
     if row is None or row.workflow_type != "rule":
         return {"success": False, "error": f"Rule '{name}' not found"}
 
-    if row.source in ("bundled", "template") and not force:
+    if row.source == "bundled" and not force:
         return {
             "success": False,
             "error": (

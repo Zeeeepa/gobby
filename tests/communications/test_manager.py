@@ -410,7 +410,10 @@ async def test_add_channel_stores_secrets_in_secret_store():
     # Config should have $secret: references
     created_channel = store.create_channel.call_args[0][0]
     assert created_channel.config_json["bot_token"] == "$secret:COMMS_SLACK_BOT_TOKEN_MY-SLACK"
-    assert created_channel.config_json["signing_secret"] == "$secret:COMMS_SLACK_SIGNING_SECRET_MY-SLACK"
+    assert (
+        created_channel.config_json["signing_secret"]
+        == "$secret:COMMS_SLACK_SIGNING_SECRET_MY-SLACK"
+    )
 
 
 @pytest.mark.asyncio

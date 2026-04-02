@@ -8,6 +8,7 @@ via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 """
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -212,10 +213,20 @@ def create_workflows_registry(
     def _create_workflow(
         yaml_content: str,
         project_id: str | None = None,
+        project_path: str | None = None,
+        make_template: bool = False,
     ) -> dict[str, Any]:
         if _def_manager is None:
             return {"error": "Definition tools require database connection"}
-        return create_workflow_definition(_def_manager, _loader, yaml_content, project_id)
+        pp = Path(project_path) if project_path else None
+        return create_workflow_definition(
+            _def_manager,
+            _loader,
+            yaml_content,
+            project_id,
+            project_path=pp,
+            make_global_template=make_template,
+        )
 
     @registry.tool(
         name="update_workflow",
@@ -230,9 +241,12 @@ def create_workflows_registry(
         version: str | None = None,
         tags: list[str] | None = None,
         yaml_content: str | None = None,
+        project_path: str | None = None,
+        make_template: bool = False,
     ) -> dict[str, Any]:
         if _def_manager is None:
             return {"error": "Definition tools require database connection"}
+        pp = Path(project_path) if project_path else None
         return update_workflow_definition(
             _def_manager,
             _loader,
@@ -244,6 +258,8 @@ def create_workflows_registry(
             version,
             tags,
             yaml_content,
+            project_path=pp,
+            make_global_template=make_template,
         )
 
     @registry.tool(
@@ -324,10 +340,15 @@ def create_workflows_registry(
     def _create_rule(
         name: str,
         definition: dict[str, Any],
+        project_path: str | None = None,
+        make_template: bool = False,
     ) -> dict[str, Any]:
         if _def_manager is None:
             return {"error": "Rule tools require database connection"}
-        return create_rule(_def_manager, name, definition)
+        pp = Path(project_path) if project_path else None
+        return create_rule(
+            _def_manager, name, definition, project_path=pp, make_global_template=make_template
+        )
 
     @registry.tool(
         name="delete_rule",
@@ -371,10 +392,20 @@ def create_workflows_registry(
         name: str,
         value: Any,
         description: str | None = None,
+        project_path: str | None = None,
+        make_template: bool = False,
     ) -> dict[str, Any]:
         if _def_manager is None:
             return {"error": "Variable tools require database connection"}
-        return create_variable(_def_manager, name, value, description)
+        pp = Path(project_path) if project_path else None
+        return create_variable(
+            _def_manager,
+            name,
+            value,
+            description,
+            project_path=pp,
+            make_global_template=make_template,
+        )
 
     @registry.tool(
         name="update_variable",
@@ -384,10 +415,20 @@ def create_workflows_registry(
         name: str,
         value: Any = None,
         description: str | None = None,
+        project_path: str | None = None,
+        make_template: bool = False,
     ) -> dict[str, Any]:
         if _def_manager is None:
             return {"error": "Variable tools require database connection"}
-        return update_variable(_def_manager, name, value, description)
+        pp = Path(project_path) if project_path else None
+        return update_variable(
+            _def_manager,
+            name,
+            value,
+            description,
+            project_path=pp,
+            make_global_template=make_template,
+        )
 
     @registry.tool(
         name="delete_variable",
@@ -440,10 +481,15 @@ def create_workflows_registry(
     def _create_agent_definition(
         name: str,
         definition: dict[str, Any],
+        project_path: str | None = None,
+        make_template: bool = False,
     ) -> dict[str, Any]:
         if _def_manager is None:
             return {"error": "Agent definition tools require database connection"}
-        return create_agent_definition(_def_manager, name, definition)
+        pp = Path(project_path) if project_path else None
+        return create_agent_definition(
+            _def_manager, name, definition, project_path=pp, make_global_template=make_template
+        )
 
     @registry.tool(
         name="toggle_agent_definition",
@@ -474,10 +520,15 @@ def create_workflows_registry(
         name: str,
         add: list[str] | None = None,
         remove: list[str] | None = None,
+        project_path: str | None = None,
+        make_template: bool = False,
     ) -> dict[str, Any]:
         if _def_manager is None:
             return {"error": "Agent definition tools require database connection"}
-        return update_agent_rules(_def_manager, name, add, remove)
+        pp = Path(project_path) if project_path else None
+        return update_agent_rules(
+            _def_manager, name, add, remove, project_path=pp, make_global_template=make_template
+        )
 
     @registry.tool(
         name="update_agent_variables",
@@ -487,10 +538,20 @@ def create_workflows_registry(
         name: str,
         set_vars: dict[str, Any] | None = None,
         remove: list[str] | None = None,
+        project_path: str | None = None,
+        make_template: bool = False,
     ) -> dict[str, Any]:
         if _def_manager is None:
             return {"error": "Agent definition tools require database connection"}
-        return update_agent_variables(_def_manager, name, set_vars, remove)
+        pp = Path(project_path) if project_path else None
+        return update_agent_variables(
+            _def_manager,
+            name,
+            set_vars,
+            remove,
+            project_path=pp,
+            make_global_template=make_template,
+        )
 
     @registry.tool(
         name="update_agent_steps",
@@ -499,10 +560,15 @@ def create_workflows_registry(
     def _update_agent_steps(
         name: str,
         steps: list[dict[str, Any]] | None = None,
+        project_path: str | None = None,
+        make_template: bool = False,
     ) -> dict[str, Any]:
         if _def_manager is None:
             return {"error": "Agent definition tools require database connection"}
-        return update_agent_steps(_def_manager, name, steps)
+        pp = Path(project_path) if project_path else None
+        return update_agent_steps(
+            _def_manager, name, steps, project_path=pp, make_global_template=make_template
+        )
 
     # ── Pipeline utility tools ──
 

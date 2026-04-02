@@ -239,7 +239,9 @@ class TestUninstallQdrant:
         mock_result.returncode = 0
 
         with (
-            patch("gobby.cli.installers.qdrant.subprocess.run", return_value=mock_result) as mock_run,
+            patch(
+                "gobby.cli.installers.qdrant.subprocess.run", return_value=mock_result
+            ) as mock_run,
             patch("gobby.cli.installers.qdrant._update_config"),
         ):
             result = uninstall_qdrant(gobby_home=tmp_path, remove_data=True)
@@ -248,7 +250,8 @@ class TestUninstallQdrant:
         assert result["data_removed"] is True
         # Verify docker volume rm was called
         volume_rm_calls = [
-            c for c in mock_run.call_args_list
+            c
+            for c in mock_run.call_args_list
             if "volume" in str(c) and QDRANT_VOLUME_NAME in str(c)
         ]
         assert len(volume_rm_calls) == 1

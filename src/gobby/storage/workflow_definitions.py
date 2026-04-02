@@ -1,5 +1,6 @@
 """Workflow definition storage manager for local database."""
 
+import hashlib
 import json
 import logging
 from dataclasses import dataclass
@@ -11,6 +12,15 @@ from uuid import uuid4
 from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
+
+
+def compute_definition_hash(definition_json: str) -> str:
+    """Compute a SHA-256 hash of a definition JSON string.
+
+    Used for cheap drift detection between installed definitions
+    and their on-disk template files.
+    """
+    return hashlib.sha256(definition_json.encode()).hexdigest()
 
 
 @dataclass
@@ -156,20 +166,18 @@ class LocalWorkflowDefinitionManager:
         name: str,
         project_id: str | None = None,
         include_deleted: bool = False,
-        include_templates: bool = False,
     ) -> WorkflowDefinitionRow | None:
         """Get a workflow definition by name (project-scoped first, then global fallback)."""
         deleted_filter = "" if include_deleted else " AND deleted_at IS NULL"
-        template_filter = "" if include_templates else " AND source != 'template'"
         if project_id:
             row = self.db.fetchone(
-                f"SELECT * FROM workflow_definitions WHERE name = ? AND project_id = ?{deleted_filter}{template_filter}",
+                f"SELECT * FROM workflow_definitions WHERE name = ? AND project_id = ?{deleted_filter}",
                 (name, project_id),
             )
             if row:
                 return WorkflowDefinitionRow.from_row(row)
         row = self.db.fetchone(
-            f"SELECT * FROM workflow_definitions WHERE name = ? AND project_id IS NULL{deleted_filter}{template_filter}",
+            f"SELECT * FROM workflow_definitions WHERE name = ? AND project_id IS NULL{deleted_filter}",
             (name,),
         )
         return WorkflowDefinitionRow.from_row(row) if row else None
@@ -273,7 +281,6 @@ class LocalWorkflowDefinitionManager:
         event: str,
         project_id: str | None = None,
         enabled: bool | None = None,
-        include_templates: bool = False,
     ) -> list[WorkflowDefinitionRow]:
         """List rule definitions filtered by event type from definition_json."""
         conditions = [
@@ -281,8 +288,6 @@ class LocalWorkflowDefinitionManager:
             "deleted_at IS NULL",
             "json_extract(definition_json, '$.event') = ?",
         ]
-        if not include_templates:
-            conditions.append("source != 'template'")
         params: list[Any] = [event]
 
         if project_id:
@@ -305,7 +310,6 @@ class LocalWorkflowDefinitionManager:
         group: str,
         project_id: str | None = None,
         enabled: bool | None = None,
-        include_templates: bool = False,
     ) -> list[WorkflowDefinitionRow]:
         """List rule definitions filtered by group from definition_json."""
         conditions = [
@@ -313,8 +317,6 @@ class LocalWorkflowDefinitionManager:
             "deleted_at IS NULL",
             "json_extract(definition_json, '$.group') = ?",
         ]
-        if not include_templates:
-            conditions.append("source != 'template'")
         params: list[Any] = [group]
 
         if project_id:
@@ -415,78 +417,3 @@ class LocalWorkflowDefinitionManager:
         if row.source == "template":
             raise ValueError("Cannot move a template definition")
         return self.update(definition_id, source="installed", project_id=None)
-
-    def install_from_template(self, definition_id: str) -> WorkflowDefinitionRow:
-        """Create an installed copy from a template definition.
-
-        Copies all fields with source='installed', preserving the template's enabled state.
-        Disables the template original to prevent duplicate rule firing.
-        """
-        original = self.get(definition_id)
-        if original.source != "template":
-            raise ValueError(
-                f"Definition '{original.name}' is not a template (source={original.source})"
-            )
-
-        # Check for existing installed item with same name
-        existing = self.db.fetchone(
-            "SELECT id FROM workflow_definitions WHERE name = ? AND source != 'template' AND deleted_at IS NULL",
-            (original.name,),
-        )
-        if existing:
-            raise ValueError(f"An installed definition named '{original.name}' already exists")
-
-        # Create the installed copy
-        new_row = self.create(
-            name=original.name,
-            definition_json=original.definition_json,
-            workflow_type=original.workflow_type,
-            project_id=original.project_id,
-            description=original.description,
-            version=original.version,
-            enabled=original.enabled,
-            priority=original.priority,
-            sources=original.sources,
-            canvas_json=original.canvas_json,
-            source="installed",
-            tags=original.tags,
-        )
-
-        # Disable the template original
-        self.update(definition_id, enabled=False)
-
-        return new_row
-
-    def install_all_templates(
-        self, workflow_type: str | None = None, tag: str | None = None
-    ) -> list[WorkflowDefinitionRow]:
-        """Create installed copies of all eligible template definitions.
-
-        Skips template items that already have an installed counterpart with the same name.
-
-        Args:
-            workflow_type: Only install templates of this type (e.g. "rule", "agent").
-            tag: Only install templates whose tags list contains this value.
-        """
-        templates = self.list_all(workflow_type=workflow_type, include_deleted=False)
-        templates = [row for row in templates if row.source == "template"]
-
-        if tag:
-            templates = [row for row in templates if row.tags and tag in row.tags]
-
-        created: list[WorkflowDefinitionRow] = []
-        for row in templates:
-            # Skip if a non-template item with same name already exists
-            existing = self.db.fetchone(
-                "SELECT id FROM workflow_definitions WHERE name = ? AND source != 'template' AND deleted_at IS NULL",
-                (row.name,),
-            )
-            if existing:
-                continue
-            try:
-                new_row = self.install_from_template(row.id)
-                created.append(new_row)
-            except ValueError:
-                continue
-
-        return created

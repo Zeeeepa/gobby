@@ -57,6 +57,7 @@ class DedupService:
         self.vector_store = vector_store
         self.storage = storage
         self.embed_fn = embed_fn
+        self._embeddings_available: bool | None = None
 
     async def process(
         self,
@@ -84,10 +85,17 @@ class DedupService:
         result = DedupResult()
 
         # Embed the new memory content
+        if self._embeddings_available is False:
+            return await self._fallback_store(
+                content, project_id, memory_type, tags, source_type, source_session_id
+            )
         try:
             embedding = await self.embed_fn(content)
+            self._embeddings_available = True
         except Exception as e:
-            logger.warning(f"Embedding failed, falling back to simple store: {e}")
+            if self._embeddings_available is None:
+                logger.warning(f"Embedding failed, falling back to simple store: {e}")
+                self._embeddings_available = False
             return await self._fallback_store(
                 content, project_id, memory_type, tags, source_type, source_session_id
             )
@@ -139,6 +147,8 @@ class DedupService:
         project_id: str | None = None,
     ) -> None:
         """Embed content and upsert to VectorStore."""
+        if self._embeddings_available is False:
+            return  # Known-unavailable, skip silently
         try:
             embedding = await self.embed_fn(content)
             await self.vector_store.upsert(
@@ -149,8 +159,11 @@ class DedupService:
                     "project_id": project_id,
                 },
             )
+            self._embeddings_available = True
         except Exception as e:
-            logger.warning(f"Embed/upsert failed for {memory_id}: {e}")
+            if self._embeddings_available is None:
+                logger.warning(f"Embed/upsert failed for {memory_id}: {e}")
+                self._embeddings_available = False
 
     async def _fallback_store(
         self,
@@ -162,7 +175,7 @@ class DedupService:
         source_session_id: str | None,
     ) -> DedupResult:
         """Fallback: store content directly without dedup."""
-        logger.info("Falling back to simple memory store (vector search unavailable)")
+        logger.debug("Falling back to simple memory store (vector search unavailable)")
         memory = self.storage.create_memory(
             content=content,
             memory_type=memory_type,

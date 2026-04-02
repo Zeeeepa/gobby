@@ -1,8 +1,7 @@
 """Agent definition synchronization for bundled agents.
 
-This module provides sync_bundled_agents() which loads agent definitions from the
-bundled install/shared/workflows/agents/ directory and syncs them to workflow_definitions
-with workflow_type='agent'.
+Single-row model: templates live on disk only. The DB holds installed rows
+directly — no intermediate template rows, no propagation.
 """
 
 import logging
@@ -32,13 +31,10 @@ def get_bundled_agents_path() -> Path:
 
 
 def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
-    """Sync bundled agent definitions from install/shared/workflows/agents/ to workflow_definitions.
+    """Sync bundled agent definitions from install/shared/workflows/agents/ to the database.
 
-    This function:
-    1. Walks all .yaml files in the bundled agents directory
-    2. Parses each directly as AgentDefinitionBody
-    3. Creates new records or updates changed content (idempotent)
-    4. All records are stored with workflow_type='agent' and source='template'
+    Creates installed rows directly from template files. Existing rows are
+    never overwritten — drift is detected via hash comparison at runtime.
 
     Args:
         db: Database connection
@@ -77,58 +73,33 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
             on_disk.add(name)
             data["name"] = name
 
-            # Parse directly as AgentDefinitionBody
+            # Parse through Pydantic for validation + consistent serialization
             body = AgentDefinitionBody.model_validate(data)
             body_json = body.model_dump_json()
 
-            # Check if agent already exists in workflow_definitions
-            existing = manager.get_by_name(name, include_deleted=True, include_templates=True)
+            # Check if agent already exists (any source, including soft-deleted)
+            existing = manager.get_by_name(name, include_deleted=True)
 
-            if existing is not None and existing.workflow_type != "agent":
-                logger.debug(
-                    f"Agent '{name}' conflicts with existing {existing.workflow_type} "
-                    f"definition, skipping"
-                )
-                result["skipped"] += 1
-                continue
-
-            if existing is not None and existing.workflow_type == "agent":
-                # If user soft-deleted it, respect their intent — skip sync
-                if existing.deleted_at is not None:
-                    logger.debug(f"Agent definition '{name}' is soft-deleted, skipping sync")
+            if existing is not None:
+                if existing.workflow_type != "agent":
+                    logger.debug(
+                        f"Agent '{name}' conflicts with existing {existing.workflow_type} "
+                        f"definition, skipping"
+                    )
                     result["skipped"] += 1
                     continue
 
-                # Compare definition_json to detect changes
-                needs_update = existing.definition_json != body_json
-
-                if needs_update:
-                    try:
-                        manager.update(
-                            existing.id,
-                            definition_json=body_json,
-                            description=body.description,
-                            tags=["gobby"],
-                        )
-                        # Propagate definition changes to installed copy
-                        _propagate_to_installed(manager, name, body_json)
-                        logger.info(f"Updated bundled agent definition: {name}")
-                        result["updated"] += 1
-                    except Exception as e:
-                        logger.error(f"Failed to update bundled agent '{name}': {e}")
-                        result["errors"].append(f"Failed to update '{name}': {e}")
-                else:
-                    logger.debug(f"Agent definition '{name}' already up to date, skipping")
-                    result["skipped"] += 1
+                # Respect soft-deletes and existing rows — skip
+                result["skipped"] += 1
                 continue
 
-            # Create the agent definition in workflow_definitions
+            # Create new installed row directly
             manager.create(
                 name=name,
                 definition_json=body_json,
                 workflow_type="agent",
                 description=body.description,
-                source="template",
+                source="installed",
                 enabled=body.enabled,
                 tags=["gobby"],
             )
@@ -140,85 +111,27 @@ def sync_bundled_agents(db: DatabaseProtocol) -> dict[str, Any]:
             logger.error(error_msg)
             result["errors"].append(error_msg)
 
-    # Orphan cleanup: soft-delete template agents whose YAML was removed.
-    # Scoped by gobby tag to prevent cross-tag cascade damage.
+    # Orphan cleanup: soft-delete agent rows whose YAML was removed.
+    # Only touch gobby-tagged agent rows.
     tag_filter = '%"gobby"%'
     orphan_rows = db.fetchall(
         "SELECT id, name FROM workflow_definitions "
-        "WHERE source = 'template' AND workflow_type = 'agent' "
+        "WHERE workflow_type = 'agent' "
         "AND tags LIKE ? AND deleted_at IS NULL",
         (tag_filter,),
     )
     result["orphaned"] = 0
-    orphaned_names: set[str] = set()
     for row in orphan_rows:
         if row["name"] not in on_disk:
             manager.delete(row["id"])
-            orphaned_names.add(row["name"])
             logger.info(f"Soft-deleted orphaned bundled agent: {row['name']}")
             result["orphaned"] += 1
-
-    # Cascade: soft-delete installed copies of orphaned templates,
-    # scoped by tag to prevent cross-tag cascade damage
-    result["cascaded"] = 0
-    for name in orphaned_names:
-        installed_rows = db.fetchall(
-            "SELECT id FROM workflow_definitions "
-            "WHERE name = ? AND source = 'installed' AND workflow_type = 'agent' "
-            "AND tags LIKE ? AND deleted_at IS NULL",
-            (name, tag_filter),
-        )
-        for inst_row in installed_rows:
-            manager.delete(inst_row["id"])
-            result["cascaded"] += 1
-            logger.info(f"Soft-deleted installed copy of orphaned agent: {name}")
-
-    # Ensure all template/installed agents have the "gobby" tag
-    _ensure_gobby_tag_on_installed(manager)
 
     total = result["synced"] + result["updated"] + result["skipped"]
     logger.info(
         f"Agent definition sync complete: {result['synced']} synced, "
         f"{result['updated']} updated, {result['skipped']} skipped, "
-        f"{result['orphaned']} orphaned, {result['cascaded']} cascaded, {total} total"
+        f"{result.get('orphaned', 0)} orphaned, {total} total"
     )
 
     return result
-
-
-def _propagate_to_installed(
-    manager: LocalWorkflowDefinitionManager,
-    agent_name: str,
-    definition_json: str,
-) -> None:
-    """Propagate definition_json changes from a template to its installed copy.
-
-    Preserves the installed copy's enabled state.
-    """
-    from gobby.storage.workflow_definitions import WorkflowDefinitionRow
-
-    installed_row = manager.db.fetchone(
-        "SELECT * FROM workflow_definitions "
-        "WHERE name = ? AND source = 'installed' AND deleted_at IS NULL",
-        (agent_name,),
-    )
-    if installed_row:
-        installed = WorkflowDefinitionRow.from_row(installed_row)
-        if installed.definition_json != definition_json:
-            manager.update(
-                installed.id,
-                definition_json=definition_json,
-            )
-            logger.info(f"Propagated agent definition change to installed copy: {agent_name}")
-
-
-def _ensure_gobby_tag_on_installed(
-    manager: LocalWorkflowDefinitionManager,
-) -> None:
-    """Ensure all template/installed agent rows have the 'gobby' tag."""
-    rows = manager.list_all(workflow_type="agent", include_deleted=False)
-    for row in rows:
-        if row.source in ("template", "installed"):
-            tags = row.tags or []
-            if "gobby" not in tags:
-                manager.update(row.id, tags=[*tags, "gobby"])

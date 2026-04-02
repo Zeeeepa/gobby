@@ -658,29 +658,14 @@ def create_agents_router(server: "HTTPServer") -> APIRouter:
     async def install_definition_from_template(
         name: str,
     ) -> dict[str, Any]:
-        """Create an installed copy from a template agent definition."""
-        try:
-            manager = _get_manager()
-            # Find the template definition by name
-            rows = manager.list_all(workflow_type="agent")
-            template = next(
-                (r for r in rows if r.name == name and r.source == "template"),
-                None,
-            )
-            if not template:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Template agent definition '{name}' not found",
-                )
-            row = manager.install_from_template(template.id)
-            return {"status": "success", "definition": row.to_dict()}
-        except HTTPException:
-            raise
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
-        except Exception as e:
-            logger.error(f"Error installing agent definition from template: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+        """Legacy endpoint — template rows no longer exist.
+
+        Definitions are now installed directly by sync functions.
+        """
+        raise HTTPException(
+            status_code=410,
+            detail="Template installation is no longer needed. Definitions are installed directly during sync.",
+        )
 
     @router.post("/definitions/import/{name}")
     async def import_definition(

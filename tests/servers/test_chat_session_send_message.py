@@ -83,7 +83,17 @@ class TestChatSessionSendMessage:
     async def test_send_message_handles_list_content(self, session: ChatSession) -> None:
         """Test list content is reformatted for exact SDK input mapping."""
         session._client.receive_response.return_value = TestChatSessionSendMessage._mock_stream(
-            [ResultMessage(subtype="result", duration_ms=0, duration_api_ms=0, is_error=False, num_turns=1, session_id="sdk-123", result="fallback")]
+            [
+                ResultMessage(
+                    subtype="result",
+                    duration_ms=0,
+                    duration_api_ms=0,
+                    is_error=False,
+                    num_turns=1,
+                    session_id="sdk-123",
+                    result="fallback",
+                )
+            ]
         )
 
         # Test content list
@@ -128,7 +138,16 @@ class TestChatSessionSendMessage:
                         },
                     },
                 ),
-                ResultMessage(subtype="result", duration_ms=0, duration_api_ms=0, is_error=False, num_turns=1, session_id="sdk", result="Hello", usage={"output_tokens": 20}),
+                ResultMessage(
+                    subtype="result",
+                    duration_ms=0,
+                    duration_api_ms=0,
+                    is_error=False,
+                    num_turns=1,
+                    session_id="sdk",
+                    result="Hello",
+                    usage={"output_tokens": 20},
+                ),
             ]
         )
 
@@ -156,7 +175,15 @@ class TestChatSessionSendMessage:
                 UserMessage(
                     content=[ToolResultBlock(tool_use_id="tu_1", content="ok", is_error=False)],
                 ),
-                ResultMessage(subtype="result", duration_ms=0, duration_api_ms=0, is_error=False, num_turns=1, session_id="sdk", result=""),
+                ResultMessage(
+                    subtype="result",
+                    duration_ms=0,
+                    duration_api_ms=0,
+                    is_error=False,
+                    num_turns=1,
+                    session_id="sdk",
+                    result="",
+                ),
             ]
         )
 
@@ -188,7 +215,15 @@ class TestChatSessionSendMessage:
                     content=[ThinkingBlock(thinking="hmm", signature="sig")],
                     model="claude-3-7",
                 ),
-                ResultMessage(subtype="result", duration_ms=0, duration_api_ms=0, is_error=False, num_turns=1, session_id="s", result="res"),
+                ResultMessage(
+                    subtype="result",
+                    duration_ms=0,
+                    duration_api_ms=0,
+                    is_error=False,
+                    num_turns=1,
+                    session_id="s",
+                    result="res",
+                ),
             ]
         )
 

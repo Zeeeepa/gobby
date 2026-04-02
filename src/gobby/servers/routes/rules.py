@@ -160,7 +160,6 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
                 group=group,
                 enabled=enabled,
                 project_id=project_id,
-                include_templates=True,
             )
             config_store = ConfigStore(server.services.database)
             enforcement = config_store.get("rules.enforcement_enabled")

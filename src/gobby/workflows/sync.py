@@ -8,10 +8,7 @@ The implementation has been split into per-type modules:
 
 from gobby.workflows.sync_pipelines import get_bundled_pipelines_path, sync_bundled_pipelines
 from gobby.workflows.sync_rules import (
-    ensure_gobby_tag_on_installed,
-    ensure_tag_on_installed,
     get_bundled_rules_path,
-    propagate_to_installed,
     resolve_sync_placeholders,
     sync_bundled_rules,
 )
@@ -24,8 +21,5 @@ __all__ = [
     "sync_bundled_pipelines",
     "sync_bundled_rules",
     "sync_bundled_variables",
-    "ensure_gobby_tag_on_installed",
-    "ensure_tag_on_installed",
-    "propagate_to_installed",
     "resolve_sync_placeholders",
 ]

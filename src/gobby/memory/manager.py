@@ -93,6 +93,9 @@ class MemoryManager:
         else:
             self._neo4j_client = None
 
+        # Track whether embeddings are known-unavailable (log once, skip thereafter)
+        self._embeddings_available: bool | None = None
+
         # DedupService: initialized when VectorStore + embed_fn available (no LLM needed)
         self._dedup_service: DedupService | None = None
         self._kg_service: KnowledgeGraphService | None = None
@@ -196,11 +199,18 @@ class MemoryManager:
         """Embed content and upsert to VectorStore (if available)."""
         if not self._vector_store or not self._embed_fn:
             return
+        if self._embeddings_available is False:
+            return  # Known-unavailable, skip silently
         try:
             embedding = await self._embed_fn(content)
             await self._vector_store.upsert(memory_id, embedding, payload or {})
+            self._embeddings_available = True
         except Exception as e:
-            logger.warning(f"VectorStore upsert failed for {memory_id}: {e}")
+            if self._embeddings_available is None:
+                # First failure — log once, then suppress
+                logger.warning(f"VectorStore upsert failed for {memory_id}: {e}")
+                self._embeddings_available = False
+            # Subsequent failures silently skipped
 
     def _fire_background_dedup(
         self,

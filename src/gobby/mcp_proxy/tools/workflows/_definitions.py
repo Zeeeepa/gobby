@@ -7,6 +7,7 @@ workflow_definitions table via LocalWorkflowDefinitionManager.
 
 import json
 import logging
+from pathlib import Path
 from typing import Any
 
 import yaml
@@ -59,6 +60,9 @@ def create_workflow_definition(
     loader: WorkflowLoader,
     yaml_content: str,
     project_id: str | None = None,
+    *,
+    project_path: Path | None = None,
+    make_global_template: bool = False,
 ) -> dict[str, Any]:
     """
     Create a workflow/pipeline definition from YAML content.
@@ -71,6 +75,8 @@ def create_workflow_definition(
         loader: WorkflowLoader (cache is cleared after creation)
         yaml_content: Full YAML definition content
         project_id: Optional project scope
+        project_path: Project root for auto-export
+        make_global_template: If True, export to ~/.gobby/workflows/ instead
 
     Returns:
         Dict with success status and created definition metadata
@@ -105,11 +111,9 @@ def create_workflow_definition(
 
     # Auto-export to YAML for persistence
     try:
-        from pathlib import Path
-
         from gobby.mcp_proxy.tools.workflows._auto_export import auto_export_definition
 
-        auto_export_definition(row, Path.cwd())
+        auto_export_definition(row, project_path, make_global=make_global_template)
     except Exception as e:
         logger.warning(f"Failed to auto-export definition '{row.name}': {e}")
 
@@ -139,6 +143,9 @@ def update_workflow_definition(
     version: str | None = None,
     tags: list[str] | None = None,
     yaml_content: str | None = None,
+    *,
+    project_path: Path | None = None,
+    make_global_template: bool = False,
 ) -> dict[str, Any]:
     """
     Update a workflow/pipeline definition by name or ID.
@@ -157,6 +164,8 @@ def update_workflow_definition(
         version: New version string
         tags: New tags list
         yaml_content: Full YAML replacement (validated before applying)
+        project_path: Project root for auto-export
+        make_global_template: If True, export to ~/.gobby/workflows/ instead
 
     Returns:
         Dict with success status and updated definition metadata
@@ -220,6 +229,14 @@ def update_workflow_definition(
     loader.clear_cache()
     logger.info(f"Updated workflow definition '{updated.name}' (id={updated.id})")
 
+    # Auto-export to YAML for persistence
+    try:
+        from gobby.mcp_proxy.tools.workflows._auto_export import auto_export_definition
+
+        auto_export_definition(updated, project_path, make_global=make_global_template)
+    except Exception as e:
+        logger.warning(f"Failed to auto-export definition '{updated.name}': {e}")
+
     return {
         "success": True,
         "definition": {
@@ -263,11 +280,11 @@ def delete_workflow_definition(
     except ValueError as e:
         return {"success": False, "error": str(e)}
 
-    if row.source in ("bundled", "template") and not force:
+    if row.source == "bundled" and not force:
         return {
             "success": False,
             "error": (
-                f"Definition '{row.name}' is a template and will be re-created on restart. "
+                f"Definition '{row.name}' is bundled and will be re-created on restart. "
                 "Use force=True to delete anyway."
             ),
         }

@@ -399,6 +399,40 @@ def _run_neo4j_install(
     click.echo("")
 
 
+def _run_local_embeddings_install(
+    results: dict[str, dict[str, Any]],
+) -> None:
+    """Run install + echo for local embeddings (llama-cpp-python + GGUF model)."""
+    from .install_setup import _install_local_embeddings
+
+    click.echo("-" * 40)
+    click.echo("Local Embeddings (nomic-embed-text-v1.5)")
+    click.echo("-" * 40)
+
+    try:
+        result = _install_local_embeddings()
+
+        if result.get("installed"):
+            method = result.get("method", "unknown")
+            click.echo(f"Installed llama-cpp-python via {method}")
+            if result.get("reason"):
+                click.echo(f"  Note: {result['reason']}")
+            result["success"] = True
+        elif result.get("skipped"):
+            click.echo(f"Local embeddings already installed ({result.get('reason', '')})")
+            result["success"] = True
+        else:
+            reason = result.get("reason", "unknown error")
+            click.echo(f"Warning: {reason}")
+            result["success"] = False
+
+        results["local-embeddings"] = result
+    except Exception as e:
+        click.echo(f"Warning: Failed to install local embeddings: {e}")
+        results["local-embeddings"] = {"success": False, "reason": str(e)}
+    click.echo("")
+
+
 def _echo_migration_notice(project_path: Path) -> None:
     """Detect and warn about per-project hooks that can be cleaned up."""
     per_project_hooks = []

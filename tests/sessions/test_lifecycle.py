@@ -604,7 +604,9 @@ class TestProcessSessionTranscriptJsonDispatch:
 
         transcript_path = tmp_path / "session-abc.json"
         transcript_path.write_text(
-            json.dumps({"sessionId": "abc", "messages": [{"type": "user", "content": [{"text": "hi"}]}]})
+            json.dumps(
+                {"sessionId": "abc", "messages": [{"type": "user", "content": [{"text": "hi"}]}]}
+            )
         )
 
         session = MagicMock()

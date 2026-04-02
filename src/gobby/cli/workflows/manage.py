@@ -31,7 +31,6 @@ VALID_WORKFLOW_TYPES = ("rule", "workflow", "pipeline", "agent", "variable")
 def reinstall_workflows(workflow_type: str | None, force: bool) -> None:
     """Delete all workflow definitions and reinstall from bundled templates."""
     from gobby.storage.database import LocalDatabase
-    from gobby.storage.workflow_definitions import LocalWorkflowDefinitionManager
 
     type_label = workflow_type or "all"
     if not force:
@@ -41,7 +40,6 @@ def reinstall_workflows(workflow_type: str | None, force: bool) -> None:
         )
 
     db = LocalDatabase()
-    manager = LocalWorkflowDefinitionManager(db)
 
     # 1. Hard-delete existing rows
     with db.transaction() as conn:
@@ -55,28 +53,10 @@ def reinstall_workflows(workflow_type: str | None, force: bool) -> None:
         deleted = cursor.rowcount
     click.echo(f"Deleted {deleted} existing definitions")
 
-    # 2. Re-sync templates from bundled YAML
+    # 2. Re-sync from bundled YAML (creates installed rows directly)
     sync_results = _run_sync(db, workflow_type)
     total_synced = sum(r.get("synced", 0) + r.get("updated", 0) for r in sync_results.values())
-    click.echo(f"Synced {total_synced} templates from bundled YAML")
-
-    # 3. Install templates (create source='installed' copies)
-    installed = manager.install_all_templates(workflow_type=workflow_type)
-    click.echo(f"Created {len(installed)} installed copies")
-
-    # 4. Enable all installed copies
-    with db.transaction() as conn:
-        if workflow_type:
-            conn.execute(
-                "UPDATE workflow_definitions SET enabled = 1, updated_at = datetime('now') "
-                "WHERE source = 'installed' AND workflow_type = ? AND deleted_at IS NULL",
-                (workflow_type,),
-            )
-        else:
-            conn.execute(
-                "UPDATE workflow_definitions SET enabled = 1, updated_at = datetime('now') "
-                "WHERE source = 'installed' AND deleted_at IS NULL",
-            )
+    click.echo(f"Synced {total_synced} definitions from bundled YAML")
 
     # 5. Notify daemon to reload
     _notify_daemon_reload()

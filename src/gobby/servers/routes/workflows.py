@@ -263,42 +263,21 @@ def create_workflows_router(server: "HTTPServer") -> APIRouter:
 
     @router.post("/{definition_id}/install")
     async def install_from_template(definition_id: str) -> dict[str, Any]:
-        """Create a custom copy from a bundled definition."""
-        try:
-            manager = _get_manager()
-            row = manager.install_from_template(definition_id)
-            await _broadcast_workflow("workflow_created", row.id)
-            return {"status": "success", "definition": row.to_dict()}
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
-        except Exception as e:
-            logger.error(f"Error installing from template: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+        """Legacy endpoint — template rows no longer exist."""
+        raise HTTPException(
+            status_code=410,
+            detail="Template installation is no longer needed. Definitions are installed directly during sync.",
+        )
 
     @router.post("/install-all-templates")
     async def install_all_templates(
         workflow_type: str | None = Query(None),
     ) -> dict[str, Any]:
-        """Create custom copies of all eligible bundled definitions."""
-        try:
-            manager = _get_manager()
-            rows = manager.install_all_templates(workflow_type=workflow_type)
-            if rows:
-                names = [r.name for r in rows]
-                await _broadcast_workflow(
-                    "workflows_bulk_changed",
-                    "bulk",
-                    count=len(rows),
-                    names=names[:10],
-                )
-            return {
-                "status": "success",
-                "definitions": [r.to_dict() for r in rows],
-                "count": len(rows),
-            }
-        except Exception as e:
-            logger.error(f"Error installing all templates: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+        """Legacy endpoint — template rows no longer exist."""
+        raise HTTPException(
+            status_code=410,
+            detail="Template installation is no longer needed. Definitions are installed directly during sync.",
+        )
 
     @router.post("/{definition_id}/move-to-project")
     async def move_to_project(definition_id: str, request: MoveToProjectRequest) -> dict[str, Any]:

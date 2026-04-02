@@ -318,8 +318,6 @@ def list_variables(
         Dict with success, variables list, and count
     """
     rows = def_manager.list_all(workflow_type="variable", enabled=enabled, project_id=project_id)
-    # Exclude raw templates by default
-    rows = [r for r in rows if r.source != "template"]
     variables = [_variable_summary(r) for r in rows]
     return {"success": True, "variables": variables, "count": len(variables)}
 
@@ -337,7 +335,7 @@ def get_variable_definition(
     Returns:
         Dict with success and variable detail, or error if not found
     """
-    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
+    row = def_manager.get_by_name(name)
     if row is None or row.workflow_type != "variable":
         return {"success": False, "error": f"Variable '{name}' not found"}
 
@@ -385,9 +383,7 @@ def create_variable(
         }
 
     # Check for duplicate name
-    existing = def_manager.get_by_name(name) or def_manager.get_by_name(
-        name, include_templates=True
-    )
+    existing = def_manager.get_by_name(name)
     if existing is not None:
         return {"success": False, "error": f"Variable '{name}' already exists"}
 
@@ -429,6 +425,7 @@ def update_variable(
     description: str | None = None,
     *,
     project_path: Path | None = None,
+    make_global_template: bool = False,
 ) -> dict[str, Any]:
     """Update a variable definition by name.
 
@@ -440,19 +437,14 @@ def update_variable(
         value: New default value (None = keep existing)
         description: New description (None = keep existing)
         project_path: Project root for auto-export
+        make_global_template: If True, export to ~/.gobby/workflows/ instead
 
     Returns:
         Dict with success and updated variable, or error
     """
-    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
+    row = def_manager.get_by_name(name)
     if row is None or row.workflow_type != "variable":
         return {"success": False, "error": f"Variable '{name}' not found"}
-
-    if row.source == "template":
-        return {
-            "success": False,
-            "error": f"Variable '{name}' is a template — install it first",
-        }
 
     body = json.loads(row.definition_json)
     fields: dict[str, Any] = {}
@@ -471,7 +463,7 @@ def update_variable(
     try:
         from gobby.mcp_proxy.tools.workflows._auto_export import auto_export_definition
 
-        auto_export_definition(updated, project_path)
+        auto_export_definition(updated, project_path, make_global=make_global_template)
     except Exception as e:
         logger.warning(f"Failed to auto-export variable '{name}': {e}")
 
@@ -498,11 +490,11 @@ def delete_variable(
     Returns:
         Dict with success, or error if not found/protected
     """
-    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
+    row = def_manager.get_by_name(name)
     if row is None or row.workflow_type != "variable":
         return {"success": False, "error": f"Variable '{name}' not found"}
 
-    if row.source in ("bundled", "template") and not force:
+    if row.source == "bundled" and not force:
         return {
             "success": False,
             "error": (
@@ -548,7 +540,7 @@ def export_variable(
     """
     import yaml
 
-    row = def_manager.get_by_name(name) or def_manager.get_by_name(name, include_templates=True)
+    row = def_manager.get_by_name(name)
     if row is None or row.workflow_type != "variable":
         return {"success": False, "error": f"Variable '{name}' not found"}
 

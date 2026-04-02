@@ -208,9 +208,14 @@ def is_embedding_available(
     Returns:
         True if embeddings can be generated, False otherwise
     """
-    # Local in-process models are always available (no API key needed)
+    # Local in-process models require llama-cpp-python
     if model.startswith("local/"):
-        return True
+        try:
+            import llama_cpp  # noqa: F401
+
+            return True
+        except ImportError:
+            return False
 
     # Local models with api_base (Ollama, custom endpoints) are assumed available
     if api_base:
