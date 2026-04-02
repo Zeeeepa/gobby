@@ -81,6 +81,7 @@ async def _run_maintenance(
                 proc = await asyncio.create_subprocess_exec(
                     str(gcode_bin),
                     "index",
+                    "--project",
                     str(project.root_path),
                     "--quiet",
                     stdout=asyncio.subprocess.DEVNULL,
@@ -139,6 +140,8 @@ async def _recover_unsynced_files(
         proc = await asyncio.create_subprocess_exec(
             str(gcode_bin),
             "index",
+            "--project",
+            str(project.root_path),
             "--files",
             *unsynced_paths,
             "--quiet",
