@@ -399,30 +399,58 @@ class HookManager:
             try:
                 tool_output = event.data.get("tool_output", "")
                 if isinstance(tool_output, str) and tool_output:
-                    from gobby.compression import OutputCompressor
+                    strategy = compression_cfg.get("strategy")
 
-                    # Extract meaningful command hint from call_tool args
-                    # (tool_name is "call_tool" for MCP proxy calls, which
-                    # never matches any compression pipeline)
-                    command_hint = event.data.get("tool_name", "")
-                    if command_hint in ("call_tool", "mcp__gobby__call_tool"):
+                    if strategy == "code_index":
+                        import subprocess
+
                         tool_input = event.data.get("tool_input") or {}
-                        server = tool_input.get("server_name", "")
-                        tool = tool_input.get("tool_name", "")
-                        if server and tool:
-                            command_hint = f"{server}:{tool}"
-                    compressor = OutputCompressor(
-                        max_lines=compression_cfg.get("max_lines") or 100,
-                    )
-                    result = compressor.compress(command_hint, tool_output)
-                    if result.strategy_name not in ("passthrough", "excluded"):
-                        response.modified_output = (
-                            f"[Output compressed by Gobby — {result.strategy_name}, "
-                            f"{result.savings_pct:.0f}% reduction]\n{result.compressed}"
+                        file_path = tool_input.get("file_path") or tool_input.get("path", "")
+                        if file_path:
+                            proc = subprocess.run(
+                                ["gcode", "outline", file_path],
+                                capture_output=True,
+                                text=True,
+                                timeout=10,
+                            )
+                            if proc.returncode == 0 and proc.stdout:
+                                outline = proc.stdout
+                                if len(outline) < len(tool_output):
+                                    savings_pct = (1 - len(outline) / len(tool_output)) * 100
+                                    response.modified_output = (
+                                        f"[Output compressed by Gobby — code_index outline, "
+                                        f"{savings_pct:.0f}% reduction]\n{outline}"
+                                    )
+                                    self.logger.info(
+                                        f"code_index outline: saved {savings_pct:.0f}%"
+                                        f" ({len(tool_output)}->{len(outline)} chars)"
+                                    )
+                                    # gcode self-reports savings to HTTP API (gsqz pattern)
+                    else:
+                        from gobby.compression import OutputCompressor
+
+                        # Extract meaningful command hint from call_tool args
+                        # (tool_name is "call_tool" for MCP proxy calls, which
+                        # never matches any compression pipeline)
+                        command_hint = event.data.get("tool_name", "")
+                        if command_hint in ("call_tool", "mcp__gobby__call_tool"):
+                            tool_input = event.data.get("tool_input") or {}
+                            server = tool_input.get("server_name", "")
+                            tool = tool_input.get("tool_name", "")
+                            if server and tool:
+                                command_hint = f"{server}:{tool}"
+                        compressor = OutputCompressor(
+                            max_lines=compression_cfg.get("max_lines") or 100,
                         )
-                        self.logger.info(
-                            f"Compressed MCP output: strategy={result.strategy_name} savings={result.savings_pct:.0f}% ({result.original_chars}->{result.compressed_chars} chars)",
-                        )
+                        result = compressor.compress(command_hint, tool_output)
+                        if result.strategy_name not in ("passthrough", "excluded"):
+                            response.modified_output = (
+                                f"[Output compressed by Gobby — {result.strategy_name}, "
+                                f"{result.savings_pct:.0f}% reduction]\n{result.compressed}"
+                            )
+                            self.logger.info(
+                                f"Compressed MCP output: strategy={result.strategy_name} savings={result.savings_pct:.0f}% ({result.original_chars}->{result.compressed_chars} chars)",
+                            )
             except Exception as e:
                 self.logger.warning(f"Output compression failed: {e}")
 

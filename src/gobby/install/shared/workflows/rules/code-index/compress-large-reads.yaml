@@ -15,4 +15,4 @@ rules:
       - "not variables.get('is_spawned_agent')"
     effects:
       - type: compress_output
-        compressor: code_index
+        strategy: code_index
