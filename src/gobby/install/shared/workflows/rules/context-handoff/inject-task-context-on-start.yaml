@@ -4,7 +4,7 @@ rules:
   inject-task-context-on-start:
     description: "Inject active task context if session has a claimed task (skip on resume)"
     event: session_start
-    enabled: false
+    enabled: true
     priority: 31
     when: "event.data.get('source') != 'resume'"
     effects:

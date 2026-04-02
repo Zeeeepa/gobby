@@ -4,7 +4,7 @@ rules:
   command-tool-restriction:
     description: "Block tools not in the command's allowed_tools list"
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 5
     when: >
       variables.get('is_spawned_agent')
@@ -19,7 +19,7 @@ rules:
   command-mcp-tool-restriction:
     description: "Block MCP tools not in the command's allowed_mcp_tools list"
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 5
     when: >
       variables.get('is_spawned_agent')

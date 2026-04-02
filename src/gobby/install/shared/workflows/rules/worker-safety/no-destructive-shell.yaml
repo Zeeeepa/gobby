@@ -4,7 +4,7 @@ rules:
   no-recursive-rm:
     description: "Block recursive delete for spawned agents."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:
@@ -16,7 +16,7 @@ rules:
   no-secure-delete:
     description: "Block secure/permanent delete for spawned agents."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:
@@ -28,7 +28,7 @@ rules:
   no-truncate:
     description: "Block file truncation for spawned agents."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:
@@ -40,7 +40,7 @@ rules:
   no-force-kill:
     description: "Block force-killing processes for spawned agents."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:
@@ -52,7 +52,7 @@ rules:
   no-recursive-permissions:
     description: "Block recursive permission changes for spawned agents."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:
@@ -64,7 +64,7 @@ rules:
   no-dd:
     description: "Block low-level disk operations for spawned agents."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:
@@ -76,7 +76,7 @@ rules:
   no-npm-publish:
     description: "Block npm publish for spawned agents."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:
@@ -88,7 +88,7 @@ rules:
   no-twine-upload:
     description: "Block twine upload for spawned agents."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:
@@ -100,7 +100,7 @@ rules:
   no-cargo-publish:
     description: "Block cargo publish for spawned agents."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:
@@ -112,7 +112,7 @@ rules:
   no-gem-push:
     description: "Block gem push for spawned agents."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:

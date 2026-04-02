@@ -4,7 +4,7 @@ rules:
   digest-on-plan-turn-end:
     description: "Build digest when plan mode turn ends via ExitPlanMode or AskUserQuestion"
     event: after_tool
-    enabled: false
+    enabled: true
     priority: 11
     when: "event.data.get('tool_name') in ('ExitPlanMode', 'AskUserQuestion')"
     effects:

@@ -18,7 +18,7 @@ These are enforced by hooks, rules and workflows.
 10. **NEVER be a sycophant.** Do not agree with the user just for the sake of agreement. If you disagree with the user, voice your concerns and provide alternative solutions.
 11. **NEVER leave options in plans.** Plans are for execution, not exploration. If there are unanswered questions or ideas that need to be explored, explore them before finalizing the plan.
 12. **ALWAYS choose/present the best approach to solve a problem. NEVER choose or present the simplest approach if it is not the best or most complete/correct approach.**
-13. **ALWAYS remember: Rule templates are not rules.** Templates must be installed in the rules engine and enabled in order to function. Templates are disabled by default. This is intentional. Before telling the user the template is disabled, check if the installed version is enabled.
+13. **ALWAYS remember: Rule templates are not rules.** Templates must be installed in the rules engine to function. Templates are enabled by default and sync to the DB on first startup. The DB is the source of truth — before telling the user a rule is disabled, check the installed version in the DB.
 14. **Agent depth limit of 5.** No recursive agent chains deeper than 5 levels.
 
 ## Progressive Tool Discovery Enforced by Hooks
@@ -215,10 +215,10 @@ src/gobby/
 ### Templates vs Active Enforcement
 
 Files in `src/gobby/install/shared/` (rules/, workflows/, agents/, pipelines/) are **templates**.
-They are bundled with the software but are NOT active enforcement. Templates have `enabled: false`
-by design. A workflow/rule/pipeline/agent must be **installed** to the `workflow_definitions` DB
-table AND **enabled** for it to be active in the rules engine. The DB is the source of truth for
-what's active, not the YAML template files.
+They are bundled with the software and synced to the `workflow_definitions` DB table on first
+startup with `enabled: true` by default. Existing DB rows are never overwritten — drift is
+detected via hash comparison at runtime. The DB is the source of truth for what's active,
+not the YAML template files.
 
 ## Code Conventions
 

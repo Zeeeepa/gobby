@@ -4,7 +4,7 @@ rules:
   reset-skill-injection:
     description: "Clear skill injection tracking on context loss"
     event: session_start
-    enabled: false
+    enabled: true
     priority: 80
     when: "event.data.get('source') in ['clear', 'compact'] or (event.data.get('source') == 'resume' and variables.get('pending_context_reset'))"
     effects:

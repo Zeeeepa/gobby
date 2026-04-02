@@ -4,7 +4,7 @@ rules:
   track-listed-servers:
     description: "Record which servers have been listed via list_tools"
     event: after_tool
-    enabled: false
+    enabled: true
     priority: 22
     when: "tool_input.get('server_name') and (event.data.get('mcp_tool') == 'list_tools' or event.data.get('tool_name') in ('list_tools', 'mcp__gobby__list_tools'))"
     effects:

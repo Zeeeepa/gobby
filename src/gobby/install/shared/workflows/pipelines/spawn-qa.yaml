@@ -6,7 +6,7 @@ description: |
   or call spawn_agent directly for untracked dispatch.
 
 version: "1.0"
-enabled: false
+enabled: true
 
 inputs:
   task_id:

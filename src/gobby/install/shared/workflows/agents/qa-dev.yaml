@@ -5,7 +5,7 @@ description: |
   Behavior enforced by inline step workflow.
 
 version: "2.0"
-enabled: false
+enabled: true
 
 instructions: |
   You are a QA developer agent spawned by an orchestrator pipeline.

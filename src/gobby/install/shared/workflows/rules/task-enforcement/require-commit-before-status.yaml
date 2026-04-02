@@ -4,7 +4,7 @@ rules:
   require-clean-tree-before-status:
     description: "Block status transitions when working tree has uncommitted changes"
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 31
     when: >
       variables.get('require_commit_before_status') and
@@ -26,7 +26,7 @@ rules:
   require-commit-before-status:
     description: "Block status transitions when no commit is linked to the task"
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 32
     when: >
       variables.get('require_commit_before_status') and

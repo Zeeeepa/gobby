@@ -1,6 +1,6 @@
 # Rule Templates Reference
 
-This directory contains 15 bundled rule groups. These are **templates** — they are synced to the `workflow_definitions` DB table on daemon start but have `enabled: false` by default. See `../CLAUDE.md` for the template vs active enforcement distinction.
+This directory contains 15 bundled rule groups. These are **templates** — they are synced to the `workflow_definitions` DB table on daemon start with `enabled: true` by default. Existing DB rows are never overwritten; drift is detected via hash comparison. See `../CLAUDE.md` for the template vs active enforcement distinction.
 
 ## Rule Groups
 
@@ -33,7 +33,7 @@ rules:
   rule-name:
     description: "..."
     event: before_tool
-    enabled: false                   # Templates default to disabled
+    enabled: true                    # Templates default to enabled
     priority: 100
     when: "condition"
     effect:

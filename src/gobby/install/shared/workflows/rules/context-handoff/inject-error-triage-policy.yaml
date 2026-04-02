@@ -4,7 +4,7 @@ rules:
   inject-error-triage-policy:
     description: "Inject error resolution policy on session start (skip on resume)"
     event: session_start
-    enabled: false
+    enabled: true
     priority: 40
     when: "event.data.get('source') != 'resume'"
     effects:

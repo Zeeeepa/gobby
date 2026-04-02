@@ -4,7 +4,7 @@ rules:
   notify-task-tree-complete:
     description: "Inject completion notice when task tree is fully closed"
     event: stop
-    enabled: false
+    enabled: true
     priority: 61
     when: "variables.get('auto_task_ref') and task_tree_complete(variables.get('auto_task_ref'))"
     effects:

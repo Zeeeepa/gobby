@@ -4,7 +4,7 @@ rules:
   block-claude-memory-search:
     description: "Block file search in Claude Code memory directory — use gobby-memory MCP"
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 10
     when: >-
       event.data.get('tool_name') in ('Glob', 'Grep')

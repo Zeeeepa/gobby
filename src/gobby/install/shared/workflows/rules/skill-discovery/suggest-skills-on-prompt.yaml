@@ -4,7 +4,7 @@ rules:
   suggest-skills-on-prompt:
     description: "Search installed skills and inject top matches + hub search nudge"
     event: before_agent
-    enabled: false
+    enabled: true
     priority: 35
     effects:
       - type: mcp_call

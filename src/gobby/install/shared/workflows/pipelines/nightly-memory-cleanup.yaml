@@ -6,7 +6,7 @@ description: |
   code-derivable, and orphaned entries, then removes them. Designed to run on
   a nightly cron schedule (e.g., "0 3 * * *").
 
-enabled: false
+enabled: true
 
 inputs:
   dry_run:

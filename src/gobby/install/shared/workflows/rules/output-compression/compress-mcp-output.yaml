@@ -4,7 +4,7 @@ rules:
   compress-mcp-output:
     description: "Compress verbose MCP tool output after execution"
     event: after_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: >
       event.data.get('tool_name') in ('call_tool', 'mcp__gobby__call_tool')

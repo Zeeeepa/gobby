@@ -6,7 +6,7 @@ description: |
   Provider/model inherited from spawner.
 
 version: "1.0"
-enabled: false
+enabled: true
 priority: 20
 mode: terminal
 timeout: 1800

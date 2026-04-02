@@ -4,7 +4,7 @@ rules:
   inject-creation-skill:
     description: "Inject task-creation and loading-skills on first agent turn"
     event: before_agent
-    enabled: false
+    enabled: true
     priority: 25
     when: "not variables.get('task_creation_loaded')"
     effects:

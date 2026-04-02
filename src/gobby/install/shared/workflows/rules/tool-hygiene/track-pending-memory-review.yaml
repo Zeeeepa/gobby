@@ -4,7 +4,7 @@ rules:
   track-pending-memory-review:
     description: "Reset memory_review_completed flag after file edits"
     event: after_tool
-    enabled: false
+    enabled: true
     priority: 90
     when: "event.data.get('tool_name') in ['Edit', 'Write', 'NotebookEdit']"
     effects:

@@ -4,7 +4,7 @@ rules:
   inject-previous-session-summary:
     description: "Inject previous session summary on clear (new session after /clear)"
     event: session_start
-    enabled: false
+    enabled: true
     priority: 10
     when: "event.data.get('source') == 'clear'"
     effects:

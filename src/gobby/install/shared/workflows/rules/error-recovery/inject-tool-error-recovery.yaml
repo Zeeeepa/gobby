@@ -4,7 +4,7 @@ rules:
   inject-tool-error-recovery:
     description: "Set stop block and inject recovery guidance when a tool call fails"
     event: after_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "event.metadata.get('is_failure', False) or event.data.get('is_error', False)"
     effects:

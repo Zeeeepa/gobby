@@ -4,7 +4,7 @@ rules:
   block-claude-memory-read:
     description: "Block reads from Claude Code file-based memory — use gobby-memory MCP"
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 10
     when: >-
       event.data.get('tool_name') == 'Read'

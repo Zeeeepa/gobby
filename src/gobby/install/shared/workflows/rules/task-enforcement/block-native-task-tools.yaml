@@ -4,7 +4,7 @@ rules:
   block-native-task-tools:
     description: "Block CC native task/todo tools - use gobby-tasks instead"
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 30
     effects:
       - type: block

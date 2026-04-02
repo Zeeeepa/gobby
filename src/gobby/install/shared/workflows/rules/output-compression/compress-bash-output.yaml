@@ -4,7 +4,7 @@ rules:
   compress-bash-output:
     description: "Rewrite verbose Bash commands through gsqz output compressor"
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: >
       event.data.get('tool_name') in ('Bash', 'run_shell_command')

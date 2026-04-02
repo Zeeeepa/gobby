@@ -5,7 +5,7 @@ description: |
   Uses gobby-merge for AI-powered conflict resolution on worktree merges.
 
 version: "3.0"
-enabled: false
+enabled: true
 priority: 20
 
 instructions: |

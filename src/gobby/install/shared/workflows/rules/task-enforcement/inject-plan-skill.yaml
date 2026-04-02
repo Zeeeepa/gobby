@@ -4,7 +4,7 @@ rules:
   inject-plan-skill:
     description: "Inject plan skill when agent enters plan mode"
     event: after_tool
-    enabled: false
+    enabled: true
     priority: 25
     when: >
       event.data.get('tool_name') in ('EnterPlanMode',)

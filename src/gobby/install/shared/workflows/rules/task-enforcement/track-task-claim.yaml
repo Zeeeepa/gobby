@@ -4,7 +4,7 @@ rules:
   track-task-claim:
     description: "Log task claim events (state managed by detect_task_claim observer)"
     event: after_tool
-    enabled: false
+    enabled: true
     priority: 30
     when: "event.data.get('mcp_tool') in ['claim_task', 'create_task'] and not event.data.get('error')"
     effects:

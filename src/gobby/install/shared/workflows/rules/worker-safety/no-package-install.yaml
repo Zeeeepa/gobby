@@ -4,7 +4,7 @@ rules:
   no-npm-install:
     description: "Block npm install/add for spawned agents."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:
@@ -16,7 +16,7 @@ rules:
   no-npx:
     description: "Block npx for spawned agents."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:
@@ -28,7 +28,7 @@ rules:
   no-yarn-add:
     description: "Block yarn add for spawned agents."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:
@@ -40,7 +40,7 @@ rules:
   no-pip-install:
     description: "Block pip install for spawned agents."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:
@@ -52,7 +52,7 @@ rules:
   no-uv-add:
     description: "Block uv add/pip install for spawned agents."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:
@@ -64,7 +64,7 @@ rules:
   no-cargo-add:
     description: "Block cargo add for spawned agents."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:
@@ -76,7 +76,7 @@ rules:
   no-gem-install:
     description: "Block gem install for spawned agents."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:
@@ -88,7 +88,7 @@ rules:
   no-brew-install:
     description: "Block brew install for spawned agents."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:

@@ -4,7 +4,7 @@ rules:
   enforce-tdd-block:
     description: "One-shot TDD nudge: block first Write to new code files until test is written"
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 32
     when: >-
       variables.get('enforce_tdd')

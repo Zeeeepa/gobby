@@ -4,7 +4,7 @@ rules:
   require-memory-review-before-status:
     description: "Gate task status transitions until agent reviews memories (when edits were made)"
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: >
       not variables.get('plan_mode')

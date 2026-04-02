@@ -4,7 +4,7 @@ rules:
   activate-pending-command:
     description: "Activate a pending command when agent starts a turn"
     event: before_agent
-    enabled: false
+    enabled: true
     priority: 15
     when: "variables.get('is_spawned_agent') and variables.get('has_pending_command')"
     effects:

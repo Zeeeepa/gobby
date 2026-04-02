@@ -4,7 +4,7 @@ rules:
   handle-plan-mode-exit:
     description: "Set plan_mode=false and restore mode_level when ExitPlanMode is called"
     event: after_tool
-    enabled: false
+    enabled: true
     priority: 10
     when: "event.data.get('tool_name') == 'ExitPlanMode'"
     effects:

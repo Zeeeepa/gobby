@@ -4,7 +4,7 @@ rules:
   no-remote-exec:
     description: "Block piping remote scripts to shell."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 40
     effects:
       - type: block

@@ -4,7 +4,7 @@ rules:
   no-external-github-issues:
     description: "Block gh issue create on external repos (when --repo/-R flag is used). Create a gobby-task instead."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     effects:
       - type: block

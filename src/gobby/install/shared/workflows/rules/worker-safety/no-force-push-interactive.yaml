@@ -4,7 +4,7 @@ rules:
   no-force-push-interactive:
     description: "Block force push with escape hatch for interactive sessions."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 55
     when: "not variables.get('is_spawned_agent')"
     effects:

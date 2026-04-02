@@ -4,7 +4,7 @@ rules:
   require-error-triage-before-status:
     description: "Gate task status transitions until all discovered errors, warnings, and failures are resolved"
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: >
       not variables.get('plan_mode')

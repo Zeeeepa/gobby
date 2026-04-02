@@ -4,7 +4,7 @@ rules:
   no-agent-spawn-for-merge:
     description: "Block agent spawning for merge agents"
     event: before_tool
-    enabled: false
+    enabled: true
     agent_scope: [merge]
     effects:
       - type: block

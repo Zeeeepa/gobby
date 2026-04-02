@@ -5,7 +5,7 @@ description: |
   Thin dispatch pipeline: spawns a merge agent for a clone merge.
   Usable standalone or invoked from coordinator/orchestrator.
 
-enabled: false
+enabled: true
 
 inputs:
   clone_id:

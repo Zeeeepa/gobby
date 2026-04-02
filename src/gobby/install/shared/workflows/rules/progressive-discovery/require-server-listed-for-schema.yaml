@@ -4,7 +4,7 @@ rules:
   require-server-listed-for-schema:
     description: "Block get_tool_schema if list_tools has not been called for this server"
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 21
     when: "event.data.get('tool_name') in ('get_tool_schema', 'mcp__gobby__get_tool_schema') and variables.get('enforce_tool_schema_check') and not is_server_listed(tool_input)"
     effects:

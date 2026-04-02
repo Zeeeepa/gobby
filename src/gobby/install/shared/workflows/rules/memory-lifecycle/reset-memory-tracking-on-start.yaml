@@ -4,7 +4,7 @@ rules:
   reset-memory-tracking-on-start:
     description: "Clear memory injection tracking on context loss (allows re-injection)"
     event: session_start
-    enabled: false
+    enabled: true
     priority: 5
     when: "event.data.get('source') in ['clear', 'compact'] or (event.data.get('source') == 'resume' and variables.get('pending_context_reset'))"
     effects:

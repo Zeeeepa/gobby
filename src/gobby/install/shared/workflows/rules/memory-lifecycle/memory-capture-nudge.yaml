@@ -4,7 +4,7 @@ rules:
   memory-capture-nudge:
     description: "Nudge agent to save user preferences or facts as memories"
     event: before_agent
-    enabled: false
+    enabled: true
     priority: 50
     when: "len((event.data.get('prompt') or '').strip()) >= 10 and not (event.data.get('prompt') or '').strip().startswith('/')"
     effects:

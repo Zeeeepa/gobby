@@ -4,7 +4,7 @@ description: |
   and dispatches dev/QA agents. Tick-based polling replaces event-driven continuations.
 
 version: "1.0"
-enabled: false
+enabled: true
 priority: 10
 
 role: |

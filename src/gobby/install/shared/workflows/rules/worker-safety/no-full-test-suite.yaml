@@ -4,7 +4,7 @@ rules:
   no-full-pytest-suite:
     description: "Block spawned agents from running the full pytest suite."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:
@@ -20,7 +20,7 @@ rules:
   no-full-vitest-suite:
     description: "Block spawned agents from running the full vitest suite."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:
@@ -35,7 +35,7 @@ rules:
   no-full-cargo-test:
     description: "Block spawned agents from running the full cargo test suite."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:
@@ -50,7 +50,7 @@ rules:
   no-full-go-test:
     description: "Block spawned agents from running the full go test suite."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:

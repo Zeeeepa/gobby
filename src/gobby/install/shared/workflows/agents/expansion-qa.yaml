@@ -6,7 +6,7 @@ description: |
   Reports findings via save_expansion_qa_result.
 
 version: "1.0"
-enabled: false
+enabled: true
 priority: 20
 
 instructions: |

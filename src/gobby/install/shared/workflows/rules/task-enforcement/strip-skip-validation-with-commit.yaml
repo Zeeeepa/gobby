@@ -4,7 +4,7 @@ rules:
   strip-skip-validation-with-commit:
     description: "Strip skip_validation when commits exist — validation must run on real work"
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 33
     when: >
       tool_input.get('skip_validation')

@@ -4,7 +4,7 @@ rules:
   require-uv:
     description: "Rewrite bare python/pip to use uv"
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: >
       variables.get('require_uv')

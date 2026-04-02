@@ -4,7 +4,7 @@ rules:
   block-ask-during-stop-compliance:
     description: "Block AskUserQuestion when stop hook gave directive"
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 34
     when: "variables.get('stop_attempts', 0) > 0 and variables.get('task_claimed')"
     effects:

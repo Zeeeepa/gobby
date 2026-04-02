@@ -4,7 +4,7 @@ rules:
   clear-pending-context-reset-on-start:
     description: "Clear pending_context_reset flag after use (Gemini resume flow)"
     event: session_start
-    enabled: false
+    enabled: true
     priority: 5
     when: "variables.get('pending_context_reset')"
     effects:

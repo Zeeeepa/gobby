@@ -4,7 +4,7 @@ rules:
   require-task-before-edit:
     description: "Block file edits without active task"
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 31
     when: >
       variables.get('require_task_before_edit')

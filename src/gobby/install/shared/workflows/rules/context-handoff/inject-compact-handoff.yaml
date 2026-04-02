@@ -4,7 +4,7 @@ rules:
   inject-compact-handoff:
     description: "Inject session summary context after compaction"
     event: session_start
-    enabled: false
+    enabled: true
     priority: 11
     when: "event.data.get('source') == 'compact'"
     effects:

@@ -4,7 +4,7 @@ rules:
   preserve-context-on-compact:
     description: "Reset tracking and extract context before compaction"
     event: pre_compact
-    enabled: false
+    enabled: true
     priority: 5
     when: "event.source.value != 'gemini' or event.data.get('trigger') == 'manual'"
     effects:

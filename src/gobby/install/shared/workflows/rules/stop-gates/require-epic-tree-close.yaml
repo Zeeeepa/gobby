@@ -4,7 +4,7 @@ rules:
   require-epic-tree-close:
     description: "Block stop if epic or any subtask is not closed"
     event: stop
-    enabled: false
+    enabled: true
     priority: 51
     agent_scope: [default, default-web-chat]
     when: >-

@@ -4,7 +4,7 @@ rules:
   code-index-compress-reads:
     description: "Replace large Read outputs with symbol outlines"
     event: after_tool
-    enabled: false
+    enabled: true
     priority: 40
     when: >
       event.data.get('tool_name') == 'Read'

@@ -4,7 +4,7 @@ rules:
   no-daemon-management:
     description: "Block spawned agents from starting/stopping/restarting the gobby daemon via CLI"
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:
@@ -16,7 +16,7 @@ rules:
   no-daemon-management-http:
     description: "Block spawned agents from managing the daemon via HTTP admin endpoints"
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 50
     when: "variables.get('is_spawned_agent')"
     effects:

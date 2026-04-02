@@ -4,7 +4,7 @@ rules:
   no-bash-sleep:
     description: "Block bash sleep commands. Use event-driven patterns instead."
     event: before_tool
-    enabled: false
+    enabled: true
     when: "variables.get('is_spawned_agent')"
     effects:
       - type: block

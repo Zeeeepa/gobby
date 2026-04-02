@@ -4,7 +4,7 @@ rules:
   no-push-for-workers:
     description: "Block git push for developer and QA agents"
     event: before_tool
-    enabled: false
+    enabled: true
     agent_scope: [developer, qa-reviewer]
     effects:
       - type: block

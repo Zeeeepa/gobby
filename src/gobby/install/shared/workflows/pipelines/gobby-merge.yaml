@@ -10,7 +10,7 @@ description: |
   and pushes only after human approval. If anything fails, the worktree
   is left untouched for retry or debugging.
 
-enabled: false
+enabled: true
 resume_on_restart: true
 
 inputs:

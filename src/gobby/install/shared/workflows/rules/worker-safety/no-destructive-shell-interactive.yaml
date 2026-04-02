@@ -4,7 +4,7 @@ rules:
   no-recursive-rm-interactive:
     description: "Block recursive delete with escape hatch for interactive sessions."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 55
     when: "not variables.get('is_spawned_agent')"
     effects:
@@ -16,7 +16,7 @@ rules:
   no-secure-delete-interactive:
     description: "Block secure/permanent delete with escape hatch for interactive sessions."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 55
     when: "not variables.get('is_spawned_agent')"
     effects:
@@ -28,7 +28,7 @@ rules:
   no-truncate-interactive:
     description: "Block file truncation with escape hatch for interactive sessions."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 55
     when: "not variables.get('is_spawned_agent')"
     effects:
@@ -40,7 +40,7 @@ rules:
   no-force-kill-interactive:
     description: "Block force-killing processes with escape hatch for interactive sessions."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 55
     when: "not variables.get('is_spawned_agent')"
     effects:
@@ -52,7 +52,7 @@ rules:
   no-recursive-permissions-interactive:
     description: "Block recursive permission changes with escape hatch for interactive sessions."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 55
     when: "not variables.get('is_spawned_agent')"
     effects:
@@ -64,7 +64,7 @@ rules:
   no-dd-interactive:
     description: "Block low-level disk operations with escape hatch for interactive sessions."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 55
     when: "not variables.get('is_spawned_agent')"
     effects:
@@ -76,7 +76,7 @@ rules:
   no-npm-publish-interactive:
     description: "Block npm publish with escape hatch for interactive sessions."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 55
     when: "not variables.get('is_spawned_agent')"
     effects:
@@ -88,7 +88,7 @@ rules:
   no-twine-upload-interactive:
     description: "Block twine upload with escape hatch for interactive sessions."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 55
     when: "not variables.get('is_spawned_agent')"
     effects:
@@ -100,7 +100,7 @@ rules:
   no-cargo-publish-interactive:
     description: "Block cargo publish with escape hatch for interactive sessions."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 55
     when: "not variables.get('is_spawned_agent')"
     effects:
@@ -112,7 +112,7 @@ rules:
   no-gem-push-interactive:
     description: "Block gem push with escape hatch for interactive sessions."
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 55
     when: "not variables.get('is_spawned_agent')"
     effects:

@@ -4,7 +4,7 @@ rules:
   block-needs-review-interactive:
     description: "Block mark_task_needs_review and mark_task_review_approved for interactive sessions"
     event: before_tool
-    enabled: false
+    enabled: true
     priority: 32
     when: "not variables.get('is_spawned_agent')"
     effects:
