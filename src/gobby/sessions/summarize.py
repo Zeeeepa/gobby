@@ -46,7 +46,7 @@ async def generate_session_summaries(
     llm_service: LLMServiceProtocol | None = None,
     db: DatabaseProtocol | None = None,
     write_file: bool = False,
-    output_path: str = "~/.gobby/session_summaries",
+    output_path: str = ".gobby/session_summaries",
     set_handoff_ready: bool = True,
     compact_only: bool = False,
     full_only: bool = False,

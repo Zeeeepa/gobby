@@ -241,7 +241,7 @@ async def _write_summary_file(
     summary_dir: Path | None = None
     ref: str = session_id
     try:
-        summary_dir = Path(output_path or "~/.gobby/session_summaries").expanduser()
+        summary_dir = Path(output_path or ".gobby/session_summaries").expanduser()
         summary_dir.mkdir(parents=True, exist_ok=True)
 
         if session_manager:

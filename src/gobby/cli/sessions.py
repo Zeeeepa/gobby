@@ -282,7 +282,7 @@ def session_stats(project_ref: str | None) -> None:
 @click.option(
     "--path",
     "output_path",
-    default="~/.gobby/session_summaries/",
+    default=".gobby/session_summaries/",
     help="Directory path for file output",
 )
 @click.argument("notes", required=False)

@@ -379,7 +379,6 @@ class SessionLifecycleManager:
                 session_manager=self.session_manager,
                 llm_service=self.llm_service,
                 db=self.db,
-                write_file=True,
                 set_handoff_ready=False,  # already expired, don't change status
             )
         except Exception as e:

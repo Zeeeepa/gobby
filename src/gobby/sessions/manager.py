@@ -311,54 +311,6 @@ class SessionManager:
             self.logger.debug(f"Failed to lookup session_id from database: {e}", exc_info=True)
             return None
 
-    def read_summary_file(self, session_id: str) -> str | None:
-        """
-        Read session summary from file (failover if database is empty).
-
-        Tries ``{seq_num}-full.md`` first, then falls back to legacy
-        ``session_*_{session_id}.md`` pattern.
-
-        Args:
-            session_id: Session ID to read summary for
-
-        Returns:
-            Summary markdown or None if not found
-        """
-        # Get summary directory from config or use default
-        if self._config and self._config.session_summary:
-            summary_dir = Path(self._config.session_summary.summary_file_path).expanduser()
-        else:
-            summary_dir = Path.home() / ".gobby" / "session_summaries"
-
-        if not summary_dir.exists():
-            return None
-
-        # Try {seq_num}-full.md first
-        try:
-            session = self._storage.get(session_id)
-            if session:
-                seq_num = getattr(session, "seq_num", None)
-                if isinstance(seq_num, int) and seq_num > 0:
-                    candidate = summary_dir / f"{seq_num}-full.md"
-                    if candidate.exists():
-                        try:
-                            return candidate.read_text()
-                        except Exception as e:
-                            self.logger.error(
-                                f"Failed to read summary file {candidate}: {e}", exc_info=True
-                            )
-        except Exception:
-            pass  # Fall through to legacy glob
-
-        # Legacy fallback: session_*_{session_id}.md
-        for summary_file in summary_dir.glob(f"session_*_{session_id}.md"):
-            try:
-                return summary_file.read_text()
-            except Exception as e:
-                self.logger.error(f"Failed to read summary file {summary_file}: {e}", exc_info=True)
-
-        return None
-
     def get_session_id(self, external_id: str, source: str) -> str | None:
         """
         Get cached session_id for an external_id and source.

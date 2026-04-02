@@ -131,7 +131,7 @@ Be concise. Focus on what the next agent needs to know to continue effectively."
         description="Prompt template for session summary (use placeholders: {transcript_summary}, {git_status}, {file_changes}, {session_tasks})",
     )
     summary_file_path: str = Field(
-        default="~/.gobby/session_summaries",
+        default=".gobby/session_summaries",
         description="Directory path for session summary markdown files",
     )
 

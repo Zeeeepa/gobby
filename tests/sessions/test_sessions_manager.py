@@ -331,44 +331,6 @@ class TestSessionManagerHandoff:
         assert result is None
 
 
-class TestSessionManagerSummaryFile:
-    """Tests for summary file reading."""
-
-    def test_read_summary_file(
-        self,
-        session_mgr: SessionManager,
-        temp_dir: Path,
-    ) -> None:
-        """Test reading summary from file."""
-        # Create summary directory and file
-        summary_dir = temp_dir / "session_summaries"
-        summary_dir.mkdir()
-
-        session_id = "test-session-uuid"
-        summary_file = summary_dir / f"session_2024-01-01_{session_id}.md"
-        summary_file.write_text("# Summary\nTest content")
-
-        # Configure session manager with test path
-        from gobby.config.app import DaemonConfig, SessionSummaryConfig
-
-        config = DaemonConfig(
-            session_summary=SessionSummaryConfig(summary_file_path=str(summary_dir))
-        )
-        session_mgr._config = config
-
-        result = session_mgr.read_summary_file(session_id)
-        assert result == "# Summary\nTest content"
-
-    def test_read_summary_file_not_found(
-        self,
-        session_mgr: SessionManager,
-        temp_dir: Path,
-    ) -> None:
-        """Test reading nonexistent summary file returns None."""
-        result = session_mgr.read_summary_file("nonexistent-uuid")
-        assert result is None
-
-
 class TestSessionManagerCaching:
     """Tests for session caching functionality."""
 
