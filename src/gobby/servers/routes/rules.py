@@ -323,7 +323,7 @@ def create_rules_router(server: "HTTPServer") -> APIRouter:
             error = result["error"]
             if "not found" in error.lower():
                 raise HTTPException(status_code=404, detail=error)
-            if "bundled" in error.lower() or "template" in error.lower():
+            if "bundled" in error.lower():
                 raise HTTPException(status_code=403, detail=error)
             raise HTTPException(status_code=400, detail=error)
 

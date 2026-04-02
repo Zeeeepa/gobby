@@ -6,12 +6,14 @@ import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from sqlite3 import Row
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
+
+DefinitionSource = Literal["installed", "agent", "project", "custom"]
 
 
 def compute_definition_hash(definition_json: str) -> str:
@@ -33,7 +35,7 @@ class WorkflowDefinitionRow:
     enabled: bool
     priority: int
     definition_json: str
-    source: str
+    source: DefinitionSource
     created_at: str
     updated_at: str
     project_id: str | None = None
@@ -113,7 +115,7 @@ class LocalWorkflowDefinitionManager:
         priority: int = 100,
         sources: list[str] | None = None,
         canvas_json: str | None = None,
-        source: str = "installed",
+        source: DefinitionSource = "installed",
         tags: list[str] | None = None,
     ) -> WorkflowDefinitionRow:
         """Create a new workflow definition in the database."""
@@ -406,14 +408,8 @@ class LocalWorkflowDefinitionManager:
 
     def move_to_project(self, definition_id: str, project_id: str) -> WorkflowDefinitionRow:
         """Move a definition to project scope."""
-        row = self.get(definition_id)
-        if row.source == "template":
-            raise ValueError("Cannot move a template definition")
         return self.update(definition_id, source="project", project_id=project_id)
 
     def move_to_global(self, definition_id: str) -> WorkflowDefinitionRow:
         """Move a definition to global (installed) scope."""
-        row = self.get(definition_id)
-        if row.source == "template":
-            raise ValueError("Cannot move a template definition")
         return self.update(definition_id, source="installed", project_id=None)

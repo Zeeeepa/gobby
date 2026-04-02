@@ -51,6 +51,7 @@ def _seed_rule(
     group: str = "test-group",
     enabled: bool = True,
     source: str = "installed",
+    tags: list[str] | None = None,
 ) -> str:
     """Seed a rule in the database and return its ID."""
     body = {
@@ -64,6 +65,7 @@ def _seed_rule(
         workflow_type="rule",
         enabled=enabled,
         source=source,
+        tags=tags,
     )
     return row.id
 
@@ -269,13 +271,13 @@ class TestDeleteRule:
         assert data["status"] == "success"
 
     def test_protects_bundled_rule(self, client, def_manager) -> None:
-        _seed_rule(def_manager, name="bundled-rule", source="template")
+        _seed_rule(def_manager, name="bundled-rule", tags=["gobby", "default"])
 
         resp = client.delete("/api/rules/bundled-rule")
         assert resp.status_code == 403
 
     def test_force_deletes_bundled(self, client, def_manager) -> None:
-        _seed_rule(def_manager, name="bundled-rule", source="template")
+        _seed_rule(def_manager, name="bundled-rule", tags=["gobby", "default"])
 
         resp = client.delete("/api/rules/bundled-rule", params={"force": "true"})
         assert resp.status_code == 200
