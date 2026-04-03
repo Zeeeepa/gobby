@@ -321,8 +321,9 @@ class TestSpawnAgentWithCloneIsolation:
         result = unwrap_result(raw_result)
 
         assert result.get("success") is False
-        # Without workflow or parent_session_id, mode=self validation fails first
-        assert "require" in result.get("error", "").lower()
+        # May fail on missing parent_session_id ("required") or project context
+        error = result.get("error", "").lower()
+        assert "require" in error or "could not resolve" in error
 
     def test_spawn_with_invalid_mode_fails(
         self,

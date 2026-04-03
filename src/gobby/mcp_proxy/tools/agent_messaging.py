@@ -316,10 +316,10 @@ def add_messaging_tools(
         ),
     )
     async def deliver_pending_messages(
-        session_id: str,
+        target_session_id: str,
     ) -> dict[str, Any]:
         try:
-            resolved_id = _resolve(session_id)
+            resolved_id = _resolve(target_session_id)
             undelivered = message_manager.get_undelivered_messages(resolved_id)
 
             messages = []

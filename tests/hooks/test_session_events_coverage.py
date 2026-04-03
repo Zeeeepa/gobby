@@ -449,6 +449,8 @@ class TestSessionStartAndHelpers:
         mock_agent_body.name = "test-agent"
         mock_agent_body.workflows.skill_format = "content"
         mock_agent_body.workflows.variables = {"good_var": "val", "_bad_var": "skip"}
+        mock_agent_body.steps = None
+        mock_agent_body.step_variables = {}
 
         mock_rule = MagicMock()
         mock_rule.name = "rule1"

@@ -116,7 +116,7 @@ class TestInterAgentMessagingE2E:
         raw_result = mcp_client.call_tool(
             server_name="gobby-agents",
             tool_name="deliver_pending_messages",
-            arguments={"session_id": child_session_id},
+            arguments={"target_session_id": child_session_id},
         )
         result = unwrap_result(raw_result)
         assert result.get("success") is True, f"deliver_pending_messages failed: {result}"
@@ -155,7 +155,7 @@ class TestInterAgentMessagingE2E:
         raw_result = mcp_client.call_tool(
             server_name="gobby-agents",
             tool_name="deliver_pending_messages",
-            arguments={"session_id": parent_session_id},
+            arguments={"target_session_id": parent_session_id},
         )
         result = unwrap_result(raw_result)
         assert result.get("success") is True, f"deliver_pending_messages (parent) failed: {result}"
@@ -208,7 +208,7 @@ class TestInterAgentMessagingE2E:
         raw_result = mcp_client.call_tool(
             server_name="gobby-agents",
             tool_name="deliver_pending_messages",
-            arguments={"session_id": session_id},
+            arguments={"target_session_id": session_id},
         )
         result = unwrap_result(raw_result)
 
@@ -277,7 +277,7 @@ class TestInterAgentMessagingE2E:
         raw_result = mcp_client.call_tool(
             server_name="gobby-agents",
             tool_name="deliver_pending_messages",
-            arguments={"session_id": child_session_id},
+            arguments={"target_session_id": child_session_id},
         )
         result = unwrap_result(raw_result)
         assert len(result.get("messages", [])) >= 1, "First deliver should return messages"
@@ -286,7 +286,7 @@ class TestInterAgentMessagingE2E:
         raw_result = mcp_client.call_tool(
             server_name="gobby-agents",
             tool_name="deliver_pending_messages",
-            arguments={"session_id": child_session_id},
+            arguments={"target_session_id": child_session_id},
         )
         result = unwrap_result(raw_result)
         assert len(result.get("messages", [])) == 0, "Second deliver should return no messages"

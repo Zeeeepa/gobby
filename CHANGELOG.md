@@ -8,6 +8,88 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2]
+
+### Features
+
+#### Session & Tool Architecture
+- Add SessionContext ContextVar and wire into all dispatch paths (#11161)
+- Migrate own-session tools to read session_id from ContextVar (#11162)
+- Remove session_id from tool schemas, add to call_tool wrapper (#11172)
+- Consolidate _resolve_session_id closures, update remaining skills (#11174)
+- Remove session_id from prompts, rules, skills, and agent definitions (#11163)
+
+#### Agent System
+- Extract apply_persona from spawn_agent mode=self (#11190)
+- Add model: local support for agent spawning with LMStudio (#11196)
+- Native Codex cross-model orchestration integration (#11192)
+- Rename agent mode 'terminal' to 'interactive' (#11193)
+
+#### Communications Platform
+- Add CLI prompts for all channel types with secret separation (#10883)
+- Store channel secrets in SecretStore instead of raw config (#10882)
+- Rename web_chat channel type to gobby_chat (#10881)
+- Add Slack Block Kit support for rich message formatting (#10946)
+- Add Discord embed support for rich message formatting (#10947)
+- Add Email OAuth2 XOAUTH2 SASL support (#10948)
+- Add Email multipart/alternative for HTML outbound messages (#10949)
+- Use GET /gateway/bot for dynamic Discord gateway URL (#10950)
+- Add exponential backoff with jitter on Discord gateway reconnect (#10951)
+- Add Teams proactive messaging with ConversationReference storage (#10952)
+- Use config webhook URL for Twilio SMS signature verification (#10953)
+- Create IntegrationsPage, ChannelCard, ChannelForm, ChannelDetail, and MessageList UI components (#10884-#10889)
+- Write communications integrations user guide (#10890)
+
+#### Code Intelligence
+- Set line_start on CodeSymbol nodes in Neo4j DEFINES edges (#11197)
+- Add sync worker to defer Neo4j/Qdrant writes from gcode to daemon (#11177)
+- Wire code_index strategy for compress-large-reads with gcode outline dispatch (#10981)
+- Restore summary column to code_symbols with freshness invalidation (#11151)
+- Replace TF-IDF with FTS5 for task and skill search (#11145)
+- Add temporal decay scoring to memory search ranking (#10871)
+- Add local embeddings as opt-out install feature (#11156)
+
+#### Workflows & Rules
+- Simplify template/installed paradigm with hash-based drift detection (#11108)
+- Add block-edits-plan-mode rule and flip all templates to enabled: true (#11159)
+- Remove grep block rule, add DefinitionSource type, clean up template remnants (#11169)
+
+#### Infrastructure
+- Add Windows service support via Task Scheduler (#11134)
+
+### Fixes
+
+- Fix plan mode skill injection and edit blocking (#11195)
+- Stop retrying transcript processing when JSONL file is missing (#11184)
+- Strip null fields from stdio MCP server responses (#11153)
+- Pass --project to gcode index in maintenance loop (#11157)
+- Switch KG entity extraction to Haiku and capture Claude CLI stderr (#11160)
+- Handle string-typed arguments in transcript analyzer (#11164)
+- Remove 50-turn cap from session summary transcript extraction (#11165)
+- Gemini agent sessions report 0 tokens due to JSON transcript misparse (#10986)
+- Make /api/code-index/invalidate idempotent (#11139)
+- Fix bundled rule delete returning 200 instead of 403 (route checked "bundled" but error says "template")
+- Add template validation to move_to_project/move_to_global to prevent moving template definitions
+- Rename deliver_pending_messages parameter from session_id to target_session_id to avoid HTTP dispatch stripping
+- Resolve 22 mypy errors and 2 TypeScript errors across 17 files (#11200)
+
+### Chores
+
+- Remove stale 'self' and 'terminal' from UI MODE_COLORS (#11194)
+- Remove dead _context param from kill_agent, use ContextVar (#11176)
+- Remove session_id from template tool examples (#11173)
+- Remove stale session_id from expand-task pipeline and skills (#11185)
+- Stop automatic session_summaries file export, make paths project-local (#11158)
+- Purge MCP code index tools, summarizer; add graph_synced recovery (#11142)
+- Remove TF-IDF dead code after FTS5 migration (#11152)
+- Drop summary column from code_symbols (#11143)
+- Exclude gcode from bash output compression rule (#11144)
+- Sync bundled compose template with installed version (#11140)
+
+### Tests
+
+- Resolve 26 failing tests across 8 test files (mock fixes, assertion updates, stale test removal)
+
 ## [0.3.0]
 
 ### Features

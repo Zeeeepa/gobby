@@ -734,28 +734,28 @@ class TestListDefinitionsSourceFilter:
 
 
 class TestInstallFromTemplate:
+    """Legacy install endpoint now returns 410 Gone for all requests."""
+
     def test_install_from_template(
         self, client: TestClient, agent_manager: LocalWorkflowDefinitionManager
     ) -> None:
-        """Install creates a copy from a template definition."""
+        """Install endpoint returns 410 — template installation is legacy."""
         _create_agent_row(agent_manager, "tmpl-worker", source="template")
         response = client.post("/api/agents/definitions/tmpl-worker/install")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "success"
+        assert response.status_code == 410
 
     def test_install_template_not_found(self, client: TestClient) -> None:
-        """Installing from a nonexistent template returns 404."""
+        """Install endpoint returns 410 even for nonexistent templates."""
         response = client.post("/api/agents/definitions/nonexistent/install")
-        assert response.status_code == 404
+        assert response.status_code == 410
 
     def test_install_from_non_template_not_found(
         self, client: TestClient, agent_manager: LocalWorkflowDefinitionManager
     ) -> None:
-        """Installing from a non-template source returns 404."""
+        """Install endpoint returns 410 regardless of source."""
         _create_agent_row(agent_manager, "installed-worker", source="installed")
         response = client.post("/api/agents/definitions/installed-worker/install")
-        assert response.status_code == 404
+        assert response.status_code == 410
 
 
 # ---------------------------------------------------------------------------

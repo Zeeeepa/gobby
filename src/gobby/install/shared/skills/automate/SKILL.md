@@ -416,7 +416,7 @@ call_tool("gobby-agents", "list_running_agents", {"parent_session_id": "#5"})
 call_tool("gobby-agents", "send_message", {
     "from_session": "#10", "to_session": "#5", "content": "Done"
 })
-call_tool("gobby-agents", "deliver_pending_messages", {"session_id": "#5"})
+call_tool("gobby-agents", "deliver_pending_messages", {"target_session_id": "#5"})
 ```
 
 ### Agent Definition Gotchas

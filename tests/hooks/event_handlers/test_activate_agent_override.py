@@ -42,6 +42,8 @@ def _make_agent_body(name: str = "test-agent") -> MagicMock:
     body.rules = []
     body.skills = []
     body.variables = None
+    body.steps = None
+    body.step_variables = {}
     return body
 
 

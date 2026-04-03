@@ -202,7 +202,7 @@ def test_comms_channels_add_sms(mock_daemon_client):
     result = runner.invoke(
         comms,
         ["channels", "add", "sms", "my-sms"],
-        input="auth-token-123\nAC123456\n+15551234567\n",
+        input="auth-token-123\nAC123456\n+15551234567\n\n",
     )
 
     assert result.exit_code == 0

@@ -27,53 +27,6 @@ class TestReregisterActiveSessions:
             mock_components.session_coordinator.reregister_active_sessions.assert_called_once()
 
 
-class TestResolveSummaryOutputPath:
-    def test_with_project_repo_path(self):
-        """Test output path resolved using project's repo_path."""
-        with patch("gobby.hooks.hook_manager.HookManagerFactory.create") as mock_create:
-            mock_components = MagicMock()
-            mock_create.return_value = mock_components
-
-            # Setup session
-            mock_session = MagicMock()
-            mock_session.project_id = "proj-1"
-            mock_components.session_storage.get.return_value = mock_session
-
-            manager = HookManager()
-
-            with patch("gobby.storage.projects.LocalProjectManager") as mock_proj_mgr_cls:
-                mock_proj_mgr = MagicMock()
-                mock_proj = MagicMock()
-                mock_proj.repo_path = "/path/to/repo"
-                mock_proj_mgr.get.return_value = mock_proj
-                mock_proj_mgr_cls.return_value = mock_proj_mgr
-
-                path = manager._resolve_summary_output_path("session-1")
-                assert path == "/path/to/repo/.gobby/session_summaries"
-
-    def test_fallback_no_session(self):
-        """Test output path fallback when session is missing."""
-        with patch("gobby.hooks.hook_manager.HookManagerFactory.create") as mock_create:
-            mock_components = MagicMock()
-            mock_components.session_storage.get.return_value = None
-            mock_create.return_value = mock_components
-
-            manager = HookManager()
-            path = manager._resolve_summary_output_path("session-not-exist")
-            assert path == "~/.gobby/session_summaries"
-
-    def test_fallback_exception(self):
-        """Test output path fallback when storage throws exception."""
-        with patch("gobby.hooks.hook_manager.HookManagerFactory.create") as mock_create:
-            mock_components = MagicMock()
-            mock_components.session_storage.get.side_effect = ValueError("db error")
-            mock_create.return_value = mock_components
-
-            manager = HookManager()
-            path = manager._resolve_summary_output_path("session-error")
-            assert path == "~/.gobby/session_summaries"
-
-
 class TestDispatchSessionSummaries:
     @patch("gobby.hooks.hook_manager.asyncio.get_running_loop")
     @patch("gobby.hooks.hook_manager.asyncio.run_coroutine_threadsafe")

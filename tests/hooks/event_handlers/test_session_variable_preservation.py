@@ -50,6 +50,8 @@ def _make_agent_body(
     body.rules = []
     body.skills = []
     body.variables = None
+    body.steps = None
+    body.step_variables = {}
     return body
 
 
