@@ -255,7 +255,10 @@ async def _sync_graph(
     symbols = storage.get_symbols_for_file(project_id, file.file_path)
 
     # Build contains list (for DEFINES edges)
-    contains = [{"id": sym.id, "name": sym.name, "kind": sym.kind} for sym in symbols]
+    contains = [
+        {"id": sym.id, "name": sym.name, "kind": sym.kind, "line_start": sym.line_start}
+        for sym in symbols
+    ]
 
     # Write to Neo4j
     await graph.add_relationships(

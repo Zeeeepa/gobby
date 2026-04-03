@@ -74,13 +74,14 @@ class CodeGraph:
                 await self._client.execute_write(
                     """MERGE (f:CodeFile {path: $file, project: $project})
                        MERGE (s:CodeSymbol {id: $symbol_id, project: $project})
-                       SET s.name = $name, s.kind = $kind
+                       SET s.name = $name, s.kind = $kind, s.line_start = $line_start
                        MERGE (f)-[:DEFINES]->(s)""",
                     {
                         "file": file_path,
                         "symbol_id": cont.get("id", ""),
                         "name": cont.get("name", ""),
                         "kind": cont.get("kind", ""),
+                        "line_start": cont.get("line_start", 0),
                         "project": project_id,
                     },
                 )
@@ -201,6 +202,7 @@ class CodeGraph:
                        RETURN DISTINCT affected.id AS symbol_id,
                               affected.name AS symbol_name,
                               affected.kind AS kind, file.path AS file_path,
+                              affected.line_start AS line,
                               distance, 'call' AS rel_type
                        ORDER BY distance ASC, affected.name ASC
                        LIMIT $limit""",
@@ -222,6 +224,7 @@ class CodeGraph:
                        RETURN DISTINCT affected.id AS symbol_id,
                               affected.name AS symbol_name,
                               affected.kind AS kind, file.path AS file_path,
+                              affected.line_start AS line,
                               distance, 'call' AS rel_type
                        ORDER BY distance ASC, affected.name ASC
                        LIMIT $limit""",

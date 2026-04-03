@@ -537,7 +537,10 @@ class CodeIndexer:
             for call in parse_result.calls
         ]
 
-        contains = [{"id": sym.id, "name": sym.name, "kind": sym.kind} for sym in symbols]
+        contains = [
+            {"id": sym.id, "name": sym.name, "kind": sym.kind, "line_start": sym.line_start}
+            for sym in symbols
+        ]
 
         return await self._graph.add_relationships(
             project_id=project_id,
