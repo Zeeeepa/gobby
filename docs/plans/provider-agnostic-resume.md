@@ -1,172 +1,127 @@
 # Plan: Multi-Provider Web Chat — Unified Session Interaction
 
-**Task:** #10591
-**Category:** Planning (comprehensive design)
+**Parent task:** #10591
+**Spun off:** #11204 (API-only web chat via LiteLLM/APIChatSession)
 
 ## Context
 
-Today the web UI has three disconnected surfaces for session interaction:
+The web UI has three disconnected surfaces for session interaction: SessionsTab (watch-only activity panel), the chat area (web chat + view/attach for CLI sessions), and a standalone terminals page. Users can *watch* a session in the activity panel but can't *interact* with it. They can interact via chat but only through the conversation picker. Terminal sessions need a separate page entirely.
 
-1. **SessionsTab** (Activity Panel) — shows active agents/CLI sessions with an inline transcript preview. Self-contained; no connection to the chat area. Read-only.
-2. **TerminalsPage** (standalone page) — xterm.js terminal emulator for tmux sessions. Full interactive control. Being removed.
-3. **Chat area** — web chat conversations. Can `viewSession` (REST transcript load) and `attachToSession` (WS subscription + `send_to_cli_session` injection) but these flows are only reachable from ConversationPicker or ActiveSessionsModal, not from the SessionsTab.
+Meanwhile, Gobby supports multiple CLI providers (Claude, Gemini, Codex, local via `claude --model`) but web chat is Claude-only. The competitive landscape (OMX, Agent Hand, muxtree) is converging on tmux orchestration — Gobby's differentiator is a **unified web UI** that can view, attach to, and take over any session regardless of provider.
 
-The result: you can *watch* a session in the activity panel, but you can't *interact* with it. You can interact via the chat area, but only if you find the session through the conversation picker. Terminal sessions require an entirely separate page.
-
-**Goal:** Collapse these into one model. The **SessionsTab** becomes the session control surface. The **chat area** becomes the universal session viewport. Any session — web chat, terminal, SDK, API, any provider/model — renders as chat-style messages and can be swapped to/interacted with from the same surface.
+**Goal:** Collapse these into one model. SessionsTab is the session control surface. The chat area is the universal viewport. Any session renders through the unified transcript renderer. Web chat supports starting sessions with any provider (subscription-first via CLI subprocesses).
 
 ---
 
-## 1. The Interaction Model
+## Phase 1: Wire SessionsTab to Chat Area (frontend, 3 tasks)
 
-Three modes, progressively escalating:
+### What changes
 
-| Mode | What happens | Input bar | Destructive? | Works for |
-|---|---|---|---|---|
-| **View** | Load transcript via REST (static snapshot) | Hidden | No | All sessions |
-| **Attach** | WS subscription for live events + input via `send_to_cli_session` | Enabled, labeled "Send to session" | No | Active sessions with terminal or hook injection |
-| **Take Over** | Kill CLI process, create web chat session via resume strategy | Full web chat input | Yes (kills CLI) | Any session with resume capability |
+SessionsTab lives inside ActivityPanel (`web/src/components/activity/ActivityPanel.tsx`) as one of 7 tabs (Sessions, Pipelines, Tasks, Files, Plans, Changes, Canvas). Currently, clicking a session toggles an inline message preview *within the panel*. Instead, clicking should load the session in the main chat area via `useChat.viewSession()`. The swap between sessions (and back to web chat) initiates from the **SessionsTab header bar** inside the activity panel, plus the command palette.
 
-**Swap = click a different session.** The chat area updates to show that session. Previous session detaches automatically.
+### UI hierarchy
+
+```
+ChatPage
+├── CommandBar (top of chat area — already has attach/detach via ObservationSegment)
+├── Chat area (left — universal viewport for messages)
+└── ActivityPanel (right side panel)
+    ├── Tab strip (Sessions | Pipelines | Tasks | Files | Plans | Changes | Canvas)
+    └── SessionsTab (when "Sessions" tab active)
+        ├── Session list (clickable entries with provider/status badges)
+        ├── Session header bar ← PRIMARY SWAP SURFACE (View/Attach/Take Over buttons)
+        └── Session context menu (right-click: Attach, Take Over, Send Context, Expire)
+```
+
+### Files
+
+| File | Change |
+|------|--------|
+| `web/src/components/activity/SessionsTab.tsx` | Add `onViewSession`, `onAttachSession`, `onTakeOverSession` callback props. Single-click calls `onViewSession(id)`. Session header bar shows View/Attach/Take Over actions. Context menu gets "Attach" and "Take Over" entries. |
+| `web/src/components/activity/ActivityPanel.tsx` | Thread the three new callbacks from ChatPage through `ActivityPanelProps` to SessionsTab (lines 197-205). Add `onViewSession`, `onAttachSession`, `onTakeOverSession` to `ActivityPanelProps`. |
+| `web/src/components/chat/ChatPage.tsx` | Wire `useChat` methods to ActivityPanel: `viewSession` → `onViewSession`, `attachToSession` → `onAttachSession`, `continueSessionInChat` → `onTakeOverSession` |
+
+### Task breakdown
+
+1. **Add session action callbacks to SessionsTab** — Add `onViewSession(sessionId)`, `onAttachSession(sessionId)`, `onTakeOverSession(sessionId, projectId?)` props. Single-click calls `onViewSession` (loads transcript in chat area). Replace the inline "Watching {name}" preview with action buttons in the session header bar: "Attach" (if active + has terminal), "Take Over" (if resumable), "Back to Chat" (clears viewing). Context menu adds "Attach" and "Take Over" entries. Keep inline preview as fallback when `onViewSession` is not provided.
+
+2. **Wire callbacks through ActivityPanel → ChatPage** — Add `onViewSession`, `onAttachSession`, `onTakeOverSession` to `ActivityPanelProps` (line 125). Thread them to SessionsTab (line 198). In ChatPage, pass `useChat` methods: `viewSession` → `onViewSession`, `attachToSession` → `onAttachSession`, `continueSessionInChat` → `onTakeOverSession`.
+
+3. **Session capability indicators** — Show "Live" badge for active sessions (attachable). Show provider icon + model badge. Highlight which session the chat area is currently viewing/attached to (use `chatSessionId` prop that already exists). Dim sessions that can't be interacted with.
 
 ---
 
-## 2. SessionsTab Enhancement
+## Phase 2: Chat Area Mode UX (frontend, 3 tasks)
 
-**File:** `web/src/components/activity/SessionsTab.tsx`
+### What changes
 
-### Current state
-- Props: `{ projectId, onKillAgent, onExpireSession }`
-- Clicking a session toggles an inline `MessageItem` preview within the panel
-- No callbacks to the chat area
+The SessionsTab header bar (in the activity panel) is the primary swap initiation surface. The CommandBar's `ObservationSegment` already handles attach/detach when viewing/attached — it needs "Take Over" added. The command palette also supports session operations. When in normal chat mode, the provider picker (Phase 5) appears in the new chat flow.
 
-### Changes
+### Interaction modes (computed from existing state)
 
-**Add new callback props:**
-```typescript
-interface SessionsTabProps {
-  projectId?: string | null
-  onKillAgent?: (runId: string) => void
-  onExpireSession?: (sessionId: string) => void
-  // NEW:
-  onViewSession?: (sessionId: string) => void
-  onAttachSession?: (sessionId: string) => void
-  onTakeOverSession?: (sessionId: string, projectId?: string) => void
-}
+```
+viewingSessionId && !attachedSessionId  →  "view"     (read-only transcript)
+attachedSessionId                       →  "attached"  (live + input enabled)
+neither                                 →  "chat"      (normal web chat)
 ```
 
-**Replace inline message preview with session action buttons:**
+No new state — derived from `viewingSessionId` and `attachedSessionId` already in `useChat`.
 
-When a session is selected, instead of showing messages inline in the panel, show:
-- **"View"** button → calls `onViewSession(id)` → chat area loads transcript
-- **"Attach"** button (if active + has terminal/hook) → calls `onAttachSession(id)` → chat area subscribes to live events + enables input
-- **"Take Over"** button (if resumable) → confirmation dialog → calls `onTakeOverSession(id, projectId)` → chat area creates new web chat session
-- Keep the **"Expire"** button for killing sessions
+### Files
 
-**Session capability indicators:**
-- Show "Live" badge for active sessions (attachable)
-- Show provider icon + model badge
-- Highlight which session the chat area is currently viewing/attached to
+| File | Change |
+|------|--------|
+| `web/src/hooks/useChat.ts` | Add computed `interactionMode` to return value. Add `canTakeOver` derived from session capabilities. |
+| `web/src/components/chat/CommandBar.tsx` | Add "Take Over" button to `ObservationSegment` (between Attach/Detach and close). Add "Back to Chat" when viewing. Show provider/model in observation segment. |
+| `web/src/components/chat/ChatInput.tsx` | Mode-specific placeholder: "Viewing session #N..." (view), "Send to #N..." (attached), "Message or /command..." (chat). |
+| Command palette integration | Add commands: "View Session", "Attach to Session", "Take Over Session", "Detach", "Back to Chat". |
 
-**Wire into ChatPage:**
-```typescript
-// In ChatPage.tsx, pass callbacks to SessionsTab:
-<SessionsTab
-  onViewSession={viewSession}
-  onAttachSession={attachToSession}
-  onTakeOverSession={(id, pid) => continueSessionInChat(id, pid)}
-  onKillAgent={handleKillAgent}
-  onExpireSession={handleExpireSession}
-/>
-```
+### Task breakdown
+
+4. **Computed interactionMode in useChat** — Add `interactionMode: "chat" | "view" | "attached"` as computed return value. Add `canTakeOver: boolean` derived from attach response capabilities (Phase 4 enriches this, but start with `true` for active sessions).
+
+5. **CommandBar mode controls** — Extend `ObservationSegment` with "Take Over" button (shows confirmation dialog before calling `continueSessionInChat`). Add "Back to Chat" button that calls `clearViewingSession()`. Show provider name and model in the observation bar.
+
+6. **ChatInput mode behavior + command palette** — Update placeholder text per mode. Add session commands to command palette: "View Session #N", "Attach to Session #N", "Take Over Session", "Detach from Session", "Back to Chat".
 
 ---
 
-## 3. Chat Area as Universal Viewport
+## Phase 3: Resume Strategy Pattern (backend, 4 tasks)
 
-**File:** `web/src/hooks/useChat.ts`
+### What changes
 
-### Current capabilities (already working)
-- `viewSession(sessionId)` — REST transcript load, read-only (line 2154)
-- `attachToSession(sessionId)` — WS subscription for live events (line 2298)
-- `attachToViewed()` — upgrade from view to attached (line 2326)
-- `detachFromSession()` — downgrade from attached to view (line 2334)
-- `continueSessionInChat(sourceDbSessionId, projectId)` — takeover/resume (line 1701)
-- `sendMessage()` — routes to `send_to_cli_session` when attached (line 1966-1984)
-- `clearViewingSession()` — return to previous web chat (line 2241)
+Extract provider-specific resume logic from `handle_continue_in_chat()` (195 lines, Claude-specific) into isolated strategy classes. The refactored handler becomes ~20 lines of dispatch.
 
-### Changes needed
+### Files
 
-**Interaction mode state:**
-```typescript
-type SessionInteractionMode = "chat" | "view" | "attached" | "takeover";
+| File | Change |
+|------|--------|
+| `src/gobby/servers/chat_resume_strategy.py` | **NEW** — `ResumeStrategy` protocol + per-provider implementations |
+| `src/gobby/servers/websocket/handlers/session_observe.py` | Refactor `handle_continue_in_chat()` to use strategy dispatch |
+| `src/gobby/servers/websocket/chat/_session.py` | Extend provider routing in `_create_chat_session()` for Gemini |
 
-// Derived from existing state:
-// - viewingSessionId && !attachedSessionId → "view"
-// - attachedSessionId → "attached"
-// - neither → "chat" (normal web chat)
-// - takeover transitions from view/attached → "chat" (new web chat session)
-```
-
-This is mostly a **naming/UX layer** on top of existing primitives. The core state machine already exists:
-- `viewingSessionId` (string | null)
-- `attachedSessionId` (string | null)
-- `viewingSessionMeta` / `attachedSessionMeta`
-
-**Add to the return type:**
-```typescript
-interactionMode: SessionInteractionMode  // computed from existing state
-activeSessionSource: string | null       // provider of viewed/attached session
-canAttach: boolean                       // from attach_to_session_result
-canTakeOver: boolean                     // from session resumability
-```
-
-**Input bar behavior** (in ChatInput or CommandBar):
-- `mode === "view"` → input hidden or disabled, show "Viewing session #N" + "Attach" / "Take Over" buttons
-- `mode === "attached"` → input enabled with "Send to #N" label, show "Detach" / "Take Over" buttons
-- `mode === "chat"` → normal web chat input
-- `mode === "takeover"` → same as "chat" (it becomes a web chat session)
-
----
-
-## 4. Provider-Agnostic Resume (Backend)
-
-**File:** `src/gobby/servers/websocket/session_control.py`
-
-### Problem
-`_handle_continue_in_chat()` (line 325) is Claude-specific:
-- Resolves `sdk_resume_id` from `external_id` or `agent_runs` (Claude paths only)
-- Non-Claude sessions get `resume_id = None` → fresh conversation with no history
-- History injection was removed when `session_messages` table was dropped
-
-### Solution: Resume Strategy Pattern
-
-**New file:** `src/gobby/servers/chat_resume_strategy.py`
+### Resume Strategy Protocol
 
 ```python
 class ResumeStrategy(Protocol):
     provider_name: str
+    
     def can_native_resume(self, source_session) -> bool: ...
     async def resolve_resume_id(self, source_session, session_manager, agent_run_manager) -> str | None: ...
     async def kill_owner(self, source_session, session_manager) -> None: ...
     async def build_history_context(self, source_session, max_chars: int) -> str | None: ...
 ```
 
-| Strategy | Providers | Resume method |
-|---|---|---|
-| `ClaudeResumeStrategy` | claude_code, claude_sdk_web_chat | SDK native via `ClaudeAgentOptions.resume` |
-| `CodexResumeStrategy` | codex, codex_web_chat, cursor, windsurf, copilot | `CodexChatSession.resume_thread(thread_id)` |
-| `GeminiResumeStrategy` | gemini, gemini_cli | Transcript injection (no native resume) |
-| `LiteLLMResumeStrategy` | litellm, ollama, lmstudio, llama_cpp | Transcript injection (stateless API, no native resume) |
-| `TranscriptResumeStrategy` | Any (fallback) | Parse JSONL via existing `TranscriptParser` subclasses |
+### Strategy matrix (verified via context7 docs)
 
-**Registry:**
-```python
-def get_resume_strategy(source: str) -> ResumeStrategy:
-    return RESUME_STRATEGIES.get(source, TranscriptResumeStrategy())
-```
+| Strategy | Providers | Resume method | Confirmed API |
+|----------|-----------|--------------|---------------|
+| `ClaudeResumeStrategy` | claude_code, claude_sdk_web_chat, local models (via --model) | SDK native via `resume` param | `ClaudeAgentOptions(resume="session-xyz")` |
+| `CodexResumeStrategy` | codex, codex_web_chat | Thread resume via Codex SDK | `codex.thread_resume(thread_id)` or JSON-RPC `thread/resume` |
+| `GeminiResumeStrategy` | gemini, gemini_cli, gemini_web_chat | Native CLI resume via `--resume` flag | `gemini --resume <session-uuid> -p "prompt" --output-format stream-json` |
+| `TranscriptResumeStrategy` | Any without native resume (Cursor, Windsurf, etc.) | Parse JSONL via existing `TranscriptParser` subclasses | Fallback only |
 
-### Refactored `_handle_continue_in_chat()`:
+### Refactored handler
 
 ```python
 strategy = get_resume_strategy(source_session.source)
@@ -181,43 +136,51 @@ session = await self._create_chat_session(
 )
 ```
 
-### History Context Reconstruction
+### History context injection (TranscriptResumeStrategy fallback only)
 
-For non-native-resume providers, reconstruct from transcripts:
-
-1. Look up `session.jsonl_path` → check archive at `~/.gobby/session_transcripts/`
+For providers without native resume (Cursor, Windsurf, unknown sources):
+1. Look up `session.jsonl_path` or archive at `~/.gobby/session_transcripts/`
 2. Select parser based on `session.source` (existing parsers in `src/gobby/sessions/transcripts/`)
-3. Extract last N turns → format as `<conversation-history>` XML block
-4. Inject via `system_prompt_override` or new `history_context` param on `ChatSession.start()`
+3. Extract last N turns via `extract_last_messages()` or `extract_turns_since_clear()`
+4. Inject via `history_context` param → session's `system_prompt_override` or dedicated field on `ChatSessionProtocol`
 
-### Session type routing in `_create_chat_session()`
+Note: Claude, Codex, and Gemini all have native resume — transcript injection is a last-resort fallback.
 
-**File:** `src/gobby/servers/websocket/chat/_session.py`
+### Task breakdown
 
-Add source-based routing for resume scenarios:
-- Claude sources → `ChatSession`
-- Codex sources → `CodexChatSession`
-- Gemini sources → `GeminiChatSession` wrapping `google-genai` SDK (Phase 5)
-- LiteLLM sources (litellm, ollama, lmstudio, llama_cpp) → `LiteLLMChatSession` (Phase 6)
+7. **Create `chat_resume_strategy.py`** — Protocol definition + `ClaudeResumeStrategy` (extract from `session_observe.py:75-149`). Registry function `get_resume_strategy(source) -> ResumeStrategy`.
+
+8. **`CodexResumeStrategy`** — Wire `CodexChatSession.resume_thread()` into strategy. Handle thread_id resolution from `external_id`.
+
+9. **`GeminiResumeStrategy` + `TranscriptResumeStrategy`** — Gemini uses native CLI resume via `gemini --resume <session-uuid>`. `TranscriptResumeStrategy` is the generic fallback for providers without native resume (Cursor, Windsurf, etc.) — uses existing transcript parsers for history injection.
+
+10. **Refactor `handle_continue_in_chat()`** — Replace 195-line Claude-specific handler with strategy dispatch. ~20 lines of core logic.
 
 ---
 
-## 5. Backend: Attach Enrichment
+## Phase 4: Attach Enrichment (backend + frontend, 2 tasks)
 
-**File:** `src/gobby/servers/websocket/handlers.py` (or wherever `attach_to_session` is handled)
+### What changes
 
-When the frontend attaches to a session, the backend response should include capability info:
+When the frontend attaches to a session, the backend response includes capability info so the UI can show the right buttons without guessing.
+
+### Files
+
+| File | Change |
+|------|--------|
+| `src/gobby/servers/websocket/handlers/session_observe.py` | Enrich `attach_to_session_result` with capabilities |
+| `web/src/hooks/useChat.ts` | Read capabilities from attach response, expose as `canAttach`/`canTakeOver`/`resumeMethod` |
+| `web/src/components/chat/CommandBar.tsx` | Conditionally show buttons based on capabilities |
+
+### Enriched attach response
 
 ```python
 {
     "type": "attach_to_session_result",
     "session_id": "...",
-    # EXISTING:
-    "ref": "#42",
-    "source": "gemini_cli",
-    "status": "active",
+    # EXISTING: ref, source, status
     # NEW:
-    "can_interact": bool(session.terminal_context),  # has tmux for input injection
+    "can_interact": bool(session.terminal_context),  # has tmux
     "can_take_over": strategy.can_native_resume(session) or bool(session.jsonl_path),
     "resume_method": "sdk_native" | "thread_resume" | "history_injection" | "fresh",
     "provider": session.source,
@@ -225,106 +188,150 @@ When the frontend attaches to a session, the backend response should include cap
 }
 ```
 
-This lets the frontend show the right buttons without guessing.
+### Task breakdown
+
+11. **Backend: enrich attach response** — Add `can_interact`, `can_take_over`, `resume_method`, `provider`, `model` to `attach_to_session_result`. Use resume strategy to determine capabilities.
+
+12. **Frontend: capability-driven UI** — Read capabilities from attach response in `useChat`. Expose `canTakeOver`, `resumeMethod`, `sessionProvider`, `sessionModel`. CommandBar conditionally shows "Take Over" only when `canTakeOver` is true. Show resume method as tooltip hint.
 
 ---
 
-## 6. Phased Implementation
+## Phase 5: Gemini Web Chat + Provider Picker + Personas (backend + frontend, 4 tasks)
 
-### Phase 1: Wire SessionsTab → Chat Area (frontend only, 3 tasks)
-1. Add `onViewSession`, `onAttachSession`, `onTakeOverSession` props to `SessionsTab`
-2. Wire callbacks in `ChatPage.tsx` to `useChat` methods (`viewSession`, `attachToSession`, `continueSessionInChat`)
-3. Replace inline message preview with action buttons + session capability indicators
+### What changes
 
-### Phase 2: Chat Area Mode UX (frontend, 3 tasks)
-4. Add computed `interactionMode` to `useChat.ts` return value
-5. Update `ChatInput` / `CommandBar` — mode-specific input bar (hidden for view, "Send to #N" for attached, normal for chat)
-6. Add mode transition buttons in CommandBar (Attach / Detach / Take Over / Back to Chat)
+Add Gemini as a web chat provider. Subscription-first: wraps `gemini` CLI as a subprocess (same pattern as `ChatSession` wrapping `claude`). User's Google auth flows through the CLI.
 
-### Phase 3: Resume Strategy Pattern (backend, 4 tasks)
-7. Create `chat_resume_strategy.py` — protocol + `ClaudeResumeStrategy` (extract from `session_control.py:325-490`)
-8. Create `CodexResumeStrategy` — wire `CodexChatSession.resume_thread()` into resume flow
-9. Create `TranscriptResumeStrategy` — generic history injection using existing transcript parsers
-10. Refactor `_handle_continue_in_chat()` to use strategy dispatch
+### Files
 
-### Phase 4: Attach Enrichment (backend + frontend, 2 tasks)
-11. Enrich `attach_to_session_result` with `can_interact`, `can_take_over`, `resume_method`, `provider`
-12. Frontend reads capabilities and conditionally shows Attach / Take Over buttons
+| File | Change |
+|------|--------|
+| `src/gobby/servers/gemini_chat_session.py` | **NEW** — `GeminiChatSession` implementing `ChatSessionProtocol` |
+| `src/gobby/servers/websocket/chat/_session.py` | Extend `_create_chat_session()` with gemini provider routing |
+| `src/gobby/sessions/transcripts/gemini.py` | Complete `extract_turns_since_clear()` and `is_session_boundary()` |
+| Web UI — provider picker | Model/provider selector in CommandBar or new chat dialog |
 
-### Phase 5: Gemini Web Chat (3 tasks)
-13. Create `GeminiChatSession` implementing `ChatSessionProtocol` — wraps `google-genai` SDK with streaming chat (`generate_content_stream`), native tool calling, and Gemini-specific features (grounding, code execution). Manages conversation history as Gemini `Content` objects.
-14. Create `GeminiResumeStrategy` — parse native Gemini session JSON (`~/.gemini/tmp/{hash}/chats/session-*.json`) via `GeminiTranscriptParser.parse_session_json()`, reconstruct as Gemini `Content` history for seamless resume on the same model.
-15. Extend `_create_chat_session()` with gemini provider routing — gemini sources create `GeminiChatSession` with the original model.
+### GeminiChatSession design
 
-### Phase 6: LiteLLM / Local Model Web Chat (3 tasks)
-16. Create `LiteLLMChatSession` implementing `ChatSessionProtocol` — wraps `litellm.acompletion(stream=True)` for streaming chat. OpenAI-compatible protocol works with LM Studio, Ollama, llama.cpp, and any OpenAI-compatible endpoint. Manages conversation history in-memory (stateless API). Supports tool calling via LiteLLM's function calling abstraction.
-17. Create `LiteLLMResumeStrategy` — transcript injection only (stateless API, no native resume). Uses existing transcript parsers.
-18. Extend `_create_chat_session()` with litellm provider routing + model selection UI. Config reads from `llm_providers.litellm.models` (already exists in `DaemonConfig`) and local endpoint discovery (Ollama `http://localhost:11434/api/tags`, LM Studio `http://localhost:1234/v1/models`).
+- Wraps `gemini` CLI subprocess (same pattern as `ChatSession` wrapping `claude` CLI)
+- Non-interactive mode: `gemini -p "prompt" --output-format stream-json`
+- Streaming output: NDJSON with event types `tool_use`, `message`, `result` (confirmed via context7)
+- Subscription-first auth: user's `gcloud`/ADC auth flows through the CLI
+- Translates Gemini NDJSON events to `ChatEvent` types (`TextChunk`, `ToolCallEvent`, `ToolResultEvent`, `DoneEvent`)
+- Resume: native via `gemini --resume <session-uuid> -p "prompt" --output-format stream-json` (confirmed via context7)
 
-### Phase 7: Cleanup (2 tasks)
-19. Remove standalone Sessions page (`web/src/components/sessions/`) and its nav entry
-20. Remove standalone Terminals page (`web/src/components/terminals/TerminalsPage.tsx`) and its nav entry
+### Provider routing extension
+
+```python
+# In _create_chat_session():
+if use_gemini:
+    session = GeminiChatSession(conversation_id=conversation_id)
+elif use_codex:
+    session = CodexChatSession(conversation_id=conversation_id)
+else:
+    session = ChatSession(conversation_id=conversation_id)
+```
+
+### Task breakdown
+
+13. **GeminiChatSession** — Implement `ChatSessionProtocol` wrapping `gemini` CLI subprocess. Use `gemini -p "prompt" --output-format stream-json` for non-interactive streaming. Parse NDJSON events (`tool_use`, `message`, `result`) and translate to `ChatEvent` types. Resume via `gemini --resume <session-uuid>`. Handle model selection (`gemini-3.1-pro`, `gemini-3-flash`, etc.).
+
+14. **Provider routing + Gemini integration** — Extend `_create_chat_session()` with `use_gemini` detection. Capture Gemini session UUID from CLI output for future resume. Set `source="gemini_web_chat"` in DB. Complete `GeminiTranscriptParser.extract_turns_since_clear()` and `is_session_boundary()` for view mode transcript rendering. Update stale model names in `src/gobby/config/llm_providers.py`: Codex models to `gpt-5.4,gpt-5.3-codex,gpt-5.3-codex-spark`, Gemini models to `gemini-3-flash,gemini-3.1-pro`.
+
+15. **Web UI provider picker** — Add provider selector to new chat flow (CommandBar "+" button or new chat dialog). The picker filters agent definitions with `sources` containing `*_web_chat` and presents them as provider choices (Claude, Gemini, Codex). Model dropdown updates based on provider. Under the hood, selecting a provider selects the corresponding web chat agent definition (`default-web-chat`, `default-gemini-web-chat`, `default-codex-web-chat`). Local models appear under Claude with model sub-selection.
+
+16. **Persona system (`mode: persona`)** — Add `"persona"` to the `AgentDefinitionBody.mode` Literal type. Persona-mode definitions are apply-only: `apply_persona_impl()` layers their behavioral config (rules, skills, variables, tool restrictions, system prompt) onto an existing session without spawning. The agent spawner skips `mode: persona` definitions. Add `/personas` as a **web chat slash command** (only available in web UI chat input, not CLI sessions): `list` (shows persona-eligible defs), `apply <name>` (sends WS message → backend calls `apply_persona_impl`), `remove` (resets to default). The provider picker optionally offers persona selection alongside provider choice.
+
+### Persona system details
+
+**New mode value:** `mode: "persona"` on `AgentDefinitionBody` (line 269 of `definitions.py`)
+- `mode: interactive` — spawnable, interactive CLI session
+- `mode: autonomous` — spawnable, runs independently
+- `mode: inherit` — inherits from parent
+- `mode: persona` — **NEW** — apply-only, never spawned
+
+**Composition model:**
+- **Provider** = where/what runs (Claude CLI, Gemini CLI, Codex, local model)
+- **Persona** = how it behaves (rules, skills, system prompt, tool restrictions)
+- A web chat is: `provider + model + optional persona`
+- Same persona can apply to any provider: "code-reviewer" works on Claude, Gemini, or local
+
+**Files to modify:**
+- `src/gobby/workflows/definitions.py:269` — Add `"persona"` to mode Literal
+- `src/gobby/agents/spawn.py` — Skip `mode: persona` in spawn validation
+- `src/gobby/mcp_proxy/tools/apply_persona.py` — Already works, no changes needed
+- Web UI — `/personas` command in command palette
+- `src/gobby/install/shared/workflows/agents/` — Create example persona templates
+
+**Existing infrastructure reused:**
+- `apply_persona_impl()` already does the full behavioral merge
+- `build_persona_changes()` computes rules, skills, variables, step workflows
+- `SessionVariableManager.merge_variables()` persists the changes
+- Web chat agent definitions (`default-web-chat.yaml`, `default-codex-web-chat.yaml`) already demonstrate the pattern
 
 ---
 
-## 7. Key Design Decisions
+## Unified Transcript Rendering
 
-1. **SessionsTab is the control surface, chat area is the viewport.** SessionsTab gets action callbacks; chat area renders whatever session is selected. Clean separation of navigation from display.
+**Already handled.** The transcript renderer and `UnknownBlockCard` component already exist:
 
-2. **Three existing `useChat` primitives are sufficient.** `viewSession` / `attachToSession` / `continueSessionInChat` already implement view / attach / takeover. No new WebSocket message types needed for Phase 1-2. Just need to wire them to SessionsTab and add UX polish.
+- `web/src/components/chat/UnknownBlockCard.tsx` — Renders unrecognized blocks with amber styling, collapsible raw JSON
+- `web/src/components/chat/MessageItem.tsx` — Routes to `UnknownBlockCard` for unknown content types
 
-3. **Strategy pattern for resume.** Keeps provider-specific logic out of the 165-line `_handle_continue_in_chat()`. Easy to add providers.
-
-4. **Transcript-based history for non-native-resume.** Parsers already exist for all providers in `src/gobby/sessions/transcripts/`. No new DB tables needed.
-
-5. **Gemini gets a dedicated `GeminiChatSession` (Phase 5).** Wraps `google-genai` SDK directly for full control over Gemini-specific features (grounding, code execution, native tool use). Resuming a Gemini session keeps you on Gemini — provider agnostic means staying on the same provider, not funneling through Claude.
-
-6. **No database changes.** Existing `sessions` table has `source`, `external_id`, `jsonl_path`, `terminal_context`, `parent_session_id` — everything needed.
-
-7. **LiteLLM for local models.** Rather than separate Ollama/LM Studio/llama.cpp integrations, use LiteLLM as the universal adapter. It already speaks all their protocols via model prefixes (`ollama/llama3`, `openai/lm-studio-model`, etc.). The existing `LiteLLMProvider` handles config and API key management; `LiteLLMChatSession` adds the interactive streaming layer on top.
+**What to verify during implementation:**
+- Non-Claude provider transcripts (Gemini, Codex) render correctly through the unified renderer
+- Unknown tool types from new providers hit the `UnknownBlockCard` path (not crash)
+- Add `console.warn()` logging when unknown blocks are encountered (for diagnostics)
 
 ---
 
-## 8. Messaging Architecture (for reference)
+## Key Design Decisions
 
-Three message delivery mechanisms exist, each at a different layer:
-
-| Mechanism | Path | Used by | Terminal injection? |
-|---|---|---|---|
-| `send_to_cli_session` (WS) | tmux `send-keys` (idle) or DB + hook piggyback (mid-exec) | Web UI (`useChat.ts:1980`) | Yes |
-| `send_message` (MCP, gobby-agents) | DB + hook piggyback only | Agents messaging other agents | No |
-| `terminal_input` (WS) | Raw keystrokes to tmux PTY bridge | Terminals page xterm.js | Yes (raw) |
-
-For web UI session interaction, `send_to_cli_session` is the right tool — it already handles both the "idle at prompt" (tmux) and "mid-execution" (hook) cases. No new messaging infrastructure needed.
-
-Related future work: An MCP tool wrapping the tmux `send-keys` path so agents can also inject terminal commands into other sessions (separate task).
+1. **SessionsTab is the control surface, chat area is the viewport.** Clean separation of navigation from display.
+2. **Three existing `useChat` primitives are sufficient** for Phases 1-2. `viewSession`, `attachToSession`, `continueSessionInChat` already implement view/attach/takeover.
+3. **Strategy pattern for resume** keeps provider logic isolated and easy to extend.
+4. **All three major providers have native resume** (verified via context7): Claude SDK `ClaudeAgentOptions(resume=id)`, Codex `thread_resume(thread_id)`, Gemini CLI `--resume <uuid>`. Transcript injection is fallback only for providers without native resume.
+5. **Subscription-first auth** — CLI subprocesses (claude, gemini, codex) handle their own auth. No API key management needed initially.
+6. **CLI subprocess for all providers** — `ChatSession` wraps `claude`, `CodexChatSession` wraps Codex, `GeminiChatSession` wraps `gemini` (with `--output-format stream-json` for NDJSON streaming). Same pattern throughout.
+7. **No database changes.** Existing `sessions` table has `source`, `external_id`, `jsonl_path`, `terminal_context`, `parent_session_id`.
+8. **Unknown blocks degrade gracefully.** `UnknownBlockCard` already renders amber with collapsible JSON. Just verify the pipeline works for non-Claude content.
+9. **Local models = Claude sessions.** `claude --model local-model` uses the same `ChatSession` class. No special handling needed.
 
 ---
 
-## 9. Critical Files
+## Critical Files
 
-| File | Changes |
-|---|---|
-| `web/src/components/activity/SessionsTab.tsx` | Add action callbacks, replace inline preview with buttons, show capability indicators |
-| `web/src/components/chat/ChatPage.tsx` | Wire SessionsTab callbacks to useChat methods |
-| `web/src/hooks/useChat.ts` | Add computed `interactionMode`, expose `canAttach`/`canTakeOver` from attach result |
-| `web/src/components/chat/CommandBar.tsx` | Mode-specific buttons (Attach/Detach/Take Over/Back) |
-| `web/src/components/chat/ChatInput.tsx` | Mode-specific input bar behavior |
-| `src/gobby/servers/chat_resume_strategy.py` | NEW — ResumeStrategy protocol + per-provider implementations |
-| `src/gobby/servers/websocket/session_control.py` | Refactor `_handle_continue_in_chat()` to use strategy dispatch |
-| `src/gobby/servers/websocket/chat/_session.py` | Add source-based session type routing for resume |
-| `src/gobby/servers/chat_session.py` | Add `history_context` support in `start()` |
-| `src/gobby/servers/gemini_chat_session.py` | NEW — `GeminiChatSession` implementing `ChatSessionProtocol` via `google-genai` SDK |
-| `src/gobby/servers/litellm_chat_session.py` | NEW — `LiteLLMChatSession` implementing `ChatSessionProtocol` via `litellm.acompletion(stream=True)` |
-| `src/gobby/llm/litellm.py` | Existing `LiteLLMProvider` — reuse config/API key management for `LiteLLMChatSession` |
-| `src/gobby/sessions/transcripts/` | Existing parsers reused for history reconstruction |
+| File | Phase | Change |
+|------|-------|--------|
+| `web/src/components/activity/SessionsTab.tsx` | 1 | Add action callbacks, replace inline preview dispatch |
+| `web/src/components/activity/ActivityPanel.tsx` | 1 | Thread callbacks from ChatPage |
+| `web/src/components/chat/ChatPage.tsx` | 1 | Wire useChat methods to SessionsTab |
+| `web/src/hooks/useChat.ts` | 2, 4 | Computed `interactionMode`, capability props |
+| `web/src/components/chat/CommandBar.tsx` | 2, 4 | Mode controls, Take Over, provider picker |
+| `web/src/components/chat/ChatInput.tsx` | 2 | Mode-specific placeholders |
+| `src/gobby/servers/chat_resume_strategy.py` | 3 | **NEW** — Strategy protocol + implementations |
+| `src/gobby/servers/websocket/handlers/session_observe.py` | 3, 4 | Strategy dispatch, attach enrichment |
+| `src/gobby/servers/websocket/chat/_session.py` | 3, 5 | Provider routing |
+| `src/gobby/servers/gemini_chat_session.py` | 5 | **NEW** — GeminiChatSession |
+| `src/gobby/servers/chat_session_base.py` | 3 | ChatSessionProtocol (reference) |
+| `src/gobby/sessions/transcripts/gemini.py` | 5 | Complete parser |
+| `src/gobby/workflows/definitions.py` | 5 | Add `"persona"` to mode Literal |
+| `src/gobby/agents/spawn.py` | 5 | Skip `mode: persona` in spawn validation |
+| `src/gobby/mcp_proxy/tools/apply_persona.py` | 5 | Already works (reference) |
+| `src/gobby/install/shared/workflows/agents/default-gemini-web-chat.yaml` | 5 | **NEW** — Gemini web chat agent def |
+| `src/gobby/config/llm_providers.py` | 5 | Update stale model names (Codex → gpt-5.4/5.3-codex, Gemini → gemini-3-flash/3.1-pro) |
 
-## 10. Verification
+---
 
-- **Phase 1-2:** Open web UI → Sessions tab shows active agents/CLI sessions → click "View" → chat area loads transcript → click "Attach" → input bar enables with "Send to #N" → type message → delivered via `send_to_cli_session` → click "Take Over" → confirmation → new web chat session created
-- **Phase 3:** Resume a Codex session → verify `resume_thread()` called with thread ID. Resume a Gemini session → verify transcript parsed and injected as history context.
-- **Phase 4:** Attach to session → verify response includes `can_interact`, `can_take_over`, `resume_method` → frontend conditionally shows buttons
-- **Swap test:** View session A → click session B in SessionsTab → chat area auto-detaches from A, loads B
-- **LiteLLM test:** Configure `llm_providers.litellm.models` with an Ollama model → start web chat → verify `LiteLLMChatSession` streams responses via `acompletion(stream=True)` → verify tool calls work
-- **Local model test:** Start Ollama/LM Studio → web chat auto-discovers available models → select one → chat works
-- **Provider agnostic:** Repeat all above for Claude, Gemini, Codex, LiteLLM/local, and terminal sessions
+## Verification
+
+- **Phase 1-2:** Sessions tab > click session > chat area loads transcript > click "Attach" in CommandBar > input enables with "Send to #N" > type message > delivered via `send_to_cli_session` > click "Take Over" > confirmation > new web chat session created
+- **Phase 3:** Resume a Codex session > verify `thread_resume(thread_id)` called. Resume a Gemini session > verify `gemini --resume <uuid>` invoked with session UUID.
+- **Phase 4:** Attach to session > verify response includes capabilities > frontend conditionally shows buttons
+- **Phase 5 — Gemini:** Start new web chat with Gemini provider via picker > verify `GeminiChatSession` created > messages stream via `--output-format stream-json` > tool calls render > unknown blocks render as amber cards
+- **Phase 5 — Provider picker:** Click "+" in CommandBar > see Claude/Gemini/Codex options > select Gemini > model dropdown shows `gemini-3.1-pro`, `gemini-3-flash` > start chat > correct agent def selected
+- **Phase 5 — Personas:** `/personas list` shows persona-mode definitions > `/personas apply code-reviewer` > session rules/skills update > `/personas remove` > reverts to default
+- **Swap test:** View session A > click session B in SessionsTab > chat area auto-detaches from A, loads B
+- **Provider test:** Web chat with Claude > swap to watching Gemini CLI session > "Take Over" > new Gemini web chat session with native resume (`--resume <uuid>`)
+- **Persona composition:** Start Gemini web chat > apply "code-reviewer" persona > verify Gemini provider unchanged but rules/skills/prompt updated
+- **Unknown block test:** Feed transcript with unrecognized tool type > renders as `UnknownBlockCard` > console.warn logged
