@@ -64,6 +64,21 @@ from gobby.search.models import SearchConfig
 from gobby.telemetry.config import TelemetrySettings
 
 
+class LocalConfig(BaseModel):
+    """Configuration for local model endpoint (e.g., LMStudio)."""
+
+    url: str = Field(
+        description="Local model API endpoint (e.g., http://localhost:1234/v1)",
+    )
+    model: str = Field(
+        description="Model name to load/use at the local endpoint",
+    )
+    api_key: str | None = Field(
+        default=None,
+        description="API key for the local endpoint. Use $secret:NAME for encrypted secrets store.",
+    )
+
+
 class ToolApprovalPolicy(BaseModel):
     """A single tool approval policy matching server/tool glob patterns."""
 
@@ -481,6 +496,11 @@ class DaemonConfig(BaseModel):
     worktrees_dir: str = Field(
         default="~/.gobby/worktrees",
         description="Base directory for git worktrees (survives reboots, unlike /tmp).",
+    )
+    local: LocalConfig | None = Field(
+        default=None,
+        description="Local model endpoint configuration (e.g., LMStudio). "
+        "When configured, agents with model='local' resolve endpoint and model from here.",
     )
     codex_app_server: bool = Field(
         default=False,

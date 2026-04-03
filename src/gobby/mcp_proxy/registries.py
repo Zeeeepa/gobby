@@ -230,6 +230,7 @@ def setup_internal_registries(
             db=db,
             hook_manager_resolver=hook_manager_resolver,
             completion_registry=completion_registry,
+            daemon_config=_config,
         )
 
         # Add inter-agent messaging tools if dependencies are available

@@ -70,6 +70,7 @@ async def spawn_agent_impl(
     initial_variables: dict[str, Any] | None = None,
     session_manager: Any | None = None,  # LocalSessionManager
     db: Any | None = None,  # DatabaseProtocol
+    daemon_config: Any | None = None,  # DaemonConfig
 ) -> dict[str, Any]:
     """
     Core spawn_agent implementation that can be called directly.
@@ -163,6 +164,33 @@ async def spawn_agent_impl(
                 effective_api_token = os.environ.get(token[2:-1])
             else:
                 effective_api_token = token
+
+    # Resolve model: local from daemon config
+    if effective_model == "local":
+        from gobby.config.app import LocalConfig
+
+        local_cfg: LocalConfig | None = (
+            getattr(daemon_config, "local", None) if daemon_config else None
+        )
+        if not local_cfg:
+            return {
+                "success": False,
+                "error": "model: local requires a 'local' section in daemon config "
+                "(local.url, local.model)",
+            }
+        effective_api_base = effective_api_base or local_cfg.url
+        effective_model = local_cfg.model
+        if not effective_api_token and local_cfg.api_key:
+            effective_api_token = local_cfg.api_key
+
+        # Pre-flight: ensure correct model is loaded (returns resolved name for auto mode)
+        try:
+            from gobby.agents.local_model import ensure_local_model
+
+            registry = runner.registry if hasattr(runner, "registry") else None
+            effective_model = await ensure_local_model(local_cfg, registry=registry)
+        except Exception as e:
+            return {"success": False, "error": f"Local model pre-flight failed: {e}"}
 
     effective_timeout = timeout
     if effective_timeout is None and agent_body and agent_body.timeout:

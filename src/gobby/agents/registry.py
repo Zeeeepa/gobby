@@ -81,6 +81,9 @@ class RunningAgent:
     provider: str = "claude"
     """LLM provider being used."""
 
+    model: str | None = None
+    """Model being used (e.g., 'local' for local model agents)."""
+
     workflow_name: str | None = None
     """Workflow being executed, if any."""
 
@@ -126,6 +129,7 @@ class RunningAgent:
             "terminal_type": self.terminal_type,
             "tmux_session_name": self.tmux_session_name,
             "provider": self.provider,
+            "model": self.model,
             "workflow_name": self.workflow_name,
             "worktree_id": self.worktree_id,
             "clone_id": self.clone_id,
@@ -146,6 +150,7 @@ class RunningAgent:
             "started_at": self.started_at.isoformat(),
             "pid": self.pid,
             "provider": self.provider,
+            "model": self.model,
             "task_id": self.task_id,
             "stall_status": self.stall_status,
             "has_task": self.task is not None,
