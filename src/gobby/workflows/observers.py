@@ -370,6 +370,9 @@ def detect_plan_mode_from_context(prompt: str, variables: dict[str, Any], sessio
                     f"Session {session_id}: mode_level=0 (plan) "
                     f"(detected from system reminder: '{indicator}')"
                 )
+            if not variables.get("plan_mode"):
+                variables["plan_mode"] = True
+                logger.info(f"Session {session_id}: plan_mode=True")
             return
 
     exit_indicators = [
@@ -386,6 +389,10 @@ def detect_plan_mode_from_context(prompt: str, variables: dict[str, Any], sessio
                     f"Session {session_id}: mode_level={variables['mode_level']} "
                     f"(detected from system reminder: '{indicator}')"
                 )
+            if variables.get("plan_mode"):
+                variables["plan_mode"] = False
+                variables["plan_skill_loaded"] = False
+                logger.info(f"Session {session_id}: plan_mode=False")
             return
 
     # --- Pass 2: Gemini CLI markdown indicators ---

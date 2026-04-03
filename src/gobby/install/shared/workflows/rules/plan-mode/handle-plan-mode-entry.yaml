@@ -2,17 +2,14 @@ tags: [plan-mode, state-tracking, gobby, default]
 
 rules:
   handle-plan-mode-entry:
-    description: "Set plan_mode=true and mode_level=0 when EnterPlanMode is called"
-    event: after_tool
+    description: "Inject plan skill when plan mode is active"
+    event: before_agent
     enabled: true
     priority: 10
-    when: "event.data.get('tool_name') == 'EnterPlanMode'"
+    when: "variables.get('plan_mode') and not variables.get('plan_skill_loaded')"
     effects:
-      - type: set_variable
-        variable: plan_mode
-        value: true
-      - type: set_variable
-        variable: mode_level
-        value: 0
       - type: load_skill
         skill: plan
+      - type: set_variable
+        variable: plan_skill_loaded
+        value: true

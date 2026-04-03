@@ -1,7 +1,7 @@
 """Tests for plan-mode rules.
 
-Verifies plan-mode detection (enter/exit via multi-effect rules),
-mode_level tracking, and session_start reset all work correctly.
+Verifies plan-mode detection (enter/exit via observer + rules),
+skill injection, mode_level tracking, and session_start reset.
 """
 
 from __future__ import annotations
@@ -82,44 +82,52 @@ class TestPlanModeSync:
                 for effect in body.resolved_effects:
                     assert effect.type in {"set_variable", "load_skill"}
 
+    def test_inject_plan_skill_rule_deleted(self, db, manager) -> None:
+        """inject-plan-skill (redundant duplicate) should not exist after sync."""
+        _sync_bundled(db)
+
+        rules = manager.list_all(workflow_type="rule")
+        rule_names = {r.name for r in rules}
+        assert "inject-plan-skill" not in rule_names
+
 
 class TestHandlePlanModeEntry:
-    """Verify handle-plan-mode-entry multi-effect rule."""
+    """Verify handle-plan-mode-entry: before_agent, skill injection only."""
 
-    def test_sets_plan_mode_and_mode_level(self, db, manager) -> None:
-        """Should set plan_mode=true and mode_level=0 on EnterPlanMode."""
+    def test_fires_on_before_agent_with_plan_mode_guard(self, db, manager) -> None:
+        """Should fire on before_agent when plan_mode is set."""
         _sync_bundled(db)
 
         row = manager.get_by_name("handle-plan-mode-entry")
         assert row is not None
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
-        assert body.event.value == "after_tool"
-        effects = body.resolved_effects
-        assert len(effects) == 3
-        assert effects[0].variable == "plan_mode"
-        assert effects[0].value is True
-        assert effects[1].variable == "mode_level"
-        assert effects[1].value == 0
-        assert effects[2].type == "load_skill"
-        assert effects[2].skill == "plan"
+        assert body.event.value == "before_agent"
+        assert body.when is not None
+        assert "plan_mode" in body.when
+        assert "plan_skill_loaded" in body.when
 
-    def test_when_condition_matches_enter_plan_mode(self, db, manager) -> None:
-        """Should fire when tool_name is EnterPlanMode."""
+    def test_effects_load_skill_and_set_guard(self, db, manager) -> None:
+        """Should load plan skill and set plan_skill_loaded guard."""
         _sync_bundled(db)
 
         row = manager.get_by_name("handle-plan-mode-entry")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
-        assert body.when is not None
-        assert "EnterPlanMode" in body.when
+        effects = body.resolved_effects
+        assert len(effects) == 2
+        assert effects[0].type == "load_skill"
+        assert effects[0].skill == "plan"
+        assert effects[1].type == "set_variable"
+        assert effects[1].variable == "plan_skill_loaded"
+        assert effects[1].value is True
 
 
 class TestHandlePlanModeExit:
-    """Verify handle-plan-mode-exit multi-effect rule."""
+    """Verify handle-plan-mode-exit: after_tool on approved ExitPlanMode."""
 
-    def test_sets_plan_mode_false_and_restores_mode_level(self, db, manager) -> None:
-        """Should set plan_mode=false and restore mode_level on ExitPlanMode."""
+    def test_fires_on_after_tool_for_exit_plan_mode(self, db, manager) -> None:
+        """Should fire on after_tool when ExitPlanMode succeeds."""
         _sync_bundled(db)
 
         row = manager.get_by_name("handle-plan-mode-exit")
@@ -127,24 +135,23 @@ class TestHandlePlanModeExit:
 
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
         assert body.event.value == "after_tool"
+        assert body.when is not None
+        assert "ExitPlanMode" in body.when
+        assert "is_failure" in body.when
+
+    def test_clears_plan_mode_and_skill_loaded(self, db, manager) -> None:
+        """Should clear plan_mode and plan_skill_loaded on approved exit."""
+        _sync_bundled(db)
+
+        row = manager.get_by_name("handle-plan-mode-exit")
+        body = RuleDefinitionBody.model_validate_json(row.definition_json)
+
         effects = body.resolved_effects
         assert len(effects) == 2
         assert effects[0].variable == "plan_mode"
         assert effects[0].value is False
-        assert effects[1].variable == "mode_level"
-        # The value is a template expression that maps chat_mode to mode_level
-        assert isinstance(effects[1].value, str)
-        assert "chat_mode" in effects[1].value
-
-    def test_when_condition_matches_exit_plan_mode(self, db, manager) -> None:
-        """Should fire when tool_name is ExitPlanMode."""
-        _sync_bundled(db)
-
-        row = manager.get_by_name("handle-plan-mode-exit")
-        body = RuleDefinitionBody.model_validate_json(row.definition_json)
-
-        assert body.when is not None
-        assert "ExitPlanMode" in body.when
+        assert effects[1].variable == "plan_skill_loaded"
+        assert effects[1].value is False
 
 
 class TestResetPlanModeOnSessionStart:

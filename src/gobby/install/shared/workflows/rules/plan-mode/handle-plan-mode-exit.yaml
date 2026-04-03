@@ -2,15 +2,17 @@ tags: [plan-mode, state-tracking, gobby, default]
 
 rules:
   handle-plan-mode-exit:
-    description: "Set plan_mode=false and restore mode_level when ExitPlanMode is called"
+    description: "Clear plan_mode when ExitPlanMode succeeds (agent-initiated exit)"
     event: after_tool
     enabled: true
     priority: 10
-    when: "event.data.get('tool_name') == 'ExitPlanMode'"
+    when: >
+      event.data.get('tool_name') == 'ExitPlanMode'
+      and not event.metadata.get('is_failure')
     effects:
       - type: set_variable
         variable: plan_mode
         value: false
       - type: set_variable
-        variable: mode_level
-        value: "{{ {'plan': 0, 'accept_edits': 1, 'normal': 1}.get(variables.get('chat_mode', 'bypass'), 2) }}"
+        variable: plan_skill_loaded
+        value: false

@@ -76,28 +76,37 @@ class TestDetectPlanModeFromContext:
         prompt = "User prompt here\n<system-reminder>Plan mode is active</system-reminder>"
         detect_plan_mode_from_context(prompt, variables, SESSION_ID)
         assert variables.get("mode_level") == 0
+        assert variables.get("plan_mode") is True
 
     def test_detects_plan_mode_still_active(self, variables) -> None:
         prompt = "<system-reminder>Plan mode still active</system-reminder>\nWhat should I do?"
         detect_plan_mode_from_context(prompt, variables, SESSION_ID)
         assert variables.get("mode_level") == 0
+        assert variables.get("plan_mode") is True
 
     def test_detects_you_are_in_plan_mode(self, variables) -> None:
         prompt = "<system-reminder>You are in plan mode</system-reminder>. Please continue."
         detect_plan_mode_from_context(prompt, variables, SESSION_ID)
         assert variables.get("mode_level") == 0
+        assert variables.get("plan_mode") is True
 
     def test_detects_exited_plan_mode(self, variables) -> None:
         variables["mode_level"] = 0
+        variables["plan_mode"] = True
+        variables["plan_skill_loaded"] = True
         prompt = "<system-reminder>Exited Plan Mode</system-reminder>. Now implement."
         detect_plan_mode_from_context(prompt, variables, SESSION_ID)
         assert variables.get("mode_level") != 0
+        assert variables.get("plan_mode") is False
+        assert variables.get("plan_skill_loaded") is False
 
     def test_does_not_change_when_already_in_plan_mode(self, variables) -> None:
         variables["mode_level"] = 0
+        variables["plan_mode"] = True
         prompt = "<system-reminder>Plan mode is active</system-reminder>"
         detect_plan_mode_from_context(prompt, variables, SESSION_ID)
         assert variables.get("mode_level") == 0
+        assert variables.get("plan_mode") is True
 
     def test_heals_stale_plan_mode_when_no_markers(self, variables) -> None:
         """After clear/compact, mode_level=0 persists but no CLI injects markers."""
