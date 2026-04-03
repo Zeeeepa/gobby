@@ -29,7 +29,8 @@ async def _get_loaded_models(client: httpx.AsyncClient, base_url: str) -> list[d
     resp = await client.get(url, timeout=10.0)
     resp.raise_for_status()
     data = resp.json()
-    return data.get("data", [])
+    result: list[dict[str, Any]] = data.get("data", [])
+    return result
 
 
 async def _load_model(client: httpx.AsyncClient, base_url: str, model: str) -> None:
@@ -99,7 +100,7 @@ async def ensure_local_model(
                 f"Local model endpoint returned error: {e.response.status_code}"
             ) from e
 
-        loaded_ids = [m.get("id", "") for m in loaded]
+        loaded_ids: list[str] = [m.get("id", "") for m in loaded]
 
         # Auto mode: use whatever is currently loaded, don't manage models
         if config.model == "auto":

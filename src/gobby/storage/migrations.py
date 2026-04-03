@@ -201,6 +201,12 @@ def _setup_skills_fts(db: LocalDatabase) -> None:
     """)
 
 
+def _setup_fts_tables(db: LocalDatabase) -> None:
+    """Set up FTS5 tables for both tasks and skills."""
+    _setup_tasks_fts(db)
+    _setup_skills_fts(db)
+
+
 def _drop_summary_column(db: LocalDatabase) -> None:
     """Drop summary column from code_symbols and rebuild FTS without it.
 
@@ -375,7 +381,7 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (
         181,
         "Add FTS5 search tables for tasks and skills",
-        lambda db: (_setup_tasks_fts(db), _setup_skills_fts(db)),
+        _setup_fts_tables,
     ),
     (
         182,

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 from gobby.search.fts5 import FTS5SearchBackend, sanitize_fts_query
 
 if TYPE_CHECKING:
-    from gobby.storage.database import LocalDatabase
+    from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class TaskFTS5Searcher:
     All filters are pushed into SQL WHERE clauses for single-query search.
     """
 
-    def __init__(self, db: LocalDatabase):
+    def __init__(self, db: DatabaseProtocol):
         self._db = db
         self._backend = FTS5SearchBackend(
             db=db,

@@ -5,7 +5,7 @@ Provides CRUD endpoints for managing workflow definitions in the database.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import yaml
 from fastapi import APIRouter, HTTPException, Query
@@ -32,7 +32,7 @@ class CreateWorkflowRequest(BaseModel):
     priority: int = 100
     sources: list[str] | None = None
     canvas_json: str | None = None
-    source: str = "installed"
+    source: Literal["installed", "agent", "project", "custom"] = "installed"
     tags: list[str] | None = None
 
 

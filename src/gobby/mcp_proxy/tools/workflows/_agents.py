@@ -232,7 +232,7 @@ def delete_agent_definition(
     if row is None or row.workflow_type != "agent":
         return {"success": False, "error": f"Agent definition '{name}' not found"}
 
-    if row.source == "bundled" and not force:
+    if row.source == "installed" and not force:
         return {
             "success": False,
             "error": (

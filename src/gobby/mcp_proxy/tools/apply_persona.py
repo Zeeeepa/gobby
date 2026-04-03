@@ -203,12 +203,10 @@ async def apply_persona_impl(
         try:
             from gobby.utils.project_context import get_project_context
 
-            ctx = get_project_context()
-            project_id = ctx.get("id") if ctx else None
+            proj_ctx = get_project_context()
+            project_id = proj_ctx.get("id") if proj_ctx else None
             if project_id:
-                from gobby.mcp_proxy.tools.spawn_agent._implementation import (
-                    resolve_task_id_for_mcp,
-                )
+                from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
 
                 resolved_id = resolve_task_id_for_mcp(task_manager, task_id, project_id)
                 task = task_manager.get_task(resolved_id)

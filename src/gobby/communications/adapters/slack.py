@@ -167,7 +167,8 @@ class SlackAdapter(BaseChannelAdapter):
         if not data.get("ok"):
             raise ValueError(f"Failed to send Slack message: {data.get('error', 'Unknown error')}")
 
-        return data.get("ts")
+        result: str | None = data.get("ts")
+        return result
 
     async def _send_markdown(self, client: httpx.AsyncClient, message: CommsMessage) -> str | None:
         """Send markdown content wrapped in a mrkdwn section block."""

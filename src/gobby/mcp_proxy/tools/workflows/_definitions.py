@@ -280,7 +280,7 @@ def delete_workflow_definition(
     except ValueError as e:
         return {"success": False, "error": str(e)}
 
-    if row.source == "bundled" and not force:
+    if row.source == "installed" and not force:
         return {
             "success": False,
             "error": (

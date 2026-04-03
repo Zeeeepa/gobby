@@ -398,7 +398,8 @@ class DiscordAdapter(BaseChannelAdapter):
         route = f"/channels/{channel_id}/messages"
         response = await self._rate_limited_request(route, "post", json=payload)
         data = response.json()
-        return data.get("id")
+        result: str | None = data.get("id")
+        return result
 
     async def send_attachment(
         self, message: CommsMessage, attachment: CommsAttachment, file_path: Path

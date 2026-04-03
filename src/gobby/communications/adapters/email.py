@@ -199,7 +199,7 @@ class EmailAdapter(BaseChannelAdapter):
         if self._auth_method == "oauth2":
             token = await self._get_oauth2_token()
             auth_string = self._build_xoauth2_string(token)
-            await smtp_client.command("AUTH XOAUTH2 " + auth_string)
+            await smtp_client.execute_command(b"AUTH XOAUTH2 " + auth_string.encode())
         else:
             await smtp_client.login(self._from_address, self._password)
 

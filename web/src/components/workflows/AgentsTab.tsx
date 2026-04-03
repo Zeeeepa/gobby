@@ -51,6 +51,7 @@ interface AgentDefInfo {
   overridden_by: string | null
   deleted_at: string | null
   tags: string[] | null
+  has_template_update?: boolean
 }
 
 // =============================================================================

@@ -801,7 +801,8 @@ class CommunicationsManager:
         if not hasattr(adapter, "send_proactive"):
             raise ValueError(f"Channel {channel_name!r} does not support proactive messaging")
 
-        return await adapter.send_proactive(conversation_id, content, content_type)
+        result: str | None = await adapter.send_proactive(conversation_id, content, content_type)  # type: ignore[attr-defined]
+        return result
 
     def list_messages(
         self,

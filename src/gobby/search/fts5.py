@@ -14,7 +14,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from gobby.storage.database import LocalDatabase
+    from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ class FTS5SearchBackend:
 
     def __init__(
         self,
-        db: LocalDatabase,
+        db: DatabaseProtocol,
         fts_table: str,
         content_table: str | None,
         id_column: str = "id",

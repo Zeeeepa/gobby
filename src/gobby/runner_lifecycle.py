@@ -132,7 +132,7 @@ async def _init_subsystems(runner: GobbyRunner, rebuild_vector_store: Any) -> No
 
         # Build summarizer if LLM service is available and summaries are enabled
         summarizer = None
-        if runner.config.code_index.summary_enabled and getattr(runner, "llm_service", None):
+        if runner.config.code_index.summary_enabled and runner.llm_service is not None:
             from gobby.code_index.summarizer import SymbolSummarizer
 
             try:

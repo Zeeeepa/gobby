@@ -259,7 +259,7 @@ def delete_rule(
     if row is None or row.workflow_type != "rule":
         return {"success": False, "error": f"Rule '{name}' not found"}
 
-    if row.source == "bundled" and not force:
+    if row.source == "installed" and not force:
         return {
             "success": False,
             "error": (

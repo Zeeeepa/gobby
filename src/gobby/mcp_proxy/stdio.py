@@ -123,7 +123,8 @@ class DaemonProxy:
                 )
                 if resp.status_code == 200:
                     data: dict[str, Any] = resp.json()
-                    return _strip_none(data)
+                    result: dict[str, Any] = _strip_none(data)
+                    return result
                 else:
                     return {"success": False, "error": f"HTTP {resp.status_code}: {resp.text}"}
         except httpx.ConnectError:
