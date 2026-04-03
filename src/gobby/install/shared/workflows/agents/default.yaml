@@ -1,6 +1,6 @@
 name: default
 description: Baseline agent — loads all default-tagged rules, all skills available, inherits provider from CLI
-mode: self
+mode: inherit
 provider: inherit
 timeout: 0
 max_turns: 0

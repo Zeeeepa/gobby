@@ -38,7 +38,7 @@ def resolve_agent(
     row = manager.get_by_name(name, project_id=project_id)
     if not row or row.workflow_type != "agent" or not row.definition_json:
         if name == "default":
-            return AgentDefinitionBody(name="default", mode="self")
+            return AgentDefinitionBody(name="default", mode="inherit")
         return None
 
     try:

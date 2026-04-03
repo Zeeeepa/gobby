@@ -613,4 +613,40 @@ def create_agents_registry(
     for tool_name, tool in spawn_registry._tools.items():
         registry._tools[tool_name] = tool
 
+    # --- apply_persona tool ---
+
+    @registry.tool(
+        name="apply_persona",
+        description=(
+            "Apply an agent definition's persona to the current session. "
+            "Sets agent type, activates matching rules and skills, creates step "
+            "workflow instance if the agent defines steps, and merges variables. "
+            "Does not spawn a new process or create a child session."
+        ),
+    )
+    async def apply_persona(
+        agent: str,
+        variables: dict[str, Any] | None = None,
+        task_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Apply an agent definition's persona to the current session.
+
+        Args:
+            agent: Agent definition name to apply (e.g. "developer", "qa-reviewer").
+            variables: Additional variables to merge after persona changes.
+            task_id: Optional task reference to bind to the session.
+
+        Returns:
+            Dict with success status and activation details.
+        """
+        from gobby.mcp_proxy.tools.apply_persona import apply_persona_impl
+
+        return await apply_persona_impl(
+            agent=agent,
+            db=db,
+            variables=variables,
+            task_id=task_id,
+            task_manager=task_manager,
+        )
+
     return registry

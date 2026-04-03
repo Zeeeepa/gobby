@@ -25,7 +25,6 @@ from gobby.utils.project_context import get_project_context
 from gobby.workflows.definitions import AgentDefinitionBody
 
 from ._health import TMUX_HEALTH_CHECK_DELAY, _check_tmux_session_alive, _health_check_tasks
-from ._modes import _handle_self_persona
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
@@ -54,8 +53,7 @@ async def spawn_agent_impl(
     clone_manager: Any | None = None,
     # Execution
     workflow: str | None = None,
-    mode: Literal["terminal", "autonomous", "self"] | None = None,
-    initial_step: str | None = None,  # For mode=self, start at specific step
+    mode: Literal["terminal", "autonomous"] | None = None,
     provider: str | None = None,
     model: str | None = None,
     # Limits
@@ -93,8 +91,7 @@ async def spawn_agent_impl(
         clone_storage: Storage for clone records
         clone_manager: Git manager for clone operations
         workflow: Workflow to use
-        mode: Execution mode (terminal/autonomous/self)
-        initial_step: For mode=self, start at specific step
+        mode: Execution mode (terminal/autonomous)
         provider: AI provider (claude/gemini/codex/cursor/windsurf/copilot)
         model: Model to use
         timeout: Timeout in seconds
@@ -131,7 +128,7 @@ async def spawn_agent_impl(
     assert _raw_provider is not None  # guaranteed by fallback above
     effective_provider: str = _raw_provider
 
-    VALID_MODES = ("terminal", "autonomous", "self")
+    VALID_MODES = ("terminal", "autonomous")
 
     _raw_mode: str | None = mode
     # Reject explicitly invalid modes early (before fallback logic)
@@ -145,7 +142,7 @@ async def spawn_agent_impl(
     if _raw_mode in (None, "inherit"):
         _raw_mode = "terminal"
     effective_mode = cast(
-        Literal["terminal", "autonomous", "self"],
+        Literal["terminal", "autonomous"],
         _raw_mode if _raw_mode in VALID_MODES else "terminal",
     )
 
@@ -174,61 +171,6 @@ async def spawn_agent_impl(
         effective_timeout = None  # 0 means no timeout
 
     effective_workflow = workflow
-
-    # Handle mode=self: activate workflow on caller session instead of spawning
-    if effective_mode == "self":
-        if effective_isolation != "none":
-            logger.debug(f"mode=self overrides isolation={effective_isolation} to 'none'")
-            effective_isolation = "none"
-        if not effective_workflow and not agent_body:
-            return {
-                "success": False,
-                "error": "mode: self requires a workflow to activate or an agent persona",
-            }
-        if not parent_session_id:
-            return {
-                "success": False,
-                "error": "mode: self requires parent_session_id (the session to activate on)",
-            }
-
-        # Resolve initial_variables for workflow activation
-        self_step_variables: dict[str, Any] = {}
-        if initial_variables:
-            self_step_variables.update(initial_variables)
-
-        # Pass the agent lookup name so orchestrator workflows can spawn workers
-        if agent_lookup_name:
-            self_step_variables["agent_name"] = agent_lookup_name
-
-        if task_id and task_manager:
-            ctx = get_project_context(Path(project_path) if project_path else None)
-            self_project_id = ctx.get("id") if ctx else None
-            if self_project_id:
-                try:
-                    self_task_id = resolve_task_id_for_mcp(task_manager, task_id, self_project_id)
-                    task = task_manager.get_task(self_task_id)
-                    if task:
-                        task_ref = f"#{task.seq_num}" if task.seq_num else self_task_id
-                        self_step_variables["assigned_task_id"] = task_ref
-                        self_step_variables["session_task"] = task_ref
-                except Exception as e:
-                    logger.warning(f"Failed to resolve task_id {task_id}: {e}")
-
-        if effective_workflow:
-            return {
-                "success": False,
-                "error": "Step workflows are removed. Use pipelines instead.",
-            }
-        else:
-            if agent_body is None:
-                return {"success": False, "error": "Agent body is required for self-persona mode"}
-            return await _handle_self_persona(
-                agent_body=agent_body,
-                agent_name=agent_lookup_name or agent_body.name,
-                parent_session_id=parent_session_id,
-                session_manager=session_manager,
-                db=db,
-            )
 
     effective_base_branch = base_branch
     if effective_base_branch is None and agent_body:

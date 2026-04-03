@@ -734,56 +734,21 @@ class SessionStartMixin(EventHandlersBase):
         """
         if self._session_storage is None:
             raise RuntimeError("session storage is not initialized")
-        import json
 
-        from gobby.workflows.selectors import (
-            resolve_rules_for_agent,
-            resolve_skills_for_agent,
-            resolve_variables_for_agent,
-        )
-
-        active_rules = resolve_rules_for_agent(agent_body, enabled_rules)
+        from gobby.mcp_proxy.tools.apply_persona import build_persona_changes
 
         session = self._session_storage.get(session_id)
         is_spawned = bool(session and session.agent_run_id)
 
-        changes: dict[str, Any] = {
-            "_agent_type": agent_body.name,
-            "_active_rule_names": list(active_rules),
-            "is_spawned_agent": is_spawned,
-        }
-
-        active_skills = resolve_skills_for_agent(agent_body, all_skills)
-        if active_skills is not None:
-            changes["_active_skill_names"] = list(active_skills)
-
-        if agent_body.workflows and agent_body.workflows.skill_format:
-            changes["_skill_format"] = agent_body.workflows.skill_format
-
-        if agent_body.workflows and agent_body.workflows.variables:
-            for key, value in agent_body.workflows.variables.items():
-                if key.startswith("_"):
-                    self.logger.warning(f"Skipping reserved variable {key!r} from agent definition")
-                    continue
-                changes[key] = value
-
-        active_variable_names = resolve_variables_for_agent(agent_body, enabled_variables)
-        for var_row in enabled_variables:
-            if active_variable_names is None or var_row.name in active_variable_names:
-                try:
-                    var_body = json.loads(var_row.definition_json)
-                    if var_row.name not in changes:
-                        changes[var_row.name] = var_body.get("value")
-                except json.JSONDecodeError:
-                    self.logger.debug(f"Failed to parse variable definition for {var_row.name}")
-
-        # Agent-level tool restrictions
-        if agent_body.blocked_tools:
-            changes["_agent_blocked_tools"] = agent_body.blocked_tools
-        if agent_body.blocked_mcp_tools:
-            changes["_agent_blocked_mcp_tools"] = agent_body.blocked_mcp_tools
-
-        return changes, active_rules, active_skills
+        return build_persona_changes(
+            agent_body=agent_body,
+            session_id=session_id,
+            db=self._session_storage.db,
+            enabled_rules=enabled_rules,
+            all_skills=all_skills,
+            enabled_variables=enabled_variables,
+            is_spawned=is_spawned,
+        )
 
     def _setup_code_index(self, session_id: str | None, project_id: str | None) -> None:
         """Set code_index_available session variable if the project has an index."""

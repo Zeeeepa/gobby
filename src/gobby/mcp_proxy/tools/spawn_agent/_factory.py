@@ -149,8 +149,7 @@ def create_spawn_agent_registry(
         worktree_id: str | None = None,
         # Execution
         workflow: str | None = None,
-        mode: Literal["terminal", "autonomous", "self"] | None = None,
-        initial_step: str | None = None,
+        mode: Literal["terminal", "autonomous"] | None = None,
         provider: str | None = None,
         model: str | None = None,
         # Limits
@@ -178,9 +177,7 @@ def create_spawn_agent_registry(
             clone_id: Existing clone ID to reuse
             worktree_id: Existing worktree ID to reuse
             workflow: Workflow/pipeline to use
-            mode: Execution mode (terminal/embedded/headless/self).
-                  'self' activates workflow on caller session instead of spawning.
-            initial_step: For mode=self, start at specific step (defaults to first)
+            mode: Execution mode (terminal/autonomous)
             provider: AI provider (claude/gemini/codex/cursor/windsurf/copilot)
             model: Model to use
             timeout: Timeout in seconds
@@ -324,7 +321,6 @@ def create_spawn_agent_registry(
             clone_manager=clone_manager,
             workflow=effective_workflow,
             mode=mode,
-            initial_step=initial_step,
             provider=provider,
             model=model,
             timeout=timeout,

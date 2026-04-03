@@ -1406,7 +1406,7 @@ class TestSpawnAgentImplErrorBranches:
         assert "Invalid mode" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_mode_self_no_workflow_no_agent_body_errors(self) -> None:
+    async def test_mode_self_is_now_invalid(self) -> None:
         from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
 
         runner = MagicMock()
@@ -1414,39 +1414,9 @@ class TestSpawnAgentImplErrorBranches:
             prompt="test",
             runner=runner,
             mode="self",
-            parent_session_id="sess-1",
         )
         assert result["success"] is False
-        assert "workflow" in result["error"].lower() or "persona" in result["error"].lower()
-
-    @pytest.mark.asyncio
-    async def test_mode_self_no_parent_session_errors(self) -> None:
-        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
-
-        runner = MagicMock()
-        result = await spawn_agent_impl(
-            prompt="test",
-            runner=runner,
-            mode="self",
-            workflow="some-workflow",
-        )
-        assert result["success"] is False
-        assert "parent_session_id" in result["error"]
-
-    @pytest.mark.asyncio
-    async def test_mode_self_with_workflow_returns_removed_error(self) -> None:
-        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
-
-        runner = MagicMock()
-        result = await spawn_agent_impl(
-            prompt="test",
-            runner=runner,
-            mode="self",
-            workflow="some-workflow",
-            parent_session_id="sess-1",
-        )
-        assert result["success"] is False
-        assert "removed" in result["error"].lower() or "pipeline" in result["error"].lower()
+        assert "Invalid mode" in result["error"]
 
     @pytest.mark.asyncio
     async def test_no_project_context_returns_error(self) -> None:
@@ -1724,45 +1694,6 @@ class TestSpawnAgentImplErrorBranches:
             )
             assert result["success"] is True
 
-    @pytest.mark.asyncio
-    async def test_mode_self_persona_delegation(self) -> None:
-        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
-
-        runner = MagicMock()
-        agent_body = AgentDefinitionBody(
-            name="persona-agent",
-            instructions="Be helpful",
-        )
-
-        with patch(
-            "gobby.mcp_proxy.tools.spawn_agent._implementation._handle_self_persona",
-            new_callable=AsyncMock,
-            return_value={"success": True, "message": "persona activated"},
-        ) as mock_persona:
-            result = await spawn_agent_impl(
-                prompt="test",
-                runner=runner,
-                mode="self",
-                agent_body=agent_body,
-                parent_session_id="sess-1",
-            )
-            assert result["success"] is True
-            mock_persona.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_mode_self_no_agent_body_errors(self) -> None:
-        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
-
-        runner = MagicMock()
-        result = await spawn_agent_impl(
-            prompt="test",
-            runner=runner,
-            mode="self",
-            parent_session_id="sess-1",
-            agent_body=None,
-        )
-        assert result["success"] is False
-        assert "workflow" in result["error"].lower() or "persona" in result["error"].lower()
 
 
 # ═══════════════════════════════════════════════════════════════════════

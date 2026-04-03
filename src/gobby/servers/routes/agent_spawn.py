@@ -307,7 +307,7 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
         from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
 
         # Map HTTP modes to the mode enum spawn_agent_impl expects
-        spawn_mode: Literal["terminal", "autonomous", "self"] = (
+        spawn_mode: Literal["terminal", "autonomous"] = (
             "autonomous" if req.mode == "autonomous" else "terminal"
         )
 

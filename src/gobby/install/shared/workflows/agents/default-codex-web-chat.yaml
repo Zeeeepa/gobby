@@ -1,6 +1,6 @@
 name: default-codex-web-chat
 description: Web chat agent using Codex (OpenAI) backend
-mode: self
+mode: inherit
 provider: codex
 sources: [codex_web_chat]
 
