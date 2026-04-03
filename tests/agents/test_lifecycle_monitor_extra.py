@@ -1,10 +1,11 @@
 """Additional tests for AgentLifecycleMonitor."""
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from gobby.agents.lifecycle_monitor import AgentLifecycleMonitor
+from gobby.agents.prompt_detector import PromptDetector
 from gobby.storage.agents import AgentRun
 
 pytestmark = pytest.mark.unit
@@ -242,3 +243,164 @@ class TestRecoverTaskFromFailedAgent:
         cleaned = await monitor.cleanup_stale_pending_runs()
         assert cleaned == 5
         mock_run_mgr.cleanup_stale_pending_runs.assert_called_once()
+
+
+class TestLoopPromptEscalation:
+    """Tests for loop prompt counting and escalation in check_loop_prompts."""
+
+    @pytest.mark.asyncio
+    async def test_dismisses_below_threshold(self) -> None:
+        """Loop prompts are dismissed normally when count < threshold."""
+        mock_run_mgr = MagicMock()
+        mock_tmux = AsyncMock()
+        monitor = AgentLifecycleMonitor(
+            agent_run_manager=mock_run_mgr,
+            db=MagicMock(),
+        )
+        monitor._tmux = mock_tmux
+
+        run = AgentRun(
+            id="run-1",
+            parent_session_id="p",
+            provider="claude",
+            prompt="p",
+            status="running",
+            created_at="2024-01-01",
+            updated_at="2024-01-01",
+            tmux_session_name="gobby-test",
+            pid=12345,
+        )
+        mock_run_mgr.list_active.return_value = [run]
+        mock_tmux.capture_pane.return_value = "stuck in a loop\nContinue? (y/n)"
+        mock_tmux.send_keys.return_value = True
+
+        handled = await monitor.check_loop_prompts()
+        assert handled == 1
+        mock_tmux.send_keys.assert_called_once_with(
+            "gobby-test", PromptDetector.LOOP_DISMISS_KEYS
+        )
+        assert monitor._loop_tracker.get_count("run-1") == 1
+
+    @pytest.mark.asyncio
+    async def test_escalates_at_threshold(self) -> None:
+        """After 3 dismissals, agent is killed instead of dismissed."""
+        mock_run_mgr = MagicMock()
+        mock_tmux = AsyncMock()
+        monitor = AgentLifecycleMonitor(
+            agent_run_manager=mock_run_mgr,
+            db=MagicMock(),
+        )
+        monitor._tmux = mock_tmux
+
+        run = AgentRun(
+            id="run-1",
+            parent_session_id="p",
+            provider="claude",
+            prompt="p",
+            status="running",
+            created_at="2024-01-01",
+            updated_at="2024-01-01",
+            tmux_session_name="gobby-test",
+            pid=12345,
+        )
+        mock_run_mgr.list_active.return_value = [run]
+        mock_tmux.capture_pane.return_value = "stuck in a loop"
+
+        # Pre-load 2 dismissals
+        monitor._loop_tracker.record_dismissal("run-1")
+        monitor._loop_tracker.record_dismissal("run-1")
+
+        with patch.object(
+            monitor, "_checkpoint_and_kill_looping_agent", new_callable=AsyncMock
+        ) as mock_kill:
+            await monitor.check_loop_prompts()
+            mock_kill.assert_called_once_with(run)
+
+        # send_keys should NOT have been called (escalated instead)
+        mock_tmux.send_keys.assert_not_called()
+
+
+class TestDispatchFailureCountCRUD:
+    """Tests for dispatch_failure_count in task CRUD operations."""
+
+    def test_task_has_dispatch_failure_count_field(self) -> None:
+        """Task dataclass includes dispatch_failure_count defaulting to 0."""
+        from gobby.storage.tasks._models import Task
+
+        task = Task(
+            id="t-1",
+            project_id="p-1",
+            title="test",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="2024-01-01",
+            updated_at="2024-01-01",
+        )
+        assert task.dispatch_failure_count == 0
+
+    def test_dispatch_failure_count_in_to_dict(self) -> None:
+        """dispatch_failure_count appears in to_dict output."""
+        from gobby.storage.tasks._models import Task
+
+        task = Task(
+            id="t-1",
+            project_id="p-1",
+            title="test",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="2024-01-01",
+            updated_at="2024-01-01",
+            dispatch_failure_count=3,
+        )
+        d = task.to_dict()
+        assert d["dispatch_failure_count"] == 3
+
+    def test_dispatch_failure_count_in_to_brief(self) -> None:
+        """dispatch_failure_count appears in to_brief output."""
+        from gobby.storage.tasks._models import Task
+
+        task = Task(
+            id="t-1",
+            project_id="p-1",
+            title="test",
+            status="blocked",
+            priority=2,
+            task_type="task",
+            created_at="2024-01-01",
+            updated_at="2024-01-01",
+            dispatch_failure_count=3,
+        )
+        brief = task.to_brief()
+        assert brief["dispatch_failure_count"] == 3
+
+    def test_update_task_sets_dispatch_failure_count(
+        self, temp_db: "LocalDatabase", sample_project: dict
+    ) -> None:
+        """update_task can set dispatch_failure_count."""
+        from gobby.storage.tasks import LocalTaskManager
+
+        mgr = LocalTaskManager(temp_db)
+        task = mgr.create_task(
+            title="test", task_type="task", project_id=sample_project["id"]
+        )
+        updated = mgr.update_task(task.id, dispatch_failure_count=2)
+        assert updated.dispatch_failure_count == 2
+
+    def test_reopen_resets_dispatch_failure_count(
+        self, temp_db: "LocalDatabase", sample_project: dict
+    ) -> None:
+        """Reopening a task resets dispatch_failure_count to 0."""
+        from gobby.storage.tasks import LocalTaskManager
+
+        mgr = LocalTaskManager(temp_db)
+        task = mgr.create_task(
+            title="test", task_type="task", project_id=sample_project["id"]
+        )
+        # Set failure count and block
+        mgr.update_task(task.id, status="blocked", dispatch_failure_count=3)
+        # Reopen
+        mgr.reopen_task(task.id)
+        reopened = mgr.get_task(task.id)
+        assert reopened.dispatch_failure_count == 0
