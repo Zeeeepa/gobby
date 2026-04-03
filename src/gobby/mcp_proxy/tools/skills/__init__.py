@@ -14,7 +14,6 @@ from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.skills import (
     get_skill,
     hub_tools,
-    install_from_template,
     install_skill,
     list_skills,
     move_skill,
@@ -91,7 +90,6 @@ def create_skills_registry(
     get_skill.register(ctx, registry)
     search_skills.register(ctx, registry)
     remove_skill.register(ctx, registry)
-    install_from_template.register(ctx, registry)
     restore_skill.register(ctx, registry)
     move_skill.register(ctx, registry)
     update_skill.register(ctx, registry)

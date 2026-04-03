@@ -18,7 +18,6 @@ class TestSyncBundledSkills:
         """Create a test database."""
         db_path = tmp_path / "test.db"
         db = LocalDatabase(db_path)
-        # Run migrations to create skills table
         from gobby.storage.migrations import run_migrations
 
         run_migrations(db)
@@ -35,14 +34,14 @@ class TestSyncBundledSkills:
 
         assert callable(sync_bundled_skills)
 
-    def test_sync_bundled_skills_creates_templates_in_db(
+    def test_sync_bundled_skills_creates_installed_rows(
         self, db: LocalDatabase, skill_manager: LocalSkillManager
     ) -> None:
-        """Verify bundled skills are synced to database as templates."""
+        """Verify bundled skills are synced to database as installed rows."""
         from gobby.skills.sync import sync_bundled_skills
 
         # Initially no skills
-        skills_before = skill_manager.list_skills(include_templates=True)
+        skills_before = skill_manager.list_skills()
         assert len(skills_before) == 0
 
         # Sync bundled skills
@@ -52,39 +51,35 @@ class TestSyncBundledSkills:
         assert result["success"] is True
         assert result["synced"] > 0
 
-        # Templates exist in DB
-        templates = skill_manager.list_skills(include_templates=True, source="template")
-        assert len(templates) > 0
+        # Skills are directly visible (source='installed')
+        installed = skill_manager.list_skills(source="installed")
+        assert len(installed) > 0
 
-        # But they don't show up without include_templates
-        default_list = skill_manager.list_skills()
-        assert len(default_list) == 0
-
-    def test_sync_bundled_skills_creates_as_template_source(
+    def test_sync_bundled_skills_creates_as_installed_source(
         self, db: LocalDatabase, skill_manager: LocalSkillManager
     ) -> None:
-        """Verify synced skills have source='template' and enabled=False."""
+        """Verify synced skills have source='installed' and enabled=True."""
         from gobby.skills.sync import sync_bundled_skills
 
         sync_bundled_skills(db)
 
-        skill = skill_manager.get_by_name("memory", include_templates=True)
+        skill = skill_manager.get_by_name("memory")
         assert skill is not None
-        assert skill.source == "template"
-        assert skill.enabled is False
+        assert skill.source == "installed"
+        assert skill.enabled is True
 
     def test_sync_bundled_skills_includes_core_skills(
         self, db: LocalDatabase, skill_manager: LocalSkillManager
     ) -> None:
-        """Verify specific core skills are synced as templates."""
+        """Verify specific core skills are synced."""
         from gobby.skills.sync import sync_bundled_skills
 
         sync_bundled_skills(db)
 
-        tasks_skill = skill_manager.get_by_name("memory", include_templates=True)
-        assert tasks_skill is not None
-        assert tasks_skill.name == "memory"
-        assert len(tasks_skill.content) > 0
+        skill = skill_manager.get_by_name("memory")
+        assert skill is not None
+        assert skill.name == "memory"
+        assert len(skill.content) > 0
 
     def test_sync_bundled_skills_is_idempotent(
         self, db: LocalDatabase, skill_manager: LocalSkillManager
@@ -94,11 +89,11 @@ class TestSyncBundledSkills:
 
         # First sync
         sync_bundled_skills(db)
-        count1 = len(skill_manager.list_skills(include_templates=True))
+        count1 = len(skill_manager.list_skills())
 
         # Second sync
         result2 = sync_bundled_skills(db)
-        count2 = len(skill_manager.list_skills(include_templates=True))
+        count2 = len(skill_manager.list_skills())
 
         # Same count - no duplicates
         assert count1 == count2
@@ -112,26 +107,26 @@ class TestSyncBundledSkills:
 
         sync_bundled_skills(db)
 
-        skill = skill_manager.get_by_name("memory", include_templates=True)
+        skill = skill_manager.get_by_name("memory")
         assert skill is not None
         assert skill.source_type == "filesystem"
 
-    def test_sync_bundled_skills_templates_are_global(
+    def test_sync_bundled_skills_are_global(
         self, db: LocalDatabase, skill_manager: LocalSkillManager
     ) -> None:
-        """Verify synced template skills have project_id=None."""
+        """Verify synced skills have project_id=None."""
         from gobby.skills.sync import sync_bundled_skills
 
         sync_bundled_skills(db)
 
-        skill = skill_manager.get_by_name("memory", include_templates=True)
+        skill = skill_manager.get_by_name("memory")
         assert skill is not None
         assert skill.project_id is None
 
     def test_sync_bundled_skills_updates_changed_content(
         self, db: LocalDatabase, skill_manager: LocalSkillManager
     ) -> None:
-        """Verify re-sync updates templates whose content has changed on disk."""
+        """Verify re-sync updates skills whose content has changed on disk."""
         from gobby.skills.sync import sync_bundled_skills
 
         # First sync — populates the DB
@@ -139,8 +134,8 @@ class TestSyncBundledSkills:
         assert result1["success"] is True
         assert result1["synced"] > 0
 
-        # Grab the "tasks" template and remember its real content
-        skill = skill_manager.get_by_name("memory", include_templates=True)
+        # Grab the skill and remember its real content
+        skill = skill_manager.get_by_name("memory")
         assert skill is not None
         original_content = skill.content
 
@@ -149,7 +144,7 @@ class TestSyncBundledSkills:
         skill_manager.update_skill(skill.id, content=stale_content)
 
         # Confirm the DB now has stale content
-        stale_skill = skill_manager.get_by_name("memory", include_templates=True)
+        stale_skill = skill_manager.get_by_name("memory")
         assert stale_skill is not None
         assert stale_skill.content == stale_content
 
@@ -159,111 +154,44 @@ class TestSyncBundledSkills:
         assert result2["updated"] >= 1
 
         # Verify DB content now matches disk again
-        refreshed = skill_manager.get_by_name("memory", include_templates=True)
+        refreshed = skill_manager.get_by_name("memory")
         assert refreshed is not None
         assert refreshed.content == original_content
         assert refreshed.content != stale_content
 
+    def test_sync_bundled_skills_have_gobby_metadata(
+        self, db: LocalDatabase, skill_manager: LocalSkillManager
+    ) -> None:
+        """Verify synced skills have gobby key in metadata."""
+        from gobby.skills.sync import sync_bundled_skills
 
-class TestInstallFromTemplate:
-    """Test template-to-installed workflow."""
+        sync_bundled_skills(db)
 
-    @pytest.fixture
-    def db(self, tmp_path: Path) -> LocalDatabase:
-        """Create a test database."""
-        db_path = tmp_path / "test.db"
-        db = LocalDatabase(db_path)
-        from gobby.storage.migrations import run_migrations
+        skill = skill_manager.get_by_name("memory")
+        assert skill is not None
+        assert skill.metadata is not None
+        assert "gobby" in skill.metadata
 
-        run_migrations(db)
-        return db
+    def test_sync_skips_user_skills_with_same_name(
+        self, db: LocalDatabase, skill_manager: LocalSkillManager
+    ) -> None:
+        """Verify sync doesn't overwrite user-created skills."""
+        from gobby.skills.sync import sync_bundled_skills
 
-    @pytest.fixture
-    def storage(self, db: LocalDatabase) -> LocalSkillManager:
-        """Create a skill manager."""
-        return LocalSkillManager(db)
-
-    def test_install_from_template_creates_installed_copy(self, storage: LocalSkillManager) -> None:
-        """Installing a template creates an installed copy."""
-        template = storage.create_skill(
-            name="test-skill",
-            description="A test skill",
-            content="# Test",
-            source="template",
-            enabled=False,
-        )
-        assert template.source == "template"
-        assert template.enabled is False
-
-        installed = storage.install_from_template(template.id)
-        assert installed.source == "installed"
-        assert installed.enabled is True
-        assert installed.name == "test-skill"
-        assert installed.content == "# Test"
-        assert installed.id != template.id
-
-    def test_install_from_template_rejects_non_template(self, storage: LocalSkillManager) -> None:
-        """Cannot install from a non-template skill."""
-        skill = storage.create_skill(
-            name="regular-skill",
-            description="Regular",
-            content="# Regular",
-        )
-        with pytest.raises(ValueError, match="not a template"):
-            storage.install_from_template(skill.id)
-
-    def test_install_from_template_rejects_duplicate(self, storage: LocalSkillManager) -> None:
-        """Cannot install if installed copy already exists."""
-        template = storage.create_skill(
-            name="test-skill",
-            description="A test skill",
-            content="# Test",
-            source="template",
-            enabled=False,
-        )
-        storage.install_from_template(template.id)
-
-        with pytest.raises(ValueError, match="already exists"):
-            storage.install_from_template(template.id)
-
-    def test_install_all_templates(self, storage: LocalSkillManager) -> None:
-        """install_all_templates installs all eligible templates."""
-        for i in range(3):
-            storage.create_skill(
-                name=f"skill-{i}",
-                description=f"Skill {i}",
-                content=f"# Skill {i}",
-                source="template",
-                enabled=False,
-            )
-
-        count = storage.install_all_templates()
-        assert count == 3
-
-        installed = storage.list_skills(source="installed")
-        assert len(installed) == 3
-
-    def test_install_all_templates_skips_existing(self, storage: LocalSkillManager) -> None:
-        """install_all_templates skips templates that already have installed copies."""
-        t1 = storage.create_skill(
-            name="has-copy",
-            description="Has copy",
-            content="# Has copy",
-            source="template",
-            enabled=False,
-        )
-        storage.install_from_template(t1.id)
-
-        storage.create_skill(
-            name="no-copy",
-            description="No copy",
-            content="# No copy",
-            source="template",
-            enabled=False,
+        # Create a user skill with same name as a bundled skill (no gobby metadata)
+        skill_manager.create_skill(
+            name="memory",
+            description="User's custom memory skill",
+            content="# My custom memory instructions",
         )
 
-        count = storage.install_all_templates()
-        assert count == 1  # Only "no-copy" gets installed
+        result = sync_bundled_skills(db)
+        assert result["success"] is True
+
+        # User's skill should be preserved
+        skill = skill_manager.get_by_name("memory")
+        assert skill is not None
+        assert skill.content == "# My custom memory instructions"
 
 
 class TestSoftDelete:
@@ -341,7 +269,7 @@ def _create_test_project(db: LocalDatabase, project_id: str = "test-proj") -> st
 
 
 class TestSourceTaxonomy:
-    """Test template/installed/project source values."""
+    """Test installed/project source values."""
 
     @pytest.fixture
     def db(self, tmp_path: Path) -> LocalDatabase:
@@ -373,19 +301,6 @@ class TestSourceTaxonomy:
         assert skill.source == "project"
         assert skill.project_id == project_id
 
-    def test_create_template_with_project_id_keeps_template(
-        self, storage: LocalSkillManager, project_id: str
-    ) -> None:
-        """Creating a template with project_id keeps source='template'."""
-        skill = storage.create_skill(
-            name="proj-template",
-            description="Project template",
-            content="# Proj",
-            project_id=project_id,
-            source="template",
-        )
-        assert skill.source == "template"
-
     def test_move_to_project(self, storage: LocalSkillManager, project_id: str) -> None:
         """move_to_project changes source to 'project'."""
         skill = storage.create_skill(name="movable", description="Move me", content="# Move")
@@ -409,29 +324,10 @@ class TestSourceTaxonomy:
         assert moved.source == "installed"
         assert moved.project_id is None
 
-    def test_move_template_raises(self, storage: LocalSkillManager, project_id: str) -> None:
-        """Cannot move a template skill."""
-        template = storage.create_skill(
-            name="template-skill",
-            description="Template",
-            content="# Template",
-            source="template",
-        )
-        with pytest.raises(ValueError, match="Cannot move a template"):
-            storage.move_to_project(template.id, project_id)
-
-        with pytest.raises(ValueError, match="Cannot move a template"):
-            storage.move_to_installed(template.id)
-
     def test_list_skills_source_filter(self, storage: LocalSkillManager, project_id: str) -> None:
         """list_skills source param filters by exact source value."""
-        storage.create_skill(name="tmpl", description="T", content="#", source="template")
         storage.create_skill(name="inst", description="I", content="#")
         storage.create_skill(name="proj", description="P", content="#", project_id=project_id)
-
-        templates = storage.list_skills(include_templates=True, source="template")
-        assert len(templates) == 1
-        assert templates[0].name == "tmpl"
 
         installed = storage.list_skills(source="installed")
         assert len(installed) == 1
@@ -443,55 +339,8 @@ class TestSourceTaxonomy:
 
     def test_count_skills_with_source(self, storage: LocalSkillManager) -> None:
         """count_skills respects source filter."""
-        storage.create_skill(name="tmpl", description="T", content="#", source="template")
         storage.create_skill(name="inst", description="I", content="#")
+        storage.create_skill(name="inst2", description="I2", content="#2")
 
-        assert storage.count_skills(source="template", include_templates=True) == 1
-        assert storage.count_skills(source="installed") == 1
-        assert storage.count_skills() == 1  # Excludes templates by default
-
-
-class TestPropagateToInstalled:
-    """Test template-to-installed propagation during sync."""
-
-    @pytest.fixture
-    def db(self, tmp_path: Path) -> LocalDatabase:
-        db_path = tmp_path / "test.db"
-        db = LocalDatabase(db_path)
-        from gobby.storage.migrations import run_migrations
-
-        run_migrations(db)
-        return db
-
-    @pytest.fixture
-    def storage(self, db: LocalDatabase) -> LocalSkillManager:
-        return LocalSkillManager(db)
-
-    def test_propagate_updates_installed_copy(self, storage: LocalSkillManager) -> None:
-        """When a template is updated, changes propagate to the installed copy."""
-        from gobby.skills.parser import ParsedSkill
-        from gobby.skills.sync import _propagate_to_installed
-
-        # Create template + installed pair
-        template = storage.create_skill(
-            name="prop-test",
-            description="Original desc",
-            content="# Original",
-            source="template",
-            enabled=False,
-        )
-        installed = storage.install_from_template(template.id)
-
-        # Simulate template getting new content from disk
-        new_parsed = ParsedSkill(
-            name="prop-test",
-            description="Updated desc",
-            content="# Updated content",
-        )
-
-        _propagate_to_installed(storage, "prop-test", new_parsed)
-
-        # Installed copy should have new content
-        refreshed = storage.get_skill(installed.id)
-        assert refreshed.description == "Updated desc"
-        assert refreshed.content == "# Updated content"
+        assert storage.count_skills(source="installed") == 2
+        assert storage.count_skills() == 2

@@ -43,7 +43,7 @@ class Skill:
     Gobby-specific:
         - enabled: Toggle skill on/off without removing
         - project_id: NULL for global, else project-scoped
-        - source: 'template' or 'installed' (template pattern)
+        - source: 'installed' or 'project'
         - deleted_at: Soft delete timestamp
 
     Timestamps:
@@ -80,8 +80,8 @@ class Skill:
     injection_format: str = "summary"  # "summary", "full", "content"
     project_id: str | None = None
 
-    # Template pattern (mirrors workflow_definitions)
-    source: str = "installed"  # 'template' or 'installed'
+    # Source scope
+    source: str = "installed"  # 'installed' or 'project'
     deleted_at: str | None = None
 
     # Timestamps

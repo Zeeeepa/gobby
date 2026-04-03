@@ -13,12 +13,11 @@ import '../workflows/WorkflowsPage.css'
 import './SkillsPage.css'
 
 type ActiveTab = 'installed' | 'hub'
-type SourceFilter = 'installed' | 'project' | 'templates' | 'deleted'
+type SourceFilter = 'installed' | 'project' | 'deleted'
 
 const SOURCE_OPTIONS: { value: SourceFilter; label: string }[] = [
   { value: 'installed', label: 'Installed' },
   { value: 'project', label: 'Project' },
-  { value: 'templates', label: 'Templates' },
   { value: 'deleted', label: 'Deleted' },
 ]
 
@@ -46,7 +45,6 @@ export function SkillsPage() {
     fetchHubs,
     searchHub,
     installFromHub,
-    installFromTemplate,
     moveToProject,
     moveToGlobal,
     restoreSkill,
@@ -83,16 +81,7 @@ export function SkillsPage() {
     setTimeout(() => setErrorMessage(null), 4000)
   }, [])
 
-  // Compute installed names for template Install/Installed button
-  const installedNames = useMemo(() => {
-    const names = new Set<string>()
-    for (const s of skills) {
-      if (s.source === 'installed' && !s.deleted_at) {
-        names.add(s.name)
-      }
-    }
-    return names
-  }, [skills])
+
 
   // Apply source filter + search + source type filter to skills
   const filteredSkills = useMemo(() => {
@@ -127,7 +116,6 @@ export function SkillsPage() {
     setSourceFilter(f)
     setFilters(prev => ({
       ...prev,
-      includeTemplates: f === 'templates',
       includeDeleted: f === 'deleted',
     }))
   }, [setFilters])
@@ -226,14 +214,6 @@ export function SkillsPage() {
       setInstalling(null)
     }
   }, [installFromHub, showError])
-
-  const handleInstallFromTemplate = useCallback(async (skillId: string) => {
-    try {
-      await installFromTemplate(skillId)
-    } catch (e) {
-      showError(e instanceof Error ? e.message : 'Install failed')
-    }
-  }, [installFromTemplate, showError])
 
   const handleMoveToProject = useCallback(async (skillId: string) => {
     const pid = window.prompt('Project ID to move to:')
@@ -364,13 +344,12 @@ export function SkillsPage() {
             ) : (
               <SkillsGrid
                 skills={filteredSkills}
-                installedNames={installedNames}
+
                 onSelect={setSelectedSkill}
                 onToggle={handleToggle}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 onExport={handleExport}
-                onInstallFromTemplate={handleInstallFromTemplate}
                 onMoveToProject={handleMoveToProject}
                 onMoveToGlobal={handleMoveToGlobal}
                 onRestore={handleRestoreSkill}

@@ -199,9 +199,6 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
                 if s.hub_name:
                     hub_count += 1
 
-            template_count = server.skill_manager.count_skills(
-                project_id=project_id, source="template", include_templates=True
-            )
             installed_count = server.skill_manager.count_skills(
                 project_id=project_id, source="installed"
             )
@@ -212,7 +209,7 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
                 "disabled": disabled,
                 "bundled": bundled_count,
                 "from_hubs": hub_count,
-                "templates": template_count,
+                "templates": 0,  # deprecated — template rows no longer exist
                 "installed_count": installed_count,
                 "by_category": by_category,
                 "by_source_type": by_source_type,
@@ -422,15 +419,11 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
     async def install_all_templates(
         project_id: str | None = Query(None, description="Project scope"),
     ) -> dict[str, Any]:
-        """Install all eligible template skills."""
-        try:
-            count = server.skill_manager.install_all_templates(project_id=project_id)
-            if count:
-                await _broadcast_skill("skills_bulk_changed", "bulk")
-            return {"installed_count": count}
-        except Exception as e:
-            logger.error(f"Failed to install all templates: {e}")
-            raise HTTPException(status_code=500, detail=str(e)) from e
+        """Legacy endpoint — template rows no longer exist."""
+        raise HTTPException(
+            status_code=410,
+            detail="Template installation is no longer needed. Skills are installed directly during sync.",
+        )
 
     @router.get("/{skill_id}")
     def get_skill(skill_id: str) -> Any:
@@ -487,16 +480,11 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
 
     @router.post("/{skill_id}/install")
     async def install_from_template(skill_id: str) -> dict[str, Any]:
-        """Install a skill from its template."""
-        try:
-            skill = server.skill_manager.install_from_template(skill_id)
-            await _broadcast_skill("skill_created", skill.id)
-            return {"installed": True, "skill": skill.to_dict()}
-        except ValueError as e:
-            raise HTTPException(status_code=404, detail=str(e)) from e
-        except Exception as e:
-            logger.error(f"Failed to install from template {skill_id}: {e}")
-            raise HTTPException(status_code=500, detail=str(e)) from e
+        """Legacy endpoint — template rows no longer exist."""
+        raise HTTPException(
+            status_code=410,
+            detail="Template installation is no longer needed. Skills are installed directly during sync.",
+        )
 
     @router.post("/{skill_id}/move-to-project")
     async def move_to_project(

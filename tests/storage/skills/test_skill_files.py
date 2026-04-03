@@ -267,19 +267,3 @@ class TestSkillFileCRUD:
         stored = storage.get_skill_files(sample_skill.id, exclude_license=False)
         assert len(stored) == 3
 
-    def test_install_from_template_copies_files(self, storage: LocalSkillManager) -> None:
-        template = storage.create_skill(
-            name="tmpl-skill",
-            description="A template",
-            content="# Template",
-            source="template",
-        )
-        files = _build_skill_files(template.id)
-        storage.set_skill_files(template.id, files)
-
-        installed = storage.install_from_template(template.id)
-
-        installed_files = storage.get_skill_files(installed.id, exclude_license=False)
-        assert len(installed_files) == 3
-        paths = sorted(f.path for f in installed_files)
-        assert paths == ["LICENSE", "references/api.md", "scripts/build.sh"]

@@ -429,33 +429,6 @@ class SkillManager:
             source=source,
         )
 
-    # --- Template/Install Operations ---
-
-    def install_from_template(self, skill_id: str) -> Skill:
-        """Create an installed copy from a template skill.
-
-        Args:
-            skill_id: Template skill ID
-
-        Returns:
-            The newly installed Skill
-
-        Raises:
-            ValueError: If template not found or already installed
-        """
-        return self._storage.install_from_template(skill_id)
-
-    def install_all_templates(self, project_id: str | None = None) -> int:
-        """Install all eligible template skills that don't have installed copies.
-
-        Args:
-            project_id: Project scope (None for global)
-
-        Returns:
-            Number of templates installed
-        """
-        return self._storage.install_all_templates(project_id=project_id or self._project_id)
-
     def move_to_project(self, skill_id: str, project_id: str) -> Skill:
         """Move a skill to project scope.
 

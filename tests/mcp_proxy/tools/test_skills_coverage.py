@@ -312,60 +312,6 @@ class TestRemoveSkill:
 
 
 # ---------------------------------------------------------------------------
-# install_from_template tests
-# ---------------------------------------------------------------------------
-
-
-class TestInstallFromTemplate:
-    """Tests for install_from_template tool."""
-
-    @pytest.mark.asyncio
-    async def test_install_no_params(self, mock_db):
-        registry = _create_registry(mock_db)
-        result = await registry.call("install_from_template", {})
-        assert result["success"] is False
-
-    @pytest.mark.asyncio
-    async def test_install_by_name(self, mock_db):
-        template = _make_skill(source="template")
-        installed = _make_skill(id="installed-1", source="installed")
-        registry = _create_registry(mock_db)
-        registry._mock_storage.get_by_name.return_value = template
-        registry._mock_storage.install_from_template.return_value = installed
-
-        result = await registry.call("install_from_template", {"name": "test-skill"})
-        assert result["success"] is True
-        assert result["installed"] is True
-
-    @pytest.mark.asyncio
-    async def test_install_not_found(self, mock_db):
-        registry = _create_registry(mock_db)
-        registry._mock_storage.get_skill.side_effect = ValueError("x")
-        registry._mock_storage.get_by_name.return_value = None
-
-        result = await registry.call("install_from_template", {"name": "nope"})
-        assert result["success"] is False
-
-    @pytest.mark.asyncio
-    async def test_install_exception(self, mock_db):
-        registry = _create_registry(mock_db)
-        registry._mock_storage.get_by_name.side_effect = RuntimeError("db crash")
-
-        result = await registry.call("install_from_template", {"name": "test-skill"})
-        assert result["success"] is False
-
-    @pytest.mark.asyncio
-    async def test_install_template_exception(self, mock_db):
-        template = _make_skill(source="template")
-        registry = _create_registry(mock_db)
-        registry._mock_storage.get_by_name.return_value = template
-        registry._mock_storage.install_from_template.side_effect = Exception("failed payload")
-
-        result = await registry.call("install_from_template", {"name": "test-skill"})
-        assert result["success"] is False
-
-
-# ---------------------------------------------------------------------------
 # restore_skill tests
 # ---------------------------------------------------------------------------
 

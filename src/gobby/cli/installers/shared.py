@@ -268,23 +268,8 @@ def sync_bundled_content_to_db(
             logger.warning(msg)
             result["errors"].append(msg)
 
-    # Auto-install skill templates so bundled skills are immediately active.
-    # Skills have their own template system — leave as-is.
-    try:
-        from gobby.storage.skills import LocalSkillManager
-
-        skill_storage = LocalSkillManager(db)
-        installed_count = skill_storage.install_all_templates()
-        if installed_count > 0:
-            logger.info(f"Auto-installed {installed_count} skill templates")
-            result["details"].setdefault("skills", {})["auto_installed"] = installed_count
-    except Exception as e:
-        msg = f"Failed to auto-install skill templates: {e}"
-        logger.warning(msg)
-        result["errors"].append(msg)
-
-    # Workflow definitions are now created as installed rows directly by the
-    # sync functions above — no separate install step needed.
+    # Skills and workflow definitions are created as installed rows directly
+    # by the sync functions above — no separate install step needed.
 
     # Sync user templates from .gobby/workflows/ and ~/.gobby/workflows/ back to DB.
     # Skip in dev mode — bundled templates are managed directly in source tree.

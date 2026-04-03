@@ -2,14 +2,12 @@ import type { GobbySkill } from '../../hooks/useSkills'
 
 interface SkillsGridProps {
   skills: GobbySkill[]
-  installedNames: Set<string>
   projectId?: string
   onSelect: (skill: GobbySkill) => void
   onToggle: (skillId: string, enabled: boolean) => void
   onEdit: (skill: GobbySkill) => void
   onDelete: (skillId: string) => void
   onExport: (skillId: string) => void
-  onInstallFromTemplate: (skillId: string) => void
   onMoveToProject: (skillId: string) => void
   onMoveToGlobal: (skillId: string) => void
   onRestore: (skillId: string) => void
@@ -29,14 +27,12 @@ function getCategory(skill: GobbySkill): string | null {
 
 export function SkillsGrid({
   skills,
-  installedNames,
   projectId,
   onSelect,
   onToggle,
   onEdit,
   onDelete,
   onExport,
-  onInstallFromTemplate,
   onMoveToProject,
   onMoveToGlobal,
   onRestore,
@@ -54,13 +50,11 @@ export function SkillsGrid({
           key={skill.id}
           skill={skill}
           projectId={projectId}
-          isInstalled={installedNames.has(skill.name)}
           onSelect={() => onSelect(skill)}
           onToggle={() => onToggle(skill.id, !skill.enabled)}
           onEdit={() => onEdit(skill)}
           onDelete={() => onDelete(skill.id)}
           onExport={() => onExport(skill.id)}
-          onInstall={() => onInstallFromTemplate(skill.id)}
           onMoveToProject={() => onMoveToProject(skill.id)}
           onMoveToGlobal={() => onMoveToGlobal(skill.id)}
           onRestore={() => onRestore(skill.id)}
@@ -70,27 +64,24 @@ export function SkillsGrid({
   )
 }
 
-function SkillCard({ skill, projectId, isInstalled, onSelect, onToggle, onEdit, onDelete, onExport, onInstall, onMoveToProject, onMoveToGlobal, onRestore }: {
+function SkillCard({ skill, projectId, onSelect, onToggle, onEdit, onDelete, onExport, onMoveToProject, onMoveToGlobal, onRestore }: {
   skill: GobbySkill
   projectId?: string
-  isInstalled: boolean
   onSelect: () => void
   onToggle: () => void
   onEdit: () => void
   onDelete: () => void
   onExport: () => void
-  onInstall: () => void
   onMoveToProject: () => void
   onMoveToGlobal: () => void
   onRestore: () => void
 }) {
-  const isTemplate = skill.source === 'template'
   const isDeleted = !!skill.deleted_at
   const category = getCategory(skill)
 
   return (
     <div
-      className={`workflows-card${isTemplate ? ' workflows-card--template' : ''}${isDeleted ? ' workflows-card--deleted' : ''}`}
+      className={`workflows-card${isDeleted ? ' workflows-card--deleted' : ''}`}
       onClick={onSelect}
     >
       <div className="workflows-card-header">
@@ -113,18 +104,11 @@ function SkillCard({ skill, projectId, isInstalled, onSelect, onToggle, onEdit, 
       </div>
 
       <div className="workflows-card-footer">
-        {(isTemplate || isDeleted) ? (
+        {isDeleted ? (
           <>
             <div />
             <div className="workflows-card-actions">
-              {isDeleted && (
-                <button type="button" className="workflows-action-btn workflows-action-btn--restore" onClick={e => { e.stopPropagation(); onRestore() }} title="Restore deleted skill">Restore</button>
-              )}
-              {isTemplate && (
-                isInstalled
-                  ? <button type="button" className="workflows-action-btn" disabled title="Already installed">Installed</button>
-                  : <button type="button" className="workflows-action-btn" onClick={e => { e.stopPropagation(); onInstall() }} title="Create an installed copy">Install</button>
-              )}
+              <button type="button" className="workflows-action-btn workflows-action-btn--restore" onClick={e => { e.stopPropagation(); onRestore() }} title="Restore deleted skill">Restore</button>
               <button type="button" className="workflows-action-icon" onClick={e => { e.stopPropagation(); onExport() }} title="Export" aria-label="Export skill">
                 <DownloadIcon />
               </button>

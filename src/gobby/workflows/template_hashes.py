@@ -47,6 +47,7 @@ class TemplateHashCache:
         self._load_pipelines(get_bundled_pipelines_path())
         self._load_variables(get_bundled_variables_path())
         self._load_agents(get_bundled_agents_path())
+        self._load_skills()
 
         logger.info(f"Template hash cache loaded: {len(self._hashes)} definitions")
 
@@ -145,6 +146,48 @@ class TemplateHashCache:
                 self._json_cache[name] = body_json
             except Exception as e:
                 logger.warning(f"Failed to hash agent template {yaml_path}: {e}")
+
+    def _load_skills(self) -> None:
+        """Load skill templates, replicating skills/sync.py serialization."""
+        try:
+            from gobby.skills.sync import get_bundled_skills_path
+
+            skills_dir = get_bundled_skills_path()
+        except Exception as e:
+            logger.warning(f"Failed to get bundled skills path: {e}")
+            return
+
+        if not skills_dir.exists():
+            return
+
+        try:
+            from gobby.skills.loader import SkillLoader
+
+            loader = SkillLoader(default_source_type="filesystem")
+            parsed_skills = loader.load_directory(skills_dir, validate=False)
+        except Exception as e:
+            logger.warning(f"Failed to load bundled skills for hashing: {e}")
+            return
+
+        for parsed in parsed_skills:
+            try:
+                body: dict[str, Any] = {
+                    "name": parsed.name,
+                    "description": parsed.description,
+                    "content": parsed.content,
+                    "version": parsed.version,
+                    "license": parsed.license,
+                    "compatibility": parsed.compatibility,
+                    "allowed_tools": parsed.allowed_tools,
+                    "metadata": parsed.metadata,
+                    "always_apply": parsed.always_apply,
+                    "injection_format": parsed.injection_format,
+                }
+                definition_json = json.dumps(body, sort_keys=True)
+                self._hashes[parsed.name] = compute_definition_hash(definition_json)
+                self._json_cache[parsed.name] = definition_json
+            except Exception as e:
+                logger.warning(f"Failed to hash skill template {parsed.name}: {e}")
 
     # ── Drift detection ──
 

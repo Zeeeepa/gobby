@@ -44,7 +44,6 @@ export interface SkillFilters {
   enabled: boolean | null
   category: string | null
   search: string
-  includeTemplates: boolean
   includeDeleted: boolean
 }
 
@@ -124,7 +123,6 @@ export function useSkills() {
     enabled: null,
     category: null,
     search: '',
-    includeTemplates: false,
     includeDeleted: false,
   })
   const [isLoading, setIsLoading] = useState(true)
@@ -141,7 +139,6 @@ export function useSkills() {
       if (filters.projectId) params.set('project_id', filters.projectId)
       if (filters.enabled !== null) params.set('enabled', String(filters.enabled))
       if (filters.category) params.set('category', filters.category)
-      if (filters.includeTemplates) params.set('include_templates', 'true')
       if (filters.includeDeleted) params.set('include_deleted', 'true')
 
       const response = await fetch(`${baseUrl}/api/skills?${params}`)
@@ -154,7 +151,7 @@ export function useSkills() {
     } finally {
       setIsLoading(false)
     }
-  }, [filters.projectId, filters.enabled, filters.category, filters.includeTemplates, filters.includeDeleted])
+  }, [filters.projectId, filters.enabled, filters.category, filters.includeDeleted])
 
   // Fetch stats
   const fetchStats = useCallback(async () => {
@@ -422,28 +419,6 @@ export function useSkills() {
     [fetchSkills, fetchStats]
   )
 
-  // Install from template
-  const installFromTemplate = useCallback(
-    async (skillId: string): Promise<GobbySkill | null> => {
-      try {
-        const baseUrl = getBaseUrl()
-        const response = await fetch(`${baseUrl}/api/skills/${skillId}/install`, { method: 'POST' })
-        if (response.ok) {
-          const data = await response.json()
-          await fetchSkills()
-          await fetchStats()
-          return data.skill
-        }
-        const err = await response.json().catch(() => null)
-        throw new Error(err?.detail || `HTTP ${response.status}`)
-      } catch (e) {
-        console.error('Failed to install from template:', e)
-        throw e
-      }
-    },
-    [fetchSkills, fetchStats]
-  )
-
   // Move to project scope
   const moveToProject = useCallback(
     async (skillId: string, projectId: string): Promise<GobbySkill | null> => {
@@ -559,7 +534,6 @@ export function useSkills() {
     fetchHubs,
     searchHub,
     installFromHub,
-    installFromTemplate,
     moveToProject,
     moveToGlobal,
     restoreSkill,

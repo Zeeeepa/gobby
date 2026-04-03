@@ -127,7 +127,7 @@ class TestSearchSkills:
 
 class TestSkillStats:
     def test_skill_stats(self, client: TestClient, skill_manager: MagicMock) -> None:
-        skill_manager.count_skills.side_effect = [10, 8, 2, 3, 5]
+        skill_manager.count_skills.side_effect = [10, 8, 2, 5]
 
         skill_mock1 = MagicMock()
         skill_mock1.get_category.return_value = "cat1"
@@ -149,7 +149,7 @@ class TestSkillStats:
         assert data["disabled"] == 2
         assert data["bundled"] == 1
         assert data["from_hubs"] == 1
-        assert data["templates"] == 3
+        assert data["templates"] == 0
         assert data["installed_count"] == 5
         assert data["by_category"]["cat1"] == 1
         assert data["by_category"]["uncategorized"] == 1
@@ -398,21 +398,10 @@ class TestHubs:
 
 
 class TestInstallAllTemplates:
-    def test_install_all_templates(
-        self, client: TestClient, skill_manager, websocket_server
-    ) -> None:
-        skill_manager.install_all_templates.return_value = 2
+    def test_install_all_templates_returns_410(self, client: TestClient) -> None:
+        """Legacy endpoint returns 410 Gone."""
         response = client.post("/api/skills/install-all-templates")
-        assert response.status_code == 200
-        assert response.json()["installed_count"] == 2
-        websocket_server.broadcast_skill_event.assert_awaited_once_with(
-            "skills_bulk_changed", "bulk"
-        )
-
-    def test_install_all_templates_error(self, client: TestClient, skill_manager) -> None:
-        skill_manager.install_all_templates.side_effect = Exception("Fail")
-        response = client.post("/api/skills/install-all-templates")
-        assert response.status_code == 500
+        assert response.status_code == 410
 
 
 class TestGetSkill:
@@ -473,26 +462,10 @@ class TestDeleteSkill:
 
 
 class TestInstallFromTemplate:
-    def test_install_from_template(
-        self, client: TestClient, skill_manager, websocket_server
-    ) -> None:
-        skill_mock = MagicMock()
-        skill_mock.id = "new_id"
-        skill_mock.to_dict.return_value = {"id": "new_id"}
-        skill_manager.install_from_template.return_value = skill_mock
+    def test_install_from_template_returns_410(self, client: TestClient) -> None:
+        """Legacy endpoint returns 410 Gone."""
         response = client.post("/api/skills/1/install")
-        assert response.status_code == 200
-        websocket_server.broadcast_skill_event.assert_awaited_once_with("skill_created", "new_id")
-
-    def test_install_from_template_not_found(self, client: TestClient, skill_manager) -> None:
-        skill_manager.install_from_template.side_effect = ValueError("NF")
-        response = client.post("/api/skills/1/install")
-        assert response.status_code == 404
-
-    def test_install_from_template_err(self, client: TestClient, skill_manager) -> None:
-        skill_manager.install_from_template.side_effect = Exception("E")
-        response = client.post("/api/skills/1/install")
-        assert response.status_code == 500
+        assert response.status_code == 410
 
 
 class TestMoveToProject:
