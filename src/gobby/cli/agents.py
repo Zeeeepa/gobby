@@ -88,9 +88,9 @@ def agents() -> None:
 @click.option(
     "--mode",
     "-m",
-    type=click.Choice(["in_process", "terminal", "autonomous"]),
-    default="terminal",
-    help="Execution mode (default: terminal)",
+    type=click.Choice(["in_process", "interactive", "autonomous"]),
+    default="interactive",
+    help="Execution mode (default: interactive)",
 )
 @click.option(
     "--terminal",

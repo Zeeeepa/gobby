@@ -242,7 +242,7 @@ class TestCreateDefinition:
                 "goal": "test things",
                 "provider": "gemini",
                 "model": "flash",
-                "mode": "terminal",
+                "mode": "interactive",
                 "isolation": "worktree",
                 "base_branch": "develop",
                 "timeout": 300.0,

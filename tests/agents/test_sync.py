@@ -30,7 +30,7 @@ class TestSyncBundledAgents:
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
         (agents_dir / "test-agent.yaml").write_text(
-            "name: test-agent\ndescription: A test agent\nprovider: claude\nmode: terminal\n"
+            "name: test-agent\ndescription: A test agent\nprovider: claude\nmode: interactive\n"
         )
 
         with patch("gobby.agents.sync.get_bundled_agents_path", return_value=agents_dir):
@@ -59,7 +59,7 @@ class TestSyncBundledAgents:
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
         (agents_dir / "test-agent.yaml").write_text(
-            "name: test-agent\ndescription: A test agent\nprovider: claude\nmode: terminal\n"
+            "name: test-agent\ndescription: A test agent\nprovider: claude\nmode: interactive\n"
         )
 
         with patch("gobby.agents.sync.get_bundled_agents_path", return_value=agents_dir):
@@ -82,7 +82,7 @@ class TestSyncBundledAgents:
         agents_dir.mkdir()
         yaml_file = agents_dir / "test-agent.yaml"
         yaml_file.write_text(
-            "name: test-agent\ndescription: A test agent\nprovider: claude\nmode: terminal\n"
+            "name: test-agent\ndescription: A test agent\nprovider: claude\nmode: interactive\n"
         )
 
         with patch("gobby.agents.sync.get_bundled_agents_path", return_value=agents_dir):
@@ -91,7 +91,7 @@ class TestSyncBundledAgents:
 
             # Modify the file
             yaml_file.write_text(
-                "name: test-agent\ndescription: Updated description\nprovider: claude\nmode: terminal\n"
+                "name: test-agent\ndescription: Updated description\nprovider: claude\nmode: interactive\n"
             )
 
             # Second sync — should skip (no overwrite)
@@ -116,10 +116,10 @@ class TestSyncBundledAgents:
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
         (agents_dir / "agent-a.yaml").write_text(
-            "name: agent-a\nprovider: claude\nmode: terminal\n"
+            "name: agent-a\nprovider: claude\nmode: interactive\n"
         )
         (agents_dir / "agent-b.yaml").write_text(
-            "name: agent-b\nprovider: gemini\nmode: terminal\n"
+            "name: agent-b\nprovider: gemini\nmode: interactive\n"
         )
 
         with patch("gobby.agents.sync.get_bundled_agents_path", return_value=agents_dir):
@@ -166,7 +166,7 @@ class TestSyncBundledAgents:
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
         (agents_dir / "test-agent.yaml").write_text(
-            "name: test-agent\ndescription: A test agent\nprovider: claude\nmode: terminal\n"
+            "name: test-agent\ndescription: A test agent\nprovider: claude\nmode: interactive\n"
         )
 
         mgr = LocalWorkflowDefinitionManager(db)

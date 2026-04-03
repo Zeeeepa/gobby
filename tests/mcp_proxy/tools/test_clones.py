@@ -652,9 +652,7 @@ class TestClaimClone:
         from gobby.utils.session_context import session_context_for_test
 
         with session_context_for_test("sess-1"):
-            result = await registry.call(
-                "claim_clone", {"clone_id": "clone-123"}
-            )
+            result = await registry.call("claim_clone", {"clone_id": "clone-123"})
 
         assert result["success"] is True
         mock_clone_storage.claim.assert_called_once_with("clone-123", "sess-1")
@@ -681,9 +679,7 @@ class TestClaimClone:
         from gobby.utils.session_context import session_context_for_test
 
         with session_context_for_test("sess-1"):
-            result = await registry.call(
-                "claim_clone", {"clone_id": "clone-123"}
-            )
+            result = await registry.call("claim_clone", {"clone_id": "clone-123"})
 
         assert result["success"] is False
         assert "already claimed" in result["error"]
@@ -712,9 +708,7 @@ class TestClaimClone:
         from gobby.utils.session_context import session_context_for_test
 
         with session_context_for_test("sess-1"):
-            result = await registry.call(
-                "claim_clone", {"clone_id": "clone-123"}
-            )
+            result = await registry.call("claim_clone", {"clone_id": "clone-123"})
 
         assert result["success"] is True
 
@@ -726,9 +720,7 @@ class TestClaimClone:
         from gobby.utils.session_context import session_context_for_test
 
         with session_context_for_test("sess-1"):
-            result = await registry.call(
-                "claim_clone", {"clone_id": "nonexistent"}
-            )
+            result = await registry.call("claim_clone", {"clone_id": "nonexistent"})
 
         assert result["success"] is False
         assert "not found" in result["error"].lower()

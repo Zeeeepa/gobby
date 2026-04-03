@@ -54,7 +54,7 @@ class TestLoadAgentBody:
             instructions="Write clean code.",
             provider="claude",
             model="claude-sonnet-4-6",
-            mode="terminal",
+            mode="interactive",
             isolation="worktree",
             base_branch="main",
             timeout=120.0,
@@ -74,7 +74,7 @@ class TestLoadAgentBody:
         assert result.name == "test-dev-load"
         assert result.provider == "claude"
         assert result.model == "claude-sonnet-4-6"
-        assert result.mode == "terminal"
+        assert result.mode == "interactive"
         assert result.isolation == "worktree"
         assert result.workflows.rules == ["require-task-before-edit", "require-commit"]
 
@@ -152,7 +152,7 @@ class TestSpawnAgentDefaults:
         agent_body = AgentDefinitionBody(
             name="default",
             provider="claude",
-            mode="terminal",
+            mode="interactive",
         )
 
         registry = create_spawn_agent_registry(mock_runner, db=MagicMock())
@@ -213,7 +213,7 @@ class TestSpawnAgentIsolation:
         return AgentDefinitionBody(
             name="default",
             provider="claude",
-            mode="terminal",
+            mode="interactive",
         )
 
     @pytest.mark.asyncio
@@ -465,13 +465,13 @@ class TestSpawnAgentParamOverrides:
                 {
                     "prompt": "Test prompt",
                     "parent_session_id": "parent-789",
-                    "mode": "terminal",
+                    "mode": "interactive",
                 },
             )
 
             assert result["success"] is True
             execute_call = mock_execute.call_args
-            assert execute_call[0][0].mode == "terminal"
+            assert execute_call[0][0].mode == "interactive"
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -495,7 +495,7 @@ class TestSpawnAgentTaskResolution:
         return AgentDefinitionBody(
             name="default",
             provider="claude",
-            mode="terminal",
+            mode="interactive",
         )
 
     @pytest.mark.asyncio
@@ -586,7 +586,7 @@ class TestSpawnAgentSandbox:
         return AgentDefinitionBody(
             name="default",
             provider="claude",
-            mode="terminal",
+            mode="interactive",
         )
 
     @pytest.mark.asyncio
@@ -775,7 +775,7 @@ class TestSpawnAgentPreRegistration:
         return AgentDefinitionBody(
             name="default",
             provider="claude",
-            mode="terminal",
+            mode="interactive",
         )
 
     @pytest.mark.asyncio
@@ -989,7 +989,7 @@ class TestSpawnAgentPipelineInjection:
 
         agent_body = AgentDefinitionBody(
             name="pipeline-agent",
-            mode="terminal",
+            mode="interactive",
             workflows=AgentWorkflows(pipeline="my-pipeline"),
         )
 
@@ -1043,7 +1043,7 @@ class TestSpawnAgentPipelineInjection:
 
         agent_body = AgentDefinitionBody(
             name="step-agent",
-            mode="terminal",
+            mode="interactive",
             workflows=AgentWorkflows(pipeline="my-workflow"),
         )
 
@@ -1112,7 +1112,7 @@ class TestSpawnAgentStepVariables:
 
         agent_body = AgentDefinitionBody(
             name="qa-agent",
-            mode="terminal",
+            mode="interactive",
             workflows=AgentWorkflows(rules=["no-code-writing"]),
         )
 
@@ -1174,7 +1174,7 @@ class TestDispatchBatchIsolationParity:
         return AgentDefinitionBody(
             name="developer",
             provider="claude",
-            mode="terminal",
+            mode="interactive",
         )
 
     @pytest.mark.asyncio
@@ -1335,7 +1335,7 @@ class TestSpawnAgentDedup:
         agent_body = AgentDefinitionBody(
             name="default",
             provider="claude",
-            mode="terminal",
+            mode="interactive",
         )
 
         mock_task_manager = MagicMock()
@@ -1433,7 +1433,7 @@ class TestSpawnAgentImplErrorBranches:
             result = await spawn_agent_impl(
                 prompt="test",
                 runner=runner,
-                mode="terminal",
+                mode="interactive",
                 parent_session_id="sess-1",
             )
             assert result["success"] is False
@@ -1453,7 +1453,7 @@ class TestSpawnAgentImplErrorBranches:
             result = await spawn_agent_impl(
                 prompt="test",
                 runner=runner,
-                mode="terminal",
+                mode="interactive",
                 parent_session_id="sess-1",
             )
             assert result["success"] is False
@@ -1473,7 +1473,7 @@ class TestSpawnAgentImplErrorBranches:
             result = await spawn_agent_impl(
                 prompt="test",
                 runner=runner,
-                mode="terminal",
+                mode="interactive",
             )
             assert result["success"] is False
             assert "parent_session_id" in result["error"]
@@ -1492,7 +1492,7 @@ class TestSpawnAgentImplErrorBranches:
             result = await spawn_agent_impl(
                 prompt="test",
                 runner=runner,
-                mode="terminal",
+                mode="interactive",
                 parent_session_id="sess-1",
             )
             assert result["success"] is False
@@ -1516,7 +1516,7 @@ class TestSpawnAgentImplErrorBranches:
             result = await spawn_agent_impl(
                 prompt="test",
                 runner=runner,
-                mode="terminal",
+                mode="interactive",
                 parent_session_id="sess-1",
                 worktree_id="wt-missing",
                 worktree_storage=worktree_storage,
@@ -1547,7 +1547,7 @@ class TestSpawnAgentImplErrorBranches:
             result = await spawn_agent_impl(
                 prompt="test",
                 runner=runner,
-                mode="terminal",
+                mode="interactive",
                 parent_session_id="sess-1",
                 worktree_id="wt-1",
                 worktree_storage=worktree_storage,
@@ -1574,7 +1574,7 @@ class TestSpawnAgentImplErrorBranches:
             result = await spawn_agent_impl(
                 prompt="test",
                 runner=runner,
-                mode="terminal",
+                mode="interactive",
                 parent_session_id="sess-1",
                 clone_id="clone-missing",
                 clone_storage=clone_storage,
@@ -1605,7 +1605,7 @@ class TestSpawnAgentImplErrorBranches:
             result = await spawn_agent_impl(
                 prompt="test",
                 runner=runner,
-                mode="terminal",
+                mode="interactive",
                 parent_session_id="sess-1",
                 clone_id="clone-1",
                 clone_storage=clone_storage,
@@ -1639,7 +1639,7 @@ class TestSpawnAgentImplErrorBranches:
             result = await spawn_agent_impl(
                 prompt="test",
                 runner=runner,
-                mode="terminal",
+                mode="interactive",
                 parent_session_id="sess-1",
             )
             assert result["success"] is False
@@ -1688,12 +1688,11 @@ class TestSpawnAgentImplErrorBranches:
             result = await spawn_agent_impl(
                 prompt="test",
                 runner=runner,
-                mode="terminal",
+                mode="interactive",
                 parent_session_id="sess-1",
                 timeout=0,
             )
             assert result["success"] is True
-
 
 
 # ═══════════════════════════════════════════════════════════════════════

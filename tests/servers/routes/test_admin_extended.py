@@ -164,7 +164,7 @@ class TestAdminRoutesExtended:
             "id": "ar-test",
             "session_id": "sess-test",
             "parent_session_id": "parent-test",
-            "mode": "terminal",
+            "mode": "interactive",
         }
         mock_arm.get.return_value = mock_run
         mock_arm_cls.return_value = mock_arm
@@ -173,7 +173,7 @@ class TestAdminRoutesExtended:
             "run_id": "ar-test",
             "session_id": "sess-test",
             "parent_session_id": "parent-test",
-            "mode": "terminal",
+            "mode": "interactive",
         }
         response = client.post("/api/admin/test/register-agent", json=payload)
         assert response.status_code == 200

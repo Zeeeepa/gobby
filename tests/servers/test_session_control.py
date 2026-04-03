@@ -246,7 +246,7 @@ class TestContinueInChatTerminalKill:
 
         mock_run = MagicMock()
         mock_run.id = "agent-1"
-        mock_run.mode = "terminal"
+        mock_run.mode = "interactive"
 
         async def fake_create_chat_session(conv_id, project_id=None, resume_session_id=None):
             return mock_chat_session

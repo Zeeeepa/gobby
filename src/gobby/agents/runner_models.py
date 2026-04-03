@@ -54,7 +54,7 @@ class AgentConfig:
     """Context source: summary_markdown, session_id:<id>, transcript:<n>, file:<path>."""
 
     mode: str = "in_process"
-    """Execution mode: in_process, terminal, embedded, headless."""
+    """Execution mode: in_process, interactive, embedded, headless."""
 
     worktree_id: str | None = None
     """Existing worktree to use for terminal mode."""

@@ -525,7 +525,7 @@ class TestRunningAgent:
             run_id="run-123",
             session_id="sess-child",
             parent_session_id="sess-parent",
-            mode="terminal",
+            mode="interactive",
             provider="claude",
             workflow_name="plan-execute",
             worktree_id="wt-abc",
@@ -540,7 +540,7 @@ class TestRunningAgent:
         assert agent.provider == "claude"
         assert agent.workflow_name == "plan-execute"
         assert agent.worktree_id == "wt-abc"
-        assert agent.mode == "terminal"
+        assert agent.mode == "interactive"
         assert agent.pid == 12345
         assert agent.terminal_type == "ghostty"
         assert agent.master_fd == 5

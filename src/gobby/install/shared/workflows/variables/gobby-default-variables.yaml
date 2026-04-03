@@ -79,3 +79,9 @@ variables:
   edit_write_stop_blocks:
     value: 0
     description: "Circuit breaker counter for edit-write stop gate"
+  codex_review_gate_enabled:
+    value: false
+    description: "Opt-in: block stop until Codex review passes (set via codex-setup skill, persisted in daemon config)"
+  codex_review_gate_passed:
+    value: false
+    description: "Set true after Codex review passes (reset each session)"

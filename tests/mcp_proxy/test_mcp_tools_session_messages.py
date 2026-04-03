@@ -413,9 +413,7 @@ async def test_set_handoff_context_no_session(mock_session_manager, full_session
     mock_session_manager.get.return_value = None
     mock_session_manager.list.return_value = []
 
-    result = await full_sessions_registry.call(
-        "set_handoff_context", {"content": "## Handoff"}
-    )
+    result = await full_sessions_registry.call("set_handoff_context", {"content": "## Handoff"})
 
     assert "error" in result
     assert "No session context available" in result["error"]

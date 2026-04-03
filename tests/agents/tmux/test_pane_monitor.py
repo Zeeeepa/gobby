@@ -31,7 +31,7 @@ def _make_agent_run(
         status="running",
         created_at="2024-01-01T00:00:00",
         updated_at="2024-01-01T00:00:00",
-        mode="terminal",
+        mode="interactive",
         tmux_session_name=tmux_session_name,
         pid=pid,
     )

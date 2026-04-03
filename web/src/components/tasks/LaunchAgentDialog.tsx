@@ -26,7 +26,7 @@ interface BatchLaunchAgentDialogProps {
   onSpawned?: (succeeded: number, failed: number) => void
 }
 
-type Mode = 'terminal' | 'web_chat' | 'headless'
+type Mode = 'interactive' | 'web_chat' | 'headless'
 type Isolation = 'none' | 'worktree' | 'clone'
 
 // ---------------------------------------------------------------------------
@@ -69,7 +69,7 @@ export function LaunchAgentDialog({
 
   // Form state
   const [agentName, setAgentName] = useState('default')
-  const [mode, setMode] = useState<Mode>('terminal')
+  const [mode, setMode] = useState<Mode>('interactive')
   const [isolation, setIsolation] = useState<Isolation>('none')
   const [model, setModel] = useState<string>('')
   const [promptText, setPromptText] = useState('')
@@ -98,7 +98,7 @@ export function LaunchAgentDialog({
         const catDefaults = allDefaults[cat]
         if (catDefaults) {
           setAgentName(catDefaults.agent_name || 'default')
-          setMode(catDefaults.mode || 'terminal')
+          setMode(catDefaults.mode || 'interactive')
           setIsolation(catDefaults.isolation || 'none')
           setModel(catDefaults.model || '')
         }
@@ -163,7 +163,7 @@ export function LaunchAgentDialog({
             <div className="launch-agent-success-icon">&#10003;</div>
             {result.mode === 'web_chat' ? (
               <p>Chat session created. Navigate to Chat to interact with the agent.</p>
-            ) : result.mode === 'terminal' ? (
+            ) : result.mode === 'interactive' ? (
               <p>Agent running in terminal.{result.run_id && <> Run ID: <code>{result.run_id}</code></>}</p>
             ) : (
               <p>Agent working in background.{result.run_id && <> Run ID: <code>{result.run_id}</code></>}</p>
@@ -215,7 +215,7 @@ export function LaunchAgentDialog({
           <div className="launch-agent-field">
             <label className="launch-agent-label">Mode</label>
             <div className="launch-agent-radio-group">
-              {([['terminal', 'Terminal (tmux)'], ['web_chat', 'Web Chat'], ['headless', 'Headless']] as const).map(([val, label]) => (
+              {([['interactive', 'Interactive (tmux)'], ['web_chat', 'Web Chat'], ['headless', 'Headless']] as const).map(([val, label]) => (
                 <label key={val} className={`launch-agent-radio ${mode === val ? 'active' : ''}`}>
                   <input
                     type="radio"
@@ -334,7 +334,7 @@ export function BatchLaunchAgentDialog({
   const { spawnBatch, spawning, fetchDefinitions } = useAgentSpawn()
 
   const [agentName, setAgentName] = useState('default')
-  const [mode, setMode] = useState<Mode>('terminal')
+  const [mode, setMode] = useState<Mode>('interactive')
   const [isolation, setIsolation] = useState<Isolation>('none')
   const [model, setModel] = useState<string>('')
   const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set())
@@ -454,7 +454,7 @@ export function BatchLaunchAgentDialog({
           <div className="launch-agent-field">
             <label className="launch-agent-label">Mode</label>
             <div className="launch-agent-radio-group">
-              {([['terminal', 'Terminal'], ['web_chat', 'Web Chat'], ['headless', 'Headless']] as const).map(([val, label]) => (
+              {([['interactive', 'Interactive'], ['web_chat', 'Web Chat'], ['headless', 'Headless']] as const).map(([val, label]) => (
                 <label key={val} className={`launch-agent-radio ${mode === val ? 'active' : ''}`}>
                   <input type="radio" name="batch-mode" value={val} checked={mode === val} onChange={() => setMode(val)} />
                   {label}

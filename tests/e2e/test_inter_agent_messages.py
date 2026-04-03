@@ -92,7 +92,7 @@ class TestInterAgentMessagingE2E:
             run_id=run_id,
             session_id=child_session_id,
             parent_session_id=parent_session_id,
-            mode="terminal",
+            mode="interactive",
         )
         assert register_result["status"] == "success"
 
@@ -258,7 +258,7 @@ class TestInterAgentMessagingE2E:
             run_id=run_id,
             session_id=child_session_id,
             parent_session_id=parent_session_id,
-            mode="terminal",
+            mode="interactive",
         )
         assert register_result["status"] == "success"
 

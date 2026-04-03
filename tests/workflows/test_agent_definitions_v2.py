@@ -83,7 +83,7 @@ class TestAgentDefinitionBodyModel:
             instructions="You are a QA agent. Only write test files.",
             provider="gemini",
             model="gemini-2.5-pro",
-            mode="terminal",
+            mode="interactive",
             isolation="worktree",
             base_branch="develop",
             timeout=300.0,
@@ -99,7 +99,7 @@ class TestAgentDefinitionBodyModel:
         assert body.instructions == "You are a QA agent. Only write test files."
         assert body.provider == "gemini"
         assert body.model == "gemini-2.5-pro"
-        assert body.mode == "terminal"
+        assert body.mode == "interactive"
         assert body.isolation == "worktree"
         assert body.base_branch == "develop"
         assert body.timeout == 300.0
@@ -128,7 +128,7 @@ class TestAgentDefinitionBodyModel:
         """Mode accepts terminal, autonomous."""
         from gobby.workflows.definitions import AgentDefinitionBody
 
-        for mode in ("terminal", "autonomous"):
+        for mode in ("interactive", "autonomous"):
             body = AgentDefinitionBody(name="test", mode=mode)
             assert body.mode == mode
 
@@ -183,7 +183,7 @@ class TestAgentDefinitionBodySerialization:
             instructions="Write clean code.",
             provider="claude",
             model="claude-sonnet-4-6",
-            mode="terminal",
+            mode="interactive",
             isolation="worktree",
             base_branch="main",
             timeout=120.0,
@@ -322,7 +322,7 @@ class TestAgentDefinitionStorage:
             instructions="Test everything.",
             provider="gemini",
             model="gemini-2.5-pro",
-            mode="terminal",
+            mode="interactive",
             isolation="worktree",
             base_branch="develop",
             timeout=300.0,

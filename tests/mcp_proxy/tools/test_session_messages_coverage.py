@@ -104,9 +104,7 @@ class TestSetHandoffContext:
         set_context = registry.get_tool("set_handoff_context")
 
         with session_context_for_test("sess-123"):
-            result = await set_context(
-                content="## Handoff", set_handoff_ready=False
-            )
+            result = await set_context(content="## Handoff", set_handoff_ready=False)
 
         assert result["success"] is True
         session_manager.update_summary.assert_called_once()
@@ -153,9 +151,7 @@ class TestSetHandoffContext:
         set_context = registry.get_tool("set_handoff_context")
 
         with session_context_for_test("sess-123"):
-            result = await set_context(
-                content="## Handoff", to_session="sess-456"
-            )
+            result = await set_context(content="## Handoff", to_session="sess-456")
 
         assert result["success"] is True
         assert result["send_result"]["success"] is True

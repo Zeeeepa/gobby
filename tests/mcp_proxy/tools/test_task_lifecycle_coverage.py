@@ -629,7 +629,6 @@ class TestMarkTaskReviewApproved:
             "mark_task_review_approved",
             {
                 "task_id": task.id,
-
                 "approval_notes": "Looks good",
             },
         )
@@ -690,7 +689,6 @@ class TestMarkTaskNeedsReview:
             "mark_task_needs_review",
             {
                 "task_id": task.id,
-
                 "review_notes": "Please check the output",
             },
         )

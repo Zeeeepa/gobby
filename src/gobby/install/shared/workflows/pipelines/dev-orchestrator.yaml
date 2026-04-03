@@ -194,7 +194,7 @@ steps:
         model: "${{ inputs.developer_model }}"
         timeout: "${{ inputs.agent_timeout }}"
         parent_session_id: "${{ session_id }}"
-        mode: "terminal"
+        mode: "interactive"
 
   # --- RESULT ---
   - id: tick_result

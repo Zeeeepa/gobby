@@ -330,7 +330,7 @@ class TestListAgentsDisplay:
             "completed_at": None,
             "created_at": "2024-01-01T09:59:00",
             "updated_at": "2024-01-01T10:01:00",
-            "mode": "terminal",
+            "mode": "interactive",
             "isolation_mode": None,
             "isolation_path": None,
             "agent_name": "default",

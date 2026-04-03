@@ -107,7 +107,6 @@ class TestMarkTaskReviewApproved:
         tool_func = lifecycle_registry._tools["mark_task_review_approved"].func
         result = tool_func(
             task_id="#42",
-
         )
 
         assert "error" not in result
@@ -125,7 +124,6 @@ class TestMarkTaskReviewApproved:
         tool_func = lifecycle_registry._tools["mark_task_review_approved"].func
         result = tool_func(
             task_id="#42",
-
         )
 
         assert "error" not in result
@@ -139,7 +137,6 @@ class TestMarkTaskReviewApproved:
         tool_func = lifecycle_registry._tools["mark_task_review_approved"].func
         result = tool_func(
             task_id="#42",
-
         )
 
         assert "error" in result
@@ -163,7 +160,6 @@ class TestMarkTaskReviewApproved:
         tool_func = lifecycle_registry._tools["mark_task_review_approved"].func
         result = tool_func(
             task_id="#42",
-
         )
 
         assert "error" in result
@@ -179,7 +175,6 @@ class TestMarkTaskReviewApproved:
         tool_func = lifecycle_registry._tools["mark_task_review_approved"].func
         result = tool_func(
             task_id="#42",
-
             approval_notes="Looks good, all tests pass.",
         )
 
@@ -201,7 +196,6 @@ class TestMarkTaskReviewApproved:
             tool_func = lifecycle_registry._tools["mark_task_review_approved"].func
             result = tool_func(
                 task_id="#999",
-    
             )
 
         assert "error" in result

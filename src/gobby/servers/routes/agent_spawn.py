@@ -34,7 +34,7 @@ class AgentSpawnRequest(BaseModel):
     task_id: str
     agent_name: str = "default"
     prompt: str | None = None
-    mode: Literal["terminal", "web_chat", "autonomous"] = "terminal"
+    mode: Literal["interactive", "web_chat", "autonomous"] = "interactive"
     isolation: Literal["none", "worktree", "clone"] | None = None
     provider: str | None = None
     model: str | None = None
@@ -79,7 +79,7 @@ class LaunchDefaultsRequest(BaseModel):
     project_id: str
     category: str
     agent_name: str = "default"
-    mode: Literal["terminal", "web_chat", "autonomous"] = "terminal"
+    mode: Literal["interactive", "web_chat", "autonomous"] = "interactive"
     isolation: Literal["none", "worktree", "clone"] = "none"
     model: str | None = None
 
@@ -307,8 +307,8 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
         from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
 
         # Map HTTP modes to the mode enum spawn_agent_impl expects
-        spawn_mode: Literal["terminal", "autonomous"] = (
-            "autonomous" if req.mode == "autonomous" else "terminal"
+        spawn_mode: Literal["interactive", "autonomous"] = (
+            "autonomous" if req.mode == "autonomous" else "interactive"
         )
 
         result = await spawn_agent_impl(

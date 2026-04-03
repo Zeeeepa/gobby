@@ -20,7 +20,7 @@ role: "You are an autonomous coding assistant."
 goal: "Complete your assigned task."
 instructions: "Use progressive discovery for MCP tools."
 
-mode: terminal          # Spawn as subprocess
+mode: interactive          # Spawn as subprocess
 isolation: worktree     # Work in isolated git worktree
 
 steps:
@@ -82,7 +82,7 @@ These fields compose into a structured preamble at spawn time:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `mode` | string | `"inherit"` | Execution mode: `terminal`, `autonomous`, `self`, `inherit` |
+| `mode` | string | `"inherit"` | Execution mode: `interactive`, `autonomous`, `self`, `inherit` |
 | `isolation` | string | `"inherit"` | Isolation mode: `none`, `worktree`, `clone`, `inherit` |
 | `provider` | string | `"inherit"` | LLM provider (claude, gemini, etc.) |
 | `model` | string | — | Specific model to use |
@@ -106,12 +106,12 @@ For `provider`, `model`, `base_branch`, `mode`, and `isolation`, the value `"inh
 | Mode | Description | Use Case |
 |------|-------------|----------|
 | `self` | No subprocess spawned. Definition manages the current session's preamble, rules, skills, and variables. | Interactive terminal sessions (the `default` agent) |
-| `terminal` | Spawns a subprocess in a tmux pane. Full CLI session with hooks. | Worker agents (developer, QA, merge) |
+| `interactive` | Spawns a subprocess in a tmux pane. Full CLI session with hooks. | Worker agents (developer, QA, merge) |
 | `autonomous` | Spawns a headless subprocess. No terminal UI. | Background automation |
 
 `self` mode is used exclusively by the `default` agent — it configures the user's interactive session rather than spawning a new one.
 
-`terminal` and `autonomous` modes create a child session, prepare the environment (isolation, prompts, variables), and launch the CLI agent as a subprocess.
+`interactive` and `autonomous` modes create a child session, prepare the environment (isolation, prompts, variables), and launch the CLI agent as a subprocess.
 
 ---
 

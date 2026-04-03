@@ -38,7 +38,7 @@ class SpawnRequest:
     # Required fields
     prompt: str
     cwd: str
-    mode: Literal["terminal", "autonomous"]
+    mode: Literal["interactive", "autonomous"]
     provider: str
     session_id: str
     run_id: str
@@ -112,7 +112,7 @@ async def execute_spawn(request: SpawnRequest) -> SpawnResult:
     Returns:
         SpawnResult with spawn outcome and metadata
     """
-    if request.mode == "terminal":
+    if request.mode == "interactive":
         # Special handling for Gemini/Codex: requires preflight session capture
         if request.provider == "gemini":
             return await _spawn_gemini_terminal(request)

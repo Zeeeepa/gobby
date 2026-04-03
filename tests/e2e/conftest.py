@@ -590,7 +590,7 @@ class CLIEventSimulator:
         run_id: str,
         session_id: str,
         parent_session_id: str,
-        mode: str = "terminal",
+        mode: str = "interactive",
     ) -> dict[str, Any]:
         """Register a test agent in the running agent registry.
 

@@ -181,7 +181,6 @@ class TestCreateTaskTool:
                     "create_task",
                     {
                         "title": "Blocker Task",
-                       
                         "category": "research",
                         "blocks": [
                             "550e8400-e29b-41d4-a716-446655440003",
@@ -232,7 +231,6 @@ class TestCreateTaskTool:
                         "create_task",
                         {
                             "title": "Dependent Task",
-                           
                             "category": "research",
                             "depends_on": ["blocker-1", "blocker-2"],
                         },
@@ -285,7 +283,6 @@ class TestCreateTaskTool:
                         "create_task",
                         {
                             "title": "Partial Deps Task",
-                           
                             "category": "research",
                             "depends_on": ["valid-ref", "invalid-ref"],
                         },
@@ -321,7 +318,6 @@ class TestCreateTaskTool:
                 "create_task",
                 {
                     "title": "Labeled Task",
-                   
                     "category": "research",
                     "labels": ["urgent", "bug"],
                 },
@@ -345,7 +341,6 @@ class TestCreateTaskTool:
                 "create_task",
                 {
                     "title": "Implement new feature",
-                   
                     "category": "code",
                 },
             )
@@ -376,7 +371,6 @@ class TestCreateTaskTool:
                 "create_task",
                 {
                     "title": "Implement new feature",
-                   
                     "category": "code",
                     "validation_criteria": "Tests pass and feature works",
                 },
@@ -408,7 +402,6 @@ class TestCreateTaskTool:
                 "create_task",
                 {
                     "title": "Research auth options",
-                   
                     "category": "research",
                 },
             )
@@ -661,7 +654,6 @@ class TestCreateTaskTool:
                     "create_task",
                     {
                         "title": "New Task",
-                       
                         "category": "research",
                         "claim": True,
                     },
@@ -732,7 +724,6 @@ class TestCreateTaskTool:
                     "create_task",
                     {
                         "title": "New Task",
-                       
                         "category": "research",
                         "claim": True,
                     },
@@ -1532,7 +1523,6 @@ class TestCloseTaskTool:
                 "close_task",
                 {
                     "task_id": task_uuid,
-                   
                     "changes_summary": "test changes",
                 },
             )
@@ -2324,7 +2314,6 @@ class TestSessionVariableMirroring:
                     "create_task",
                     {
                         "title": "New Task",
-                       
                         "category": "research",
                         "claim": True,
                     },

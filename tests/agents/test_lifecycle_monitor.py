@@ -78,7 +78,7 @@ def _make_terminal_run(
         run.id,
         pid=pid,
         tmux_session_name=tmux_session_name,
-        mode="terminal",
+        mode="interactive",
         clone_id=clone_id,
     )
     return agent_run_manager.get(run.id)  # type: ignore[return-value]
@@ -1203,7 +1203,7 @@ class TestCheckExpiredAgents:
         agent_run_manager.update_runtime(
             run.id,
             tmux_session_name="gobby-expired",
-            mode="terminal",
+            mode="interactive",
         )
         # Backdate started_at to simulate expiration
         now = datetime.now(UTC)
@@ -1259,7 +1259,7 @@ class TestCheckExpiredAgents:
         agent_run_manager.update_runtime(
             run.id,
             tmux_session_name="gobby-exp-wt",
-            mode="terminal",
+            mode="interactive",
         )
         # Backdate started_at
         past = (datetime.now(UTC) - timedelta(seconds=600)).isoformat()
@@ -1303,7 +1303,7 @@ class TestCheckExpiredAgents:
         agent_run_manager.update_runtime(
             run.id,
             tmux_session_name="gobby-exp-cl",
-            mode="terminal",
+            mode="interactive",
             clone_id="clone-456",
         )
         # Backdate started_at

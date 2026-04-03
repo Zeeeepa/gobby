@@ -148,7 +148,9 @@ def create_clone(
     required=True,
     help="Parent session ID (required)",
 )
-@click.option("--mode", "-m", default="terminal", help="Agent mode (terminal, embedded, headless)")
+@click.option(
+    "--mode", "-m", default="interactive", help="Agent mode (interactive, embedded, headless)"
+)
 @click.option("--workflow", "-w", help="Workflow to activate")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def spawn_agent(

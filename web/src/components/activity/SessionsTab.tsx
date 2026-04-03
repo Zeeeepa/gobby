@@ -153,7 +153,7 @@ export const SessionsTab = memo(function SessionsTab({
         startedAt: a.started_at,
         seqNum: matchedSession?.seq_num,
         sessionMode: "autonomous",
-        hasTmux: a.mode === "terminal",
+        hasTmux: a.mode === "interactive",
       };
     });
 

@@ -251,7 +251,6 @@ def test_get_by_name_not_found(manager: LocalWorkflowDefinitionManager) -> None:
     assert result is None
 
 
-
 def test_get_by_name_returns_installed_rows(
     manager: LocalWorkflowDefinitionManager,
 ) -> None:
@@ -506,8 +505,6 @@ def test_duplicate_nonexistent_raises(manager: LocalWorkflowDefinitionManager) -
 # =============================================================================
 
 
-
-
 # =============================================================================
 # Move to Project / Move to Global
 # =============================================================================
@@ -550,5 +547,3 @@ def test_move_to_global(db: LocalDatabase, manager: LocalWorkflowDefinitionManag
     moved = manager.move_to_global(row.id)
     assert moved.source == "installed"
     assert moved.project_id is None
-
-

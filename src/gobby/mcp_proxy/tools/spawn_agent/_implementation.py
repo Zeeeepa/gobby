@@ -53,7 +53,7 @@ async def spawn_agent_impl(
     clone_manager: Any | None = None,
     # Execution
     workflow: str | None = None,
-    mode: Literal["terminal", "autonomous"] | None = None,
+    mode: Literal["interactive", "autonomous"] | None = None,
     provider: str | None = None,
     model: str | None = None,
     # Limits
@@ -91,7 +91,7 @@ async def spawn_agent_impl(
         clone_storage: Storage for clone records
         clone_manager: Git manager for clone operations
         workflow: Workflow to use
-        mode: Execution mode (terminal/autonomous)
+        mode: Execution mode (interactive/autonomous)
         provider: AI provider (claude/gemini/codex/cursor/windsurf/copilot)
         model: Model to use
         timeout: Timeout in seconds
@@ -128,7 +128,7 @@ async def spawn_agent_impl(
     assert _raw_provider is not None  # guaranteed by fallback above
     effective_provider: str = _raw_provider
 
-    VALID_MODES = ("terminal", "autonomous")
+    VALID_MODES = ("interactive", "autonomous")
 
     _raw_mode: str | None = mode
     # Reject explicitly invalid modes early (before fallback logic)
@@ -140,10 +140,10 @@ async def spawn_agent_impl(
     if _raw_mode is None and agent_body:
         _raw_mode = agent_body.mode
     if _raw_mode in (None, "inherit"):
-        _raw_mode = "terminal"
+        _raw_mode = "interactive"
     effective_mode = cast(
-        Literal["terminal", "autonomous"],
-        _raw_mode if _raw_mode in VALID_MODES else "terminal",
+        Literal["interactive", "autonomous"],
+        _raw_mode if _raw_mode in VALID_MODES else "interactive",
     )
 
     effective_model = model

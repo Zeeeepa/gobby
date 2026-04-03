@@ -9,7 +9,7 @@ priority: 20
 
 provider: gemini
 model: null
-mode: terminal
+mode: interactive
 isolation: inherit
 timeout: 1200
 max_turns: 50

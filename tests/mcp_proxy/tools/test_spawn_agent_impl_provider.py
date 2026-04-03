@@ -53,7 +53,7 @@ class TestProviderResolution:
         agent_body = AgentDefinitionBody(
             name="gemini-worker",
             provider="gemini",
-            mode="terminal",
+            mode="interactive",
         )
         runner = _make_runner()
 
@@ -88,7 +88,7 @@ class TestProviderResolution:
                 runner=runner,
                 agent_body=agent_body,
                 provider=None,  # explicitly None — should fall back to agent_body.provider
-                mode="terminal",
+                mode="interactive",
                 parent_session_id="parent-session-xyz",
             )
 
@@ -105,7 +105,7 @@ class TestProviderResolution:
         agent_body = AgentDefinitionBody(
             name="gemini-worker",
             provider="gemini",
-            mode="terminal",
+            mode="interactive",
         )
         runner = _make_runner()
 
@@ -140,7 +140,7 @@ class TestProviderResolution:
                 runner=runner,
                 agent_body=agent_body,
                 provider="claude",  # explicit override
-                mode="terminal",
+                mode="interactive",
                 parent_session_id="parent-session-xyz",
             )
 
@@ -186,7 +186,7 @@ class TestProviderResolution:
                 runner=runner,
                 agent_body=None,
                 provider="inherit",
-                mode="terminal",
+                mode="interactive",
                 parent_session_id="parent-session-xyz",
             )
 
@@ -232,7 +232,7 @@ class TestProviderResolution:
                 runner=runner,
                 agent_body=None,
                 provider=None,
-                mode="terminal",
+                mode="interactive",
                 parent_session_id="parent-session-xyz",
             )
 
@@ -297,7 +297,7 @@ class TestSpawnAutoClaimAssignee:
                 runner=runner,
                 agent_body=None,
                 provider=None,
-                mode="terminal",
+                mode="interactive",
                 parent_session_id="parent-session-xyz",
                 task_id="#42",
                 task_manager=task_manager,
@@ -353,7 +353,7 @@ class TestSpawnAutoClaimAssignee:
                 runner=runner,
                 agent_body=None,
                 provider=None,
-                mode="terminal",
+                mode="interactive",
                 parent_session_id="parent-session-xyz",
                 task_id="#99",
                 task_manager=task_manager,
@@ -411,7 +411,7 @@ class TestSpawnAutoClaimAssignee:
                 runner=runner,
                 agent_body=None,
                 provider=None,
-                mode="terminal",
+                mode="interactive",
                 parent_session_id="parent-session-xyz",
                 task_id="#200",
                 task_manager=task_manager,

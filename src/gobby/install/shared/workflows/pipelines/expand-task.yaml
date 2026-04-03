@@ -50,7 +50,7 @@ steps:
         provider: "${{ inputs.provider }}"
         model: "${{ inputs.model }}"
         parent_session_id: "${{ session_id }}"
-        mode: terminal
+        mode: interactive
 
   # --- 2. Wait for researcher to complete ---
   - id: wait_researcher
@@ -97,7 +97,7 @@ steps:
         provider: "${{ inputs.provider }}"
         model: "${{ inputs.model }}"
         parent_session_id: "${{ session_id }}"
-        mode: terminal
+        mode: interactive
 
   # --- 7. Wait for QA agent to complete ---
   - id: wait_qa

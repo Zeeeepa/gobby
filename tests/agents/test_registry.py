@@ -28,13 +28,13 @@ class TestRunningAgent:
             run_id="ar-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-            mode="terminal",
+            mode="interactive",
         )
 
         assert agent.run_id == "ar-123"
         assert agent.session_id == "sess-456"
         assert agent.parent_session_id == "sess-parent"
-        assert agent.mode == "terminal"
+        assert agent.mode == "interactive"
 
     def test_default_values(self) -> None:
         """RunningAgent has correct default values."""
@@ -85,7 +85,7 @@ class TestRunningAgent:
             run_id="ar-time",
             session_id="sess-time",
             parent_session_id="sess-parent",
-            mode="terminal",
+            mode="interactive",
         )
 
         assert agent.started_at.tzinfo is not None
@@ -122,7 +122,7 @@ class TestRunningAgent:
             run_id="ar-full-dict",
             session_id="sess-full-dict",
             parent_session_id="sess-parent-full-dict",
-            mode="terminal",
+            mode="interactive",
             pid=99999,
             master_fd=10,
             terminal_type="iterm",
@@ -148,7 +148,7 @@ class TestRunningAgent:
             run_id="ar-iso",
             session_id="sess-iso",
             parent_session_id="sess-parent-iso",
-            mode="terminal",
+            mode="interactive",
         )
 
         result = agent.to_dict()
@@ -169,7 +169,7 @@ class TestRunningAgentToBrief:
             run_id="ar-brief",
             session_id="sess-brief",
             parent_session_id="sess-parent-brief",
-            mode="terminal",
+            mode="interactive",
             pid=12345,
             provider="claude",
             task_id="gt-task1",
@@ -211,7 +211,7 @@ class TestRunningAgentToBrief:
             run_id="ar-brief3",
             session_id="sess-brief3",
             parent_session_id="sess-parent-brief3",
-            mode="terminal",
+            mode="interactive",
             master_fd=7,
             terminal_type="tmux",
             tmux_session_name="gobby-agent-1",
@@ -247,7 +247,7 @@ class TestRunningAgentRegistry:
             run_id="ar-sample",
             session_id="sess-sample",
             parent_session_id="sess-parent-sample",
-            mode="terminal",
+            mode="interactive",
             pid=12345,
         )
 
@@ -270,7 +270,7 @@ class TestRunningAgentRegistry:
                 run_id=f"ar-{i}",
                 session_id=f"sess-{i}",
                 parent_session_id="sess-parent",
-                mode="terminal",
+                mode="interactive",
             )
             for i in range(5)
         ]
@@ -288,7 +288,7 @@ class TestRunningAgentRegistry:
             run_id="ar-overwrite",
             session_id="sess-1",
             parent_session_id="sess-parent",
-            mode="terminal",
+            mode="interactive",
         )
         agent2 = RunningAgent(
             run_id="ar-overwrite",
@@ -349,7 +349,7 @@ class TestRunningAgentRegistry:
             run_id="ar-session",
             session_id="sess-child-123",
             parent_session_id="sess-parent",
-            mode="terminal",
+            mode="interactive",
         )
         registry.add(agent)
 
@@ -370,7 +370,7 @@ class TestRunningAgentRegistry:
                 run_id=f"ar-{i}",
                 session_id=f"sess-child-{i}",
                 parent_session_id="sess-parent",
-                mode="terminal",
+                mode="interactive",
             )
             for i in range(3)
         ]
@@ -387,7 +387,7 @@ class TestRunningAgentRegistry:
             run_id="ar-pid",
             session_id="sess-pid",
             parent_session_id="sess-parent",
-            mode="terminal",
+            mode="interactive",
             pid=54321,
         )
         registry.add(agent)
@@ -424,7 +424,7 @@ class TestRunningAgentRegistry:
                 run_id=f"ar-p1-{i}",
                 session_id=f"sess-p1-{i}",
                 parent_session_id="parent-1",
-                mode="terminal",
+                mode="interactive",
             )
             for i in range(3)
         ]
@@ -433,7 +433,7 @@ class TestRunningAgentRegistry:
                 run_id=f"ar-p2-{i}",
                 session_id=f"sess-p2-{i}",
                 parent_session_id="parent-2",
-                mode="terminal",
+                mode="interactive",
             )
             for i in range(2)
         ]
@@ -460,7 +460,7 @@ class TestRunningAgentRegistry:
                 run_id=f"ar-term-{i}",
                 session_id=f"sess-term-{i}",
                 parent_session_id="parent",
-                mode="terminal",
+                mode="interactive",
             )
             for i in range(2)
         ]
@@ -477,11 +477,11 @@ class TestRunningAgentRegistry:
         for agent in terminal_agents + autonomous_agents:
             registry.add(agent)
 
-        result = registry.list_by_mode("terminal")
+        result = registry.list_by_mode("interactive")
 
         assert len(result) == 2
         for agent in result:
-            assert agent.mode == "terminal"
+            assert agent.mode == "interactive"
 
     def test_list_by_mode_returns_empty_list_when_none_found(self, registry) -> None:
         """list_by_mode() returns empty list when no agents match."""
@@ -504,7 +504,7 @@ class TestRunningAgentRegistry:
                 run_id=f"ar-all-{i}",
                 session_id=f"sess-all-{i}",
                 parent_session_id="parent",
-                mode="terminal",
+                mode="interactive",
             )
             for i in range(5)
         ]
@@ -534,7 +534,7 @@ class TestRunningAgentRegistry:
                     run_id=f"ar-count-{i}",
                     session_id=f"sess-count-{i}",
                     parent_session_id="parent",
-                    mode="terminal",
+                    mode="interactive",
                 )
             )
 
@@ -548,7 +548,7 @@ class TestRunningAgentRegistry:
                     run_id=f"ar-p1-{i}",
                     session_id=f"sess-p1-{i}",
                     parent_session_id="parent-1",
-                    mode="terminal",
+                    mode="interactive",
                 )
             )
         for i in range(2):
@@ -557,7 +557,7 @@ class TestRunningAgentRegistry:
                     run_id=f"ar-p2-{i}",
                     session_id=f"sess-p2-{i}",
                     parent_session_id="parent-2",
-                    mode="terminal",
+                    mode="interactive",
                 )
             )
 
@@ -573,7 +573,7 @@ class TestRunningAgentRegistry:
                     run_id=f"ar-clear-{i}",
                     session_id=f"sess-clear-{i}",
                     parent_session_id="parent",
-                    mode="terminal",
+                    mode="interactive",
                 )
             )
 
@@ -604,21 +604,21 @@ class TestRunningAgentRegistryCleanup:
             run_id="ar-alive",
             session_id="sess-alive",
             parent_session_id="parent",
-            mode="terminal",
+            mode="interactive",
             pid=1000,
         )
         dead_agent1 = RunningAgent(
             run_id="ar-dead1",
             session_id="sess-dead1",
             parent_session_id="parent",
-            mode="terminal",
+            mode="interactive",
             pid=2000,
         )
         dead_agent2 = RunningAgent(
             run_id="ar-dead2",
             session_id="sess-dead2",
             parent_session_id="parent",
-            mode="terminal",
+            mode="interactive",
             pid=3000,
         )
 
@@ -657,7 +657,7 @@ class TestRunningAgentRegistryCleanup:
             run_id="ar-test",
             session_id="sess-test",
             parent_session_id="parent",
-            mode="terminal",
+            mode="interactive",
             pid=1234,
         )
         registry.add(agent)
@@ -674,7 +674,7 @@ class TestRunningAgentRegistryCleanup:
             run_id="ar-old",
             session_id="sess-old",
             parent_session_id="parent",
-            mode="terminal",
+            mode="interactive",
         )
         # Manually set started_at to 2 hours ago
         old_agent.started_at = datetime.now(UTC) - timedelta(hours=2)
@@ -683,7 +683,7 @@ class TestRunningAgentRegistryCleanup:
             run_id="ar-recent",
             session_id="sess-recent",
             parent_session_id="parent",
-            mode="terminal",
+            mode="interactive",
         )
 
         registry.add(old_agent)
@@ -704,7 +704,7 @@ class TestRunningAgentRegistryCleanup:
                 run_id=f"ar-{i}",
                 session_id=f"sess-{i}",
                 parent_session_id="parent",
-                mode="terminal",
+                mode="interactive",
             )
             for i in range(3)
         ]
@@ -724,7 +724,7 @@ class TestRunningAgentRegistryCleanup:
                 run_id=f"ar-{i}",
                 session_id=f"sess-{i}",
                 parent_session_id="parent",
-                mode="terminal",
+                mode="interactive",
             )
             for i in range(3)
         ]
@@ -760,7 +760,7 @@ class TestRunningAgentRegistryEventCallbacks:
             run_id="ar-test",
             session_id="sess-test",
             parent_session_id="parent",
-            mode="terminal",
+            mode="interactive",
         )
         registry.add(agent)
 
@@ -775,7 +775,7 @@ class TestRunningAgentRegistryEventCallbacks:
             run_id="ar-add",
             session_id="sess-add",
             parent_session_id="parent-add",
-            mode="terminal",
+            mode="interactive",
             provider="gemini",
             pid=9999,
         )
@@ -787,7 +787,7 @@ class TestRunningAgentRegistryEventCallbacks:
             {
                 "session_id": "sess-add",
                 "parent_session_id": "parent-add",
-                "mode": "terminal",
+                "mode": "interactive",
                 "provider": "gemini",
                 "pid": 9999,
                 "tmux_session_name": None,
@@ -832,7 +832,7 @@ class TestRunningAgentRegistryEventCallbacks:
             run_id="ar-fail",
             session_id="sess-fail",
             parent_session_id="parent-fail",
-            mode="terminal",
+            mode="interactive",
             provider="claude",
         )
         registry.add(agent)
@@ -853,7 +853,7 @@ class TestRunningAgentRegistryEventCallbacks:
             run_id="ar-cancel",
             session_id="sess-cancel",
             parent_session_id="parent-cancel",
-            mode="terminal",
+            mode="interactive",
             provider="claude",
         )
         registry.add(agent)
@@ -874,7 +874,7 @@ class TestRunningAgentRegistryEventCallbacks:
             run_id="ar-cleanup-pid",
             session_id="sess-cleanup-pid",
             parent_session_id="parent-cleanup-pid",
-            mode="terminal",
+            mode="interactive",
             provider="claude",
             pid=11111,
         )
@@ -897,7 +897,7 @@ class TestRunningAgentRegistryEventCallbacks:
             run_id="ar-stale",
             session_id="sess-stale",
             parent_session_id="parent-stale",
-            mode="terminal",
+            mode="interactive",
             provider="claude",
         )
         agent.started_at = datetime.now(UTC) - timedelta(hours=2)
@@ -926,7 +926,7 @@ class TestRunningAgentRegistryEventCallbacks:
             run_id="ar-exc",
             session_id="sess-exc",
             parent_session_id="parent-exc",
-            mode="terminal",
+            mode="interactive",
         )
 
         # Should not raise even though bad_callback throws
@@ -945,7 +945,7 @@ class TestRunningAgentRegistryEventCallbacks:
             run_id="ar-multi",
             session_id="sess-multi",
             parent_session_id="parent-multi",
-            mode="terminal",
+            mode="interactive",
         )
         registry.add(agent)
 
@@ -983,7 +983,7 @@ class TestRunningAgentRegistryThreadSafety:
                         run_id=f"ar-{thread_id}-{i}",
                         session_id=f"sess-{thread_id}-{i}",
                         parent_session_id="parent",
-                        mode="terminal",
+                        mode="interactive",
                     )
                     registry.add(agent)
             except Exception as e:
@@ -1007,7 +1007,7 @@ class TestRunningAgentRegistryThreadSafety:
                     run_id=f"ar-pre-{i}",
                     session_id=f"sess-pre-{i}",
                     parent_session_id="parent",
-                    mode="terminal",
+                    mode="interactive",
                 )
             )
 
@@ -1022,7 +1022,7 @@ class TestRunningAgentRegistryThreadSafety:
                         run_id=f"ar-add-{i}",
                         session_id=f"sess-add-{i}",
                         parent_session_id="parent",
-                        mode="terminal",
+                        mode="interactive",
                     )
                     registry.add(agent)
                     add_count[0] += 1
@@ -1057,7 +1057,7 @@ class TestRunningAgentRegistryThreadSafety:
                     run_id=f"ar-read-{i}",
                     session_id=f"sess-read-{i}",
                     parent_session_id=f"parent-{i % 10}",
-                    mode=["terminal", "autonomous", "in_process", "terminal"][i % 4],
+                    mode=["interactive", "autonomous", "in_process", "interactive"][i % 4],
                     pid=i if i % 2 == 0 else None,
                 )
             )
@@ -1073,7 +1073,7 @@ class TestRunningAgentRegistryThreadSafety:
                     registry.get(f"ar-read-{_ % 100}")
                     registry.get_by_session(f"sess-read-{_ % 100}")
                     registry.list_by_parent(f"parent-{_ % 10}")
-                    registry.list_by_mode("terminal")
+                    registry.list_by_mode("interactive")
                     registry.count_by_parent(f"parent-{_ % 10}")
                     if _ % 2 == 0:
                         registry.get_by_pid(_ % 100)
@@ -1149,13 +1149,13 @@ class TestRunningAgentRegistryLogging:
                 run_id="ar-log",
                 session_id="sess-log",
                 parent_session_id="parent-log",
-                mode="terminal",
+                mode="interactive",
                 pid=12345,
             )
             registry.add(agent)
 
         assert "ar-log" in caplog.text
-        assert "terminal" in caplog.text
+        assert "interactive" in caplog.text
 
     def test_remove_logs_debug_message(self, registry, caplog) -> None:
         """remove() logs debug message when agent found."""
@@ -1165,7 +1165,7 @@ class TestRunningAgentRegistryLogging:
             run_id="ar-rm-log",
             session_id="sess-rm-log",
             parent_session_id="parent-rm-log",
-            mode="terminal",
+            mode="interactive",
         )
         registry.add(agent)
 
@@ -1182,7 +1182,7 @@ class TestRunningAgentRegistryLogging:
             run_id="ar-cleanup-log",
             session_id="sess-cleanup-log",
             parent_session_id="parent",
-            mode="terminal",
+            mode="interactive",
             pid=77777,
         )
         registry.add(agent)
@@ -1201,7 +1201,7 @@ class TestRunningAgentRegistryLogging:
             run_id="ar-stale-log",
             session_id="sess-stale-log",
             parent_session_id="parent",
-            mode="terminal",
+            mode="interactive",
         )
         agent.started_at = datetime.now(UTC) - timedelta(hours=2)
         registry.add(agent)
@@ -1222,7 +1222,7 @@ class TestRunningAgentRegistryLogging:
                     run_id=f"ar-clear-{i}",
                     session_id=f"sess-clear-{i}",
                     parent_session_id="parent",
-                    mode="terminal",
+                    mode="interactive",
                 )
             )
 
@@ -1280,7 +1280,7 @@ class TestRunningAgentEdgeCases:
             run_id='ar-"special"',
             session_id="sess-with\nnewline",
             parent_session_id="parent-with\ttab",
-            mode="terminal",
+            mode="interactive",
             terminal_type="term<type>",
             workflow_name="workflow/with/slashes",
         )
@@ -1307,7 +1307,7 @@ class TestRunningAgentRegistryEdgeCases:
             run_id="ar-pid-0",
             session_id="sess-pid-0",
             parent_session_id="parent",
-            mode="terminal",
+            mode="interactive",
             pid=0,
         )
         registry.add(agent)
@@ -1327,7 +1327,7 @@ class TestRunningAgentRegistryEdgeCases:
             run_id="ar-pid-0-cleanup",
             session_id="sess-pid-0-cleanup",
             parent_session_id="parent",
-            mode="terminal",
+            mode="interactive",
             pid=0,
         )
         registry.add(agent)
@@ -1344,7 +1344,7 @@ class TestRunningAgentRegistryEdgeCases:
             run_id="ar-boundary",
             session_id="sess-boundary",
             parent_session_id="parent",
-            mode="terminal",
+            mode="interactive",
         )
         # Set to exactly 1 hour ago
         agent.started_at = datetime.now(UTC) - timedelta(hours=1)
@@ -1367,7 +1367,7 @@ class TestRunningAgentRegistryEdgeCases:
             run_id="ar-many-cb",
             session_id="sess-many-cb",
             parent_session_id="parent",
-            mode="terminal",
+            mode="interactive",
         )
         registry.add(agent)
 
@@ -1389,7 +1389,7 @@ class TestRunningAgentRegistryEdgeCases:
             run_id="ar-modify",
             session_id="sess-modify",
             parent_session_id="parent",
-            mode="terminal",
+            mode="interactive",
         )
 
         # Should not raise due to snapshot iteration
@@ -1512,7 +1512,7 @@ class TestRunningAgentRegistryKill:
             run_id="ar-nopid",
             session_id="sess-nopid",
             parent_session_id="parent",
-            mode="terminal",
+            mode="interactive",
             pid=None,
         )
         registry.add(agent)
@@ -1533,7 +1533,7 @@ class TestRunningAgentRegistryKill:
             run_id="ar-dead",
             session_id="sess-dead",
             parent_session_id="parent",
-            mode="terminal",
+            mode="interactive",
             pid=99999999,
         )
         registry.add(agent)
@@ -1551,7 +1551,7 @@ class TestRunningAgentRegistryKill:
             run_id="ar-perm",
             session_id="sess-perm",
             parent_session_id="parent",
-            mode="terminal",
+            mode="interactive",
             pid=1,
         )
         registry.add(agent)

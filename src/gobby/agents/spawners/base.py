@@ -14,7 +14,7 @@ from typing import Any
 class SpawnMode(str, Enum):
     """Agent execution mode."""
 
-    TERMINAL = "terminal"  # Spawn in external terminal window
+    INTERACTIVE = "interactive"  # Spawn in tmux for interactive use
     AUTONOMOUS = "autonomous"  # SDK in-process, auto-approve all tools
     IN_PROCESS = "in_process"  # Run via SDK in daemon process (web chat)
 

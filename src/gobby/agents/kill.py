@@ -196,7 +196,7 @@ async def kill_agent(
         return {"success": True, "message": "Cancelled in-process task"}
 
     # For terminal mode with close_terminal=True, try terminal-specific close
-    if close_terminal and run.mode == "terminal" and session_id:
+    if close_terminal and run.mode == "interactive" and session_id:
         result = await _close_terminal_window(session_id, db, signal_name, timeout)
         if result.get("success"):
             return result
@@ -205,7 +205,7 @@ async def kill_agent(
     target_pid = run.pid
     found_via = "db"
 
-    if run.mode == "terminal" and session_id and not target_pid:
+    if run.mode == "interactive" and session_id and not target_pid:
         # Strategy 1: Check session's terminal_context
         try:
             session_mgr = LocalSessionManager(db)

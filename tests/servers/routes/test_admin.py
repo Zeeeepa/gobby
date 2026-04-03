@@ -670,7 +670,7 @@ class TestTestEndpoints:
             "id": "run-1",
             "session_id": "sess-1",
             "parent_session_id": "parent-1",
-            "mode": "terminal",
+            "mode": "interactive",
         }
         mock_arm.get.return_value = mock_run
         mock_arm_cls.return_value = mock_arm
@@ -681,7 +681,7 @@ class TestTestEndpoints:
                 "run_id": "run-1",
                 "session_id": "sess-1",
                 "parent_session_id": "parent-1",
-                "mode": "terminal",
+                "mode": "interactive",
             },
         )
         assert response.status_code == 200

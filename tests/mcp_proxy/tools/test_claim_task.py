@@ -112,7 +112,6 @@ class TestClaimTaskTool:
                 "claim_task",
                 {
                     "task_id": sample_task.id,
-
                 },
             )
 
@@ -143,7 +142,6 @@ class TestClaimTaskTool:
             "claim_task",
             {
                 "task_id": claimed_task.id,
-
             },
         )
 
@@ -188,7 +186,6 @@ class TestClaimTaskTool:
                 "claim_task",
                 {
                     "task_id": claimed_task.id,
-
                     "force": True,
                 },
             )
@@ -241,7 +238,6 @@ class TestClaimTaskTool:
                 "claim_task",
                 {
                     "task_id": task_claimed_by_self.id,
-
                 },
             )
 
@@ -259,7 +255,6 @@ class TestClaimTaskTool:
             "claim_task",
             {
                 "task_id": "00000000-0000-0000-0000-000000000000",
-
             },
         )
 
@@ -291,7 +286,6 @@ class TestClaimTaskTool:
                     "claim_task",
                     {
                         "task_id": "#42",  # Reference format
-    
                     },
                 )
 
@@ -341,7 +335,6 @@ class TestClaimTaskTool:
                 "claim_task",
                 {
                     "task_id": sample_task.id,
-
                 },
             )
 
@@ -493,7 +486,6 @@ class TestClaimTaskVsUpdateTask:
                 "claim_task",
                 {
                     "task_id": sample_task.id,
-
                 },
             )
 
@@ -521,7 +513,6 @@ class TestClaimTaskVsUpdateTask:
             "claim_task",
             {
                 "task_id": claimed_task.id,
-
             },
         )
 

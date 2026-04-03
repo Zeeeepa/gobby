@@ -95,7 +95,7 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
         run_id: str
         session_id: str
         parent_session_id: str
-        mode: str = "terminal"
+        mode: str = "interactive"
 
     @router.post("/test/register-agent")
     async def register_test_agent(request: TestAgentRegisterRequest) -> dict[str, Any]:

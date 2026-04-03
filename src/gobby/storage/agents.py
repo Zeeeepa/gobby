@@ -41,7 +41,7 @@ class AgentRun:
     task_id: str | None = None
     pid: int | None = None
     tmux_session_name: str | None = None
-    mode: str = "terminal"
+    mode: str = "interactive"
     worktree_id: str | None = None
     clone_id: str | None = None
     timeout_seconds: float | None = None
@@ -75,7 +75,7 @@ class AgentRun:
             tmux_session_name=row["tmux_session_name"]
             if "tmux_session_name" in row.keys()
             else None,
-            mode=row["mode"] if "mode" in row.keys() and row["mode"] else "terminal",
+            mode=row["mode"] if "mode" in row.keys() and row["mode"] else "interactive",
             worktree_id=row["worktree_id"] if "worktree_id" in row.keys() else None,
             clone_id=row["clone_id"] if "clone_id" in row.keys() else None,
             timeout_seconds=row["timeout_seconds"] if "timeout_seconds" in row.keys() else None,

@@ -21,9 +21,9 @@ inputs:
   developer_agent: "developer"
   qa_agent: "qa-reviewer"
   developer_provider: "claude"
-  developer_mode: "terminal"
+  developer_mode: "interactive"
   qa_provider: "claude"
-  qa_mode: "terminal"
+  qa_mode: "interactive"
   developer_model: null
   qa_model: "opus"
   agent_timeout: 1200

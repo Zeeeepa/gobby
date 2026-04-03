@@ -530,8 +530,7 @@ export function AgentEditForm({
             <MetaRow label="Mode">
               <select className="agent-edit-input" value={form.mode} onChange={e => set('mode', e.target.value)}>
                 <option value="inherit">(default)</option>
-                <option value="self">Self</option>
-                <option value="terminal">Terminal</option>
+                <option value="interactive">Interactive</option>
                 <option value="embedded">Embedded</option>
                 <option value="headless">Headless</option>
               </select>

@@ -24,7 +24,7 @@ class TestSpawnRequest:
         request = SpawnRequest(
             prompt="Test prompt",
             cwd="/path/to/project",
-            mode="terminal",
+            mode="interactive",
             provider="claude",
             session_id="session-123",
             run_id="run-456",
@@ -34,7 +34,7 @@ class TestSpawnRequest:
 
         assert request.prompt == "Test prompt"
         assert request.cwd == "/path/to/project"
-        assert request.mode == "terminal"
+        assert request.mode == "interactive"
         assert request.provider == "claude"
         assert request.session_id == "session-123"
         assert request.run_id == "run-456"
@@ -46,7 +46,7 @@ class TestSpawnRequest:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -65,7 +65,7 @@ class TestSpawnRequest:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -83,7 +83,7 @@ class TestSpawnRequest:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -105,7 +105,7 @@ class TestSpawnRequest:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -121,7 +121,7 @@ class TestSpawnRequest:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -195,7 +195,7 @@ class TestExecuteSpawn:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -262,7 +262,7 @@ class TestExecuteSpawn:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -306,7 +306,7 @@ class TestExecuteSpawn:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -357,7 +357,7 @@ class TestExecuteSpawn:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="gemini",
             session_id="sess",
             run_id="run",
@@ -413,7 +413,7 @@ class TestExecuteSpawn:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="codex",
             session_id="sess",
             run_id="run",
@@ -461,7 +461,7 @@ class TestExecuteSpawn:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -481,7 +481,7 @@ class TestExecuteSpawn:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="gemini",
             session_id="sess",
             run_id="run",
@@ -502,7 +502,7 @@ class TestExecuteSpawn:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="gemini",
             session_id="sess",
             run_id="run",
@@ -557,7 +557,7 @@ class TestExecuteSpawnSandbox:
         request = SpawnRequest(
             prompt="Test with sandbox",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -621,7 +621,7 @@ class TestExecuteSpawnSandbox:
         request = SpawnRequest(
             prompt="Test without sandbox",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -690,7 +690,7 @@ class TestExecuteSpawnSandbox:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -739,7 +739,7 @@ class TestExecuteSpawnSandbox:
         request = SpawnRequest(
             prompt="Test with sandbox",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="gemini",
             session_id="sess",
             run_id="run",
@@ -822,7 +822,7 @@ class TestExecuteSpawnErrorPaths:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="codex",
             session_id="sess",
             run_id="run",
@@ -843,7 +843,7 @@ class TestExecuteSpawnErrorPaths:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="codex",
             session_id="sess",
             run_id="run",
@@ -868,7 +868,7 @@ class TestExecuteSpawnErrorPaths:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="codex",
             session_id="sess",
             run_id="run",
@@ -893,7 +893,7 @@ class TestExecuteSpawnErrorPaths:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="codex",
             session_id="sess",
             run_id="run",
@@ -1054,7 +1054,7 @@ class TestExecuteSpawnErrorPaths:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -1100,7 +1100,7 @@ class TestExecuteSpawnErrorPaths:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="terminal",
+            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",

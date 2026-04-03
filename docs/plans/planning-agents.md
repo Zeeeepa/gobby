@@ -14,7 +14,7 @@ Gobby needs structured product development workflows. Currently, users do ad-hoc
 | Workflow instructions | **Gobby skills** via `skill_selectors` + `skill_format: "full"` | Deterministic injection at SESSION_START. Agent gets full procedural knowledge without memory search or file reads. |
 | Persona | **Shared personality** from default agent; `role`/`goal`/`instructions` vary per hat | Preamble is prepended to spawn prompt. Gobby's voice is constant; the expertise focus shifts. |
 | NOT gobby-memory | Memory is for facts/patterns, not procedures | But agents *can* use gobby-memory for project knowledge accumulated across sessions. |
-| Agent mode | **terminal** (interactive) | These agents converse — ask questions, iterate on drafts, get feedback. |
+| Agent mode | **interactive** (interactive) | These agents converse — ask questions, iterate on drafts, get feedback. |
 | Isolation | **none** | Agents produce planning artifacts on shared filesystem. Each phase reads the previous phase's output. |
 | Step workflows | **Not used** | Interactive agents don't need lifecycle gates. Pipeline handles phase sequencing. |
 | Brownfield-first | Agents scan existing code/docs before planning | Unlike greenfield-only methodologies, these agents explore what already exists. |
@@ -128,7 +128,7 @@ instructions: |
   - Challenge assumptions when evidence contradicts them
   - Always produce a written brief; don't just discuss
 
-mode: terminal
+mode: interactive
 isolation: none
 provider: inherit
 timeout: 0
@@ -194,7 +194,7 @@ instructions: |
   - Self-review against the validation checklist before presenting
   - Don't gold-plate: if a requirement doesn't trace to a user need, cut it
 
-mode: terminal
+mode: interactive
 isolation: none
 provider: inherit
 timeout: 0
@@ -259,7 +259,7 @@ instructions: |
   - Call out what you chose NOT to do and why
   - Validate: every PRD requirement must map to at least one component
 
-mode: terminal
+mode: interactive
 isolation: none
 provider: inherit
 timeout: 0
@@ -325,7 +325,7 @@ instructions: |
   - Call out accessibility requirements explicitly
   - Identify reusable patterns — don't design the same interaction twice
 
-mode: terminal
+mode: interactive
 isolation: none
 provider: inherit
 timeout: 0
@@ -391,7 +391,7 @@ instructions: |
   - Include contract/API tests for service boundaries
   - Start with what breaks most expensively, test that first
 
-mode: terminal
+mode: interactive
 isolation: none
 provider: inherit
 timeout: 0
@@ -455,7 +455,7 @@ instructions: |
   - If something is uncertain, say so — don't paper over gaps
   - Maintain a consistent voice with existing project docs
 
-mode: terminal
+mode: interactive
 isolation: none
 provider: inherit
 timeout: 0
@@ -570,7 +570,7 @@ steps:
 
           Start by exploring the existing codebase if one exists.
           When the user approves the brief, save it and you're done.
-        mode: terminal
+        mode: interactive
 
   - id: wait-discovery
     wait:
@@ -601,7 +601,7 @@ steps:
 
           Read the brief first, then work with the user to define requirements.
           When the user approves the PRD, save it and you're done.
-        mode: terminal
+        mode: interactive
 
   - id: wait-product
     wait:
@@ -634,7 +634,7 @@ steps:
 
           Read both inputs, explore existing UI code if applicable.
           When the user approves the UX design, save it and you're done.
-        mode: terminal
+        mode: interactive
 
   - id: wait-ux
     condition: "${{ not inputs.skip_ux }}"
@@ -670,7 +670,7 @@ steps:
           Read all available inputs, explore existing code, then design.
           The UX design file may not exist if UX was skipped.
           When the user approves the architecture, save it and you're done.
-        mode: terminal
+        mode: interactive
 
   - id: wait-architect
     wait:
@@ -703,7 +703,7 @@ steps:
 
           Read both inputs, explore existing test infrastructure.
           When the user approves the test strategy, save it and you're done.
-        mode: terminal
+        mode: interactive
 
   - id: wait-test
     condition: "${{ not inputs.skip_test }}"
@@ -749,7 +749,7 @@ def test_planning_agent_schemas():
         body = AgentDefinitionBody.model_validate(data)
         assert body.workflows.skill_selectors is not None
         assert body.workflows.skill_format == "full"
-        assert body.mode == "terminal"
+        assert body.mode == "interactive"
         assert body.isolation == "none"
 
 def test_planning_skills_parse():
@@ -791,7 +791,7 @@ def test_selector_routing_isolation():
 1. `uv run gobby restart`
 2. Verify templates synced: `list_agent_definitions()` shows all 6 agents
 3. Enable: `update_agent_definition(name="gobby-discovery", enabled=True)`
-4. Spawn: `spawn_agent(agent="gobby-discovery", prompt="...", mode="terminal")`
+4. Spawn: `spawn_agent(agent="gobby-discovery", prompt="...", mode="interactive")`
 5. Verify: agent context includes brainstorm + research + brief skill content
 6. Test pipeline: `run_pipeline(name="gobby-planning", inputs={...})`
 7. Test skip flags: `run_pipeline(name="gobby-planning", inputs={"skip_ux": true, ...})`

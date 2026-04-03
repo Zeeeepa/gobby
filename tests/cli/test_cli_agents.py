@@ -277,7 +277,7 @@ class TestAgentsSpawnCommand:
                 "--task",
                 "gt-task123",
                 "--mode",
-                "terminal",
+                "interactive",
                 "--terminal",
                 "iterm",
                 "--provider",
@@ -303,7 +303,7 @@ class TestAgentsSpawnCommand:
         assert call_args[1]["json"]["parent_session_id"] == "sess-parent123"
         assert call_args[1]["json"]["workflow"] == "plan-execute"
         assert call_args[1]["json"]["task"] == "gt-task123"
-        assert call_args[1]["json"]["mode"] == "terminal"
+        assert call_args[1]["json"]["mode"] == "interactive"
         assert call_args[1]["json"]["terminal"] == "iterm"
         assert call_args[1]["json"]["provider"] == "claude"
         assert call_args[1]["json"]["model"] == "claude-3-opus"

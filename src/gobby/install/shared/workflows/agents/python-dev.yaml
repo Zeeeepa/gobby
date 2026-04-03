@@ -8,7 +8,7 @@ description: |
 version: "1.0"
 enabled: true
 priority: 20
-mode: terminal
+mode: interactive
 timeout: 1800
 
 instructions: |

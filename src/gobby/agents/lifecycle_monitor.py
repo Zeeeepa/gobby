@@ -198,7 +198,7 @@ class AgentLifecycleMonitor:
     def _get_active_terminal_runs(self) -> list[AgentRun]:
         """Get active terminal agent runs with tmux sessions from DB."""
         runs = self._agent_run_manager.list_active()
-        return [r for r in runs if r.mode == "terminal" and r.tmux_session_name]
+        return [r for r in runs if r.mode == "interactive" and r.tmux_session_name]
 
     async def check_trust_prompts(self) -> int:
         """Check for folder trust prompts and auto-dismiss them.
@@ -390,7 +390,7 @@ class AgentLifecycleMonitor:
                         )
 
                 # Terminal agents: check if tmux/process died
-                if reason is None and run.mode == "terminal" and run.tmux_session_name:
+                if reason is None and run.mode == "interactive" and run.tmux_session_name:
                     tmux_alive = await self._tmux.has_session(run.tmux_session_name)
                     if tmux_alive:
                         if run.pid:
@@ -449,7 +449,7 @@ class AgentLifecycleMonitor:
                         logger.debug(f"Failed to capture pane for agent {run.id}: {e}")
 
                 # --- Kill process ---
-                if run.mode == "terminal" and run.tmux_session_name:
+                if run.mode == "interactive" and run.tmux_session_name:
                     await kill_agent(
                         run,
                         self._db,

@@ -155,7 +155,7 @@ steps:
         provider: "${{ inputs.developer_provider }}"
         model: "${{ inputs.developer_model }}"
         parent_session_id: "${{ session_id }}"
-        mode: terminal
+        mode: interactive
 
   # --- ANNOTATE OBSERVED FILES ---
   - id: annotate_observed
@@ -186,7 +186,7 @@ steps:
         provider: "${{ inputs.qa_provider }}"
         model: "${{ inputs.qa_model }}"
         parent_session_id: "${{ session_id }}"
-        mode: terminal
+        mode: interactive
 
   # --- REGISTER CONTINUATIONS ---
   - id: register_continuations

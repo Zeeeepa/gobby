@@ -284,7 +284,7 @@ async def evaluate_spawn(
             )
 
     # Terminal availability check
-    if eff_mode == "terminal":
+    if eff_mode == "interactive":
         try:
             from gobby.agents.tmux.spawner import TmuxSpawner
 

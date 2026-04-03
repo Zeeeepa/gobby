@@ -121,7 +121,7 @@ class TestKillAgent:
             id="run1",
             parent_session_id="parent1",
             child_session_id="sess1",
-            mode="terminal",
+            mode="interactive",
             provider="claude",
             prompt="do it",
             status="running",

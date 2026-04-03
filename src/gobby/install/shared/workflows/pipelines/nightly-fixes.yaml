@@ -64,7 +64,7 @@ steps:
         provider: "gemini"
         timeout: 1200
         parent_session_id: "${{ session_id }}"
-        mode: "terminal"
+        mode: "interactive"
 
   - id: wait_linter
     wait:
@@ -104,7 +104,7 @@ steps:
         model: "opus"
         timeout: 1800
         parent_session_id: "${{ session_id }}"
-        mode: "terminal"
+        mode: "interactive"
 
   - id: wait_tester
     wait:

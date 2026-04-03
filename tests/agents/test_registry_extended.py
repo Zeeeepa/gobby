@@ -120,7 +120,7 @@ class TestRunningAgentRegistryKill:
             run_id="ar-term",
             session_id="sess-term",
             parent_session_id="parent",
-            mode="terminal",
+            mode="interactive",
             pid=None,
         )
         registry.add(agent)
@@ -146,7 +146,7 @@ class TestRunningAgentRegistryKill:
             run_id="ar-has-pid",
             session_id="sess-has-pid",
             parent_session_id="parent",
-            mode="terminal",
+            mode="interactive",
             pid=54321,
         )
         registry.add(agent)
@@ -171,7 +171,7 @@ class TestRunningAgentRegistryKill:
             run_id="ar-multi",
             session_id="sess-multi",
             parent_session_id="parent",
-            mode="terminal",
+            mode="interactive",
             pid=None,
             provider="claude",
         )
@@ -216,7 +216,7 @@ class TestRunningAgentRegistryCloseTerminal:
             run_id="ar-tmux",
             session_id="sess-tmux",
             parent_session_id="parent",
-            mode="terminal",
+            mode="interactive",
         )
 
         # Mock session context retrieval

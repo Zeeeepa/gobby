@@ -1226,7 +1226,7 @@ class TestAgentEventBroadcastingCallback:
                 {
                     "parent_session_id": "sess-456",
                     "session_id": "sess-789",
-                    "mode": "terminal",
+                    "mode": "interactive",
                     "provider": "claude",
                     "pid": 12345,
                 },

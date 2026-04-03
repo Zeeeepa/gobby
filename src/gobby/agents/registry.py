@@ -59,7 +59,7 @@ class RunningAgent:
     """Parent session that spawned this agent."""
 
     mode: str
-    """Execution mode: in_process, terminal, autonomous."""
+    """Execution mode: in_process, interactive, autonomous."""
 
     started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     """When the agent started running."""
@@ -170,7 +170,7 @@ class RunningAgentRegistry:
         ...     run_id="run-123",
         ...     session_id="sess-456",
         ...     parent_session_id="sess-parent",
-        ...     mode="terminal",
+        ...     mode="interactive",
         ...     pid=12345,
         ... )
         >>> registry.add(agent)
@@ -492,7 +492,7 @@ class RunningAgentRegistry:
             return {"success": True, "message": "Cancelled in-process task"}
 
         # For terminal mode with close_terminal=True, try terminal-specific close methods
-        if close_terminal and agent.mode == "terminal" and agent.session_id:
+        if close_terminal and agent.mode == "interactive" and agent.session_id:
             result = await self._close_terminal_window(agent, signal_name, timeout)
             if result.get("success"):
                 self.remove(run_id, status="killed")
@@ -503,7 +503,7 @@ class RunningAgentRegistry:
         target_pid = agent.pid
         found_via = "registry"
 
-        if agent.mode == "terminal" and agent.session_id and not target_pid:
+        if agent.mode == "interactive" and agent.session_id and not target_pid:
             # Strategy 1: Check session's terminal_context (Claude hooks)
             # Only used when agent.pid is not set (e.g., daemon restart lost PID)
             try:

@@ -82,7 +82,7 @@ class TestSpawnAgent:
         ):
             response = client.post(
                 "/api/agents/spawn",
-                json={"task_id": "nonexistent-id", "mode": "terminal"},
+                json={"task_id": "nonexistent-id", "mode": "interactive"},
             )
         assert response.status_code == 400
 
@@ -116,7 +116,7 @@ class TestSpawnAgent:
         ):
             response = client.post(
                 "/api/agents/spawn",
-                json={"task_id": task.id, "mode": "terminal"},
+                json={"task_id": task.id, "mode": "interactive"},
             )
         assert response.status_code == 400
         data = response.json()
@@ -233,7 +233,7 @@ class TestLaunchDefaults:
                 "project_id": "proj-1",
                 "category": "code",
                 "agent_name": "developer",
-                "mode": "terminal",
+                "mode": "interactive",
                 "isolation": "worktree",
                 "model": "sonnet",
             },
@@ -248,7 +248,7 @@ class TestLaunchDefaults:
         assert "code" in data["defaults"]
         code_defaults = data["defaults"]["code"]
         assert code_defaults["agent_name"] == "developer"
-        assert code_defaults["mode"] == "terminal"
+        assert code_defaults["mode"] == "interactive"
         assert code_defaults["isolation"] == "worktree"
         assert code_defaults["model"] == "sonnet"
 
@@ -261,7 +261,7 @@ class TestLaunchDefaults:
                     "project_id": "proj-2",
                     "category": cat,
                     "agent_name": agent,
-                    "mode": "terminal",
+                    "mode": "interactive",
                     "isolation": "none",
                 },
             )

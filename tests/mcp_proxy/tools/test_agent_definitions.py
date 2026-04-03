@@ -74,11 +74,11 @@ class TestListAgentDefinitions:
 
     def test_summary_fields(self, tmp_path: Path) -> None:
         mgr = _setup(tmp_path)
-        _insert_agent(mgr, "summary-test", provider="gemini", mode="terminal")
+        _insert_agent(mgr, "summary-test", provider="gemini", mode="interactive")
         result = list_agent_definitions(mgr)
         agent = result["agents"][0]
         assert agent["provider"] == "gemini"
-        assert agent["mode"] == "terminal"
+        assert agent["mode"] == "interactive"
         assert agent["source"] == "installed"
 
 
@@ -153,7 +153,7 @@ class TestCreateAgentDefinition:
                 "goal": "build things",
                 "provider": "gemini",
                 "model": "flash",
-                "mode": "terminal",
+                "mode": "interactive",
                 "timeout": 300.0,
                 "max_turns": 20,
             },

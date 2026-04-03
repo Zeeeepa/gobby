@@ -270,19 +270,23 @@ class TestApplyPersonaImpl:
     async def test_happy_path(self, db: LocalDatabase) -> None:
         from gobby.mcp_proxy.tools.apply_persona import apply_persona_impl
 
-        with patch(
-            "gobby.workflows.agent_resolver.resolve_agent",
-            return_value=AgentDefinitionBody(name="developer"),
-        ), patch(
-            "gobby.mcp_proxy.tools.apply_persona.build_persona_changes",
-            return_value=(
-                {"_agent_type": "developer", "_active_rule_names": []},
-                set(),
-                None,
+        with (
+            patch(
+                "gobby.workflows.agent_resolver.resolve_agent",
+                return_value=AgentDefinitionBody(name="developer"),
             ),
-        ) as mock_build, patch(
-            "gobby.workflows.state_manager.SessionVariableManager.merge_variables",
-        ) as mock_merge:
+            patch(
+                "gobby.mcp_proxy.tools.apply_persona.build_persona_changes",
+                return_value=(
+                    {"_agent_type": "developer", "_active_rule_names": []},
+                    set(),
+                    None,
+                ),
+            ) as mock_build,
+            patch(
+                "gobby.workflows.state_manager.SessionVariableManager.merge_variables",
+            ) as mock_merge,
+        ):
             result = await apply_persona_impl(
                 agent="developer",
                 db=db,
@@ -298,15 +302,19 @@ class TestApplyPersonaImpl:
     async def test_merges_custom_variables(self, db: LocalDatabase) -> None:
         from gobby.mcp_proxy.tools.apply_persona import apply_persona_impl
 
-        with patch(
-            "gobby.workflows.agent_resolver.resolve_agent",
-            return_value=AgentDefinitionBody(name="test"),
-        ), patch(
-            "gobby.mcp_proxy.tools.apply_persona.build_persona_changes",
-            return_value=({"_agent_type": "test"}, set(), None),
-        ), patch(
-            "gobby.workflows.state_manager.SessionVariableManager.merge_variables",
-        ) as mock_merge:
+        with (
+            patch(
+                "gobby.workflows.agent_resolver.resolve_agent",
+                return_value=AgentDefinitionBody(name="test"),
+            ),
+            patch(
+                "gobby.mcp_proxy.tools.apply_persona.build_persona_changes",
+                return_value=({"_agent_type": "test"}, set(), None),
+            ),
+            patch(
+                "gobby.workflows.state_manager.SessionVariableManager.merge_variables",
+            ) as mock_merge,
+        ):
             result = await apply_persona_impl(
                 agent="test",
                 db=db,
@@ -329,20 +337,26 @@ class TestApplyPersonaImpl:
         mock_task_manager = MagicMock()
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch(
-            "gobby.workflows.agent_resolver.resolve_agent",
-            return_value=AgentDefinitionBody(name="test"),
-        ), patch(
-            "gobby.mcp_proxy.tools.apply_persona.build_persona_changes",
-            return_value=({"_agent_type": "test"}, set(), None),
-        ), patch(
-            "gobby.workflows.state_manager.SessionVariableManager.merge_variables",
-        ) as mock_merge, patch(
-            "gobby.utils.project_context.get_project_context",
-            return_value={"id": "proj-1"},
-        ), patch(
-            "gobby.mcp_proxy.tools.spawn_agent._implementation.resolve_task_id_for_mcp",
-            return_value="task-uuid",
+        with (
+            patch(
+                "gobby.workflows.agent_resolver.resolve_agent",
+                return_value=AgentDefinitionBody(name="test"),
+            ),
+            patch(
+                "gobby.mcp_proxy.tools.apply_persona.build_persona_changes",
+                return_value=({"_agent_type": "test"}, set(), None),
+            ),
+            patch(
+                "gobby.workflows.state_manager.SessionVariableManager.merge_variables",
+            ) as mock_merge,
+            patch(
+                "gobby.utils.project_context.get_project_context",
+                return_value={"id": "proj-1"},
+            ),
+            patch(
+                "gobby.mcp_proxy.tools.spawn_agent._implementation.resolve_task_id_for_mcp",
+                return_value="task-uuid",
+            ),
         ):
             result = await apply_persona_impl(
                 agent="test",

@@ -29,7 +29,7 @@ def _make_mock_agent_run(
     run_id: str = "run-123",
     session_id: str | None = "sess-456",
     parent_session_id: str = "sess-parent",
-    mode: str = "terminal",
+    mode: str = "interactive",
     status: str = "running",
     pid: int | None = None,
     provider: str = "claude",
@@ -346,7 +346,7 @@ class TestListRunningAgents:
                 run_id="run-1",
                 session_id="sess-1",
                 parent_session_id="parent-1",
-                mode="terminal",
+                mode="interactive",
                 pid=1001,
             ),
             _make_mock_agent_run(
@@ -360,7 +360,7 @@ class TestListRunningAgents:
                 run_id="run-3",
                 session_id="sess-3",
                 parent_session_id="parent-2",
-                mode="terminal",
+                mode="interactive",
                 pid=1003,
             ),
         ]
@@ -403,17 +403,17 @@ class TestListRunningAgents:
         """Test filtering by execution mode."""
         runner = _make_runner_with_run_storage()
         agents = self._make_agents()
-        terminal_agents = [a for a in agents if a.mode == "terminal"]
+        terminal_agents = [a for a in agents if a.mode == "interactive"]
         runner.run_storage.list_by_mode.return_value = terminal_agents
 
         registry = create_agents_registry(runner)
         list_running = registry._tools["list_running_agents"].func
 
-        result = await list_running(mode="terminal")
+        result = await list_running(mode="interactive")
 
         assert result["success"] is True
         assert result["count"] == 2
-        runner.run_storage.list_by_mode.assert_called_once_with("terminal")
+        runner.run_storage.list_by_mode.assert_called_once_with("interactive")
 
 
 class TestGetRunningAgent:
@@ -427,7 +427,7 @@ class TestGetRunningAgent:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-            mode="terminal",
+            mode="interactive",
             pid=12345,
             provider="claude",
             status="running",
@@ -560,7 +560,7 @@ class TestKillAgent:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-            mode="terminal",
+            mode="interactive",
         )
         runner.run_storage.get_by_session.return_value = mock_run
         runner.get_run.return_value = mock_run
@@ -601,7 +601,7 @@ class TestKillAgent:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-            mode="terminal",
+            mode="interactive",
         )
         runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True
@@ -626,7 +626,7 @@ class TestKillAgent:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-            mode="terminal",
+            mode="interactive",
         )
         runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True
@@ -655,7 +655,7 @@ class TestKillAgentSelfTerminationViaRunId:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-            mode="terminal",
+            mode="interactive",
         )
         runner.get_run.return_value = mock_run
         runner.complete_run.return_value = True
@@ -666,10 +666,13 @@ class TestKillAgentSelfTerminationViaRunId:
         # Set session context matching the agent's session (self-termination)
         from gobby.utils.session_context import session_context_for_test
 
-        with session_context_for_test("sess-456"), patch(
-            "gobby.mcp_proxy.tools.agents._kill_agent_process",
-            new_callable=AsyncMock,
-            return_value={"success": True},
+        with (
+            session_context_for_test("sess-456"),
+            patch(
+                "gobby.mcp_proxy.tools.agents._kill_agent_process",
+                new_callable=AsyncMock,
+                return_value={"success": True},
+            ),
         ):
             result = await kill_agent(run_id="run-123")
 
@@ -686,7 +689,7 @@ class TestKillAgentSelfTerminationViaRunId:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-            mode="terminal",
+            mode="interactive",
         )
         runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True
@@ -697,10 +700,13 @@ class TestKillAgentSelfTerminationViaRunId:
         # Set session context with different session_id (parent killing child)
         from gobby.utils.session_context import session_context_for_test
 
-        with session_context_for_test("sess-parent"), patch(
-            "gobby.mcp_proxy.tools.agents._kill_agent_process",
-            new_callable=AsyncMock,
-            return_value={"success": True},
+        with (
+            session_context_for_test("sess-parent"),
+            patch(
+                "gobby.mcp_proxy.tools.agents._kill_agent_process",
+                new_callable=AsyncMock,
+                return_value={"success": True},
+            ),
         ):
             result = await kill_agent(run_id="run-123")
 
@@ -716,7 +722,7 @@ class TestKillAgentSelfTerminationViaRunId:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-            mode="terminal",
+            mode="interactive",
         )
         runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True
@@ -763,12 +769,12 @@ class TestRunningAgentStats:
             _make_mock_agent_run(
                 run_id="run-1",
                 parent_session_id="parent-1",
-                mode="terminal",
+                mode="interactive",
             ),
             _make_mock_agent_run(
                 run_id="run-2",
                 parent_session_id="parent-1",
-                mode="terminal",
+                mode="interactive",
             ),
             _make_mock_agent_run(
                 run_id="run-3",
@@ -789,7 +795,7 @@ class TestRunningAgentStats:
 
         assert result["success"] is True
         assert result["total"] == 4
-        assert result["by_mode"]["terminal"] == 2
+        assert result["by_mode"]["interactive"] == 2
         assert result["by_mode"]["autonomous"] == 2
         assert result["by_parent_count"] == 3  # 3 unique parents
 
@@ -843,7 +849,7 @@ class TestFireSyntheticStop:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-            mode="terminal",
+            mode="interactive",
         )
         runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True

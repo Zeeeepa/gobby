@@ -266,7 +266,7 @@ class AgentDefinitionBody(BaseModel):
         default=None,
         description="Auth token for the endpoint. Supports ${ENV_VAR} pattern for env var expansion.",
     )
-    mode: Literal["terminal", "autonomous", "inherit"] = "inherit"
+    mode: Literal["interactive", "autonomous", "inherit"] = "inherit"
     isolation: Literal["none", "worktree", "clone", "inherit"] | None = "inherit"
     base_branch: str = "inherit"
     timeout: float = 0

@@ -149,7 +149,7 @@ def create_spawn_agent_registry(
         worktree_id: str | None = None,
         # Execution
         workflow: str | None = None,
-        mode: Literal["terminal", "autonomous"] | None = None,
+        mode: Literal["interactive", "autonomous"] | None = None,
         provider: str | None = None,
         model: str | None = None,
         # Limits
@@ -177,7 +177,7 @@ def create_spawn_agent_registry(
             clone_id: Existing clone ID to reuse
             worktree_id: Existing worktree ID to reuse
             workflow: Workflow/pipeline to use
-            mode: Execution mode (terminal/autonomous)
+            mode: Execution mode (interactive/autonomous)
             provider: AI provider (claude/gemini/codex/cursor/windsurf/copilot)
             model: Model to use
             timeout: Timeout in seconds
@@ -210,9 +210,9 @@ def create_spawn_agent_registry(
         # Compose prompt with preamble from agent definition
         # For terminal-mode agents, hooks inject instructions via session_start —
         # only prepend preamble for autonomous/headless modes that lack hook injection.
-        effective_mode = mode or (agent_body.mode if agent_body else "terminal")
+        effective_mode = mode or (agent_body.mode if agent_body else "interactive")
         effective_prompt = prompt
-        if agent_body and effective_mode != "terminal":
+        if agent_body and effective_mode != "interactive":
             preamble = agent_body.build_prompt_preamble()
             if preamble:
                 effective_prompt = f"{preamble}\n\n---\n\n{prompt}"
@@ -368,7 +368,7 @@ def create_spawn_agent_registry(
         provider: str | None = None,
         model: str | None = None,
         parent_session_id: str | None = None,
-        mode: str = "terminal",
+        mode: str = "interactive",
         timeout: float | None = None,
     ) -> dict[str, Any]:
         """Dispatch multiple agents for non-conflicting tasks.
@@ -384,7 +384,7 @@ def create_spawn_agent_registry(
             provider: AI provider override
             model: Model override
             parent_session_id: Parent session reference
-            mode: Execution mode (default: "terminal")
+            mode: Execution mode (default: "interactive")
             timeout: Timeout in seconds for each agent
 
         Returns:
