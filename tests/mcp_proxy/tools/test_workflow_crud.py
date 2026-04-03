@@ -303,11 +303,11 @@ class TestDeleteWorkflow:
     def test_delete_bundled_protection(
         self, def_manager: LocalWorkflowDefinitionManager, loader: WorkflowLoader
     ) -> None:
-        # Create a bundled definition manually
+        # Create a bundled (installed) definition manually
         def_manager.create(
             name="bundled-wf",
             definition_json=json.dumps({"name": "bundled-wf", "steps": [{"name": "work"}]}),
-            source="bundled",
+            source="installed",
         )
 
         result = delete_workflow_definition(def_manager, loader, name="bundled-wf")
@@ -321,7 +321,7 @@ class TestDeleteWorkflow:
         def_manager.create(
             name="bundled-wf",
             definition_json=json.dumps({"name": "bundled-wf", "steps": [{"name": "work"}]}),
-            source="bundled",
+            source="installed",
         )
 
         result = delete_workflow_definition(def_manager, loader, name="bundled-wf", force=True)

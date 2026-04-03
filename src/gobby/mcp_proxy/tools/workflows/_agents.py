@@ -166,7 +166,7 @@ def create_agent_definition(
         workflow_type="agent",
         description=definition.get("description"),
         enabled=definition.get("enabled", True),
-        source="installed",
+        source="custom",
         tags=["user"],
     )
     logger.info(f"Created agent definition '{name}' (id={row.id})")

@@ -337,7 +337,10 @@ class LocalWorkflowDefinitionManager:
         return [WorkflowDefinitionRow.from_row(r) for r in rows]
 
     def import_from_yaml(
-        self, yaml_content: str, project_id: str | None = None
+        self,
+        yaml_content: str,
+        project_id: str | None = None,
+        source: DefinitionSource = "installed",
     ) -> WorkflowDefinitionRow:
         """Import a workflow definition from YAML content."""
         import yaml
@@ -374,7 +377,7 @@ class LocalWorkflowDefinitionManager:
             enabled=enabled,
             priority=priority,
             sources=sources_list,
-            source="installed",
+            source=source,
         )
 
     def export_to_yaml(self, definition_id: str) -> str:

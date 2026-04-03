@@ -295,7 +295,7 @@ class TestCreateVariable:
         mgr.create.assert_called_once()
         call_kwargs = mgr.create.call_args
         assert call_kwargs[1]["workflow_type"] == "variable"
-        assert call_kwargs[1]["source"] == "user"
+        assert call_kwargs[1]["source"] == "custom"
 
     def test_create_variable_name_collision(self) -> None:
         from gobby.mcp_proxy.tools.workflows._variables import create_variable
@@ -382,17 +382,17 @@ class TestDeleteVariable:
     def test_delete_variable_protects_bundled(self) -> None:
         from gobby.mcp_proxy.tools.workflows._variables import delete_variable
 
-        bundled = _make_var_row("bundled_var", source="bundled")
+        bundled = _make_var_row("bundled_var", source="installed")
         mgr = _mock_def_manager(existing=bundled)
         result = delete_variable(mgr, "bundled_var")
         assert result["success"] is False
-        assert "bundled" in result["error"]
+        assert "template" in result["error"]
         mgr.delete.assert_not_called()
 
     def test_delete_variable_force_overrides_protection(self) -> None:
         from gobby.mcp_proxy.tools.workflows._variables import delete_variable
 
-        bundled = _make_var_row("bundled_var", source="bundled")
+        bundled = _make_var_row("bundled_var", source="installed")
         mgr = _mock_def_manager(existing=bundled)
         mgr.delete.return_value = True
 

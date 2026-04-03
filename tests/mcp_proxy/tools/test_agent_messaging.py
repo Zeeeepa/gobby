@@ -480,7 +480,7 @@ class TestDeliverPendingMessages:
 
         result = await messaging_registry.call(
             "deliver_pending_messages",
-            {"session_id": "s-child"},
+            {"target_session_id": "s-child"},
         )
 
         assert result["success"] is True
@@ -495,7 +495,7 @@ class TestDeliverPendingMessages:
 
         result = await messaging_registry.call(
             "deliver_pending_messages",
-            {"session_id": "s-child"},
+            {"target_session_id": "s-child"},
         )
 
         assert result["success"] is True
@@ -617,7 +617,7 @@ class TestGetInterSessionMessages:
 
         result = await messaging_registry.call(
             "get_inter_session_messages",
-            {"session_id": "s-child"},
+            {"target_session_id": "s-child"},
         )
 
         assert result["success"] is True
@@ -649,7 +649,7 @@ class TestGetInterSessionMessages:
 
         await messaging_registry.call(
             "get_inter_session_messages",
-            {"session_id": "s-child"},
+            {"target_session_id": "s-child"},
         )
 
         mock_message_manager.mark_delivered.assert_not_called()
@@ -662,7 +662,7 @@ class TestGetInterSessionMessages:
 
         result = await messaging_registry.call(
             "get_inter_session_messages",
-            {"session_id": "s-child"},
+            {"target_session_id": "s-child"},
         )
 
         assert result["success"] is True

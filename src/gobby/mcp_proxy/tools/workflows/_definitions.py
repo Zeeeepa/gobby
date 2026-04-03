@@ -97,7 +97,7 @@ def create_workflow_definition(
         }
 
     try:
-        row = def_manager.import_from_yaml(yaml_content, project_id=project_id)
+        row = def_manager.import_from_yaml(yaml_content, project_id=project_id, source="custom")
     except Exception as e:
         return {"success": False, "error": f"Import failed: {e}"}
 

@@ -407,9 +407,9 @@ class TestEmailOAuth2:
         assert adapter._oauth2_client_id == "test-client-id"
         # SMTP should use XOAUTH2 instead of login
         mock_smtp_client.login.assert_not_called()
-        mock_smtp_client.command.assert_called_once()
-        auth_call = mock_smtp_client.command.call_args[0][0]
-        assert auth_call.startswith("AUTH XOAUTH2 ")
+        mock_smtp_client.execute_command.assert_called_once()
+        auth_call = mock_smtp_client.execute_command.call_args[0][0]
+        assert auth_call.startswith(b"AUTH XOAUTH2 ")
 
     @pytest.mark.asyncio
     async def test_initialize_oauth2_missing_client_id(self, adapter, oauth2_config) -> None:

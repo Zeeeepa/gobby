@@ -217,7 +217,7 @@ def create_rule(
         definition_json=json.dumps(definition),
         workflow_type="rule",
         enabled=True,
-        source="installed",
+        source="custom",
         tags=tags,
     )
     logger.info(f"Created rule '{name}' (id={row.id})")

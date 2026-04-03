@@ -263,7 +263,7 @@ class TestDeleteRule:
     """DELETE /api/rules/{name} soft-deletes (bundled protected)."""
 
     def test_deletes_custom_rule(self, client, def_manager) -> None:
-        _seed_rule(def_manager, name="custom-rule", source="installed")
+        _seed_rule(def_manager, name="custom-rule", source="custom")
 
         resp = client.delete("/api/rules/custom-rule")
         assert resp.status_code == 200
