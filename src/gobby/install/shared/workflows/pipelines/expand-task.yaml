@@ -16,10 +16,6 @@ inputs:
     type: string
     required: true
     description: "Task ID to expand"
-  session_id:
-    type: string
-    required: true
-    description: "Session ID for tracking"
   plan_file:
     type: string
     required: false
@@ -53,7 +49,7 @@ steps:
         task_id: "${{ inputs.task_id }}"
         provider: "${{ inputs.provider }}"
         model: "${{ inputs.model }}"
-        parent_session_id: "${{ inputs.session_id }}"
+        parent_session_id: "${{ session_id }}"
         mode: terminal
 
   # --- 2. Wait for researcher to complete ---
@@ -86,7 +82,7 @@ steps:
       tool: execute_expansion
       arguments:
         parent_task_id: "${{ inputs.task_id }}"
-        session_id: "${{ inputs.session_id or session_id }}"
+        session_id: "${{ session_id }}"
         tdd: "${{ inputs.tdd }}"
 
   # --- 6. Spawn the QA agent to validate expansion ---
@@ -100,7 +96,7 @@ steps:
         task_id: "${{ inputs.task_id }}"
         provider: "${{ inputs.provider }}"
         model: "${{ inputs.model }}"
-        parent_session_id: "${{ inputs.session_id }}"
+        parent_session_id: "${{ session_id }}"
         mode: terminal
 
   # --- 7. Wait for QA agent to complete ---

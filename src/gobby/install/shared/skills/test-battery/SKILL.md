@@ -52,7 +52,7 @@ for wt in worktrees.worktrees:
     call_tool("gobby-worktrees", "delete_worktree", {"worktree_id": wt.id})
 
 # Kill running agents
-agents = call_tool("gobby-agents", "list_agents", {"parent_session_id": "<session_id>", "status": "running"})
+agents = call_tool("gobby-agents", "list_running_agents", {})
 for agent in agents.runs:
     call_tool("gobby-agents", "kill_agent", {"run_id": agent.id})
 

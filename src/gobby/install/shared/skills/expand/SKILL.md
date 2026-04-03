@@ -103,8 +103,7 @@ the codebase and produces a spec, then validates and executes it mechanically.
 
 ```python
 inputs = {
-    "task_id": "<task_ref>",
-    "session_id": "<session_id>"
+    "task_id": "<task_ref>"
 }
 # If expansion originated from a plan file, pass the path so it gets
 # injected as a reference into each subtask description
@@ -113,7 +112,6 @@ if plan_file_path:
 
 result = call_tool("gobby-workflows", "run_pipeline", {
     "name": "expand-task",
-    "session_id": "<session_id>",
     "inputs": inputs,
     "wait": True,
     "wait_timeout": 600
