@@ -11,11 +11,15 @@ When TDD is enabled (`enforce_tdd = true`), the expansion system wraps `code` an
 ```
 Epic: "User Authentication"
 │
-├── [TEST] Write failing tests for User Authentication    ← Added by system
-├── [IMPL] Create database schema                         ← From expansion spec
-├── [IMPL] Implement data access layer                    ← From expansion spec
-├── [IMPL] Add API endpoints                              ← From expansion spec
-├── [REFACTOR] Refactor: User Authentication              ← Added by system
+├── Phase 1: Core Infrastructure [subepic]
+│   ├── [TEST] Phase 1: Write failing tests               ← Added by system
+│   ├── [IMPL] Create database schema                     ← From expansion spec
+│   ├── [IMPL] Implement data access layer                ← From expansion spec
+│   └── [REF] Phase 1: Refactor with green tests          ← Added by system
+├── Phase 2: API Layer [subepic]
+│   ├── [TEST] Phase 2: Write failing tests               ← Added by system
+│   ├── [IMPL] Add API endpoints                          ← From expansion spec
+│   └── [REF] Phase 2: Refactor with green tests          ← Added by system
 └── Document the API                                      ← docs category, no TDD
 ```
 
@@ -23,10 +27,13 @@ Epic: "User Authentication"
 
 1. The expander agent outputs plain feature tasks with categories (`code`, `config`, `docs`, etc.)
 2. The expansion system identifies tasks with `code` or `config` categories
-3. It wraps them with:
-   - **One [TEST] task** at the start — covers all implementation tasks
-   - **One [REFACTOR] task** at the end — cleanup while keeping tests green
-4. Non-TDD categories (`docs`, `refactor`, `test`, `research`, `planning`, `manual`) pass through unchanged
+3. For multi-phase plans, it creates **subepic tasks** for each phase (from `## Phase N: Title` headings)
+4. It wraps each phase's TDD-eligible tasks with:
+   - **One [TEST] task** at the start — covers that phase's implementation tasks
+   - **One [REF] task** at the end — cleanup while keeping tests green
+5. Cross-phase sequencing: Phase N's `[REF]` blocks Phase N+1's `[TEST]`
+6. Non-TDD categories (`docs`, `refactor`, `test`, `research`, `planning`, `manual`) pass through unchanged
+7. Single-phase plans remain flat under the root epic (backwards compatible)
 
 ### Category → TDD Treatment
 

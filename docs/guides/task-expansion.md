@@ -248,21 +248,34 @@ See [TDD Enforcement](./tdd-enforcement.md) for how TDD is applied during expans
 
 ## TDD Integration
 
-When TDD is enabled (`enforce_tdd = true`), the expansion system applies the **TDD sandwich pattern** to `code` and `config` category tasks:
+When TDD is enabled (`enforce_tdd = true`), the expansion system applies the **TDD sandwich pattern** to `code` and `config` category tasks, grouped per phase:
 
 ```
 Epic #42 "User Authentication"
-├── [TEST] Write failing tests for User Authentication
-├── [IMPL] Create database schema          (category: code)
-├── [IMPL] Implement data access layer     (category: code)
-├── [IMPL] Add API endpoints               (category: code)
-├── [REFACTOR] Refactor: User Authentication
-└── Document the API                        (category: docs, no TDD)
+├── Phase 1: Core Infrastructure [subepic]
+│   ├── [TEST] Phase 1: Write failing tests
+│   ├── [IMPL] Create database schema          (category: code)
+│   ├── [IMPL] Implement data access layer     (category: code)
+│   └── [REF] Phase 1: Refactor with green tests
+├── Phase 2: API Layer [subepic]
+│   ├── [TEST] Phase 2: Write failing tests
+│   ├── [IMPL] Add API endpoints               (category: code)
+│   └── [REF] Phase 2: Refactor with green tests
+└── Document the API                            (category: docs, no TDD)
 ```
 
-The sandwich adds:
-- **One [TEST] task** at the start — covers all `code`/`config` subtasks
-- **One [REFACTOR] task** at the end — cleanup while keeping tests green
+### Phase Subepics
+
+When a plan has multiple `## Phase N: Title` headings, the expansion system creates **subepic tasks** for each phase. Subtasks are parented under their phase's subepic instead of directly under the root epic. Phase titles are extracted from the plan document headings.
+
+Single-phase plans (or plans without `## Phase` headings) produce a flat structure under the root epic — this is backwards compatible with the previous behavior.
+
+### TDD Sandwich
+
+The TDD sandwich is applied **per phase**:
+- **One [TEST] task** at the start of each phase — covers that phase's `code`/`config` subtasks
+- **One [REF] task** at the end of each phase — cleanup while keeping tests green
+- Phase N's `[REF]` blocks Phase N+1's `[TEST]` (cross-phase sequencing)
 - `docs`, `refactor`, `test`, `research`, `planning`, `manual` categories are not wrapped
 
 The TDD tasks are created by the expansion system, not by the expander agent. The agent outputs plain feature tasks; the system adds the sandwich.

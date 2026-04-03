@@ -29,6 +29,29 @@ def _extract_phase_number(subtask: dict[str, Any]) -> int | None:
     return int(match.group(1)) if match else None
 
 
+def _extract_phase_from_title(subtask: dict[str, Any]) -> int | None:
+    """Extract phase number from TDD-generated titles like '[TEST] Phase 2: ...'."""
+    title = subtask.get("title", "")
+    match = re.search(r"Phase\s+(\d+)", title)
+    return int(match.group(1)) if match else None
+
+
+def _get_subtask_phase(subtask: dict[str, Any]) -> int:
+    """Get phase number for a subtask, checking description then title. Returns 0 if unphased."""
+    return _extract_phase_number(subtask) or _extract_phase_from_title(subtask) or 0
+
+
+def _extract_phase_titles(description: str) -> dict[int, str]:
+    """Extract phase titles from plan document content in task description.
+
+    Matches: ## Phase N: Title
+    """
+    titles: dict[int, str] = {}
+    for match in re.finditer(r"##\s+Phase\s+(\d+):\s*(.+)", description):
+        titles[int(match.group(1))] = match.group(2).strip()
+    return titles
+
+
 def _translate_deps(deps: list[int], old_to_new: dict[int, int]) -> list[int]:
     """Translate original dependency indices to new indices."""
     return [old_to_new[d] for d in deps if d in old_to_new]
@@ -325,6 +348,53 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 "expansion was adapted to the actual codebase.\n\n"
             )
 
+        epic_validation = "All subtasks must be completed (status: closed)."
+
+        # --- Phase subepic creation ---
+        # Group subtasks by phase to determine if subepics are needed
+        phase_map: dict[int, list[int]] = {}
+        for i, st in enumerate(subtasks):
+            phase = _get_subtask_phase(st)
+            phase_map.setdefault(phase, []).append(i)
+
+        # Extract phase titles from parent task description
+        phase_titles = _extract_phase_titles(task.description or "")
+
+        # Create subepic tasks for each phase (only if >1 phase)
+        phase_subepic_ids: dict[int, str] = {}
+        created_subepics: list[Any] = []  # for cleanup on failure
+        has_phases = len([p for p in phase_map if p > 0]) > 1
+
+        if has_phases:
+            try:
+                for phase_num in sorted(phase_map.keys()):
+                    if phase_num == 0:
+                        continue  # Unphased tasks stay under root
+                    title = phase_titles.get(phase_num, f"Phase {phase_num}")
+                    result = ctx.task_manager.create_task_with_decomposition(
+                        project_id=task.project_id,
+                        title=title,
+                        task_type="epic",
+                        parent_task_id=resolved_id,
+                        category="planning",
+                        validation_criteria=epic_validation,
+                        created_in_session_id=resolved_session_id,
+                    )
+                    subepic_id = result["task"]["id"]
+                    phase_subepic_ids[phase_num] = subepic_id
+                    created_subepics.append(ctx.task_manager.get_task(subepic_id))
+                logger.info(
+                    f"Created {len(phase_subepic_ids)} phase subepics for task {parent_task_id}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to create phase subepics: {e}")
+                for se in created_subepics:
+                    try:
+                        ctx.task_manager.delete_task(se.id)
+                    except Exception:
+                        pass
+                return {"error": f"Phase subepic creation failed: {e}"}
+
         # Create subtasks atomically - clean up on failure
         created_tasks = []
         created_refs = []
@@ -335,13 +405,18 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 description = (
                     f"{plan_ref_block}{raw_description}" if plan_ref_block else raw_description
                 )
+
+                # Parent under phase subepic if available, otherwise root epic
+                subtask_phase = _get_subtask_phase(subtask)
+                parent_id = phase_subepic_ids.get(subtask_phase, resolved_id)
+
                 result = ctx.task_manager.create_task_with_decomposition(
                     project_id=task.project_id,
                     title=subtask["title"],
                     description=description or None,
                     priority=subtask.get("priority", 2),
                     task_type=subtask.get("task_type", "task"),
-                    parent_task_id=resolved_id,
+                    parent_task_id=parent_id,
                     category=subtask.get("category"),
                     validation_criteria=subtask.get("validation"),
                     created_in_session_id=resolved_session_id,
@@ -356,16 +431,21 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                 ref = f"#{created_task.seq_num}" if created_task.seq_num else created_task.id
                 created_refs.append(ref)
         except Exception as e:
-            # Clean up any tasks created before failure
+            # Clean up any tasks created before failure (subtasks + subepics)
             logger.error(f"Expansion failed after creating {len(created_tasks)} tasks: {e}")
             for task_to_delete in created_tasks:
                 try:
                     ctx.task_manager.delete_task(task_to_delete.id)
                 except Exception as delete_err:
                     logger.warning(f"Failed to clean up task {task_to_delete.id}: {delete_err}")
+            for se in created_subepics:
+                try:
+                    ctx.task_manager.delete_task(se.id)
+                except Exception:
+                    pass
             return {"error": f"Expansion failed: {e}", "cleaned_up": len(created_tasks)}
 
-        # Wire dependencies
+        # Wire dependencies between subtasks
         for i, subtask in enumerate(subtasks):
             depends_on = subtask.get("depends_on", [])
             for dep_idx in depends_on:
@@ -379,22 +459,60 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     except ValueError:
                         pass  # Dependency already exists or invalid
 
-        # Wire parent blocked by all children
-        for created_task in created_tasks:
-            try:
-                ctx.dep_manager.add_dependency(
-                    task_id=resolved_id,
-                    depends_on=created_task.id,
-                    dep_type="blocks",
-                )
-            except ValueError:
-                pass  # Already exists
+        # Wire blocking relationships for the task hierarchy
+        if phase_subepic_ids:
+            # Phase subepics blocked by their children
+            for phase_num, subepic_id in phase_subepic_ids.items():
+                for idx in phase_map.get(phase_num, []):
+                    if idx < len(created_tasks):
+                        try:
+                            ctx.dep_manager.add_dependency(
+                                task_id=subepic_id,
+                                depends_on=created_tasks[idx].id,
+                                dep_type="blocks",
+                            )
+                        except ValueError:
+                            pass
+
+            # Root epic blocked by subepics
+            for subepic_id in phase_subepic_ids.values():
+                try:
+                    ctx.dep_manager.add_dependency(
+                        task_id=resolved_id,
+                        depends_on=subepic_id,
+                        dep_type="blocks",
+                    )
+                except ValueError:
+                    pass
+
+            # Unphased tasks (phase 0) still block root epic directly
+            for idx in phase_map.get(0, []):
+                if idx < len(created_tasks):
+                    try:
+                        ctx.dep_manager.add_dependency(
+                            task_id=resolved_id,
+                            depends_on=created_tasks[idx].id,
+                            dep_type="blocks",
+                        )
+                    except ValueError:
+                        pass
+        else:
+            # No phases — all children block root epic directly (original behavior)
+            for created_task in created_tasks:
+                try:
+                    ctx.dep_manager.add_dependency(
+                        task_id=resolved_id,
+                        depends_on=created_task.id,
+                        dep_type="blocks",
+                    )
+                except ValueError:
+                    pass  # Already exists
 
         # Update parent task status
         ctx.task_manager.update_task(
             resolved_id,
             expansion_status="completed",
-            validation_criteria="All subtasks must be completed (status: closed).",
+            validation_criteria=epic_validation,
         )
 
         logger.info(
