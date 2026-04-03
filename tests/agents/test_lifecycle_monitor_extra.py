@@ -149,8 +149,8 @@ class TestRecoverTaskFromFailedAgent:
         mock_task_mgr.update_task.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_recover_task_blocks_after_three_failures(self) -> None:
-        """Task set to 'blocked' after 3 non-provider failures."""
+    async def test_recover_task_escalates_after_three_failures(self) -> None:
+        """Task set to 'escalated' after 3 non-provider failures, counter reset."""
         mock_run_mgr = MagicMock()
         mock_task_mgr = MagicMock()
         mock_stall = MagicMock()
@@ -185,7 +185,11 @@ class TestRecoverTaskFromFailedAgent:
         await monitor._recover_task_from_failed_agent("run-1")
 
         mock_task_mgr.update_task.assert_called_once_with(
-            "task-1", status="blocked", assignee=None, dispatch_failure_count=3
+            "task-1",
+            status="escalated",
+            assignee=None,
+            dispatch_failure_count=0,
+            escalation_reason="Failed 3 times across different agents",
         )
 
     @pytest.mark.asyncio
@@ -276,9 +280,7 @@ class TestLoopPromptEscalation:
 
         handled = await monitor.check_loop_prompts()
         assert handled == 1
-        mock_tmux.send_keys.assert_called_once_with(
-            "gobby-test", PromptDetector.LOOP_DISMISS_KEYS
-        )
+        mock_tmux.send_keys.assert_called_once_with("gobby-test", PromptDetector.LOOP_DISMISS_KEYS)
         assert monitor._loop_tracker.get_count("run-1") == 1
 
     @pytest.mark.asyncio
@@ -382,9 +384,7 @@ class TestDispatchFailureCountCRUD:
         from gobby.storage.tasks import LocalTaskManager
 
         mgr = LocalTaskManager(temp_db)
-        task = mgr.create_task(
-            title="test", task_type="task", project_id=sample_project["id"]
-        )
+        task = mgr.create_task(title="test", task_type="task", project_id=sample_project["id"])
         updated = mgr.update_task(task.id, dispatch_failure_count=2)
         assert updated.dispatch_failure_count == 2
 
@@ -395,9 +395,7 @@ class TestDispatchFailureCountCRUD:
         from gobby.storage.tasks import LocalTaskManager
 
         mgr = LocalTaskManager(temp_db)
-        task = mgr.create_task(
-            title="test", task_type="task", project_id=sample_project["id"]
-        )
+        task = mgr.create_task(title="test", task_type="task", project_id=sample_project["id"])
         # Set failure count and block
         mgr.update_task(task.id, status="blocked", dispatch_failure_count=3)
         # Reopen

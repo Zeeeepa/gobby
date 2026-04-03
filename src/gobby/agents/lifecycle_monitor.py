@@ -148,17 +148,17 @@ class AgentLifecycleMonitor:
                 failure_count += 1
 
             if not is_provider and failure_count >= 3:
-                # Block re-dispatch after too many non-provider failures
+                # Escalate after too many non-provider failures; reset counter
                 await asyncio.to_thread(
                     self._task_manager.update_task,
                     task_id,
-                    status="blocked",
+                    status="escalated",
                     assignee=None,
-                    dispatch_failure_count=failure_count,
+                    dispatch_failure_count=0,
+                    escalation_reason=f"Failed {failure_count} times across different agents",
                 )
                 logger.warning(
-                    f"Task {task_ref} blocked from re-dispatch: "
-                    f"{failure_count} failures across different agents"
+                    f"Task {task_ref} escalated: {failure_count} failures across different agents"
                 )
             else:
                 await asyncio.to_thread(
