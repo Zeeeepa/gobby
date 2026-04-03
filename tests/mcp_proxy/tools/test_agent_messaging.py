@@ -414,7 +414,7 @@ class TestCompleteCommand:
 
         result = await messaging_registry.call(
             "complete_command",
-            {"session_id": "s-child", "command_id": "cmd-1", "result": "All tests pass"},
+            {"target_session_id": "s-child", "command_id": "cmd-1", "result": "All tests pass"},
         )
 
         assert result["success"] is True
@@ -436,7 +436,7 @@ class TestCompleteCommand:
 
         result = await messaging_registry.call(
             "complete_command",
-            {"session_id": "s-child", "command_id": "no-such", "result": "done"},
+            {"target_session_id": "s-child", "command_id": "no-such", "result": "done"},
         )
 
         assert result["success"] is False
@@ -454,7 +454,7 @@ class TestCompleteCommand:
 
         result = await messaging_registry.call(
             "complete_command",
-            {"session_id": "s-wrong", "command_id": "cmd-1", "result": "done"},
+            {"target_session_id": "s-wrong", "command_id": "cmd-1", "result": "done"},
         )
 
         assert result["success"] is False
@@ -533,7 +533,7 @@ class TestActivateCommand:
 
         result = await messaging_registry.call(
             "activate_command",
-            {"session_id": "s-child", "command_id": "cmd-1"},
+            {"target_session_id": "s-child", "command_id": "cmd-1"},
         )
 
         assert result["success"] is True
@@ -555,7 +555,7 @@ class TestActivateCommand:
 
         result = await messaging_registry.call(
             "activate_command",
-            {"session_id": "s-child", "command_id": "no-such"},
+            {"target_session_id": "s-child", "command_id": "no-such"},
         )
 
         assert result["success"] is False
@@ -573,7 +573,7 @@ class TestActivateCommand:
 
         result = await messaging_registry.call(
             "activate_command",
-            {"session_id": "s-wrong", "command_id": "cmd-1"},
+            {"target_session_id": "s-wrong", "command_id": "cmd-1"},
         )
 
         assert result["success"] is False
@@ -632,7 +632,7 @@ class TestGetInterSessionMessages:
 
         await messaging_registry.call(
             "get_inter_session_messages",
-            {"session_id": "s-child", "direction": "inbox"},
+            {"target_session_id": "s-child", "direction": "inbox"},
         )
 
         call_kwargs = mock_message_manager.list_messages.call_args
@@ -677,7 +677,7 @@ class TestGetInterSessionMessages:
         await messaging_registry.call(
             "get_inter_session_messages",
             {
-                "session_id": "s-child",
+                "target_session_id": "s-child",
                 "direction": "sent",
                 "unread_only": True,
                 "undelivered_only": True,

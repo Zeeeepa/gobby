@@ -256,12 +256,12 @@ def add_messaging_tools(
         ),
     )
     async def complete_command(
-        session_id: str,
+        target_session_id: str,
         command_id: str,
         result: str,
     ) -> dict[str, Any]:
         try:
-            resolved_id = _resolve(session_id)
+            resolved_id = _resolve(target_session_id)
             cmd = command_manager.get_command(command_id)
             if not cmd:
                 return {"success": False, "error": f"Command not found: {command_id}"}
@@ -348,7 +348,7 @@ def add_messaging_tools(
         ),
     )
     async def get_inter_session_messages(
-        session_id: str,
+        target_session_id: str,
         direction: str = "all",
         unread_only: bool = False,
         undelivered_only: bool = False,
@@ -357,7 +357,7 @@ def add_messaging_tools(
         offset: int = 0,
     ) -> dict[str, Any]:
         try:
-            resolved_id = _resolve(session_id)
+            resolved_id = _resolve(target_session_id)
             messages = message_manager.list_messages(
                 session_id=resolved_id,
                 direction=direction,
@@ -419,11 +419,11 @@ def add_messaging_tools(
         ),
     )
     async def activate_command(
-        session_id: str,
+        target_session_id: str,
         command_id: str,
     ) -> dict[str, Any]:
         try:
-            resolved_id = _resolve(session_id)
+            resolved_id = _resolve(target_session_id)
             cmd = command_manager.get_command(command_id)
             if not cmd:
                 return {"success": False, "error": f"Command not found: {command_id}"}
@@ -458,7 +458,7 @@ def add_messaging_tools(
         ),
     )
     async def wait_for_command(
-        session_id: str,
+        target_session_id: str,
         timeout: int = 600,
         poll_interval: int = 5,
         auto_activate: bool = True,
@@ -486,7 +486,7 @@ def add_messaging_tools(
         start_time = time.monotonic()
 
         try:
-            resolved_id = _resolve(session_id)
+            resolved_id = _resolve(target_session_id)
 
             # Check for immediately available command
             pending = command_manager.list_commands(to_session=resolved_id, status="pending")
