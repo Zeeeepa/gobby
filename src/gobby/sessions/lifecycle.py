@@ -300,6 +300,16 @@ class SessionLifecycleManager:
             except Exception as e:
                 logger.error(f"Failed to process transcript for {session.id}: {e}")
 
+            # If transcript file is gone, no point retrying — mark processed and move on
+            if not session.transcript_path or not os.path.exists(session.transcript_path):
+                self.session_manager.mark_transcript_processed(session.id)
+                processed += 1
+                logger.info(
+                    f"Marked session {session.id} as processed "
+                    f"(transcript file missing, no further processing possible)"
+                )
+                continue
+
             # Skip LLM-heavy steps for non-human sessions — subagents, pipelines,
             # and cron sessions are ephemeral and not worth the token cost.
             if skip_llm:
