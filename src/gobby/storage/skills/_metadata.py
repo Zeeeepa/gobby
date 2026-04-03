@@ -80,7 +80,7 @@ class SkillMetadataMixin:
             ValueError: If a skill with the same name and source exists in scope
         """
         # Auto-set source to 'project' for project-scoped skills
-        if project_id is not None and source not in ("template",):
+        if project_id is not None:
             source = "project"
 
         now = datetime.now(UTC).isoformat()
@@ -218,8 +218,7 @@ class SkillMetadataMixin:
         if source is not None:
             conditions.append("source = ?")
             params.append(source)
-        elif not include_templates:
-            conditions.append("source != 'template'")
+        # include_templates is a deprecated no-op — no template rows exist
 
         where = " AND ".join(conditions)
 
@@ -465,9 +464,7 @@ class SkillMetadataMixin:
         Raises:
             ValueError: If skill not found or is a template
         """
-        skill = self.get_skill(skill_id)
-        if skill.source == "template":
-            raise ValueError("Cannot move a template skill")
+        self.get_skill(skill_id)
         return self.update_skill(skill_id, source="project", project_id=project_id)
 
     def move_to_installed(self, skill_id: str) -> Skill:
@@ -482,9 +479,7 @@ class SkillMetadataMixin:
         Raises:
             ValueError: If skill not found or is a template
         """
-        skill = self.get_skill(skill_id)
-        if skill.source == "template":
-            raise ValueError("Cannot move a template skill")
+        self.get_skill(skill_id)
         return self.update_skill(skill_id, source="installed", project_id=None)
 
     def list_skills(
@@ -526,8 +521,7 @@ class SkillMetadataMixin:
         if source is not None:
             query += " AND source = ?"
             params.append(source)
-        elif not include_templates:
-            query += " AND source != 'template'"
+        # include_templates is a deprecated no-op — no template rows exist
 
         if project_id:
             if include_global:
@@ -591,8 +585,7 @@ class SkillMetadataMixin:
 
         if not include_deleted:
             sql += " AND deleted_at IS NULL"
-        if not include_templates:
-            sql += " AND source != 'template'"
+        # include_templates is a deprecated no-op — no template rows exist
 
         if project_id:
             sql += " AND (project_id = ? OR project_id IS NULL)"
@@ -615,10 +608,7 @@ class SkillMetadataMixin:
         Returns:
             List of core skills (always-apply skills)
         """
-        query = (
-            "SELECT * FROM skills WHERE always_apply = 1 AND enabled = 1"
-            " AND deleted_at IS NULL AND source != 'template'"
-        )
+        query = "SELECT * FROM skills WHERE always_apply = 1 AND enabled = 1 AND deleted_at IS NULL"
         params: list[Any] = []
 
         if project_id:
@@ -680,8 +670,7 @@ class SkillMetadataMixin:
         if source is not None:
             query += " AND source = ?"
             params.append(source)
-        elif not include_templates:
-            query += " AND source != 'template'"
+        # include_templates is a deprecated no-op — no template rows exist
 
         if project_id:
             if include_global:

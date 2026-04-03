@@ -2,10 +2,12 @@
 
 This module provides sync_bundled_skills() which loads skills from the
 bundled install/shared/skills/ directory and syncs them to the database
-as templates, following the same pattern as sync_bundled_rules().
+as installed rows, following the same pattern as sync_bundled_rules().
 
-Templates are created with source='template' and enabled=False.
-install_all_templates() creates installed copies with enabled=True.
+Bundled skills are created with source='installed', enabled=True and
+identified by metadata containing a 'gobby' key. On subsequent syncs,
+gobby-tagged skills are overwritten from templates; user skills are
+never touched.
 """
 
 from __future__ import annotations
@@ -69,47 +71,12 @@ def get_bundled_skills_path() -> Path:
     return get_install_dir() / "shared" / "skills"
 
 
-def _propagate_to_installed(
-    storage: LocalSkillManager,
-    skill_name: str,
-    parsed: ParsedSkill,
-) -> None:
-    """Propagate content changes from a template to its installed copy.
+def _is_gobby_owned(skill: Skill) -> bool:
+    """Check if a skill is owned by gobby (bundled).
 
-    Preserves the installed copy's enabled state.
+    Gobby-owned skills have a 'gobby' key in their metadata dict.
     """
-    installed = storage.get_by_name(skill_name, project_id=None, source="installed")
-    if not installed:
-        return
-
-    needs_update = (
-        installed.description != parsed.description
-        or installed.content != parsed.content
-        or installed.version != parsed.version
-        or installed.license != parsed.license
-        or installed.compatibility != parsed.compatibility
-        or installed.allowed_tools != parsed.allowed_tools
-        or installed.metadata != parsed.metadata
-        or installed.always_apply != parsed.always_apply
-        or installed.injection_format != parsed.injection_format
-    )
-
-    if needs_update:
-        storage.update_skill(
-            skill_id=installed.id,
-            description=parsed.description,
-            content=parsed.content,
-            version=parsed.version,
-            license=parsed.license,
-            compatibility=parsed.compatibility,
-            allowed_tools=parsed.allowed_tools,
-            metadata=parsed.metadata,
-            always_apply=parsed.always_apply,
-            injection_format=parsed.injection_format,
-        )
-        logger.info(f"Propagated changes to installed copy: {skill_name}")
-        # Propagate files to installed copy
-        _persist_skill_files(storage, installed.id, parsed.loaded_files)
+    return bool(skill.metadata and "gobby" in skill.metadata)
 
 
 def _sync_single_skill(
@@ -117,30 +84,24 @@ def _sync_single_skill(
     parsed: ParsedSkill,
     result: dict[str, Any],
 ) -> None:
-    """Sync a single parsed skill to the database as a template.
+    """Sync a single parsed skill to the database as an installed row.
 
-    Follows the same pattern as _sync_single_rule():
-    - Creates with source='template', enabled=False
-    - Restores soft-deleted templates
-    - Preserves user's enabled toggle on updates
-    - Propagates content changes to installed copies
-    - Skips non-template skills with same name
+    - Row doesn't exist → create with source='installed', enabled=True
+    - Gobby-tagged row exists → overwrite content from template (we own it)
+    - Non-gobby row with same name exists → skip (user's skill)
+    - Soft-deleted gobby row → restore and overwrite
     """
-    # Check if skill already exists (include deleted and templates)
-    existing = storage.get_by_name(
-        parsed.name, project_id=None, include_deleted=True, include_templates=True
-    )
+    existing = storage.get_by_name(parsed.name, project_id=None, include_deleted=True)
 
     if existing is not None:
-        if existing.source == "template":
-            _handle_existing_template(storage, existing, parsed, result)
+        if _is_gobby_owned(existing):
+            _handle_existing_gobby_skill(storage, existing, parsed, result)
         else:
-            # Non-template (installed) copy shadows the template.
-            # Look up the template row directly.
-            _handle_installed_shadows_template(storage, existing, parsed, result)
+            # User-created skill with same name — don't touch it
+            result["skipped"] += 1
         return
 
-    # No existing skill — create new template
+    # No existing skill — create new installed row
     new_skill = storage.create_skill(
         name=parsed.name,
         description=parsed.description,
@@ -154,24 +115,27 @@ def _sync_single_skill(
         source_type="filesystem",
         source_ref=None,
         project_id=None,
-        enabled=False,
+        enabled=True,
         always_apply=parsed.always_apply,
         injection_format=parsed.injection_format,
-        source="template",
+        source="installed",
     )
-    # Persist skill files
     _persist_skill_files(storage, new_skill.id, parsed.loaded_files)
     result["synced"] += 1
 
 
-def _handle_existing_template(
+def _handle_existing_gobby_skill(
     storage: LocalSkillManager,
     existing: Skill,
     parsed: ParsedSkill,
     result: dict[str, Any],
 ) -> None:
-    """Handle case where get_by_name returns a template row."""
-    # Restore soft-deleted templates
+    """Handle case where a gobby-owned installed row already exists.
+
+    Restores soft-deleted skills and overwrites content from template.
+    Preserves the user's enabled toggle.
+    """
+    # Restore soft-deleted skills
     if existing.deleted_at is not None:
         storage.restore(existing.id)
         storage.update_skill(
@@ -183,12 +147,11 @@ def _handle_existing_template(
             compatibility=parsed.compatibility,
             allowed_tools=parsed.allowed_tools,
             metadata=parsed.metadata,
-            enabled=False,
+            enabled=True,
             always_apply=parsed.always_apply,
             injection_format=parsed.injection_format,
         )
         logger.info(f"Restored soft-deleted bundled skill: {parsed.name}")
-        # Sync files for restored template
         _persist_skill_files(storage, existing.id, parsed.loaded_files)
         result["updated"] += 1
         return
@@ -210,7 +173,7 @@ def _handle_existing_template(
         result["skipped"] += 1
         return
 
-    # Update template, preserving user's enabled toggle
+    # Overwrite from template, preserving user's enabled toggle
     storage.update_skill(
         skill_id=existing.id,
         description=parsed.description,
@@ -224,116 +187,16 @@ def _handle_existing_template(
         always_apply=parsed.always_apply,
         injection_format=parsed.injection_format,
     )
-    # Propagate to installed copy
-    _propagate_to_installed(storage, parsed.name, parsed)
-    # Sync files for template
     _persist_skill_files(storage, existing.id, parsed.loaded_files)
     result["updated"] += 1
-
-
-def _handle_installed_shadows_template(
-    storage: LocalSkillManager,
-    existing: Skill,
-    parsed: ParsedSkill,
-    result: dict[str, Any],
-) -> None:
-    """Handle case where an installed copy shadows the template.
-
-    get_by_name returned a non-template row. Look up the template row
-    directly and update it, or create it if missing.
-    """
-    template_row = storage.db.fetchone(
-        "SELECT * FROM skills WHERE name = ? AND source = 'template' AND project_id IS NULL",
-        (parsed.name,),
-    )
-
-    if template_row:
-        template = Skill.from_row(template_row)
-        if template.deleted_at:
-            storage.restore(template.id)
-            storage.update_skill(
-                skill_id=template.id,
-                description=parsed.description,
-                content=parsed.content,
-                version=parsed.version,
-                license=parsed.license,
-                compatibility=parsed.compatibility,
-                allowed_tools=parsed.allowed_tools,
-                metadata=parsed.metadata,
-                enabled=False,
-                always_apply=parsed.always_apply,
-                injection_format=parsed.injection_format,
-            )
-            logger.info(f"Restored soft-deleted template behind installed copy: {parsed.name}")
-            _persist_skill_files(storage, template.id, parsed.loaded_files)
-            result["updated"] += 1
-        else:
-            needs_update = (
-                template.description != parsed.description
-                or template.content != parsed.content
-                or template.version != parsed.version
-                or template.license != parsed.license
-                or template.compatibility != parsed.compatibility
-                or template.allowed_tools != parsed.allowed_tools
-                or template.metadata != parsed.metadata
-                or template.always_apply != parsed.always_apply
-                or template.injection_format != parsed.injection_format
-            )
-            if needs_update:
-                storage.update_skill(
-                    skill_id=template.id,
-                    description=parsed.description,
-                    content=parsed.content,
-                    version=parsed.version,
-                    license=parsed.license,
-                    compatibility=parsed.compatibility,
-                    allowed_tools=parsed.allowed_tools,
-                    metadata=parsed.metadata,
-                    enabled=template.enabled,
-                    always_apply=parsed.always_apply,
-                    injection_format=parsed.injection_format,
-                )
-                # Propagate to the installed copy
-                if existing.source == "installed":
-                    _propagate_to_installed(storage, parsed.name, parsed)
-                _persist_skill_files(storage, template.id, parsed.loaded_files)
-                result["updated"] += 1
-            else:
-                result["skipped"] += 1
-    else:
-        # No template row — create one
-        new_template = storage.create_skill(
-            name=parsed.name,
-            description=parsed.description,
-            content=parsed.content,
-            version=parsed.version,
-            license=parsed.license,
-            compatibility=parsed.compatibility,
-            allowed_tools=parsed.allowed_tools,
-            metadata=parsed.metadata,
-            source_path=parsed.source_path,
-            source_type="filesystem",
-            source_ref=None,
-            project_id=None,
-            enabled=False,
-            always_apply=parsed.always_apply,
-            injection_format=parsed.injection_format,
-            source="template",
-        )
-        _persist_skill_files(storage, new_template.id, parsed.loaded_files)
-        logger.info(f"Created missing template row behind installed copy: {parsed.name}")
-        result["synced"] += 1
 
 
 def sync_bundled_skills(db: DatabaseProtocol) -> dict[str, Any]:
     """Sync bundled skills from install/shared/skills/ to the database.
 
-    Follows the template pattern (like sync_bundled_rules):
-    1. Creates skills with source='template', enabled=False
-    2. Restores soft-deleted templates
-    3. Preserves user's enabled toggle on template updates
-    4. Propagates content changes to installed copies
-    5. Soft-deletes orphaned templates (SKILL.md removed from disk)
+    Creates/updates skills as source='installed', enabled=True with
+    gobby metadata. Gobby-owned skills (identified by metadata.gobby)
+    are overwritten on sync. User skills are never touched.
 
     Args:
         db: Database connection
@@ -383,32 +246,14 @@ def sync_bundled_skills(db: DatabaseProtocol) -> dict[str, Any]:
             logger.error(error_msg)
             result["errors"].append(error_msg)
 
-    # Orphan cleanup: soft-delete template skills whose SKILL.md was removed
-    orphan_rows = db.fetchall(
-        "SELECT id, name FROM skills "
-        "WHERE source = 'template' AND project_id IS NULL "
-        "AND deleted_at IS NULL",
-    )
-    orphaned_names: set[str] = set()
-    for row in orphan_rows:
-        if row["name"] not in on_disk:
-            storage.delete_skill(row["id"])
-            orphaned_names.add(row["name"])
-            logger.info(f"Soft-deleted orphaned bundled skill: {row['name']}")
+    # Orphan cleanup: soft-delete gobby-owned installed skills whose
+    # SKILL.md was removed from disk
+    all_installed = storage.list_skills(project_id=None, include_global=False, limit=10000)
+    for skill in all_installed:
+        if _is_gobby_owned(skill) and skill.name not in on_disk:
+            storage.delete_skill(skill.id)
+            logger.info(f"Soft-deleted orphaned bundled skill: {skill.name}")
             result["orphaned"] += 1
-
-    # Cascade: soft-delete global installed copies of orphaned templates
-    result["cascaded"] = 0
-    for name in orphaned_names:
-        installed_rows = db.fetchall(
-            "SELECT id FROM skills WHERE name = ? AND source = 'installed' "
-            "AND project_id IS NULL AND deleted_at IS NULL",
-            (name,),
-        )
-        for inst_row in installed_rows:
-            storage.delete_skill(inst_row["id"])
-            logger.info(f"Soft-deleted installed copy of orphaned skill: {name}")
-            result["cascaded"] += 1
 
     total = result["synced"] + result["updated"] + result["skipped"]
     logger.info(
