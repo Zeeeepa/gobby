@@ -63,10 +63,12 @@
     "tailwind-merge": "^3.4.1",
     "three": ">=0.118.0 <1",
     "three-spritetext": "^1.10.0",
-    "yaml": "^2.7.0"
+    "yaml": "^2.8.3"
   },
   "overrides": {
-    "flatted": ">=3.4.2"
+    "flatted": ">=3.4.2",
+    "lodash-es": ">=4.18.0",
+    "picomatch": ">=4.0.4"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
