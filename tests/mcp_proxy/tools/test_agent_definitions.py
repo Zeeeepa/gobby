@@ -32,6 +32,7 @@ def _insert_agent(
     name: str = "test-agent",
     source: str = "installed",
     enabled: bool = True,
+    tags: list[str] | None = None,
     **overrides: object,
 ) -> None:
     body = AgentDefinitionBody(name=name, enabled=enabled, **overrides)  # type: ignore[arg-type]
@@ -42,6 +43,7 @@ def _insert_agent(
         description=body.description,
         source=source,
         enabled=enabled,
+        tags=tags,
     )
 
 
@@ -205,9 +207,9 @@ class TestToggleAgentDefinition:
 
 
 class TestDeleteAgentDefinition:
-    def test_delete_custom(self, tmp_path: Path) -> None:
+    def test_delete_user_created(self, tmp_path: Path) -> None:
         mgr = _setup(tmp_path)
-        _insert_agent(mgr, "deletable", source="custom")
+        _insert_agent(mgr, "deletable", tags=["user"])
         result = delete_agent_definition(mgr, "deletable")
         assert result["success"] is True
         assert result["deleted"]["name"] == "deletable"
@@ -220,20 +222,20 @@ class TestDeleteAgentDefinition:
 
     def test_bundled_protected(self, tmp_path: Path) -> None:
         mgr = _setup(tmp_path)
-        _insert_agent(mgr, "bundled-agent", source="installed")
+        _insert_agent(mgr, "bundled-agent", tags=["gobby"])
         result = delete_agent_definition(mgr, "bundled-agent")
         assert result["success"] is False
-        assert "template" in result["error"]
+        assert "bundled" in result["error"]
 
     def test_bundled_force_delete(self, tmp_path: Path) -> None:
         mgr = _setup(tmp_path)
-        _insert_agent(mgr, "bundled-agent", source="installed")
+        _insert_agent(mgr, "bundled-agent", tags=["gobby"])
         result = delete_agent_definition(mgr, "bundled-agent", force=True)
         assert result["success"] is True
 
     def test_deleted_not_in_list(self, tmp_path: Path) -> None:
         mgr = _setup(tmp_path)
-        _insert_agent(mgr, "gone", source="custom")
+        _insert_agent(mgr, "gone", tags=["user"])
         delete_agent_definition(mgr, "gone")
         result = list_agent_definitions(mgr)
         assert not any(a["name"] == "gone" for a in result["agents"])

@@ -402,7 +402,7 @@ def create_variable(
         workflow_type="variable",
         description=description,
         enabled=True,
-        source="custom",
+        source="installed",
         tags=["user"],
     )
     logger.info(f"Created variable '{name}' (id={row.id})")
@@ -494,11 +494,11 @@ def delete_variable(
     if row is None or row.workflow_type != "variable":
         return {"success": False, "error": f"Variable '{name}' not found"}
 
-    if row.source == "installed" and not force:
+    if "gobby" in (row.tags or []) and not force:
         return {
             "success": False,
             "error": (
-                f"Variable '{name}' is a template and will be re-created on restart. "
+                f"Variable '{name}' is bundled and will be re-created on restart. "
                 "Use force=True to delete anyway."
             ),
         }

@@ -166,7 +166,7 @@ def create_agent_definition(
         workflow_type="agent",
         description=definition.get("description"),
         enabled=definition.get("enabled", True),
-        source="custom",
+        source="installed",
         tags=["user"],
     )
     logger.info(f"Created agent definition '{name}' (id={row.id})")
@@ -232,11 +232,11 @@ def delete_agent_definition(
     if row is None or row.workflow_type != "agent":
         return {"success": False, "error": f"Agent definition '{name}' not found"}
 
-    if row.source == "installed" and not force:
+    if "gobby" in (row.tags or []) and not force:
         return {
             "success": False,
             "error": (
-                f"Agent definition '{name}' is a template and will be re-created on restart. "
+                f"Agent definition '{name}' is bundled and will be re-created on restart. "
                 "Use force=True to delete anyway."
             ),
         }

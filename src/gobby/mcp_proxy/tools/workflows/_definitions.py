@@ -97,7 +97,7 @@ def create_workflow_definition(
         }
 
     try:
-        row = def_manager.import_from_yaml(yaml_content, project_id=project_id, source="custom")
+        row = def_manager.import_from_yaml(yaml_content, project_id=project_id)
     except Exception as e:
         return {"success": False, "error": f"Import failed: {e}"}
 
@@ -280,7 +280,7 @@ def delete_workflow_definition(
     except ValueError as e:
         return {"success": False, "error": str(e)}
 
-    if row.source == "installed" and not force:
+    if "gobby" in (row.tags or []) and not force:
         return {
             "success": False,
             "error": (
