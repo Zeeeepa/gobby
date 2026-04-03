@@ -232,6 +232,7 @@ def update_task(
     expansion_context: Any = UNSET,
     validation_criteria: Any = UNSET,
     validation_fail_count: Any = UNSET,
+    dispatch_failure_count: Any = UNSET,
     escalated_at: Any = UNSET,
     escalation_reason: Any = UNSET,
     github_issue_number: Any = UNSET,
@@ -294,6 +295,9 @@ def update_task(
     if validation_fail_count is not UNSET:
         updates.append("validation_fail_count = ?")
         params.append(validation_fail_count)
+    if dispatch_failure_count is not UNSET:
+        updates.append("dispatch_failure_count = ?")
+        params.append(dispatch_failure_count)
     if escalated_at is not UNSET:
         updates.append("escalated_at = ?")
         params.append(escalated_at)

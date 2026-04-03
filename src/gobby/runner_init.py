@@ -612,6 +612,7 @@ def init_orchestration(runner: GobbyRunner) -> None:
 
     # Agent Lifecycle Monitor (detect dead agent processes — fully DB-driven)
     from gobby.storage.agents import LocalAgentRunManager
+    from gobby.storage.checkpoints import LocalCheckpointManager
 
     try:
         runner.agent_lifecycle_monitor = AgentLifecycleMonitor(
@@ -622,6 +623,8 @@ def init_orchestration(runner: GobbyRunner) -> None:
             completion_registry=runner.completion_registry,
             task_manager=runner.task_manager,
             tmux_config=runner.config.tmux if hasattr(runner.config, "tmux") else None,
+            checkpoint_storage=LocalCheckpointManager(runner.database),
+            worktree_storage=runner.worktree_storage,
         )
     except Exception as e:
         logger.warning(f"Failed to initialize AgentLifecycleMonitor: {e}")

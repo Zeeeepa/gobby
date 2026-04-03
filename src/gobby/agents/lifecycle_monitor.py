@@ -15,8 +15,10 @@ import os
 import signal
 from typing import TYPE_CHECKING, Any
 
+from gobby.agents.checkpoint_manager import CheckpointManager
 from gobby.agents.idle_detector import IdleDetector
 from gobby.agents.kill import kill_agent
+from gobby.agents.loop_tracker import LoopTracker
 from gobby.agents.prompt_detector import PromptDetector
 from gobby.agents.stall_classifier import StallClassifier, StallStatus
 from gobby.agents.tmux.session_manager import TmuxSessionManager
@@ -26,10 +28,12 @@ from gobby.storage.agents import AgentRun, LocalAgentRunManager
 if TYPE_CHECKING:
     from gobby.events.completion_registry import CompletionEventRegistry
     from gobby.hooks.session_coordinator import SessionCoordinator
+    from gobby.storage.checkpoints import LocalCheckpointManager
     from gobby.storage.clones import LocalCloneManager
     from gobby.storage.database import DatabaseProtocol
     from gobby.storage.sessions import LocalSessionManager
     from gobby.storage.tasks import LocalTaskManager
+    from gobby.storage.worktrees import LocalWorktreeManager
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +62,8 @@ class AgentLifecycleMonitor:
         completion_registry: CompletionEventRegistry | None = None,
         task_manager: LocalTaskManager | None = None,
         tmux_config: TmuxConfig | None = None,
+        checkpoint_storage: LocalCheckpointManager | None = None,
+        worktree_storage: LocalWorktreeManager | None = None,
     ) -> None:
         self._agent_run_manager = agent_run_manager
         self._db = db
@@ -72,6 +78,11 @@ class AgentLifecycleMonitor:
         self._idle_detector = IdleDetector()
         self._prompt_detector = PromptDetector()
         self._stall_classifier = StallClassifier()
+        self._loop_tracker = LoopTracker(threshold=3)
+        self._checkpoint_manager = (
+            CheckpointManager(checkpoint_storage) if checkpoint_storage else None
+        )
+        self._worktree_storage = worktree_storage
         self._running = False
         self._task: asyncio.Task[None] | None = None
         # In-memory tracking for inherently non-persistable state
@@ -126,11 +137,37 @@ class AgentLifecycleMonitor:
                 )
 
             task = await asyncio.to_thread(self._task_manager.get_task, task_id)
-            if task and task.status == "in_progress":
+            if not task or task.status != "in_progress":
+                return
+
+            task_ref = f"#{task.seq_num}" if task.seq_num else task_id[:8]
+
+            # Track dispatch failures (exclude provider errors — rotation handles those)
+            failure_count = task.dispatch_failure_count or 0
+            if not is_provider:
+                failure_count += 1
+
+            if not is_provider and failure_count >= 3:
+                # Block re-dispatch after too many non-provider failures
                 await asyncio.to_thread(
-                    self._task_manager.update_task, task_id, status="open", assignee=None
+                    self._task_manager.update_task,
+                    task_id,
+                    status="blocked",
+                    assignee=None,
+                    dispatch_failure_count=failure_count,
                 )
-                task_ref = f"#{task.seq_num}" if task.seq_num else task_id[:8]
+                logger.warning(
+                    f"Task {task_ref} blocked from re-dispatch: "
+                    f"{failure_count} failures across different agents"
+                )
+            else:
+                await asyncio.to_thread(
+                    self._task_manager.update_task,
+                    task_id,
+                    status="open",
+                    assignee=None,
+                    dispatch_failure_count=failure_count,
+                )
                 logger.info(f"Recovered task {task_ref} to open after agent {run_id} failed")
         except Exception as e:
             logger.warning(f"Failed to recover task for agent {run_id}: {e}")
@@ -255,12 +292,25 @@ class AgentLifecycleMonitor:
             try:
                 pane_output = await self._tmux.capture_pane(tmux_name, lines=15)
                 if pane_output and self._prompt_detector.detect_loop_prompt(pane_output):
-                    sent = await self._tmux.send_keys(tmux_name, PromptDetector.LOOP_DISMISS_KEYS)
-                    if sent:
-                        logger.info(
-                            f"Auto-dismissed loop detection prompt for agent {run.id}",
+                    count = self._prompt_detector.record_loop_dismiss(run.id)
+                    self._loop_tracker.record_dismissal(run.id)
+
+                    if self._loop_tracker.should_escalate(run.id):
+                        logger.warning(
+                            f"Doom loop detected for agent {run.id}: "
+                            f"{count} loop prompts dismissed, escalating to kill"
                         )
-                        handled += 1
+                        await self._checkpoint_and_kill_looping_agent(run)
+                    else:
+                        sent = await self._tmux.send_keys(
+                            tmux_name, PromptDetector.LOOP_DISMISS_KEYS
+                        )
+                        if sent:
+                            logger.info(
+                                f"Auto-dismissed loop prompt for agent {run.id} "
+                                f"({count}/{self._loop_tracker.threshold})"
+                            )
+                            handled += 1
             except Exception as e:
                 logger.warning(f"Error checking loop prompt for agent {run.id}: {e}")
 
@@ -332,6 +382,7 @@ class AgentLifecycleMonitor:
         # 5. Clear detector state
         self._prompt_detector.clear(run.id)
         self._stall_classifier.clear(run.id)
+        self._loop_tracker.clear(run.id)
 
         # 6. Release isolation
         if self._session_coordinator and session_id:
@@ -703,6 +754,77 @@ class AgentLifecycleMonitor:
             return 1
 
         return 0
+
+    async def _checkpoint_and_kill_looping_agent(self, run: AgentRun) -> None:
+        """Checkpoint work, kill tmux, then full cleanup for a doom-looping agent.
+
+        Follows the same pattern as _fail_idle_agent but adds a checkpoint
+        step to preserve uncommitted work before killing.
+        """
+        # 1. Checkpoint uncommitted work
+        if self._checkpoint_manager and run.task_id:
+            cwd = await self._resolve_agent_cwd(run)
+            if cwd:
+                try:
+                    checkpoint = await asyncio.to_thread(
+                        self._checkpoint_manager.create_checkpoint,
+                        cwd,
+                        run.task_id,
+                        run.child_session_id or "",
+                        run.id,
+                    )
+                    if checkpoint:
+                        logger.info(
+                            f"Checkpointed agent {run.id} work: {checkpoint.ref_name} "
+                            f"({checkpoint.files_changed} files)"
+                        )
+                except Exception as e:
+                    logger.warning(f"Failed to checkpoint agent {run.id}: {e}")
+
+        # 2. Kill tmux session
+        if run.tmux_session_name:
+            await self._tmux.kill_session(run.tmux_session_name)
+
+        # 3. Full cleanup chain
+        await self._cleanup_agent(
+            run, error="doom loop: dismissed loop prompt 3+ times", is_success=False
+        )
+
+    async def _resolve_agent_cwd(self, run: AgentRun) -> str | None:
+        """Resolve the working directory for an agent run.
+
+        Checks worktree, clone, then session project path as fallbacks.
+        """
+        # Check worktree
+        if run.worktree_id and self._worktree_storage:
+            try:
+                wt = await asyncio.to_thread(self._worktree_storage.get, run.worktree_id)
+                if wt and wt.worktree_path:
+                    return wt.worktree_path
+            except Exception:
+                pass
+
+        # Check clone
+        if run.clone_id and self._clone_storage:
+            try:
+                clone = await asyncio.to_thread(self._clone_storage.get, run.clone_id)
+                if clone and clone.clone_path:
+                    return clone.clone_path
+            except Exception:
+                pass
+
+        # Fallback: session's project directory
+        if run.child_session_id and self._session_manager:
+            try:
+                session = await asyncio.to_thread(
+                    self._session_manager.get_session, run.child_session_id
+                )
+                if session and session.project_path:
+                    return session.project_path
+            except Exception:
+                pass
+
+        return None
 
     async def _fail_idle_agent(self, run: AgentRun, reason: str) -> None:
         """Fail an agent that is irrecoverably idle.

@@ -278,6 +278,7 @@ CREATE TABLE tasks (
     expansion_context TEXT,
     validation_criteria TEXT,
     validation_fail_count INTEGER DEFAULT 0,
+    dispatch_failure_count INTEGER DEFAULT 0,
     commits TEXT,
     escalated_at TEXT,
     escalation_reason TEXT,
@@ -1102,3 +1103,17 @@ CREATE TABLE chat_messages (
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_chat_messages_conv_seq ON chat_messages(conversation_id, seq);
+
+CREATE TABLE checkpoints (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    ref_name TEXT NOT NULL,
+    commit_sha TEXT NOT NULL,
+    parent_sha TEXT NOT NULL,
+    files_changed INTEGER NOT NULL DEFAULT 0,
+    message TEXT NOT NULL DEFAULT 'auto-checkpoint',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_checkpoints_task ON checkpoints(task_id, created_at DESC);

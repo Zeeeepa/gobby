@@ -135,6 +135,7 @@ def reopen_task(
                 closed_in_session_id = NULL,
                 closed_commit_sha = NULL,
                 validation_fail_count = 0,
+                dispatch_failure_count = 0,
                 description = ?,
                 updated_at = ?
             WHERE id = ?""",

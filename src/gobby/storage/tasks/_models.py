@@ -126,6 +126,7 @@ class Task:
     expansion_context: str | None = None
     validation_criteria: str | None = None
     validation_fail_count: int = 0
+    dispatch_failure_count: int = 0
     validation_override_reason: str | None = None  # Why agent bypassed validation
     # Commit linking
     commits: list[str] | None = None
@@ -197,6 +198,9 @@ class Task:
             validation_fail_count=(
                 row["validation_fail_count"] if "validation_fail_count" in keys else 0
             ),
+            dispatch_failure_count=(
+                row["dispatch_failure_count"] if "dispatch_failure_count" in keys else 0
+            ),
             validation_override_reason=(
                 row["validation_override_reason"] if "validation_override_reason" in keys else None
             ),
@@ -247,6 +251,7 @@ class Task:
             "expansion_context": self.expansion_context,
             "validation_criteria": self.validation_criteria,
             "validation_fail_count": self.validation_fail_count,
+            "dispatch_failure_count": self.dispatch_failure_count,
             "validation_override_reason": self.validation_override_reason,
             "commits": self.commits,
             "escalated_at": self.escalated_at,
@@ -290,6 +295,7 @@ class Task:
             "closed_at": self.closed_at,
             "closed_in_session_id": self.closed_in_session_id,
             "validation_fail_count": self.validation_fail_count,
+            "dispatch_failure_count": self.dispatch_failure_count,
             "escalated_at": self.escalated_at,
             "start_date": self.start_date,
             "due_date": self.due_date,

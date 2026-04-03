@@ -42,6 +42,7 @@ class PromptDetector:
 
     def __init__(self) -> None:
         self._dismissed: set[str] = set()
+        self._loop_counts: dict[str, int] = {}
 
     def detect_trust_prompt(self, pane_output: str) -> bool:
         """Return True if pane output contains a folder trust prompt."""
@@ -57,6 +58,11 @@ class PromptDetector:
                 return True
         return False
 
+    def record_loop_dismiss(self, run_id: str) -> int:
+        """Record loop prompt dismissal. Returns the new count."""
+        self._loop_counts[run_id] = self._loop_counts.get(run_id, 0) + 1
+        return self._loop_counts[run_id]
+
     def mark_dismissed(self, run_id: str) -> None:
         """Record that we already dismissed this agent's trust prompt."""
         self._dismissed.add(run_id)
@@ -68,3 +74,4 @@ class PromptDetector:
     def clear(self, run_id: str) -> None:
         """Remove tracking state for an agent (on cleanup)."""
         self._dismissed.discard(run_id)
+        self._loop_counts.pop(run_id, None)
