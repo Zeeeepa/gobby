@@ -466,7 +466,7 @@ class TestCompleteCommandBroadcast:
 
         result = await messaging_registry_with_broadcast.call(
             "complete_command",
-            {"session_id": "s-child", "command_id": "cmd-1", "result": "Done"},
+            {"target_session_id": "s-child", "command_id": "cmd-1", "result": "Done"},
         )
 
         assert result["success"] is True
@@ -488,7 +488,7 @@ class TestCompleteCommandBroadcast:
 
         result = await messaging_registry_with_broadcast.call(
             "complete_command",
-            {"session_id": "s-child", "command_id": "no-such", "result": "Done"},
+            {"target_session_id": "s-child", "command_id": "no-such", "result": "Done"},
         )
 
         assert result["success"] is False

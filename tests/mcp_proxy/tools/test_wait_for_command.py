@@ -139,7 +139,7 @@ class TestWaitForCommandImmediate:
 
         result = await messaging_registry.call(
             "wait_for_command",
-            {"session_id": "s-child", "timeout": 60},
+            {"target_session_id": "s-child", "timeout": 60},
         )
 
         assert result["success"] is True
@@ -158,7 +158,7 @@ class TestWaitForCommandImmediate:
 
         result = await messaging_registry.call(
             "wait_for_command",
-            {"session_id": "s-child"},
+            {"target_session_id": "s-child"},
         )
 
         assert result["success"] is True
@@ -179,7 +179,7 @@ class TestWaitForCommandPolling:
         with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             result = await messaging_registry.call(
                 "wait_for_command",
-                {"session_id": "s-child", "timeout": 60, "poll_interval": 2},
+                {"target_session_id": "s-child", "timeout": 60, "poll_interval": 2},
             )
 
         assert result["success"] is True
@@ -197,7 +197,7 @@ class TestWaitForCommandPolling:
         with patch("asyncio.sleep", new_callable=AsyncMock):
             result = await messaging_registry.call(
                 "wait_for_command",
-                {"session_id": "s-child", "timeout": 300, "poll_interval": 1},
+                {"target_session_id": "s-child", "timeout": 300, "poll_interval": 1},
             )
 
         assert result["success"] is True
@@ -229,7 +229,7 @@ class TestWaitForCommandTimeout:
 
             result = await messaging_registry.call(
                 "wait_for_command",
-                {"session_id": "s-child", "timeout": 600, "poll_interval": 5},
+                {"target_session_id": "s-child", "timeout": 600, "poll_interval": 5},
             )
 
         assert result["success"] is True
@@ -260,7 +260,7 @@ class TestWaitForCommandAutoActivate:
 
         result = await messaging_registry.call(
             "wait_for_command",
-            {"session_id": "s-child", "auto_activate": True},
+            {"target_session_id": "s-child", "auto_activate": True},
         )
 
         assert result["success"] is True
@@ -285,7 +285,7 @@ class TestWaitForCommandAutoActivate:
 
         result = await messaging_registry.call(
             "wait_for_command",
-            {"session_id": "s-child", "auto_activate": False},
+            {"target_session_id": "s-child", "auto_activate": False},
         )
 
         assert result["success"] is True
@@ -308,7 +308,7 @@ class TestWaitForCommandPollInterval:
         with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             await messaging_registry.call(
                 "wait_for_command",
-                {"session_id": "s-child", "timeout": 60, "poll_interval": -1},
+                {"target_session_id": "s-child", "timeout": 60, "poll_interval": -1},
             )
 
         mock_sleep.assert_called_once_with(5)
@@ -324,7 +324,7 @@ class TestWaitForCommandPollInterval:
         with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             await messaging_registry.call(
                 "wait_for_command",
-                {"session_id": "s-child", "timeout": 60, "poll_interval": 0},
+                {"target_session_id": "s-child", "timeout": 60, "poll_interval": 0},
             )
 
         mock_sleep.assert_called_once_with(5)
