@@ -74,10 +74,9 @@ const PROVIDER_COLORS: Record<string, string> = {
 }
 
 const MODE_COLORS: Record<string, string> = {
-  terminal: '#f59e0b',
+  interactive: '#f59e0b',
   headless: '#6b7280',
   embedded: '#06b6d4',
-  self: '#ec4899',
 }
 
 const ISOLATION_COLORS: Record<string, string> = {
