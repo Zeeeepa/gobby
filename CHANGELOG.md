@@ -69,7 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Gemini agent sessions report 0 tokens due to JSON transcript misparse (#10986)
 - Make /api/code-index/invalidate idempotent (#11139)
 - Fix bundled rule delete returning 200 instead of 403 (route checked "bundled" but error says "template")
-- Add template validation to move_to_project/move_to_global to prevent moving template definitions
+- Remove obsolete template move rejection tests (template source type no longer exists)
 - Rename deliver_pending_messages parameter from session_id to target_session_id to avoid HTTP dispatch stripping
 - Resolve 22 mypy errors and 2 TypeScript errors across 17 files (#11200)
 

@@ -408,14 +408,8 @@ class LocalWorkflowDefinitionManager:
 
     def move_to_project(self, definition_id: str, project_id: str) -> WorkflowDefinitionRow:
         """Move a definition to project scope."""
-        row = self.get(definition_id)
-        if row and row.source == "template":
-            raise ValueError(f"Cannot move template '{row.name}' — templates are managed by sync")
         return self.update(definition_id, source="project", project_id=project_id)
 
     def move_to_global(self, definition_id: str) -> WorkflowDefinitionRow:
         """Move a definition to global (installed) scope."""
-        row = self.get(definition_id)
-        if row and row.source == "template":
-            raise ValueError(f"Cannot move template '{row.name}' — templates are managed by sync")
         return self.update(definition_id, source="installed", project_id=None)

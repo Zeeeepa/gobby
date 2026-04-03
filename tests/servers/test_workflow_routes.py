@@ -374,20 +374,6 @@ def test_move_to_project(
     assert data["definition"]["project_id"] == "proj-1"
 
 
-def test_move_to_project_template_rejected(
-    client: TestClient, manager: LocalWorkflowDefinitionManager
-) -> None:
-    """Test that moving a template to project returns 400."""
-    row = manager.create(
-        name="tmpl-move-test", definition_json=SAMPLE_DEFINITION, source="template"
-    )
-    resp = client.post(
-        f"/api/workflows/{row.id}/move-to-project",
-        json={"project_id": "proj-1"},
-    )
-    assert resp.status_code == 400
-
-
 def test_move_to_project_not_found(client: TestClient) -> None:
     """Test moving a nonexistent definition returns 404."""
     resp = client.post(
@@ -423,17 +409,6 @@ def test_move_to_global(
     data = resp.json()
     assert data["definition"]["source"] == "installed"
     assert data["definition"]["project_id"] is None
-
-
-def test_move_to_global_template_rejected(
-    client: TestClient, manager: LocalWorkflowDefinitionManager
-) -> None:
-    """Test that moving a template to global returns 400."""
-    row = manager.create(
-        name="tmpl-global-test", definition_json=SAMPLE_DEFINITION, source="template"
-    )
-    resp = client.post(f"/api/workflows/{row.id}/move-to-global")
-    assert resp.status_code == 400
 
 
 def test_move_to_global_not_found(client: TestClient) -> None:
