@@ -49,8 +49,7 @@ def _install_ggml_log_filter() -> None:
 
     import llama_cpp
 
-    @llama_cpp.llama_log_callback
-    def _filtered_callback(
+    def _py_callback(
         level: int,
         text: bytes,
         user_data: ctypes.c_void_p,
@@ -67,6 +66,7 @@ def _install_ggml_log_filter() -> None:
 
             print(msg, end="", flush=True, file=sys.stderr)
 
+    _filtered_callback = llama_cpp.llama_log_callback(_py_callback)
     _ggml_log_filter_cb = _filtered_callback  # prevent GC
     llama_cpp.llama_log_set(_filtered_callback, ctypes.c_void_p(0))
 
