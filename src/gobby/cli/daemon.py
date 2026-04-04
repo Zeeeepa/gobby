@@ -65,19 +65,18 @@ def _services_start(gobby_home: Path) -> None:
         else:
             return
 
-    # Build subprocess env with config resolved from the store
+    # Build subprocess env with config resolved from bootstrap + DB config
     env = dict(os.environ)
     profiles: list[str] = []
     try:
         from gobby.config.app import load_config
+        from gobby.config.bootstrap import load_bootstrap
 
+        bootstrap = load_bootstrap()
         config = load_config()
 
-        # Neo4j auth
-        if config.databases.neo4j.auth:
-            parts = config.databases.neo4j.auth.split(":", 1)
-            if len(parts) == 2:
-                env["GOBBY_NEO4J_PASSWORD"] = parts[1]
+        # Neo4j auth — read password directly from bootstrap
+        env["GOBBY_NEO4J_PASSWORD"] = bootstrap.neo4j_password
 
         # Determine which profiles to start
         if config.databases.neo4j.url:

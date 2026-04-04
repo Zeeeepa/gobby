@@ -8,7 +8,6 @@ Uses the unified docker-compose.services.yml with Docker Compose profiles.
 import asyncio
 import logging
 import os
-import secrets
 import shutil
 import subprocess  # nosec B404 # subprocess needed for docker compose management
 from pathlib import Path
@@ -29,22 +28,18 @@ NEO4J_DATA_VOLUME = "gobby_neo4j_data"
 NEO4J_LOGS_VOLUME = "gobby_neo4j_logs"
 
 
-def _generate_password(length: int = 24) -> str:
-    """Generate a cryptographically random password."""
-    return secrets.token_urlsafe(length)
-
-
-def _resolve_neo4j_auth() -> str:
-    """Return the existing configured auth or generate a new random password."""
+def _resolve_neo4j_password(password: str | None = None) -> str:
+    """Return the password to use: explicit > bootstrap > default."""
+    if password:
+        return password
     try:
-        from gobby.config.app import load_config
+        from gobby.config.bootstrap import load_bootstrap
 
-        config = load_config()
-        if config.databases.neo4j.auth:
-            return config.databases.neo4j.auth
+        bootstrap = load_bootstrap()
+        return bootstrap.neo4j_password
     except (OSError, ValueError, AttributeError):
         pass
-    return f"neo4j:{_generate_password()}"
+    return "gobbyneo4j"
 
 
 def _ensure_unified_compose(services_dir: Path) -> Path:
@@ -82,11 +77,9 @@ def install_neo4j(
     if not shutil.which("docker"):
         return {"success": False, "error": "Docker not found. Install Docker to use Neo4j."}
 
-    # Resolve auth: user-provided > existing config > random
-    if password:
-        neo4j_auth = f"neo4j:{password}"
-    else:
-        neo4j_auth = _resolve_neo4j_auth()
+    # Resolve password: user-provided > bootstrap > default
+    neo4j_password = _resolve_neo4j_password(password)
+    neo4j_auth = f"neo4j:{neo4j_password}"
 
     services_dir = home / "services"
     compose_file = _ensure_unified_compose(services_dir)
@@ -116,9 +109,7 @@ def install_neo4j(
 
     # Pass password to docker compose via env
     env = dict(os.environ)
-    parts = neo4j_auth.split(":", 1)
-    if len(parts) == 2:
-        env["GOBBY_NEO4J_PASSWORD"] = parts[1]
+    env["GOBBY_NEO4J_PASSWORD"] = neo4j_password
 
     # Run docker compose up with neo4j profile
     try:
@@ -158,8 +149,9 @@ def install_neo4j(
             "error": "Health check failed: Neo4j did not become healthy in time",
         }
 
-    # Update daemon config
+    # Update daemon config and bootstrap
     _update_config(neo4j_url=DEFAULT_NEO4J_HTTP_URL, neo4j_auth=neo4j_auth)
+    _write_bootstrap_password(neo4j_password, home)
 
     return {
         "success": True,
@@ -254,6 +246,23 @@ async def _wait_for_health_async(url: str, retries: int = 30, interval: float = 
                 pass
             await asyncio.sleep(interval)
     return False
+
+
+def _write_bootstrap_password(password: str, gobby_home: Path) -> None:
+    """Write neo4j_password to bootstrap.yaml so _services_start can read it."""
+    bootstrap_path = gobby_home / "bootstrap.yaml"
+    try:
+        import yaml
+
+        data: dict[str, Any] = {}
+        if bootstrap_path.exists():
+            with open(bootstrap_path) as f:
+                data = yaml.safe_load(f) or {}
+        data["neo4j_password"] = password
+        with open(bootstrap_path, "w") as f:
+            yaml.safe_dump(data, f, default_flow_style=False)
+    except Exception as e:
+        logger.warning(f"Failed to write neo4j_password to bootstrap.yaml: {e}")
 
 
 def _update_config(
