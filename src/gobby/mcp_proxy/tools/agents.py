@@ -148,10 +148,10 @@ def create_agents_registry(
 
     @registry.tool(
         name="list_agents",
-        description="List agent runs for a session. Accepts #N, N, UUID, or prefix for session_id.",
+        description="List agent runs for a session. Defaults to current session. Accepts #N, N, UUID, or prefix for session_id.",
     )
     async def list_agents(
-        parent_session_id: str,
+        parent_session_id: str | None = None,
         status: str | None = None,
         limit: int = 20,
     ) -> dict[str, Any]:
@@ -159,16 +159,27 @@ def create_agents_registry(
         List agent runs for a session.
 
         Args:
-            parent_session_id: Session reference (accepts #N, N, UUID, or prefix) for the parent.
+            parent_session_id: Optional session reference (#N, N, UUID, or prefix).
+                               Falls back to SessionContext if not provided.
             status: Optional status filter (pending, running, success, error, timeout, cancelled).
             limit: Maximum results (default: 20).
 
         Returns:
             Dict with list of agent runs.
         """
+        from gobby.utils.session_context import get_current_session_id
+
+        # Resolve session_id from context if not provided
+        effective_parent_ref = parent_session_id or get_current_session_id()
+        if not effective_parent_ref:
+            return {
+                "success": False,
+                "error": "No parent_session_id provided and no context available",
+            }
+
         # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
         try:
-            resolved_parent_id = _resolve_session_id(parent_session_id)
+            resolved_parent_id = _resolve_session_id(effective_parent_ref)
         except ValueError as e:
             return {"success": False, "error": str(e)}
 
@@ -223,7 +234,8 @@ def create_agents_registry(
         name="kill_agent",
         description=(
             "Kill a running agent process and close its terminal. "
-            "Use run_id (parent kills child) or session_id (self-termination)."
+            "Use run_id (parent kills child) or session_id (self-termination). "
+            "Defaults to self-termination if no run_id or session_id provided."
         ),
     )
     async def kill_agent(
@@ -242,7 +254,8 @@ def create_agents_registry(
 
         Args:
             run_id: Agent run ID (for parent killing child)
-            session_id: Session ID of the agent (for self-termination). Accepts #N, N, UUID, or prefix.
+            session_id: Optional session reference (#N, N, UUID, or prefix) for self-termination.
+                       Falls back to SessionContext if not provided and run_id is None.
             signal: Signal to send (TERM, KILL, INT, HUP, QUIT). Default: TERM
             force: Use SIGKILL immediately (equivalent to signal="KILL")
             debug: If True, kill agent process but preserve workflow state and leave
@@ -254,6 +267,8 @@ def create_agents_registry(
         Returns:
             Dict with success status and kill details.
         """
+        from gobby.utils.session_context import get_current_session_id
+
         if force:
             signal = "KILL"
 
@@ -267,11 +282,15 @@ def create_agents_registry(
             }
 
         # Resolve run_id from session_id if needed (self-termination case)
+        effective_session_ref = session_id
+        if run_id is None and not effective_session_ref:
+            effective_session_ref = get_current_session_id()
+
         resolved_session_id: str | None = None
-        if run_id is None and session_id:
+        if run_id is None and effective_session_ref:
             # Resolve session_id (accepts #N, N, UUID, prefix)
             try:
-                resolved_session_id = _resolve_session_id(session_id)
+                resolved_session_id = _resolve_session_id(effective_session_ref)
             except ValueError as e:
                 return {"success": False, "error": str(e)}
 
@@ -283,10 +302,16 @@ def create_agents_registry(
                 run_id = runner.get_run_id_by_session(resolved_session_id)
 
             if not run_id:
-                return {"success": False, "error": f"No agent found for session {session_id}"}
+                return {
+                    "success": False,
+                    "error": f"No agent found for session {effective_session_ref}",
+                }
 
         if run_id is None:
-            return {"success": False, "error": "Either run_id or session_id required"}
+            return {
+                "success": False,
+                "error": "Either run_id or session_id required (or active context)",
+            }
 
         # Get agent info from DB
         db_run = runner.get_run(run_id)
@@ -382,23 +407,35 @@ def create_agents_registry(
 
     @registry.tool(
         name="can_spawn_agent",
-        description="Check if an agent can be spawned from the current session. Accepts #N, N, UUID, or prefix for session_id.",
+        description="Check if an agent can be spawned. Defaults to checking for the current session. Accepts #N, N, UUID, or prefix for session_id.",
     )
-    async def can_spawn_agent(parent_session_id: str) -> dict[str, Any]:
+    async def can_spawn_agent(parent_session_id: str | None = None) -> dict[str, Any]:
         """
         Check if an agent can be spawned from the given session.
 
         This checks the agent depth limit to prevent infinite nesting.
 
         Args:
-            parent_session_id: Session reference (accepts #N, N, UUID, or prefix) for the session that would spawn the agent.
+            parent_session_id: Optional session reference (#N, N, UUID, or prefix).
+                               Falls back to SessionContext if not provided.
 
         Returns:
             Dict with can_spawn boolean and reason.
         """
+        from gobby.utils.session_context import get_current_session_id
+
+        # Resolve session_id from context if not provided
+        effective_parent_ref = parent_session_id or get_current_session_id()
+        if not effective_parent_ref:
+            return {
+                "success": False,
+                "can_spawn": False,
+                "reason": "No parent_session_id provided and no context available",
+            }
+
         # Resolve session_id to UUID (accepts #N, N, UUID, or prefix)
         try:
-            resolved_parent_id = _resolve_session_id(parent_session_id)
+            resolved_parent_id = _resolve_session_id(effective_parent_ref)
         except ValueError as e:
             return {"success": False, "can_spawn": False, "reason": str(e)}
 
@@ -411,7 +448,7 @@ def create_agents_registry(
 
     @registry.tool(
         name="list_running_agents",
-        description="List all currently running agents. Accepts #N, N, UUID, or prefix for session_id.",
+        description="List all currently running agents. Optionally filter by parent session (defaults to current session). Accepts #N, N, UUID, or prefix for session_id.",
     )
     async def list_running_agents(
         parent_session_id: str | None = None,
@@ -421,15 +458,20 @@ def create_agents_registry(
         List all currently running agents.
 
         Args:
-            parent_session_id: Optional session reference (accepts #N, N, UUID, or prefix) to filter by parent.
+            parent_session_id: Optional session reference (#N, N, UUID, or prefix) to filter by parent.
+                               Falls back to SessionContext if no filter provided.
             mode: Optional filter by execution mode (interactive, embedded, headless).
 
         Returns:
             Dict with list of running agents.
         """
-        if parent_session_id:
+        from gobby.utils.session_context import get_current_session_id
+
+        effective_parent_ref = parent_session_id or get_current_session_id()
+
+        if effective_parent_ref:
             try:
-                resolved_parent_id = _resolve_session_id(parent_session_id)
+                resolved_parent_id = _resolve_session_id(effective_parent_ref)
             except ValueError as e:
                 return {"success": False, "error": str(e)}
             runs = agent_run_manager.list_by_parent(resolved_parent_id)
@@ -518,7 +560,7 @@ def create_agents_registry(
 
     @registry.tool(
         name="evaluate_spawn",
-        description="Dry-run evaluation of spawn_agent — checks agent, workflow, isolation, and runtime without executing.",
+        description="Dry-run evaluation of spawn_agent. Defaults parent_session_id to current session.",
     )
     async def evaluate_spawn_tool(
         agent: str = "default",
@@ -547,21 +589,26 @@ def create_agents_registry(
             provider: Optional provider override.
             branch_name: Optional explicit branch name.
             base_branch: Optional base branch for isolation.
-            parent_session_id: Optional parent session for depth checks.
+            parent_session_id: Optional parent session reference (#N, N, UUID, or prefix).
+                               Falls back to SessionContext if not provided.
             project_path: Optional project path.
 
         Returns:
             Dict with evaluation results including can_spawn, items, and workflow_evaluation.
         """
         from gobby.agents.dry_run import evaluate_spawn
+        from gobby.utils.session_context import get_current_session_id
+
+        # Resolve parent_session_id from context if not provided
+        effective_parent_ref = parent_session_id or get_current_session_id()
 
         # Resolve parent session if provided
         resolved_parent = None
-        if parent_session_id:
+        if effective_parent_ref:
             try:
-                resolved_parent = _resolve_session_id(parent_session_id)
+                resolved_parent = _resolve_session_id(effective_parent_ref)
             except ValueError:
-                resolved_parent = parent_session_id
+                resolved_parent = effective_parent_ref
 
         # Get project path from context if not provided
         if not project_path:

@@ -180,7 +180,7 @@ async def _spawn_claude_terminal(request: SpawnRequest) -> SpawnResult:
         prompt=request.prompt,
         session_id=gobby_session_id,
         auto_approve=True,
-        mode="terminal",
+        mode="interactive",
         model=request.model,
     )
 
@@ -294,7 +294,7 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
         cli="gemini",
         prompt=request.prompt,
         auto_approve=True,
-        mode="terminal",
+        mode="interactive",
         model=request.model,
     )
 

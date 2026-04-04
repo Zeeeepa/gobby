@@ -180,7 +180,7 @@ class TmuxSpawner(TerminalSpawnerBase):
         max_agent_depth: int = 5,
         prompt: str | None = None,
         sandbox_config: SandboxConfig | None = None,
-        mode: str = "terminal",
+        mode: str = "interactive",
     ) -> SpawnResult:
         """Spawn a CLI agent in a new tmux session with Gobby env vars.
 
@@ -196,7 +196,7 @@ class TmuxSpawner(TerminalSpawnerBase):
             max_agent_depth: Maximum allowed depth.
             prompt: Optional initial prompt.
             sandbox_config: Optional sandbox configuration.
-            mode: Execution mode - "terminal" (interactive) or "headless" (exits after prompt).
+            mode: Execution mode - "interactive" (multi-turn) or "autonomous" (non-interactive).
 
         Returns:
             SpawnResult with success status.

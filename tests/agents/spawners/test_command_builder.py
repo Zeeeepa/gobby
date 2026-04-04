@@ -11,12 +11,12 @@ pytestmark = pytest.mark.unit
 
 class TestBuildCliCommand:
     def test_claude_basic(self):
-        # Default mode is "terminal" — no -p flag (allows multi-turn interaction)
+        # Default mode is "interactive" — no -p flag (allows multi-turn interaction)
         cmd = build_cli_command("claude", prompt="hello")
         assert cmd == ["claude", "hello"]
 
-    def test_claude_terminal_mode(self):
-        cmd = build_cli_command("claude", prompt="hello", mode="terminal")
+    def test_claude_interactive_mode(self):
+        cmd = build_cli_command("claude", prompt="hello", mode="interactive")
         assert cmd == ["claude", "hello"]
 
     def test_claude_with_session_id(self):
@@ -39,8 +39,8 @@ class TestBuildCliCommand:
         cmd = build_cli_command("gemini", prompt="hello", mode="headless")
         assert cmd == ["gemini", "hello"]
 
-    def test_gemini_basic_terminal(self):
-        cmd = build_cli_command("gemini", prompt="hello", mode="terminal")
+    def test_gemini_basic_interactive(self):
+        cmd = build_cli_command("gemini", prompt="hello", mode="interactive")
         assert cmd == ["gemini", "-i", "hello"]
 
     def test_gemini_auto_approve(self):
@@ -51,9 +51,9 @@ class TestBuildCliCommand:
         cmd = build_cli_command("gemini", model="gemini-1.5-pro", prompt="hello", mode="headless")
         assert cmd == ["gemini", "--model", "gemini-1.5-pro", "hello"]
 
-    def test_gemini_terminal_with_sandbox_args(self):
+    def test_gemini_interactive_with_sandbox_args(self):
         cmd = build_cli_command(
-            "gemini", prompt="hello", mode="terminal", sandbox_args=["--foo", "bar"]
+            "gemini", prompt="hello", mode="interactive", sandbox_args=["--foo", "bar"]
         )
         assert cmd == ["gemini", "-i", "hello", "--foo", "bar"]
 

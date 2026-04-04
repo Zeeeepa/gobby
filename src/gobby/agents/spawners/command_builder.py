@@ -13,7 +13,7 @@ def build_cli_command(
     session_id: str | None = None,
     auto_approve: bool = False,
     working_directory: str | None = None,
-    mode: str = "terminal",
+    mode: str = "interactive",
     sandbox_args: list[str] | None = None,
     model: str | None = None,
 ) -> list[str]:
@@ -41,7 +41,7 @@ def build_cli_command(
         session_id: Optional session ID (used by Claude-compatible CLIs)
         auto_approve: If True, add flags to auto-approve actions/permissions
         working_directory: Optional working directory (used by Codex -C flag)
-        mode: Execution mode - "terminal" (interactive) or "headless" (non-interactive)
+        mode: Execution mode - "interactive" (multi-turn) or "autonomous" (non-interactive)
         sandbox_args: Optional list of CLI args for sandbox configuration
         model: Optional model name to pass to the CLI (used by CLIs that accept a --model flag)
 
@@ -59,7 +59,7 @@ def build_cli_command(
         if auto_approve:
             command.append("--dangerously-skip-permissions")
         # Add --output stream-json to enable NDJSON transcript capture
-        if mode == "terminal":
+        if mode == "interactive":
             command.extend(["--output", "stream-json"])
         elif prompt:
             command.append("-p")
@@ -75,7 +75,7 @@ def build_cli_command(
             command.append("--dangerously-skip-permissions")
         # For headless mode, use -p (print mode) for single-turn execution
         # For terminal mode, don't use -p to allow multi-turn interaction
-        if prompt and mode != "terminal":
+        if prompt and mode != "interactive":
             command.append("-p")
 
     elif cli == "gemini":
@@ -84,10 +84,10 @@ def build_cli_command(
             command.extend(["--model", model])
         if auto_approve:
             command.extend(["--approval-mode", "yolo"])
-        # For terminal mode, use -i (prompt-interactive) to execute prompt and stay interactive
-        # For headless mode, use positional prompt for one-shot execution
+        # For interactive mode, use -i (prompt-interactive) to execute prompt and stay interactive
+        # For autonomous mode, use positional prompt for one-shot execution
         if prompt:
-            if mode == "terminal":
+            if mode == "interactive":
                 command.extend(["-i", prompt])
                 # Add sandbox args before returning (prompt already added via -i flag)
                 if sandbox_args:
