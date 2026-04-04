@@ -30,7 +30,9 @@ class BootstrapConfig:
     bind_host: str = "localhost"
     websocket_port: int = 60888
     ui_port: int = 60889
-    neo4j_password: str = "gobbyneo4j"
+    neo4j_password: str = (
+        "gobbyneo4j"  # Local/dev default only — use env vars or secrets manager in production
+    )
 
     def to_config_dict(self) -> dict[str, Any]:
         """Convert to a dict suitable for DaemonConfig construction.

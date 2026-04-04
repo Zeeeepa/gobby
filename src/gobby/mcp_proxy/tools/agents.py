@@ -100,7 +100,7 @@ def create_agents_registry(
         InternalToolRegistry with all agent tools registered.
     """
     from gobby.utils.project_context import get_project_context
-    from gobby.utils.session_context import resolve_session_ref
+    from gobby.utils.session_context import get_current_session_id, resolve_session_ref
 
     agent_run_manager = LocalAgentRunManager(db) if db else runner.run_storage
 
@@ -167,7 +167,6 @@ def create_agents_registry(
         Returns:
             Dict with list of agent runs.
         """
-        from gobby.utils.session_context import get_current_session_id
 
         # Resolve session_id from context if not provided
         effective_parent_ref = parent_session_id or get_current_session_id()
@@ -267,7 +266,6 @@ def create_agents_registry(
         Returns:
             Dict with success status and kill details.
         """
-        from gobby.utils.session_context import get_current_session_id
 
         if force:
             signal = "KILL"
@@ -344,8 +342,6 @@ def create_agents_registry(
             # Also detect self-termination via run_id path:
             # Agent calls kill_agent(run_id=...) and session context reveals caller IS the agent
             if not is_self_termination and agent_session_id:
-                from gobby.utils.session_context import get_current_session_id
-
                 caller_session_id = get_current_session_id()
                 if caller_session_id and caller_session_id == agent_session_id:
                     is_self_termination = True
@@ -422,7 +418,6 @@ def create_agents_registry(
         Returns:
             Dict with can_spawn boolean and reason.
         """
-        from gobby.utils.session_context import get_current_session_id
 
         # Resolve session_id from context if not provided
         effective_parent_ref = parent_session_id or get_current_session_id()
@@ -465,7 +460,6 @@ def create_agents_registry(
         Returns:
             Dict with list of running agents.
         """
-        from gobby.utils.session_context import get_current_session_id
 
         effective_parent_ref = parent_session_id or get_current_session_id()
 
@@ -597,7 +591,6 @@ def create_agents_registry(
             Dict with evaluation results including can_spawn, items, and workflow_evaluation.
         """
         from gobby.agents.dry_run import evaluate_spawn
-        from gobby.utils.session_context import get_current_session_id
 
         # Resolve parent_session_id from context if not provided
         effective_parent_ref = parent_session_id or get_current_session_id()

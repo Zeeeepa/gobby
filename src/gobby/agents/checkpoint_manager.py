@@ -61,8 +61,9 @@ class CheckpointManager:
         pre_staged_output = self._run_git(["diff", "--name-only", "--cached"], cwd_str)
         pre_staged = pre_staged_output.strip().splitlines() if pre_staged_output else []
 
-        # 3. Stage everything (needed for write-tree)
-        if self._run_git(["add", "-A"], cwd_str) is None:
+        # 3. Stage tracked files only (needed for write-tree).
+        # Uses -u to avoid capturing untracked artifacts.
+        if self._run_git(["add", "-u"], cwd_str) is None:
             logger.error(f"Failed to stage files for checkpoint in {cwd_str}")
             return None
 

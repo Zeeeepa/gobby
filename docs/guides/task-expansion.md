@@ -250,7 +250,7 @@ See [TDD Enforcement](./tdd-enforcement.md) for how TDD is applied during expans
 
 When TDD is enabled (`enforce_tdd = true`), the expansion system applies the **TDD sandwich pattern** to `code` and `config` category tasks, grouped per phase:
 
-```
+```text
 Epic #42 "User Authentication"
 ├── Phase 1: Core Infrastructure [subepic]
 │   ├── [TEST] Phase 1: Write failing tests

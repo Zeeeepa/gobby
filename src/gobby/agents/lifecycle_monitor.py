@@ -64,6 +64,7 @@ class AgentLifecycleMonitor:
         tmux_config: TmuxConfig | None = None,
         checkpoint_storage: LocalCheckpointManager | None = None,
         worktree_storage: LocalWorktreeManager | None = None,
+        project_manager: Any | None = None,
     ) -> None:
         self._agent_run_manager = agent_run_manager
         self._db = db
@@ -83,6 +84,7 @@ class AgentLifecycleMonitor:
             CheckpointManager(checkpoint_storage) if checkpoint_storage else None
         )
         self._worktree_storage = worktree_storage
+        self._project_manager = project_manager
         self._running = False
         self._task: asyncio.Task[None] | None = None
         # In-memory tracking for inherently non-persistable state
@@ -769,7 +771,7 @@ class AgentLifecycleMonitor:
                         self._checkpoint_manager.create_checkpoint,
                         cwd,
                         run.task_id,
-                        run.child_session_id or None,
+                        run.child_session_id or run.parent_session_id,
                         run.id,
                     )
                     if checkpoint:
@@ -817,12 +819,14 @@ class AgentLifecycleMonitor:
             try:
                 session = await asyncio.to_thread(self._session_manager.get, run.child_session_id)
                 if session and session.project_id:
-                    from gobby.storage.projects import LocalProjectManager
+                    project_mgr = self._project_manager
+                    if project_mgr is None:
+                        from gobby.storage.projects import LocalProjectManager
 
-                    project_mgr = LocalProjectManager(self._db)
+                        project_mgr = LocalProjectManager(self._db)
                     project = await asyncio.to_thread(project_mgr.get, session.project_id)
                     if project and project.repo_path:
-                        return project.repo_path
+                        return str(project.repo_path)
             except Exception:
                 pass
 

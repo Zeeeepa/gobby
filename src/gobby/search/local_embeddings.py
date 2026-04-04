@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 # Module-level callback reference — must survive GC for the lifetime of the
 # process, because llama.cpp holds a raw C pointer to this function.
 _ggml_log_filter_cb: object | None = None
+_ggml_log_filter_lock = threading.Lock()
 
 
 def _install_ggml_log_filter() -> None:
@@ -46,28 +47,33 @@ def _install_ggml_log_filter() -> None:
     if _ggml_log_filter_cb is not None:
         return  # Already installed
 
-    import ctypes
-
-    import llama_cpp
-
-    def _py_callback(
-        level: int,
-        text: bytes,
-        user_data: ctypes.c_void_p,
-    ) -> None:
-        msg = text.decode("utf-8", errors="replace")
-        if "not marked as outputs" in msg:
+    with _ggml_log_filter_lock:
+        # Double-check after acquiring lock
+        if _ggml_log_filter_cb is not None:
             return
-        if "not supported" in msg:
-            return
-        # Pass through non-spam messages at ERROR level (matching default
-        # verbose=False behavior: only ERROR and above).
-        if level >= 3 and msg.strip():  # 3 = GGML_LOG_LEVEL_ERROR
-            print(msg, end="", flush=True, file=sys.stderr)
 
-    _filtered_callback = llama_cpp.llama_log_callback(_py_callback)
-    _ggml_log_filter_cb = _filtered_callback  # prevent GC
-    llama_cpp.llama_log_set(_filtered_callback, ctypes.c_void_p(0))
+        import ctypes
+
+        import llama_cpp
+
+        def _py_callback(
+            level: int,
+            text: bytes,
+            user_data: ctypes.c_void_p,
+        ) -> None:
+            msg = text.decode("utf-8", errors="replace")
+            if "not marked as outputs" in msg:
+                return
+            if "not supported" in msg:
+                return
+            # Pass through non-spam messages at ERROR level (matching default
+            # verbose=False behavior: only ERROR and above).
+            if level >= 3 and msg.strip():  # 3 = GGML_LOG_LEVEL_ERROR
+                print(msg, end="", flush=True, file=sys.stderr)
+
+        _filtered_callback = llama_cpp.llama_log_callback(_py_callback)
+        _ggml_log_filter_cb = _filtered_callback  # prevent GC
+        llama_cpp.llama_log_set(_filtered_callback, ctypes.c_void_p(0))
 
 
 # Model registry: local/ prefix → HuggingFace download info

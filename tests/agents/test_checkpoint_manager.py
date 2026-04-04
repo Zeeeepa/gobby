@@ -85,7 +85,7 @@ class TestCreateCheckpoint:
         # Verify git command sequence
         assert git_calls[0] == ["status", "--porcelain"]
         assert git_calls[1] == ["diff", "--name-only", "--cached"]
-        assert git_calls[2] == ["add", "-A"]
+        assert git_calls[2] == ["add", "-u"]
         assert git_calls[3] == ["write-tree"]
         assert git_calls[4] == ["rev-parse", "HEAD"]
         assert git_calls[5][0] == "commit-tree"

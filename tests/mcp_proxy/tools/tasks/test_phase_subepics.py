@@ -1,10 +1,14 @@
 """Tests for phase subepic support in task expansion."""
 
+import pytest
+
 from gobby.mcp_proxy.tools.tasks._expansion import (
     _extract_phase_from_title,
     _extract_phase_titles,
     _get_subtask_phase,
 )
+
+pytestmark = pytest.mark.unit
 
 
 class TestExtractPhaseFromTitle:

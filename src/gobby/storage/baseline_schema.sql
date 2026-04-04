@@ -1106,9 +1106,9 @@ CREATE INDEX idx_chat_messages_conv_seq ON chat_messages(conversation_id, seq);
 
 CREATE TABLE checkpoints (
     id TEXT PRIMARY KEY,
-    task_id TEXT NOT NULL,
-    session_id TEXT NOT NULL,
-    run_id TEXT NOT NULL,
+    task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    run_id TEXT NOT NULL REFERENCES agent_runs(id) ON DELETE CASCADE,
     ref_name TEXT NOT NULL,
     commit_sha TEXT NOT NULL,
     parent_sha TEXT NOT NULL,
