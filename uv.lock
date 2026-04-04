@@ -1175,7 +1175,7 @@ requires-dist = [
     { name = "aiosmtplib", marker = "extra == 'email'", specifier = ">=2.0" },
     { name = "anthropic", specifier = ">=0.75.0" },
     { name = "cisco-ai-skill-scanner", specifier = ">=0.1.1" },
-    { name = "claude-agent-sdk", specifier = ">=0.1.39" },
+    { name = "claude-agent-sdk", specifier = ">=0.1.39,<=0.1.45" },
     { name = "click", specifier = ">=8.1.0" },
     { name = "croniter", specifier = ">=6.0.0" },
     { name = "cryptography", specifier = ">=46.0.6" },
