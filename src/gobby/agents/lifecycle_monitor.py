@@ -813,14 +813,17 @@ class AgentLifecycleMonitor:
             except Exception:
                 pass
 
-        # Fallback: session's project directory
+        # Fallback: session's project directory via project_id → projects.repo_path
         if run.child_session_id and self._session_manager:
             try:
-                session = await asyncio.to_thread(
-                    self._session_manager.get_session, run.child_session_id
-                )
-                if session and session.project_path:
-                    return session.project_path
+                from gobby.storage.projects import LocalProjectManager
+
+                session = await asyncio.to_thread(self._session_manager.get, run.child_session_id)
+                if session and session.project_id:
+                    projects = LocalProjectManager(self._session_manager.db)
+                    project = await asyncio.to_thread(projects.get, session.project_id)
+                    if project and project.repo_path:
+                        return str(project.repo_path)
             except Exception:
                 pass
 
