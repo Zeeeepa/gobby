@@ -6,7 +6,7 @@ and hub browsing/install endpoints for the skill system.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, NoReturn
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -478,8 +478,8 @@ def create_skills_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Failed to delete skill {skill_id}: {e}")
             raise HTTPException(status_code=500, detail=str(e)) from e
 
-    @router.post("/{skill_id}/install")
-    async def install_from_template(skill_id: str) -> NoReturn:
+    @router.post("/{skill_id}/install", response_model=None)
+    async def install_from_template(skill_id: str) -> None:
         """Legacy endpoint — template rows no longer exist."""
         raise HTTPException(
             status_code=410,

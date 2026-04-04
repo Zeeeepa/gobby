@@ -10,6 +10,33 @@ from gobby.storage.database import LocalDatabase
 pytestmark = pytest.mark.unit
 
 
+@pytest.fixture(autouse=True)
+def _seed_parents(temp_db: LocalDatabase) -> None:
+    """Insert parent records so checkpoint FK constraints pass."""
+    with temp_db.transaction() as conn:
+        conn.execute(
+            "INSERT INTO projects (id, name, repo_path) VALUES ('proj-1', 'test', '/tmp/test')"
+        )
+        conn.execute(
+            "INSERT INTO sessions (id, external_id, machine_id, source, project_id) "
+            "VALUES ('sess-1', 'ext-1', 'machine-1', 'test', 'proj-1')"
+        )
+        now = "datetime('now')"
+        conn.execute(
+            "INSERT INTO tasks (id, project_id, title, status, task_type, category, created_at, updated_at) "
+            f"VALUES ('task-1', 'proj-1', 'test task', 'open', 'task', 'code', {now}, {now})"
+        )
+        conn.execute(
+            "INSERT INTO tasks (id, project_id, title, status, task_type, category, created_at, updated_at) "
+            f"VALUES ('task-2', 'proj-1', 'test task 2', 'open', 'task', 'code', {now}, {now})"
+        )
+        for i in range(5):
+            conn.execute(
+                "INSERT INTO agent_runs (id, parent_session_id, status, provider, prompt) "
+                f"VALUES ('run-{i}', 'sess-1', 'running', 'test', 'test prompt')"
+            )
+
+
 def _make_checkpoint(
     checkpoint_id: str = "ckpt-1",
     task_id: str = "task-1",
