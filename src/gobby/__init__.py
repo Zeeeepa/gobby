@@ -6,4 +6,4 @@ with dependencies, validation, and TDD expansion. Agent spawning and worktree
 orchestration. Persistent memory, extensible workflows, and hooks.
 """
 
-__version__ = "0.3.2"
+__version__ = "0.3.3"
