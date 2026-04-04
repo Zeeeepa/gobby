@@ -348,7 +348,7 @@ class TestExecuteSpawn:
 
     @pytest.mark.asyncio
     async def test_gemini_terminal_calls_prepare_terminal_spawn(self):
-        """Test that provider='gemini' with mode='terminal' uses direct spawn with env vars.
+        """Test that provider='gemini' with mode='interactive' uses direct spawn with env vars.
 
         Gemini now uses direct spawn with GOBBY_SESSION_ID env var passed to the terminal.
         Session linkage happens when Gemini's hook dispatcher sends the env vars to daemon.
@@ -408,7 +408,7 @@ class TestExecuteSpawn:
 
     @pytest.mark.asyncio
     async def test_codex_terminal_calls_preflight(self):
-        """Test that provider='codex' with mode='terminal' calls prepare_codex_spawn_with_preflight."""
+        """Test that provider='codex' with mode='interactive' calls prepare_codex_spawn_with_preflight."""
         mock_session_manager = MagicMock()
         request = SpawnRequest(
             prompt="Test",

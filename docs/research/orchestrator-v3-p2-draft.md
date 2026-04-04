@@ -382,7 +382,7 @@ steps:
           Research and produce an expansion spec for task ${{ inputs.task_id }}.
           ${{ inputs.plan_content if inputs.plan_content else '' }}
           Save your spec via save_expansion_spec. Do NOT invent requirements.
-        mode: terminal
+        mode: interactive
 
   - id: wait_for_researcher
     mcp:

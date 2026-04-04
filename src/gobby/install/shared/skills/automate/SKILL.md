@@ -226,7 +226,7 @@ instructions: |
   <specific workflow guidance>
 
 # Execution
-mode: terminal                  # self | terminal | autonomous
+mode: interactive                # interactive | autonomous
 isolation: worktree             # none | worktree | clone
 provider: inherit               # inherit | claude | gemini | codex
 model: ""                       # Empty = inherit from parent
@@ -782,7 +782,7 @@ call_tool("gobby-cron", "list_cron_runs", {"job_id": "...", "limit": 1})
 5. All transition variables declared in `step_variables` with defaults
 6. `exit_condition` is valid (standard: `"current_step == 'terminate'"`)
 7. Agent name is kebab-case
-8. `mode: self` agents don't need steps
+8. Both modes spawn — `interactive` opens a tmux session, `autonomous` runs headless
 
 ### Cron Job Validation
 

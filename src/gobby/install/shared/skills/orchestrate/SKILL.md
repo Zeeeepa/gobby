@@ -149,10 +149,10 @@ Then ask: "Developer provider/model override? (default: inherit from agent defin
 - Default: `developer_provider="gemini"`, `developer_model=null`
 - If user enters "inherit" or empty: `developer_provider=null`, `developer_model=null`
 
-Then ask: "Developer agent mode? (default: terminal)"
-- **terminal** — Agent runs in a tmux terminal session (visible, interactive)
-- **background** — Agent runs as a background process (headless)
-- Default: `developer_mode="terminal"`
+Then ask: "Developer agent mode? (default: interactive)"
+- **interactive** — Agent runs in a tmux terminal session (visible)
+- **autonomous** — Agent runs as a background process (headless, auto-approve)
+- Default: `developer_mode="interactive"`
 
 #### Prompt 7: QA Agent
 
@@ -173,10 +173,10 @@ Then ask: "QA provider/model override? (default: claude / opus)"
 - Same parsing as Prompt 6
 - Default: `qa_provider="claude"`, `qa_model="opus"`
 
-Then ask: "QA agent mode? (default: terminal)"
-- **terminal** — Agent runs in a tmux terminal session (visible, interactive)
-- **background** — Agent runs as a background process (headless)
-- Default: `qa_mode="terminal"`
+Then ask: "QA agent mode? (default: interactive)"
+- **interactive** — Agent runs in a tmux terminal session (visible)
+- **autonomous** — Agent runs as a background process (headless, auto-approve)
+- Default: `qa_mode="interactive"`
 
 #### Prompt 8: Operational Parameters + Confirm
 

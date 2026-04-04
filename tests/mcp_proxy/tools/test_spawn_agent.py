@@ -459,7 +459,7 @@ class TestSpawnAgentParamOverrides:
                 status="pending",
             )
 
-            # Override with mode=terminal via tool param
+            # Override with mode=interactive via tool param
             result = await registry.call(
                 "spawn_agent",
                 {

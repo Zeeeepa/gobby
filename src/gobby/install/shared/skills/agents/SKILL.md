@@ -84,16 +84,15 @@ Ask the user:
 
 From answers, determine:
 - Agent name (kebab-case)
-- Execution mode: `self` (interactive), `terminal` (worker), `autonomous` (background)
+- Execution mode: `interactive` (visible tmux session), `autonomous` (background, auto-approve)
 - Isolation mode: `none`, `worktree`, `clone`
 
 ### Mode Decision Matrix
 
 | Scenario | Mode | Isolation | Why |
 |----------|------|-----------|-----|
-| Interactive user session | `self` | — | Configures current session, no subprocess |
-| Developer working on tasks | `terminal` | `worktree` | Needs isolated branch, visible in tmux |
-| Background automation | `autonomous` | `worktree` | No terminal needed |
+| Developer working on tasks | `interactive` | `worktree` | Isolated branch, visible in tmux |
+| Background automation | `autonomous` | `worktree` | Headless, auto-approve |
 | Merge agent | `terminal` | `none` | Works in main repo |
 | Review-only agent | `terminal` | `none` or `worktree` | May need read-only access to branch |
 
@@ -161,7 +160,7 @@ instructions: |
   <specific guidance>
 
 # Execution
-mode: terminal               # self | terminal | autonomous
+mode: interactive             # interactive | autonomous
 isolation: worktree           # none | worktree | clone
 provider: inherit
 timeout: 0                    # Minutes (0 = unlimited)
@@ -205,7 +204,7 @@ Check for common mistakes:
 4. **Transition conditions use `vars.` prefix** — not `variables.`
 5. **All transition variables declared in `step_variables`** with defaults
 6. **Block premature exits in work phases** — `close_task` and `kill_agent` during implementation
-7. **`mode: self` agents don't need steps** — self mode configures the session, doesn't spawn
+7. **Both modes spawn** — `interactive` opens a tmux session, `autonomous` runs headless with auto-approve
 
 ### Step 6: Install
 

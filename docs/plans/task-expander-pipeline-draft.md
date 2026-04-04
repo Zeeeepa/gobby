@@ -246,7 +246,7 @@ steps:
 
           ## Codebase Context
           ${{ steps.gather_context.output.context }}
-        mode: terminal
+        mode: interactive
 
   - id: wait_codebase
     condition: "${{ not inputs.skip_review }}"
@@ -271,7 +271,7 @@ steps:
 
           ## Codebase Context
           ${{ steps.gather_context.output.context }}
-        mode: terminal
+        mode: interactive
 
   - id: wait_architect
     condition: "${{ not inputs.skip_review }}"
@@ -296,7 +296,7 @@ steps:
 
           ## Codebase Context
           ${{ steps.gather_context.output.context }}
-        mode: terminal
+        mode: interactive
 
   - id: wait_test
     condition: "${{ not inputs.skip_review }}"
@@ -321,7 +321,7 @@ steps:
 
           ## Codebase Context
           ${{ steps.gather_context.output.context }}
-        mode: terminal
+        mode: interactive
 
   - id: wait_gate
     condition: "${{ not inputs.skip_review }}"
@@ -364,7 +364,7 @@ steps:
 
           ## Context
           ${{ steps.gather_context.output.context }}
-        mode: terminal
+        mode: interactive
 
   - id: wait_epic_expander
     wait:
@@ -427,7 +427,7 @@ steps:
 
           ## Original Spec Context
           ${{ steps.gather_context.output.context }}
-        mode: terminal
+        mode: interactive
 
   - id: wait_reconciler
     wait:
