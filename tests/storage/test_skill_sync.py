@@ -192,6 +192,8 @@ class TestSyncBundledSkills:
         skill = skill_manager.get_by_name("memory")
         assert skill is not None
         assert skill.content == "# My custom memory instructions"
+        # Metadata should not have been overwritten with gobby metadata
+        assert skill.metadata is None or "gobby" not in (skill.metadata or {})
 
 
 class TestSoftDelete:
@@ -341,6 +343,8 @@ class TestSourceTaxonomy:
         """count_skills respects source filter."""
         storage.create_skill(name="inst", description="I", content="#")
         storage.create_skill(name="inst2", description="I2", content="#2")
+        storage.create_skill(name="proj", description="P", content="#p", source="project")
 
         assert storage.count_skills(source="installed") == 2
-        assert storage.count_skills() == 2
+        assert storage.count_skills(source="project") == 1
+        assert storage.count_skills() == 3

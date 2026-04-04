@@ -93,8 +93,8 @@ From answers, determine:
 |----------|------|-----------|-----|
 | Developer working on tasks | `interactive` | `worktree` | Isolated branch, visible in tmux |
 | Background automation | `autonomous` | `worktree` | Headless, auto-approve |
-| Merge agent | `terminal` | `none` | Works in main repo |
-| Review-only agent | `terminal` | `none` or `worktree` | May need read-only access to branch |
+| Merge agent | `interactive` | `none` | Works in main repo, visible in tmux |
+| Review-only agent | `autonomous` | `none` or `worktree` | Headless, auto-approve for read-only review |
 
 ### Step 2: Design Step Workflow
 
@@ -204,7 +204,7 @@ Check for common mistakes:
 4. **Transition conditions use `vars.` prefix** — not `variables.`
 5. **All transition variables declared in `step_variables`** with defaults
 6. **Block premature exits in work phases** — `close_task` and `kill_agent` during implementation
-7. **Both modes spawn** — `interactive` opens a tmux session, `autonomous` runs headless with auto-approve
+7. **Both modes spawn via tmux** — `interactive` opens a visible tmux session, `autonomous` runs headless with auto-approve
 
 ### Step 6: Install
 

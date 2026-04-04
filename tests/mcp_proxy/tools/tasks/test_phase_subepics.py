@@ -50,6 +50,11 @@ class TestGetSubtaskPhase:
         subtask = {"title": "Fix a bug", "description": "Just fix it"}
         assert _get_subtask_phase(subtask) == 0
 
+    def test_handles_missing_description(self) -> None:
+        """Returns 0 when description key is absent."""
+        subtask = {"title": "Fix a bug"}
+        assert _get_subtask_phase(subtask) == 0
+
 
 class TestExtractPhaseTitles:
     def test_extracts_multiple_phases(self) -> None:

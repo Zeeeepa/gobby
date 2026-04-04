@@ -7,6 +7,9 @@ import pytest
 from gobby.agents.lifecycle_monitor import AgentLifecycleMonitor
 from gobby.agents.prompt_detector import PromptDetector
 from gobby.storage.agents import AgentRun
+from gobby.storage.database import LocalDatabase
+from gobby.storage.tasks import LocalTaskManager
+from gobby.storage.tasks._models import Task
 
 pytestmark = pytest.mark.unit
 
@@ -327,7 +330,6 @@ class TestDispatchFailureCountCRUD:
 
     def test_task_has_dispatch_failure_count_field(self) -> None:
         """Task dataclass includes dispatch_failure_count defaulting to 0."""
-        from gobby.storage.tasks._models import Task
 
         task = Task(
             id="t-1",
@@ -343,7 +345,6 @@ class TestDispatchFailureCountCRUD:
 
     def test_dispatch_failure_count_in_to_dict(self) -> None:
         """dispatch_failure_count appears in to_dict output."""
-        from gobby.storage.tasks._models import Task
 
         task = Task(
             id="t-1",
@@ -361,7 +362,6 @@ class TestDispatchFailureCountCRUD:
 
     def test_dispatch_failure_count_in_to_brief(self) -> None:
         """dispatch_failure_count appears in to_brief output."""
-        from gobby.storage.tasks._models import Task
 
         task = Task(
             id="t-1",
@@ -378,10 +378,9 @@ class TestDispatchFailureCountCRUD:
         assert brief["dispatch_failure_count"] == 3
 
     def test_update_task_sets_dispatch_failure_count(
-        self, temp_db: "LocalDatabase", sample_project: dict
+        self, temp_db: LocalDatabase, sample_project: dict
     ) -> None:
         """update_task can set dispatch_failure_count."""
-        from gobby.storage.tasks import LocalTaskManager
 
         mgr = LocalTaskManager(temp_db)
         task = mgr.create_task(title="test", task_type="task", project_id=sample_project["id"])
@@ -389,10 +388,9 @@ class TestDispatchFailureCountCRUD:
         assert updated.dispatch_failure_count == 2
 
     def test_reopen_resets_dispatch_failure_count(
-        self, temp_db: "LocalDatabase", sample_project: dict
+        self, temp_db: LocalDatabase, sample_project: dict
     ) -> None:
         """Reopening a task resets dispatch_failure_count to 0."""
-        from gobby.storage.tasks import LocalTaskManager
 
         mgr = LocalTaskManager(temp_db)
         task = mgr.create_task(title="test", task_type="task", project_id=sample_project["id"])

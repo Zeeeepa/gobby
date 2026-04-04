@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -170,8 +171,6 @@ class TestRunGit:
             assert result is None
 
     def test_returns_none_on_timeout(self, manager: CheckpointManager) -> None:
-        import subprocess
-
         with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("git", 30)):
             result = manager._run_git(["slow-cmd"], "/tmp")
             assert result is None

@@ -124,6 +124,9 @@ class TestDeleteOld:
         assert deleted == 3
         remaining = manager.list_for_task("task-1")
         assert len(remaining) == 2
+        # Verify the two newest checkpoints are retained (ordered newest first)
+        assert remaining[0].id == "ckpt-4"
+        assert remaining[1].id == "ckpt-3"
 
     def test_noop_when_under_limit(self, manager: LocalCheckpointManager) -> None:
         manager.create(_make_checkpoint())
@@ -141,7 +144,7 @@ class TestCountForTask:
 
 
 class TestToDict:
-    def test_round_trips(self) -> None:
+    def test_to_dict_returns_expected_fields(self) -> None:
         ckpt = _make_checkpoint()
         d = ckpt.to_dict()
         assert d["id"] == "ckpt-1"

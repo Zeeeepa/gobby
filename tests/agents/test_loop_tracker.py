@@ -106,3 +106,14 @@ class TestThresholdProperty:
 
     def test_custom_threshold(self) -> None:
         assert LoopTracker(threshold=5).threshold == 5
+
+    def test_zero_threshold_raises(self) -> None:
+        with pytest.raises(ValueError, match="threshold must be >= 1"):
+            LoopTracker(threshold=0)
+
+    def test_negative_threshold_raises(self) -> None:
+        with pytest.raises(ValueError, match="threshold must be >= 1"):
+            LoopTracker(threshold=-1)
+
+    def test_large_threshold_accepted(self) -> None:
+        assert LoopTracker(threshold=1_000_000).threshold == 1_000_000
