@@ -825,11 +825,13 @@ class AgentLifecycleMonitor:
             try:
                 session = await asyncio.to_thread(self._session_manager.get, run.child_session_id)
                 if session and session.project_id:
-                    if self._project_manager is None:
+                    pm = self._project_manager
+                    if pm is None:
                         from gobby.storage.projects import LocalProjectManager
 
-                        self._project_manager = LocalProjectManager(self._db)
-                    project = await asyncio.to_thread(self._project_manager.get, session.project_id)
+                        pm = LocalProjectManager(self._db)
+                        self._project_manager = pm
+                    project = await asyncio.to_thread(pm.get, session.project_id)
                     if project and project.repo_path:
                         return str(project.repo_path)
             except Exception:
