@@ -6,7 +6,7 @@ preserving their uncommitted work as hidden git refs.
 
 import logging
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from gobby.storage.database import DatabaseProtocol
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class Checkpoint:
     id: str
     task_id: str
-    session_id: str
+    session_id: str | None
     run_id: str
     ref_name: str
     commit_sha: str
@@ -43,18 +43,7 @@ class Checkpoint:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "task_id": self.task_id,
-            "session_id": self.session_id,
-            "run_id": self.run_id,
-            "ref_name": self.ref_name,
-            "commit_sha": self.commit_sha,
-            "parent_sha": self.parent_sha,
-            "files_changed": self.files_changed,
-            "message": self.message,
-            "created_at": self.created_at,
-        }
+        return asdict(self)
 
 
 class LocalCheckpointManager:
@@ -64,7 +53,11 @@ class LocalCheckpointManager:
         self.db = db
 
     def create(self, checkpoint: Checkpoint) -> Checkpoint:
-        """Insert a new checkpoint record."""
+        """Insert a new checkpoint record.
+
+        Raises:
+            sqlite3.IntegrityError: If a checkpoint with the same ID already exists.
+        """
         self.db.execute(
             """INSERT INTO checkpoints
                (id, task_id, session_id, run_id, ref_name, commit_sha,
@@ -107,7 +100,12 @@ class LocalCheckpointManager:
         """Delete old checkpoints for a task, keeping N most recent.
 
         Returns number of checkpoints deleted.
+
+        Raises:
+            ValueError: If keep_latest < 1.
         """
+        if keep_latest < 1:
+            raise ValueError(f"keep_latest must be >= 1, got {keep_latest}")
         cursor = self.db.execute(
             """DELETE FROM checkpoints
                WHERE task_id = ? AND id NOT IN (

@@ -485,6 +485,13 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         UPDATE agent_runs SET mode = 'inherit' WHERE mode = 'self';
         """,
     ),
+    (
+        187,
+        "Ensure dispatch_failure_count has no NULLs",
+        """
+        UPDATE tasks SET dispatch_failure_count = 0 WHERE dispatch_failure_count IS NULL;
+        """,
+    ),
 ]
 
 

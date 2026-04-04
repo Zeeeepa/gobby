@@ -154,7 +154,7 @@ CREATE TABLE agent_runs (
     task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
     pid INTEGER,
     tmux_session_name TEXT,
-    mode TEXT DEFAULT 'interactive',
+    mode TEXT DEFAULT 'interactive' CHECK (mode IN ('interactive', 'autonomous', 'background')),
     worktree_id TEXT,
     clone_id TEXT,
     timeout_seconds REAL

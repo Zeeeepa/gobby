@@ -20,6 +20,8 @@ class LoopTracker:
     """Tracks loop prompt dismissals per agent run for escalation."""
 
     def __init__(self, threshold: int = 3) -> None:
+        if threshold < 1:
+            raise ValueError(f"threshold must be >= 1, got {threshold}")
         self._counts: dict[str, int] = {}
         self._threshold = threshold
 

@@ -292,8 +292,7 @@ class AgentLifecycleMonitor:
             try:
                 pane_output = await self._tmux.capture_pane(tmux_name, lines=15)
                 if pane_output and self._prompt_detector.detect_loop_prompt(pane_output):
-                    count = self._prompt_detector.record_loop_dismiss(run.id)
-                    self._loop_tracker.record_dismissal(run.id)
+                    count = self._loop_tracker.record_dismissal(run.id)
 
                     if self._loop_tracker.should_escalate(run.id):
                         logger.warning(
@@ -770,7 +769,7 @@ class AgentLifecycleMonitor:
                         self._checkpoint_manager.create_checkpoint,
                         cwd,
                         run.task_id,
-                        run.child_session_id or "",
+                        run.child_session_id or None,
                         run.id,
                     )
                     if checkpoint:

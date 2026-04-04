@@ -11,6 +11,7 @@ agent, allowing the work to be recovered later.
 from __future__ import annotations
 
 import logging
+import re
 import subprocess
 import uuid
 from datetime import UTC, datetime
@@ -31,7 +32,7 @@ class CheckpointManager:
         self,
         cwd: str | Path,
         task_id: str,
-        session_id: str,
+        session_id: str | None,
         run_id: str,
     ) -> Checkpoint | None:
         """Create a checkpoint if there are uncommitted changes.
@@ -43,6 +44,11 @@ class CheckpointManager:
         """
         cwd_str = str(cwd)
 
+        # 0. Sanitize task_id for use in git ref paths
+        if not re.match(r"^[\w-]+$", task_id):
+            logger.error(f"Invalid task_id for checkpoint ref: {task_id!r}")
+            return None
+
         # 1. Check for uncommitted changes
         status = self._run_git(["status", "--porcelain"], cwd_str)
         if status is None or not status.strip():
@@ -51,7 +57,11 @@ class CheckpointManager:
 
         files_changed = len(status.strip().splitlines())
 
-        # 2. Stage everything (needed for write-tree)
+        # 2. Capture pre-existing staged files so we can restore them in finally
+        pre_staged_output = self._run_git(["diff", "--name-only", "--cached"], cwd_str)
+        pre_staged = pre_staged_output.strip().splitlines() if pre_staged_output else []
+
+        # 3. Stage everything (needed for write-tree)
         if self._run_git(["add", "-A"], cwd_str) is None:
             logger.error(f"Failed to stage files for checkpoint in {cwd_str}")
             return None
@@ -111,8 +121,10 @@ class CheckpointManager:
             return checkpoint
 
         finally:
-            # 8. Always unstage — leave working tree untouched
+            # 9. Unstage our temporary staging, then restore pre-existing staged files
             self._run_git(["reset", "HEAD"], cwd_str)
+            if pre_staged:
+                self._run_git(["add", *pre_staged], cwd_str)
 
     def _run_git(self, args: list[str], cwd: str, timeout: int = 30) -> str | None:
         """Run a git command synchronously. Returns stdout or None on failure."""

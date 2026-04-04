@@ -382,7 +382,11 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     )
                     subepic_id = result["task"]["id"]
                     phase_subepic_ids[phase_num] = subepic_id
-                    created_subepics.append(ctx.task_manager.get_task(subepic_id))
+                    subepic_task = ctx.task_manager.get_task(subepic_id)
+                    if subepic_task is None:
+                        logger.warning(f"Phase subepic {subepic_id} created but not found in DB")
+                        continue
+                    created_subepics.append(subepic_task)
                 logger.info(
                     f"Created {len(phase_subepic_ids)} phase subepics for task {parent_task_id}"
                 )

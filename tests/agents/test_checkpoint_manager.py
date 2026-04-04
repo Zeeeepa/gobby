@@ -65,6 +65,8 @@ class TestCreateCheckpoint:
                 return "commit-sha-789\n"
             elif cmd == "update-ref":
                 return ""
+            elif cmd == "diff":
+                return ""
             elif cmd == "reset":
                 return ""
             return None
@@ -81,12 +83,13 @@ class TestCreateCheckpoint:
 
         # Verify git command sequence
         assert git_calls[0] == ["status", "--porcelain"]
-        assert git_calls[1] == ["add", "-A"]
-        assert git_calls[2] == ["write-tree"]
-        assert git_calls[3] == ["rev-parse", "HEAD"]
-        assert "commit-tree" in git_calls[4]
-        assert git_calls[5][0] == "update-ref"
-        assert git_calls[6] == ["reset", "HEAD"]
+        assert git_calls[1] == ["diff", "--name-only", "--cached"]
+        assert git_calls[2] == ["add", "-A"]
+        assert git_calls[3] == ["write-tree"]
+        assert git_calls[4] == ["rev-parse", "HEAD"]
+        assert git_calls[5][0] == "commit-tree"
+        assert git_calls[6][0] == "update-ref"
+        assert git_calls[7] == ["reset", "HEAD"]
 
         # Verify DB storage
         mock_storage.create.assert_called_once()
@@ -104,6 +107,8 @@ class TestCreateCheckpoint:
             call_log.append(args[0])
             if args[0] == "status":
                 return " M file.py\n"
+            elif args[0] == "diff":
+                return ""
             elif args[0] == "add":
                 return ""
             elif args[0] == "write-tree":
@@ -126,6 +131,8 @@ class TestCreateCheckpoint:
         def mock_run_git(args: list[str], cwd: str, timeout: int = 30) -> str | None:
             if args[0] == "status":
                 return " M file.py\n"
+            elif args[0] == "diff":
+                return ""
             elif args[0] == "add":
                 return ""
             elif args[0] == "write-tree":

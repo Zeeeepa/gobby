@@ -248,7 +248,7 @@ def sync_bundled_skills(db: DatabaseProtocol) -> dict[str, Any]:
 
     # Orphan cleanup: soft-delete gobby-owned installed skills whose
     # SKILL.md was removed from disk
-    all_installed = storage.list_skills(project_id=None, include_global=False, limit=10000)
+    all_installed = storage.list_skills(project_id=None, include_global=False, limit=-1)
     for skill in all_installed:
         if _is_gobby_owned(skill) and skill.name not in on_disk:
             storage.delete_skill(skill.id)
