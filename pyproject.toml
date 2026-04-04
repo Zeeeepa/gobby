@@ -25,7 +25,7 @@ dependencies = [
     # fastmcp <3.2.0 has CVE-2025-64340, CVE-2026-27124
     "fastmcp>=3.2.0",
     "httpx>=0.27.0",
-    "litellm>=1.81.7",
+    "litellm>=1.83.0",
     "psutil>=6.1.0",
     "py-machineid>=0.6.0",
     "pydantic>=2.9.0",
