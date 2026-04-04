@@ -158,7 +158,6 @@ class HookSkillManager:
         db_skills = storage.list_skills(
             project_id=self._project_id,
             enabled=True,
-            include_templates=False,
             include_deleted=False,
             limit=_MAX_SKILL_FETCH,
         )

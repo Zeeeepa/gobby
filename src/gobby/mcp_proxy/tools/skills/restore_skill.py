@@ -45,7 +45,6 @@ def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
                     name,
                     project_id=ctx.project_id,
                     include_deleted=True,
-                    include_templates=True,
                 )
 
             if skill is None:

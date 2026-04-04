@@ -261,13 +261,9 @@ def _mock_def_manager(
     mgr = MagicMock()
     mgr.db = MagicMock()
 
-    def get_by_name(
-        name: str, include_deleted: bool = False, include_templates: bool = False
-    ) -> WorkflowDefinitionRow | None:
+    def get_by_name(name: str, include_deleted: bool = False) -> WorkflowDefinitionRow | None:
         if include_deleted and deleted:
             return deleted
-        if include_templates and existing and existing.source == "template":
-            return existing
         if existing and existing.source != "template":
             return existing
         return None

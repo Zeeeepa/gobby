@@ -38,7 +38,7 @@ def _sync_bundled(db):
     from gobby.workflows.sync import get_bundled_rules_path
 
     result = sync_bundled_rules(db, get_bundled_rules_path())
-    # Mark templates as installed so get_by_name() finds them without include_templates
+    # Mark templates as installed so get_by_name() finds them
     db.execute("UPDATE workflow_definitions SET source = 'installed' WHERE source = 'template'")
     return result
 

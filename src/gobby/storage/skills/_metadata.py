@@ -187,13 +187,12 @@ class SkillMetadataMixin:
         project_id: str | None = None,
         include_global: bool = True,
         include_deleted: bool = False,
-        include_templates: bool = False,
         source: str | None = None,
     ) -> Skill | None:
         """Get a skill by name within a project scope.
 
-        By default returns only non-deleted, non-template (installed) skills,
-        matching the workflow_definitions pattern. When an installed copy exists
+        By default returns only non-deleted skills, matching the
+        workflow_definitions pattern. When an installed copy exists
         it shadows the template.
 
         Args:
@@ -201,7 +200,6 @@ class SkillMetadataMixin:
             project_id: Project scope (None for global)
             include_global: Include global skills when project_id is set.
             include_deleted: If True, include soft-deleted skills.
-            include_templates: If True, include template skills.
             source: If set, filter to this exact source value.
 
         Returns:
@@ -217,7 +215,6 @@ class SkillMetadataMixin:
         if source is not None:
             conditions.append("source = ?")
             params.append(source)
-        # include_templates is a deprecated no-op — no template rows exist
 
         where = " AND ".join(conditions)
 
@@ -490,12 +487,11 @@ class SkillMetadataMixin:
         offset: int = 0,
         include_global: bool = True,
         include_deleted: bool = False,
-        include_templates: bool = False,
         source: str | None = None,
     ) -> list[Skill]:
         """List skills with optional filtering.
 
-        By default excludes soft-deleted and template skills.
+        By default excludes soft-deleted skills.
 
         Args:
             project_id: Filter by project (None for global only)
@@ -505,7 +501,6 @@ class SkillMetadataMixin:
             offset: Number of results to skip
             include_global: Include global skills when project_id is set
             include_deleted: If True, include soft-deleted skills
-            include_templates: If True, include template skills
             source: If set, filter to this exact source value
 
         Returns:
@@ -520,7 +515,6 @@ class SkillMetadataMixin:
         if source is not None:
             query += " AND source = ?"
             params.append(source)
-        # include_templates is a deprecated no-op — no template rows exist
 
         if project_id:
             if include_global:
@@ -557,7 +551,6 @@ class SkillMetadataMixin:
         project_id: str | None = None,
         limit: int = 20,
         include_deleted: bool = False,
-        include_templates: bool = False,
     ) -> list[Skill]:
         """Search skills by name and description.
 
@@ -569,7 +562,6 @@ class SkillMetadataMixin:
             project_id: Optional project scope
             limit: Maximum number of results
             include_deleted: If True, include soft-deleted skills
-            include_templates: If True, include template skills
 
         Returns:
             List of matching Skills
@@ -584,7 +576,6 @@ class SkillMetadataMixin:
 
         if not include_deleted:
             sql += " AND deleted_at IS NULL"
-        # include_templates is a deprecated no-op — no template rows exist
 
         if project_id:
             sql += " AND (project_id = ? OR project_id IS NULL)"
@@ -644,7 +635,6 @@ class SkillMetadataMixin:
         project_id: str | None = None,
         enabled: bool | None = None,
         include_deleted: bool = False,
-        include_templates: bool = False,
         source: str | None = None,
         include_global: bool = True,
     ) -> int:
@@ -654,7 +644,6 @@ class SkillMetadataMixin:
             project_id: Filter by project
             enabled: Filter by enabled state
             include_deleted: If True, include soft-deleted skills
-            include_templates: If True, include template skills
             source: If set, filter to this exact source value
 
         Returns:
@@ -669,7 +658,6 @@ class SkillMetadataMixin:
         if source is not None:
             query += " AND source = ?"
             params.append(source)
-        # include_templates is a deprecated no-op — no template rows exist
 
         if project_id:
             if include_global:

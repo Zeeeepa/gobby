@@ -298,7 +298,6 @@ class SkillManager:
         offset: int = 0,
         include_global: bool = True,
         include_deleted: bool = False,
-        include_templates: bool = False,
         source: str | None = None,
     ) -> list[Skill]:
         """List skills with optional filtering.
@@ -311,7 +310,6 @@ class SkillManager:
             offset: Results to skip
             include_global: Include global skills
             include_deleted: If True, include soft-deleted skills
-            include_templates: If True, include template skills
             source: If set, filter to this exact source value
 
         Returns:
@@ -325,7 +323,6 @@ class SkillManager:
             offset=offset,
             include_global=include_global,
             include_deleted=include_deleted,
-            include_templates=include_templates,
             source=source,
         )
 
@@ -406,7 +403,6 @@ class SkillManager:
         project_id: str | None = None,
         enabled: bool | None = None,
         include_deleted: bool = False,
-        include_templates: bool = False,
         source: str | None = None,
     ) -> int:
         """Count skills matching criteria.
@@ -415,7 +411,6 @@ class SkillManager:
             project_id: Project scope
             enabled: Filter by enabled state
             include_deleted: If True, include soft-deleted skills
-            include_templates: If True, include template skills
             source: If set, filter to this exact source value
 
         Returns:
@@ -425,7 +420,6 @@ class SkillManager:
             project_id=project_id or self._project_id,
             enabled=enabled,
             include_deleted=include_deleted,
-            include_templates=include_templates,
             source=source,
         )
 

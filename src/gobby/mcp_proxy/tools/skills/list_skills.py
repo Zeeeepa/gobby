@@ -21,7 +21,6 @@ def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
     async def list_skills(
         category: str | None = None,
         enabled: bool | None = None,
-        include_templates: bool = False,
         limit: int = 50,
         session_id: str | None = None,
     ) -> dict[str, Any]:
@@ -34,7 +33,6 @@ def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
         Args:
             category: Optional category filter
             enabled: Optional enabled status filter (True/False/None for all)
-            include_templates: If True, also show template skills (default False)
             limit: Maximum skills to return (default 50)
             session_id: Optional session ID for filtering by active skills in the session
 
@@ -65,7 +63,6 @@ def register(ctx: SkillsContext, registry: InternalToolRegistry) -> None:
                 # need enough candidates to fill `limit` after filtering.
                 limit=limit * 5 if active_names is not None else limit,
                 include_global=True,
-                include_templates=include_templates,
             )
 
             if active_names is not None:
