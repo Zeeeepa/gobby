@@ -91,8 +91,6 @@ export function SkillsPage() {
       result = result.filter(s => s.source === 'installed' && !s.deleted_at)
     } else if (sourceFilter === 'project') {
       result = result.filter(s => s.source === 'project' && !s.deleted_at)
-    } else if (sourceFilter === 'templates') {
-      result = result.filter(s => s.source === 'template' && !s.deleted_at)
     } else if (sourceFilter === 'deleted') {
       result = result.filter(s => s.deleted_at)
     }
