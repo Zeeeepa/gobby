@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import subprocess  # nosec B404 # subprocess needed for git commands
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -233,6 +234,13 @@ def get_dirty_files_categorized(project_path: str | None = None) -> DirtyFiles:
             "which may not be the project directory"
         )
 
+    # Validate cwd exists before shelling out — subprocess.run raises
+    # FileNotFoundError for both missing binary AND missing cwd, and the
+    # latter is the common case (stale session with deleted project path).
+    if project_path and not Path(project_path).is_dir():
+        logger.debug(f"get_dirty_files: project_path does not exist: {project_path}")
+        return DirtyFiles(set(), set())
+
     try:
         result = subprocess.run(  # nosec B603 B607 # hardcoded git command
             ["git", "status", "--porcelain"],
@@ -272,7 +280,7 @@ def get_dirty_files_categorized(project_path: str | None = None) -> DirtyFiles:
         logger.warning("get_dirty_files: git status timed out")
         return DirtyFiles(set(), set())
     except FileNotFoundError:
-        logger.warning("get_dirty_files: git not found")
+        logger.warning(f"get_dirty_files: git binary not found or cwd invalid (cwd={project_path})")
         return DirtyFiles(set(), set())
     except Exception as e:
         logger.error(f"get_dirty_files: Error running git status: {e}")

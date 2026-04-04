@@ -9,7 +9,7 @@ rules:
     effect:
       type: set_variable
       variable: codex_review_gate_enabled
-      value: "config.get('codex_review_gate_enabled', False)"
+      value: "False"
 
   codex-review-gate:
     description: "Block stop until Codex review passes (opt-in via codex-setup skill)"
