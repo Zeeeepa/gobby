@@ -274,11 +274,10 @@ workflows:
 
 | Scenario | Mode | Isolation | Why |
 |----------|------|-----------|-----|
-| Configure current session | `self` | — | No subprocess, no steps needed |
-| Developer working on tasks | `terminal` | `worktree` | Isolated branch, visible in tmux |
+| Developer working on tasks | `interactive` | `worktree` | Isolated branch, visible in tmux |
 | Background automation | `autonomous` | `worktree` | No terminal needed |
-| Merge agent | `terminal` | `none` | Works in main repo |
-| Review-only agent | `terminal` | `none` | Read-only, no branch needed |
+| Merge agent | `interactive` | `none` | Works in main repo |
+| Review-only agent | `interactive` | `none` | Read-only, no branch needed |
 
 ### Step Workflow Mechanics
 
@@ -425,7 +424,7 @@ call_tool("gobby-agents", "deliver_pending_messages", {"target_session_id": "#5"
 2. **`inherit` is the default** — Provider, model, base_branch all inherit from parent.
 3. **Transitions are invisible to the agent** — The agent just uses tools; the rule engine handles phase transitions automatically.
 4. **Depth limit: 5** — Agents spawning agents capped at 5 levels.
-5. **`self` mode doesn't spawn** — It configures the current session. No steps needed.
+5. **Both modes spawn** — `interactive` opens a visible tmux session, `autonomous` runs headless with auto-approve.
 6. **Block premature exits** — Block `close_task` and `kill_agent` in work phases.
 7. **Both outcomes can share a transition** — QA agents: approve and reject both set `review_complete`.
 8. **Discovery tools always allowed** — Never block `list_mcp_servers`, `list_tools`, `get_tool_schema`.

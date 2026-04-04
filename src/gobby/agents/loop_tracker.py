@@ -11,10 +11,6 @@ check_unhealthy_agents).
 
 from __future__ import annotations
 
-import logging
-
-logger = logging.getLogger(__name__)
-
 
 class LoopTracker:
     """Tracks loop prompt dismissals per agent run for escalation."""

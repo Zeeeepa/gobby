@@ -39,6 +39,7 @@ class TemplateHashCache:
     def load(self) -> None:
         """Read all bundled template YAML files and compute their hashes."""
         from gobby.agents.sync import get_bundled_agents_path
+        from gobby.skills.sync import get_bundled_skills_path
         from gobby.workflows.sync_pipelines import get_bundled_pipelines_path
         from gobby.workflows.sync_rules import get_bundled_rules_path
         from gobby.workflows.sync_variables import get_bundled_variables_path
@@ -47,7 +48,7 @@ class TemplateHashCache:
         self._load_pipelines(get_bundled_pipelines_path())
         self._load_variables(get_bundled_variables_path())
         self._load_agents(get_bundled_agents_path())
-        self._load_skills()
+        self._load_skills(get_bundled_skills_path())
 
         logger.info(f"Template hash cache loaded: {len(self._hashes)} definitions")
 
@@ -75,7 +76,9 @@ class TemplateHashCache:
                     if not isinstance(rule_data, dict):
                         continue
                     body_dict = _build_rule_body(rule_data, file_group)
-                    definition_json = resolve_sync_placeholders(json.dumps(body_dict))
+                    definition_json = resolve_sync_placeholders(
+                        json.dumps(body_dict, sort_keys=True)
+                    )
                     self._hashes[rule_name] = compute_definition_hash(definition_json)
                     self._json_cache[rule_name] = definition_json
             except Exception as e:
@@ -91,7 +94,7 @@ class TemplateHashCache:
                 if not isinstance(data, dict):
                     continue
                 name = data.get("name", yaml_path.stem)
-                definition_json = json.dumps(data)
+                definition_json = json.dumps(data, sort_keys=True)
                 self._hashes[name] = compute_definition_hash(definition_json)
                 self._json_cache[name] = definition_json
             except Exception as e:
@@ -120,7 +123,7 @@ class TemplateHashCache:
                     }
                     if var_data.get("description"):
                         body_dict["description"] = var_data["description"]
-                    definition_json = json.dumps(body_dict)
+                    definition_json = json.dumps(body_dict, sort_keys=True)
                     self._hashes[var_name] = compute_definition_hash(definition_json)
                     self._json_cache[var_name] = definition_json
             except Exception as e:
@@ -147,16 +150,8 @@ class TemplateHashCache:
             except Exception as e:
                 logger.warning(f"Failed to hash agent template {yaml_path}: {e}")
 
-    def _load_skills(self) -> None:
+    def _load_skills(self, skills_dir: Path) -> None:
         """Load skill templates, replicating skills/sync.py serialization."""
-        try:
-            from gobby.skills.sync import get_bundled_skills_path
-
-            skills_dir = get_bundled_skills_path()
-        except Exception as e:
-            logger.warning(f"Failed to get bundled skills path: {e}")
-            return
-
         if not skills_dir.exists():
             return
 

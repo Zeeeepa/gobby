@@ -68,7 +68,7 @@ class CheckpointManager:
             return None
 
         try:
-            # 3. Write tree (captures staged state as a tree object)
+            # 4. Write tree (captures staged state as a tree object)
             tree_sha = self._run_git(["write-tree"], cwd_str)
             if not tree_sha:
                 logger.error(f"Failed to write tree for checkpoint in {cwd_str}")
@@ -125,7 +125,7 @@ class CheckpointManager:
             # 9. Unstage our temporary staging, then restore pre-existing staged files
             self._run_git(["reset", "HEAD"], cwd_str)
             if pre_staged:
-                self._run_git(["add", *pre_staged], cwd_str)
+                self._run_git(["add", "--", *pre_staged], cwd_str)
 
     def _run_git(self, args: list[str], cwd: str, timeout: int = 30) -> str | None:
         """Run a git command synchronously. Returns stdout or None on failure."""

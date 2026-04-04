@@ -154,7 +154,7 @@ CREATE TABLE agent_runs (
     task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
     pid INTEGER,
     tmux_session_name TEXT,
-    mode TEXT DEFAULT 'interactive' CHECK (mode IN ('interactive', 'autonomous', 'background')),
+    mode TEXT NOT NULL DEFAULT 'interactive' CHECK (mode IN ('interactive', 'autonomous', 'background')),
     worktree_id TEXT,
     clone_id TEXT,
     timeout_seconds REAL
@@ -1117,3 +1117,5 @@ CREATE TABLE checkpoints (
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_checkpoints_task ON checkpoints(task_id, created_at DESC);
+CREATE INDEX idx_checkpoints_session ON checkpoints(session_id);
+CREATE INDEX idx_checkpoints_run ON checkpoints(run_id);

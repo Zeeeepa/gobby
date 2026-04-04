@@ -13,8 +13,8 @@ Epic: "User Authentication"
 │
 ├── Phase 1: Core Infrastructure [subepic]
 │   ├── [TEST] Phase 1: Write failing tests               ← Added by system
-│   ├── [IMPL] Create database schema                     ← From expansion spec
-│   ├── [IMPL] Implement data access layer                ← From expansion spec
+│   ├── [IMPL] Create database schema                     ← From expansion spec (prefix added by system)
+│   ├── [IMPL] Implement data access layer                ← From expansion spec (prefix added by system)
 │   └── [REF] Phase 1: Refactor with green tests          ← Added by system
 ├── Phase 2: API Layer [subepic]
 │   ├── [TEST] Phase 2: Write failing tests               ← Added by system
@@ -31,7 +31,7 @@ Epic: "User Authentication"
 4. It wraps each phase's TDD-eligible tasks with:
    - **One [TEST] task** at the start — covers that phase's implementation tasks
    - **One [REF] task** at the end — cleanup while keeping tests green
-5. Cross-phase sequencing: Phase N's `[REF]` blocks Phase N+1's `[TEST]`
+5. Cross-phase sequencing: Phase N+1's `[TEST]` depends on Phase N's `[REF]` (must complete before starting)
 6. Non-TDD categories (`docs`, `refactor`, `test`, `research`, `planning`, `manual`) pass through unchanged
 7. Single-phase plans remain flat under the root epic (backwards compatible)
 

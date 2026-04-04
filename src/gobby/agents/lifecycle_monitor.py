@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from gobby.storage.checkpoints import LocalCheckpointManager
     from gobby.storage.clones import LocalCloneManager
     from gobby.storage.database import DatabaseProtocol
+    from gobby.storage.projects import LocalProjectManager
     from gobby.storage.sessions import LocalSessionManager
     from gobby.storage.tasks import LocalTaskManager
     from gobby.storage.worktrees import LocalWorktreeManager
@@ -64,7 +65,7 @@ class AgentLifecycleMonitor:
         tmux_config: TmuxConfig | None = None,
         checkpoint_storage: LocalCheckpointManager | None = None,
         worktree_storage: LocalWorktreeManager | None = None,
-        project_manager: Any | None = None,
+        project_manager: LocalProjectManager | None = None,
     ) -> None:
         self._agent_run_manager = agent_run_manager
         self._db = db
@@ -787,8 +788,9 @@ class AgentLifecycleMonitor:
             await self._tmux.kill_session(run.tmux_session_name)
 
         # 3. Full cleanup chain
+        threshold = self._loop_tracker.threshold
         await self._cleanup_agent(
-            run, error="doom loop: dismissed loop prompt 3+ times", is_success=False
+            run, error=f"doom loop: dismissed loop prompt {threshold}+ times", is_success=False
         )
 
     async def _resolve_agent_cwd(self, run: AgentRun) -> str | None:
@@ -803,7 +805,9 @@ class AgentLifecycleMonitor:
                 if wt and wt.worktree_path:
                     return wt.worktree_path
             except Exception:
-                pass
+                logger.debug(
+                    f"Failed to resolve worktree {run.worktree_id} for run {run.id}", exc_info=True
+                )
 
         # Check clone
         if run.clone_id and self._clone_storage:
@@ -812,23 +816,27 @@ class AgentLifecycleMonitor:
                 if clone and clone.clone_path:
                     return clone.clone_path
             except Exception:
-                pass
+                logger.debug(
+                    f"Failed to resolve clone {run.clone_id} for run {run.id}", exc_info=True
+                )
 
         # Fallback: session's project directory via project_id → projects.repo_path
         if run.child_session_id and self._session_manager:
             try:
                 session = await asyncio.to_thread(self._session_manager.get, run.child_session_id)
                 if session and session.project_id:
-                    project_mgr = self._project_manager
-                    if project_mgr is None:
+                    if self._project_manager is None:
                         from gobby.storage.projects import LocalProjectManager
 
-                        project_mgr = LocalProjectManager(self._db)
-                    project = await asyncio.to_thread(project_mgr.get, session.project_id)
+                        self._project_manager = LocalProjectManager(self._db)
+                    project = await asyncio.to_thread(self._project_manager.get, session.project_id)
                     if project and project.repo_path:
                         return str(project.repo_path)
             except Exception:
-                pass
+                logger.debug(
+                    f"Failed to resolve project path for session {run.child_session_id}",
+                    exc_info=True,
+                )
 
         return None
 

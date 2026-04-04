@@ -23,6 +23,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# ggml log levels (from ggml.h)
+GGML_LOG_LEVEL_ERROR = 3
+
 # Module-level callback reference — must survive GC for the lifetime of the
 # process, because llama.cpp holds a raw C pointer to this function.
 _ggml_log_filter_cb: object | None = None
@@ -68,7 +71,7 @@ def _install_ggml_log_filter() -> None:
                 return
             # Pass through non-spam messages at ERROR level (matching default
             # verbose=False behavior: only ERROR and above).
-            if level >= 3 and msg.strip():  # 3 = GGML_LOG_LEVEL_ERROR
+            if level >= GGML_LOG_LEVEL_ERROR and msg.strip():
                 print(msg, end="", flush=True, file=sys.stderr)
 
         _filtered_callback = llama_cpp.llama_log_callback(_py_callback)

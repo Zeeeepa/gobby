@@ -29,7 +29,7 @@ NEO4J_LOGS_VOLUME = "gobby_neo4j_logs"
 
 
 def _resolve_neo4j_password(password: str | None = None) -> str:
-    """Return the password to use: explicit > bootstrap > default."""
+    """Return the password to use: explicit > bootstrap > env > default."""
     if password:
         return password
     try:
@@ -39,7 +39,9 @@ def _resolve_neo4j_password(password: str | None = None) -> str:
         return bootstrap.neo4j_password
     except (OSError, ValueError, AttributeError):
         pass
-    return "gobbyneo4j"
+    import os
+
+    return os.environ.get("GOBBY_NEO4J_PASSWORD", "gobbyneo4j")
 
 
 def _ensure_unified_compose(services_dir: Path) -> Path:
@@ -256,12 +258,12 @@ def _write_bootstrap_password(password: str, gobby_home: Path) -> None:
 
         data: dict[str, Any] = {}
         if bootstrap_path.exists():
-            with open(bootstrap_path) as f:
+            with open(bootstrap_path, encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
         data["neo4j_password"] = password
-        with open(bootstrap_path, "w") as f:
+        with open(bootstrap_path, "w", encoding="utf-8") as f:
             yaml.safe_dump(data, f, default_flow_style=False)
-    except Exception as e:
+    except (OSError, yaml.YAMLError) as e:
         logger.warning(f"Failed to write neo4j_password to bootstrap.yaml: {e}")
 
 

@@ -362,7 +362,7 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
         # Create subepic tasks for each phase (only if >1 phase)
         phase_subepic_ids: dict[int, str] = {}
-        created_subepics: list[Any] = []  # for cleanup on failure
+        created_subepic_ids: list[str] = []  # for cleanup on failure
         has_phases = len([p for p in phase_map if p > 0]) > 1
 
         if has_phases:
@@ -381,20 +381,16 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                         created_in_session_id=resolved_session_id,
                     )
                     subepic_id = result["task"]["id"]
+                    created_subepic_ids.append(subepic_id)
                     phase_subepic_ids[phase_num] = subepic_id
-                    subepic_task = ctx.task_manager.get_task(subepic_id)
-                    if subepic_task is None:
-                        logger.warning(f"Phase subepic {subepic_id} created but not found in DB")
-                        continue
-                    created_subepics.append(subepic_task)
                 logger.info(
                     f"Created {len(phase_subepic_ids)} phase subepics for task {parent_task_id}"
                 )
             except Exception as e:
                 logger.error(f"Failed to create phase subepics: {e}")
-                for se in created_subepics:
+                for se_id in created_subepic_ids:
                     try:
-                        ctx.task_manager.delete_task(se.id)
+                        ctx.task_manager.delete_task(se_id)
                     except Exception:
                         pass
                 return {"error": f"Phase subepic creation failed: {e}"}
@@ -442,9 +438,9 @@ def create_expansion_registry(ctx: RegistryContext) -> InternalToolRegistry:
                     ctx.task_manager.delete_task(task_to_delete.id)
                 except Exception as delete_err:
                     logger.warning(f"Failed to clean up task {task_to_delete.id}: {delete_err}")
-            for se in created_subepics:
+            for se_id in created_subepic_ids:
                 try:
-                    ctx.task_manager.delete_task(se.id)
+                    ctx.task_manager.delete_task(se_id)
                 except Exception:
                     pass
             return {"error": f"Expansion failed: {e}", "cleaned_up": len(created_tasks)}

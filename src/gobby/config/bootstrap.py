@@ -9,6 +9,7 @@ All other configuration is managed via the DB (config_store) + Pydantic defaults
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -30,9 +31,7 @@ class BootstrapConfig:
     bind_host: str = "localhost"
     websocket_port: int = 60888
     ui_port: int = 60889
-    neo4j_password: str = (
-        "gobbyneo4j"  # Local/dev default only — use env vars or secrets manager in production
-    )
+    neo4j_password: str = "gobbyneo4j"
 
     def to_config_dict(self) -> dict[str, Any]:
         """Convert to a dict suitable for DaemonConfig construction.
@@ -89,7 +88,12 @@ def load_bootstrap(path: str | None = None) -> BootstrapConfig:
             bind_host=str(data.get("bind_host", BootstrapConfig.bind_host)),
             websocket_port=int(data.get("websocket_port", BootstrapConfig.websocket_port)),
             ui_port=int(data.get("ui_port", BootstrapConfig.ui_port)),
-            neo4j_password=str(data.get("neo4j_password", BootstrapConfig.neo4j_password)),
+            neo4j_password=str(
+                data.get(
+                    "neo4j_password",
+                    os.environ.get("GOBBY_NEO4J_PASSWORD", BootstrapConfig.neo4j_password),
+                )
+            ),
         )
     except Exception as e:
         logger.warning(f"Failed to load bootstrap config from {bootstrap_path}: {e}")

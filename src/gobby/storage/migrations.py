@@ -492,6 +492,18 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         UPDATE tasks SET dispatch_failure_count = 0 WHERE dispatch_failure_count IS NULL;
         """,
     ),
+    (
+        188,
+        "Add NOT NULL to agent_runs.mode and indexes on checkpoints FK columns",
+        """
+        -- Backfill any NULL mode values before constraint enforcement
+        UPDATE agent_runs SET mode = 'interactive' WHERE mode IS NULL;
+
+        -- Add indexes on checkpoints foreign key columns for CASCADE performance
+        CREATE INDEX IF NOT EXISTS idx_checkpoints_session ON checkpoints(session_id);
+        CREATE INDEX IF NOT EXISTS idx_checkpoints_run ON checkpoints(run_id);
+        """,
+    ),
 ]
 
 
