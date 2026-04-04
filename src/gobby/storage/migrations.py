@@ -417,6 +417,74 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         CREATE INDEX IF NOT EXISTS idx_cc_file ON code_calls(project_id, file_path);
         """,
     ),
+    (
+        184,
+        "Eliminate skill template rows — merge into installed",
+        """
+        -- For template skills WITH a matching installed row: hard-delete the template
+        DELETE FROM skills
+        WHERE source = 'template'
+          AND EXISTS (
+            SELECT 1 FROM skills AS s2
+            WHERE s2.name = skills.name
+              AND s2.source = 'installed'
+              AND COALESCE(s2.project_id, '') = COALESCE(skills.project_id, '')
+          );
+
+        -- For template skills WITHOUT a matching installed row: promote to installed
+        UPDATE skills
+        SET source = 'installed', enabled = 1
+        WHERE source = 'template';
+
+        -- Clean up any orphaned skill_files referencing deleted template skills
+        DELETE FROM skill_files
+        WHERE skill_id NOT IN (SELECT id FROM skills);
+        """,
+    ),
+    (
+        185,
+        "Doom loop detection: checkpoints table + dispatch_failure_count",
+        """
+        -- Shadow git checkpoints for preserving agent work before killing
+        CREATE TABLE IF NOT EXISTS checkpoints (
+            id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            run_id TEXT NOT NULL,
+            ref_name TEXT NOT NULL,
+            commit_sha TEXT NOT NULL,
+            parent_sha TEXT NOT NULL,
+            files_changed INTEGER NOT NULL DEFAULT 0,
+            message TEXT NOT NULL DEFAULT 'auto-checkpoint',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_checkpoints_task
+            ON checkpoints(task_id, created_at DESC);
+
+        -- Cross-agent dispatch failure tracking
+        ALTER TABLE tasks ADD COLUMN dispatch_failure_count INTEGER DEFAULT 0;
+        """,
+    ),
+    (
+        186,
+        "Rename agent definition modes: terminal→interactive, self→inherit",
+        """
+        UPDATE workflow_definitions
+        SET definition_json = json_set(definition_json, '$.mode', 'interactive'),
+            updated_at = datetime('now')
+        WHERE workflow_type = 'agent'
+          AND json_extract(definition_json, '$.mode') = 'terminal';
+
+        UPDATE workflow_definitions
+        SET definition_json = json_set(definition_json, '$.mode', 'inherit'),
+            updated_at = datetime('now')
+        WHERE workflow_type = 'agent'
+          AND json_extract(definition_json, '$.mode') = 'self';
+
+        UPDATE agent_runs SET mode = 'interactive' WHERE mode = 'terminal';
+        UPDATE agent_runs SET mode = 'inherit' WHERE mode = 'self';
+        """,
+    ),
 ]
 
 

@@ -114,6 +114,7 @@ gobby = [
     "install/cursor/**/*",
     "install/windsurf/**/*",
     "install/shared/**/*",
+    "storage/*.sql",
     "data/*",
 ]
 
