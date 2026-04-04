@@ -136,13 +136,9 @@ class Skill:
             if "injection_format" in row_keys
             else "summary",
             project_id=row["project_id"],
-            source="project"
-            if ("source" in row_keys and row["source"] == "template")
-            else (
-                row["source"]
-                if "source" in row_keys and row["source"] in ("installed", "project")
-                else "installed"
-            ),
+            source=row["source"]
+            if "source" in row_keys and row["source"] in ("installed", "project")
+            else "installed",
             deleted_at=row["deleted_at"] if "deleted_at" in row_keys else None,
             created_at=row["created_at"],
             updated_at=row["updated_at"],

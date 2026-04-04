@@ -69,9 +69,8 @@ class SkillMetadataMixin:
             always_apply: Whether skill should always be injected at session start
             injection_format: How to inject skill (summary, full, content)
             project_id: Project scope (None for global)
-            source: 'template', 'installed', or 'project' (default 'installed').
-                Auto-set to 'project' when project_id is provided and source
-                is not 'template'.
+            source: 'installed' or 'project' (default 'installed').
+                Auto-set to 'project' when project_id is provided.
 
         Returns:
             The created Skill
@@ -285,7 +284,7 @@ class SkillMetadataMixin:
             enabled: New enabled state (optional)
             always_apply: New always_apply state (optional)
             injection_format: New injection format (optional)
-            source: New source value ('template', 'installed', 'project') (optional)
+            source: New source value ('installed', 'project') (optional)
             project_id: New project_id (use _UNSET to leave unchanged, None to clear)
 
         Returns:

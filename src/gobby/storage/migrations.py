@@ -35,7 +35,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 186
+BASELINE_VERSION = 190
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v171) have been removed.
@@ -502,6 +502,37 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         -- Add indexes on checkpoints foreign key columns for CASCADE performance
         CREATE INDEX IF NOT EXISTS idx_checkpoints_session ON checkpoints(session_id);
         CREATE INDEX IF NOT EXISTS idx_checkpoints_run ON checkpoints(run_id);
+        """,
+    ),
+    (
+        189,
+        "Fix agent_runs mode CHECK: replace 'background' with 'in_process'",
+        """
+        UPDATE agent_runs SET mode = 'interactive' WHERE mode = 'background';
+        """,
+    ),
+    (
+        190,
+        "Rebuild checkpoints table with nullable session_id",
+        """
+        CREATE TABLE checkpoints_new (
+            id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+            session_id TEXT REFERENCES sessions(id) ON DELETE CASCADE,
+            run_id TEXT NOT NULL REFERENCES agent_runs(id) ON DELETE CASCADE,
+            ref_name TEXT NOT NULL,
+            commit_sha TEXT NOT NULL,
+            parent_sha TEXT NOT NULL,
+            files_changed INTEGER NOT NULL DEFAULT 0,
+            message TEXT NOT NULL DEFAULT 'auto-checkpoint',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        INSERT INTO checkpoints_new SELECT * FROM checkpoints;
+        DROP TABLE checkpoints;
+        ALTER TABLE checkpoints_new RENAME TO checkpoints;
+        CREATE INDEX idx_checkpoints_task ON checkpoints(task_id, created_at DESC);
+        CREATE INDEX idx_checkpoints_session ON checkpoints(session_id);
+        CREATE INDEX idx_checkpoints_run ON checkpoints(run_id);
         """,
     ),
 ]

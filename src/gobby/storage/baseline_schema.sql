@@ -154,7 +154,7 @@ CREATE TABLE agent_runs (
     task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
     pid INTEGER,
     tmux_session_name TEXT,
-    mode TEXT NOT NULL DEFAULT 'interactive' CHECK (mode IN ('interactive', 'autonomous', 'background')),
+    mode TEXT NOT NULL DEFAULT 'interactive' CHECK (mode IN ('interactive', 'autonomous', 'in_process')),
     worktree_id TEXT,
     clone_id TEXT,
     timeout_seconds REAL
@@ -1107,7 +1107,7 @@ CREATE INDEX idx_chat_messages_conv_seq ON chat_messages(conversation_id, seq);
 CREATE TABLE checkpoints (
     id TEXT PRIMARY KEY,
     task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    session_id TEXT REFERENCES sessions(id) ON DELETE CASCADE,
     run_id TEXT NOT NULL REFERENCES agent_runs(id) ON DELETE CASCADE,
     ref_name TEXT NOT NULL,
     commit_sha TEXT NOT NULL,
