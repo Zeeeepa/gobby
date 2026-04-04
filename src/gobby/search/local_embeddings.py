@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -158,13 +159,28 @@ class LocalEmbeddingModel:
             ) from e
 
         logger.info(f"Loading local embedding model: {self._model_path.name}")
-        model = Llama(
-            model_path=str(self._model_path),
-            embedding=True,
-            n_ctx=2048,
-            n_gpu_layers=-1,  # Auto-detect Metal/CUDA
-            verbose=False,
-        )
+
+        # Suppress stderr during model init — llama.cpp's GGML layer emits
+        # "init: embeddings required but some input tokens..." via raw fprintf
+        # that bypasses both Python logging and llama_log_set. The library's
+        # own suppress_stdout_stderr only covers model loading, not context
+        # creation. This is harmless (GGML auto-fixes the token flags).
+        old_stderr_fd = os.dup(2)
+        try:
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(devnull, 2)
+            os.close(devnull)
+            model = Llama(
+                model_path=str(self._model_path),
+                embedding=True,
+                n_ctx=2048,
+                n_gpu_layers=-1,  # Auto-detect Metal/CUDA
+                verbose=False,
+            )
+        finally:
+            os.dup2(old_stderr_fd, 2)
+            os.close(old_stderr_fd)
+
         logger.info(f"Local embedding model loaded: {self._model_path.name}")
         return model
 
