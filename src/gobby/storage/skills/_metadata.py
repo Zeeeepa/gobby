@@ -462,7 +462,7 @@ class SkillMetadataMixin:
             The updated Skill
 
         Raises:
-            ValueError: If skill not found or is a template
+            ValueError: If skill not found.
         """
         self.get_skill(skill_id)
         return self.update_skill(skill_id, source="project", project_id=project_id)
@@ -477,7 +477,7 @@ class SkillMetadataMixin:
             The updated Skill
 
         Raises:
-            ValueError: If skill not found or is a template
+            ValueError: If skill not found.
         """
         self.get_skill(skill_id)
         return self.update_skill(skill_id, source="installed", project_id=None)

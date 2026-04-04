@@ -6,6 +6,8 @@ with proper flags for prompts, permissions, and session management.
 
 from __future__ import annotations
 
+from typing import Literal
+
 
 def build_cli_command(
     cli: str,
@@ -13,7 +15,7 @@ def build_cli_command(
     session_id: str | None = None,
     auto_approve: bool = False,
     working_directory: str | None = None,
-    mode: str = "interactive",
+    mode: Literal["interactive", "autonomous"] = "interactive",
     sandbox_args: list[str] | None = None,
     model: str | None = None,
 ) -> list[str]:
@@ -73,8 +75,8 @@ def build_cli_command(
         if auto_approve:
             # Skip all permission prompts for autonomous subagent operation
             command.append("--dangerously-skip-permissions")
-        # For headless mode, use -p (print mode) for single-turn execution
-        # For terminal mode, don't use -p to allow multi-turn interaction
+        # For autonomous mode, use -p (print mode) for single-turn execution
+        # For interactive mode, don't use -p to allow multi-turn interaction
         if prompt and mode != "interactive":
             command.append("-p")
 

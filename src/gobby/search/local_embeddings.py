@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -62,8 +63,6 @@ def _install_ggml_log_filter() -> None:
         # Pass through non-spam messages at ERROR level (matching default
         # verbose=False behavior: only ERROR and above).
         if level >= 3 and msg.strip():  # 3 = GGML_LOG_LEVEL_ERROR
-            import sys
-
             print(msg, end="", flush=True, file=sys.stderr)
 
     _filtered_callback = llama_cpp.llama_log_callback(_py_callback)

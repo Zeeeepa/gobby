@@ -81,8 +81,6 @@ export function SkillsPage() {
     setTimeout(() => setErrorMessage(null), 4000)
   }, [])
 
-
-
   // Apply source filter + search + source type filter to skills
   const filteredSkills = useMemo(() => {
     let result = skills
