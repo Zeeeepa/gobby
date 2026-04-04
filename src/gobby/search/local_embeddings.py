@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -22,6 +21,55 @@ if TYPE_CHECKING:
     from llama_cpp import Llama
 
 logger = logging.getLogger(__name__)
+
+# Module-level callback reference — must survive GC for the lifetime of the
+# process, because llama.cpp holds a raw C pointer to this function.
+_ggml_log_filter_cb: object | None = None
+
+
+def _install_ggml_log_filter() -> None:
+    """Install a GGML log callback that filters known harmless spam.
+
+    GGML emits "init: embeddings required but some input tokens were not
+    marked as outputs -> overriding" at ERROR level during embedding context
+    creation. These are harmless (GGML auto-fixes the token flags) but
+    produce hundreds of lines of log spam. llama-cpp-python's default
+    callback prints ERROR-level messages even with verbose=False.
+
+    The callback is installed once and kept permanently — it must outlive
+    any async GGML/Metal threads that fire after the Llama constructor
+    returns. Storing it at module level prevents GC from invalidating the
+    ctypes function pointer.
+    """
+    global _ggml_log_filter_cb
+    if _ggml_log_filter_cb is not None:
+        return  # Already installed
+
+    import ctypes
+
+    import llama_cpp
+
+    @llama_cpp.llama_log_callback
+    def _filtered_callback(
+        level: int,
+        text: bytes,
+        user_data: ctypes.c_void_p,
+    ) -> None:
+        msg = text.decode("utf-8", errors="replace")
+        if "not marked as outputs" in msg:
+            return
+        if "not supported" in msg:
+            return
+        # Pass through non-spam messages at ERROR level (matching default
+        # verbose=False behavior: only ERROR and above).
+        if level >= 3 and msg.strip():  # 3 = GGML_LOG_LEVEL_ERROR
+            import sys
+
+            print(msg, end="", flush=True, file=sys.stderr)
+
+    _ggml_log_filter_cb = _filtered_callback  # prevent GC
+    llama_cpp.llama_log_set(_filtered_callback, ctypes.c_void_p(0))
+
 
 # Model registry: local/ prefix → HuggingFace download info
 _MODEL_REGISTRY: dict[str, dict[str, str]] = {
@@ -160,26 +208,15 @@ class LocalEmbeddingModel:
 
         logger.info(f"Loading local embedding model: {self._model_path.name}")
 
-        # Suppress stderr during model init — llama.cpp's GGML layer emits
-        # "init: embeddings required but some input tokens..." via raw fprintf
-        # that bypasses both Python logging and llama_log_set. The library's
-        # own suppress_stdout_stderr only covers model loading, not context
-        # creation. This is harmless (GGML auto-fixes the token flags).
-        old_stderr_fd = os.dup(2)
-        try:
-            devnull = os.open(os.devnull, os.O_WRONLY)
-            os.dup2(devnull, 2)
-            os.close(devnull)
-            model = Llama(
-                model_path=str(self._model_path),
-                embedding=True,
-                n_ctx=2048,
-                n_gpu_layers=-1,  # Auto-detect Metal/CUDA
-                verbose=False,
-            )
-        finally:
-            os.dup2(old_stderr_fd, 2)
-            os.close(old_stderr_fd)
+        _install_ggml_log_filter()
+
+        model = Llama(
+            model_path=str(self._model_path),
+            embedding=True,
+            n_ctx=2048,
+            n_gpu_layers=-1,  # Auto-detect Metal/CUDA
+            verbose=False,
+        )
 
         logger.info(f"Local embedding model loaded: {self._model_path.name}")
         return model
