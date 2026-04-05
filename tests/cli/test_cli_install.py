@@ -29,7 +29,6 @@ def _mock_ext_services_and_prompts():
     with (
         patch("gobby.cli.install._run_qdrant_install"),
         patch("gobby.cli.install._run_neo4j_install"),
-        patch("gobby.cli.install._run_local_embeddings_install"),
         patch(
             "gobby.cli._install_prompts._prompt_api_keys",
             return_value={"stored": 0, "already_configured": 0, "env_found": 0},

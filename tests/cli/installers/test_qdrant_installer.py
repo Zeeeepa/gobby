@@ -313,7 +313,7 @@ class TestConfigModels:
         from gobby.config.persistence import EmbeddingsConfig
 
         config = EmbeddingsConfig()
-        assert config.model == "local/nomic-embed-text-v1.5"
+        assert config.model == "nomic-embed-text"
         assert config.dim == 768
 
     def test_qdrant_config_default_url(self) -> None:

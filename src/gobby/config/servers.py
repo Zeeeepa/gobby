@@ -82,18 +82,19 @@ class MCPClientProxyConfig(BaseModel):
         description="Default search mode for tool recommendations: 'llm' (LLM-based), 'semantic' (embedding similarity), 'hybrid' (both)",
     )
     embedding_provider: str = Field(
-        default="local",
-        description="Provider for embedding generation (local, openai, litellm)",
+        default="openai-compatible",
+        description="Provider for embedding generation (openai-compatible)",
     )
     embedding_model: str = Field(
-        default="local/nomic-embed-text-v1.5",
+        default="nomic-embed-text",
         description="Model to use for tool embedding generation",
     )
     embedding_api_base: str | None = Field(
-        default=None,
+        default="http://localhost:11434/v1",
         description=(
             "API base URL for the embedding endpoint. "
-            "Use for local models (e.g., 'http://localhost:11434/v1' for Ollama)."
+            "Default: Ollama (http://localhost:11434/v1). "
+            "Use for any OpenAI-compatible endpoint (Ollama, LM Studio, OpenAI)."
         ),
     )
     min_similarity: float = Field(

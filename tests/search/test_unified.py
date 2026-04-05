@@ -52,8 +52,8 @@ class TestSearchConfig:
         config = SearchConfig()
 
         assert config.mode == "auto"
-        assert config.embedding_model == "local/nomic-embed-text-v1.5"
-        assert config.embedding_api_base is None
+        assert config.embedding_model == "nomic-embed-text"
+        assert config.embedding_api_base == "http://localhost:11434/v1"
         assert config.embedding_api_key is None
         assert config.tfidf_weight == 0.4
         assert config.embedding_weight == 0.6

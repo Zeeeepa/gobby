@@ -150,10 +150,6 @@ class TestInstallCommand:
         with (
             patch("gobby.cli.install.install_qdrant", return_value=qdrant_result),
             patch("gobby.cli.install.install_neo4j", return_value=neo4j_result),
-            patch(
-                "gobby.cli.install_setup._install_local_embeddings",
-                return_value={"installed": False, "skipped": True, "reason": "already installed"},
-            ),
         ):
             yield
 

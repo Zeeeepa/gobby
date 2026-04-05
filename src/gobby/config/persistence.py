@@ -131,7 +131,7 @@ class EmbeddingsConfig(BaseModel):
     model_config = {"extra": "ignore"}
 
     model: str = Field(
-        default="local/nomic-embed-text-v1.5",
+        default="nomic-embed-text",
         description="Embedding model for semantic search",
     )
     dim: int = Field(

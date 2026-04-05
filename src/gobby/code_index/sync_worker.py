@@ -40,14 +40,24 @@ async def sync_worker_loop(
 
     logger.info(f"Code index sync worker started (interval={interval}s, batch={batch_size})")
 
-    # Lazy-load embedding model on first use
+    # Set up embedding adapter for vector sync
     if config.embedding_enabled and vector_store is not None:
         try:
-            from gobby.search.local_embeddings import LocalEmbeddingModel
+            from gobby.search.embeddings import generate_embeddings
 
-            embed_model = await LocalEmbeddingModel.get_instance()
+            class _EmbedAdapter:
+                """Adapter wrapping generate_embeddings() to match embed_model.embed() interface."""
+
+                async def embed(self, texts: list[str]) -> list[list[float]]:
+                    return await generate_embeddings(
+                        texts,
+                        model=config.embedding_model or "nomic-embed-text",
+                        api_base=config.embedding_api_base or "http://localhost:11434/v1",
+                    )
+
+            embed_model = _EmbedAdapter()
         except Exception as e:
-            logger.warning(f"Sync worker: embedding model unavailable: {e}")
+            logger.warning(f"Sync worker: embedding unavailable: {e}")
 
     while not shutdown_flag.is_set():
         try:

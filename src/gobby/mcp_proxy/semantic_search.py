@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Default embedding model
-DEFAULT_EMBEDDING_MODEL = "local/nomic-embed-text-v1.5"
+DEFAULT_EMBEDDING_MODEL = "nomic-embed-text"
 DEFAULT_EMBEDDING_DIM = 768
 
 

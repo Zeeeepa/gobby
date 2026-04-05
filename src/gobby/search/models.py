@@ -61,12 +61,12 @@ class SearchConfig(BaseModel):
         description="Search mode: tfidf, embedding, auto, hybrid",
     )
     embedding_model: str = Field(
-        default="local/nomic-embed-text-v1.5",
-        description="Embedding model string (e.g., local/nomic-embed-text-v1.5, text-embedding-3-small)",
+        default="nomic-embed-text",
+        description="Embedding model name (e.g., nomic-embed-text, text-embedding-3-small)",
     )
     embedding_api_base: str | None = Field(
-        default=None,
-        description="API base URL for Ollama/custom endpoints (e.g., http://localhost:11434/v1)",
+        default="http://localhost:11434/v1",
+        description="API base URL for OpenAI-compatible endpoint (e.g., http://localhost:11434/v1 for Ollama)",
     )
     embedding_api_key: str | None = Field(
         default=None,

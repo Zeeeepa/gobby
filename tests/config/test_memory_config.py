@@ -124,9 +124,9 @@ def test_neo4j_auth_defaults_to_none() -> None:
 
 
 def test_embedding_model_default() -> None:
-    """EmbeddingsConfig.model should default to local/nomic-embed-text-v1.5."""
+    """EmbeddingsConfig.model should default to nomic-embed-text."""
     config = EmbeddingsConfig()
-    assert config.model == "local/nomic-embed-text-v1.5"
+    assert config.model == "nomic-embed-text"
 
 
 def test_embedding_dim_default() -> None:

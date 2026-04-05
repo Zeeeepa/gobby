@@ -31,7 +31,6 @@ from ._install_prompts import (
     _run_codex_uninstall,
     _run_copilot_install,
     _run_git_hooks_install,
-    _run_local_embeddings_install,
     _run_neo4j_install,
     _run_neo4j_uninstall,
     _run_qdrant_install,
@@ -147,12 +146,6 @@ __all__ = [
     help="Skip Docker service installation (Qdrant, Neo4j)",
 )
 @click.option(
-    "--no-local-embeddings",
-    "no_local_embeddings_flag",
-    is_flag=True,
-    help="Skip local embeddings installation (llama-cpp-python + GGUF model)",
-)
-@click.option(
     "--neo4j-password",
     "neo4j_password",
     default=None,
@@ -189,7 +182,6 @@ def install(
     all_flag: bool,
     antigravity_flag: bool,
     no_ext_services_flag: bool,
-    no_local_embeddings_flag: bool,
     neo4j_password: str | None,
     project_flag: bool,
     no_interactive_flag: bool,
@@ -336,10 +328,6 @@ def install(
     if not no_ext_services_flag:
         _run_qdrant_install(install_qdrant, results)
         _run_neo4j_install(install_neo4j, neo4j_password, results)
-
-    # Local embeddings (llama-cpp-python + GGUF model, installed by default)
-    if not no_local_embeddings_flag:
-        _run_local_embeddings_install(results)
 
     # Migration detection
     if mode == "global":

@@ -1713,7 +1713,7 @@ class TestResolveEmbeddingApiKey:
 
     def test_local_returns_none(self, mock_secret_store) -> None:
         """local/ models don't need an API key."""
-        key = resolve_embedding_api_key(mock_secret_store, "local/nomic-embed-text-v1.5")
+        key = resolve_embedding_api_key(mock_secret_store, "nomic-embed-text")
         assert key is None
         mock_secret_store.get.assert_not_called()
 
