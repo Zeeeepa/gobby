@@ -109,7 +109,6 @@ class MCPToolResult:
     """List of tool calls made during generation."""
 
 
-# Streaming event types for stream_with_mcp_tools
 @dataclass
 class TextChunk:
     """A chunk of text from the streaming response."""
