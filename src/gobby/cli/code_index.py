@@ -1,38 +1,25 @@
 """CLI commands for code indexing.
 
-Runs standalone — no daemon required. Constructs CodeIndexer directly
-against the local SQLite database, same pattern as `gobby memory`.
+Runs standalone — no daemon required. Delegates indexing to gcode (Rust CLI)
+and uses CodeIndexStorage for status/invalidate queries.
 """
 
 from __future__ import annotations
 
-import asyncio
 import os
 import subprocess
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import click
 
-from gobby.config.app import DaemonConfig
-
 if TYPE_CHECKING:
-    from gobby.code_index.indexer import CodeIndexer
     from gobby.code_index.storage import CodeIndexStorage
 
 
-def _get_indexer(ctx: click.Context) -> CodeIndexer:
-    """Construct a CodeIndexer directly (no daemon needed)."""
-    from gobby.code_index.indexer import CodeIndexer
-    from gobby.code_index.parser import CodeParser
-    from gobby.code_index.storage import CodeIndexStorage
-    from gobby.storage.database import LocalDatabase
-
-    config: DaemonConfig = ctx.obj["config"]
-    db = LocalDatabase()
-    ci_config = config.code_index
-    storage = CodeIndexStorage(db)
-    parser = CodeParser(ci_config)
-    return CodeIndexer(storage=storage, parser=parser, config=ci_config)
+def _gcode_bin() -> Path:
+    """Resolve gcode binary path."""
+    return Path.home() / ".gobby" / "bin" / "gcode"
 
 
 def _get_storage() -> CodeIndexStorage:
@@ -108,13 +95,10 @@ def code_index() -> None:
 @click.argument("path", required=False, default=None)
 @click.option("--project-id", "-p", default="", help="Project ID (default: auto-detect)")
 @click.option("--full", is_flag=True, help="Full re-index (skip incremental)")
-@click.pass_context
-def index_cmd(ctx: click.Context, path: str | None, project_id: str, full: bool) -> None:
+def index_cmd(path: str | None, project_id: str, full: bool) -> None:
     """Index a directory for code navigation.
 
-    Indexes all supported source files in PATH, extracting symbols
-    (functions, classes, methods) for code navigation and search.
-
+    Delegates to gcode (Rust CLI) for actual indexing.
     Incremental by default — only re-indexes changed files.
     Defaults to git repo root when no path is given.
 
@@ -128,6 +112,10 @@ def index_cmd(ctx: click.Context, path: str | None, project_id: str, full: bool)
 
         gobby index /path/to/project -p my-project
     """
+    gcode = _gcode_bin()
+    if not gcode.exists():
+        raise click.ClickException("gcode not installed. Run `gobby install` first.")
+
     if path is None:
         path = _git_repo_root() or "."
 
@@ -135,28 +123,23 @@ def index_cmd(ctx: click.Context, path: str | None, project_id: str, full: bool)
     if not os.path.isdir(abs_path):
         raise click.ClickException(f"Not a directory: {abs_path}")
 
-    pid = project_id or _auto_project_id()
     incremental = not full
     click.echo(f"Indexing {abs_path} ({'incremental' if incremental else 'full'})...")
 
-    indexer = _get_indexer(ctx)
-    result = asyncio.run(
-        indexer.index_directory(
-            root_path=abs_path,
-            project_id=pid,
-            incremental=incremental,
-        )
-    )
+    cmd: list[str] = [str(gcode), "index", "--project", abs_path]
+    if not incremental:
+        cmd.append("--full")
 
-    click.echo(f"Done in {result.duration_ms}ms:")
-    click.echo(f"  Files indexed: {result.files_indexed}")
-    click.echo(f"  Files skipped: {result.files_skipped}")
-    click.echo(f"  Symbols found: {result.symbols_found}")
-
-    if result.errors:
-        click.echo(f"  Errors: {len(result.errors)}")
-        for err in result.errors[:5]:
-            click.echo(f"    - {err}")
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        if result.stdout:
+            click.echo(result.stdout.rstrip())
+        if result.returncode != 0:
+            if result.stderr:
+                click.echo(result.stderr.rstrip(), err=True)
+            raise click.ClickException(f"gcode index exited with code {result.returncode}")
+    except subprocess.TimeoutExpired as e:
+        raise click.ClickException("gcode index timed out after 5 minutes") from e
 
 
 @code_index.command("status")
@@ -204,8 +187,7 @@ def status_cmd(ctx: click.Context, project_id: str) -> None:
 
 @code_index.command("invalidate")
 @click.option("--project-id", "-p", default="", help="Project ID (default: auto-detect)")
-@click.pass_context
-def invalidate_cmd(ctx: click.Context, project_id: str) -> None:
+def invalidate_cmd(project_id: str) -> None:
     """Clear index for a project, forcing full re-index next time.
 
     Examples:
@@ -215,6 +197,8 @@ def invalidate_cmd(ctx: click.Context, project_id: str) -> None:
         gobby index invalidate -p my-project
     """
     pid = project_id or _auto_project_id()
-    indexer = _get_indexer(ctx)
-    asyncio.run(indexer.invalidate(pid))
+    storage = _get_storage()
+    storage.delete_symbols_for_project(pid)
+    storage.delete_files_for_project(pid)
+    storage.delete_content_chunks_for_project(pid)
     click.echo(f"Index invalidated for project: {pid}")

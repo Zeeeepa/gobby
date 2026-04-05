@@ -65,6 +65,9 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 # was started/restarted from within a Claude Code session.
 os.environ.pop("CLAUDECODE", None)
 
+# Silence noisy third-party HTTP loggers (httpx logs every Neo4j query at INFO)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 

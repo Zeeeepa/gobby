@@ -144,7 +144,7 @@ async def _init_subsystems(runner: GobbyRunner, rebuild_vector_store: Any) -> No
         runner._code_index_shutdown = shutdown_event
         runner._code_index_task = asyncio.create_task(
             code_index_maintenance_loop(
-                runner.code_indexer,
+                context=runner.code_indexer,
                 shutdown_flag=shutdown_event,
                 interval=runner.config.code_index.maintenance_interval_seconds,
                 summarizer=summarizer,

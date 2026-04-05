@@ -74,7 +74,6 @@ def create_app(server: "HTTPServer") -> FastAPI:
                 from gobby.code_index.trigger import CodeIndexTrigger
 
                 hook_manager_kwargs["code_index_trigger"] = CodeIndexTrigger(
-                    indexer=code_indexer,
                     loop=asyncio.get_running_loop(),
                     debounce_seconds=2.0,
                 )

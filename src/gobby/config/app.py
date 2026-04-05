@@ -30,7 +30,6 @@ from gobby.config.features import (
     KnowledgeGraphQueueConfig,
     MergeResolutionConfig,
     MetricsConfig,
-    OutputCompressionConfig,
     ProjectVerificationConfig,
     RecommendToolsConfig,
     ReviewConfig,
@@ -476,10 +475,6 @@ class DaemonConfig(BaseModel):
     skill_description: SkillDescriptionConfig = Field(
         default_factory=SkillDescriptionConfig,
         description="Skill description synthesis LLM configuration",
-    )
-    output_compression: OutputCompressionConfig = Field(
-        default_factory=OutputCompressionConfig,
-        description="Output compression for token optimization (RTK-inspired)",
     )
     context_window_overrides: dict[str, int] = Field(
         default_factory=dict,

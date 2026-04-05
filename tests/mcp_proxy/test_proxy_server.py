@@ -110,7 +110,6 @@ def daemon_tools(mock_mcp_manager, mock_llm_service):
     mock_proxy_config.enabled = True
     mock_proxy_config.tool_timeout = 60.0
     mock_config.get_mcp_client_proxy_config.return_value = mock_proxy_config
-    mock_config.compression = None  # Disable compression for tests
 
     # Mock recommend tools config
     mock_rec_tools = MagicMock()

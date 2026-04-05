@@ -16,14 +16,13 @@ logger = logging.getLogger(__name__)
 CHARS_PER_TOKEN = 3.7
 
 # Only these categories produce real, measurable savings.
-VALID_CATEGORIES: frozenset[str] = frozenset({"compression", "code_index", "discovery"})
+VALID_CATEGORIES: frozenset[str] = frozenset({"code_index", "discovery"})
 
 
 class SavingsTracker:
     """Track token and cost savings from Gobby features.
 
     Savings categories:
-    - compression: tool output compression
     - code_index: symbol retrieval vs full file read
     - discovery: progressive schema loading
     """

@@ -216,26 +216,6 @@ class ChatLifecycleMixin:
                                             f" ({len(tool_output)}->{len(outline)} chars)"
                                         )
                                         # gcode self-reports savings to HTTP API (gsqz pattern)
-                        else:
-                            from gobby.compression import OutputCompressor
-
-                            # Extract meaningful command hint from call_tool args
-                            command_hint = (data or {}).get("tool_name", "")
-                            if command_hint in ("call_tool", "mcp__gobby__call_tool"):
-                                tool_input = (data or {}).get("tool_input") or {}
-                                server = tool_input.get("server_name", "")
-                                tool = tool_input.get("tool_name", "")
-                                if server and tool:
-                                    command_hint = f"{server}:{tool}"
-                            compressor = OutputCompressor(
-                                max_lines=compression_cfg.get("max_lines") or 100,
-                            )
-                            comp_result = compressor.compress(command_hint, tool_output)
-                            if comp_result.strategy_name not in ("passthrough", "excluded"):
-                                result["modified_output"] = comp_result.compressed
-                                logger.info(
-                                    f"Compressed MCP output: strategy={comp_result.strategy_name} savings={comp_result.savings_pct:.0f}% ({comp_result.original_chars}->{comp_result.compressed_chars} chars)",
-                                )
                 except Exception as exc:
                     logger.warning(f"Output compression failed: {exc}")
 

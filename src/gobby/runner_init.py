@@ -325,51 +325,27 @@ def init_services(runner: GobbyRunner) -> None:
         except Exception as e:
             logger.error(f"Failed to initialize MemoryManager: {e}")
 
-    # Code Index (native AST-based symbol indexing)
+    # Code Index (daemon-side context — gcode handles actual indexing)
     runner.code_indexer = None
     if hasattr(runner.config, "code_index") and runner.config.code_index.enabled:
         try:
+            from gobby.code_index.context import CodeIndexContext
             from gobby.code_index.graph import CodeGraph
-            from gobby.code_index.indexer import CodeIndexer
-            from gobby.code_index.parser import CodeParser
             from gobby.code_index.storage import CodeIndexStorage
 
             ci_config = runner.config.code_index
             ci_storage = CodeIndexStorage(runner.database)
-            ci_parser = CodeParser(ci_config)
             # Share Neo4j client from memory_manager if available
             ci_neo4j = None
             if runner.memory_manager and getattr(runner.memory_manager, "_neo4j_client", None):
                 ci_neo4j = runner.memory_manager._neo4j_client
             ci_graph = CodeGraph(neo4j_client=ci_neo4j)
 
-            # Reuse memory embed_fn if available
-            ci_embed_fn: Callable[..., Any] | None = None
-            if runner.llm_service and ci_config.embedding_enabled:
-                from functools import partial
-
-                _ci_emb = runner.config.embeddings
-                _ci_api_key = _ci_emb.api_key or resolve_embedding_api_key(
-                    runner.secret_store, _ci_emb.model
-                )
-                _ci_embed_kwargs: dict[str, Any] = {
-                    "model": _ci_emb.model,
-                    "api_key": _ci_api_key,
-                }
-                if _ci_emb.api_base:
-                    _ci_embed_kwargs["api_base"] = _ci_emb.api_base
-                ci_embed_fn = partial(
-                    generate_embedding,
-                    **_ci_embed_kwargs,
-                )
-
             ci_vector_store = runner.vector_store if ci_config.embedding_enabled else None
 
-            runner.code_indexer = CodeIndexer(
+            runner.code_indexer = CodeIndexContext(
                 storage=ci_storage,
-                parser=ci_parser,
                 vector_store=ci_vector_store,
-                embed_fn=ci_embed_fn,
                 graph=ci_graph if ci_config.graph_enabled else None,
                 config=ci_config,
             )

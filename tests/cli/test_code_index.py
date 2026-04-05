@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
 
 from gobby.cli import cli
-from gobby.code_index.models import IndexResult
 
 pytestmark = pytest.mark.unit
 
@@ -18,108 +17,103 @@ def runner() -> CliRunner:
     return CliRunner()
 
 
-def _mock_index_result(**overrides) -> IndexResult:
-    defaults = {
-        "project_id": "default",
-        "files_indexed": 10,
-        "files_skipped": 5,
-        "symbols_found": 42,
-        "duration_ms": 150,
-        "errors": [],
-    }
-    defaults.update(overrides)
-    return IndexResult(**defaults)
+def _mock_subprocess_result(
+    returncode: int = 0,
+    stdout: str = "",
+    stderr: str = "",
+) -> MagicMock:
+    result = MagicMock()
+    result.returncode = returncode
+    result.stdout = stdout
+    result.stderr = stderr
+    return result
 
 
 class TestCodeIndexIndex:
     """Tests for gobby index (default subcommand)."""
 
-    @patch("gobby.cli.code_index._get_indexer")
-    def test_index_success(self, mock_get_indexer: MagicMock, runner: CliRunner, tmp_path) -> None:
-        mock_indexer = MagicMock()
-        mock_indexer.index_directory = AsyncMock(return_value=_mock_index_result())
-        mock_get_indexer.return_value = mock_indexer
+    @patch("gobby.cli.code_index._gcode_bin")
+    @patch("subprocess.run")
+    def test_index_success(
+        self, mock_run: MagicMock, mock_bin: MagicMock, runner: CliRunner, tmp_path
+    ) -> None:
+        mock_bin.return_value = tmp_path / "gcode"
+        (tmp_path / "gcode").touch()
+        mock_run.return_value = _mock_subprocess_result(stdout="Indexed 10 files")
 
         result = runner.invoke(cli, ["index", str(tmp_path)])
 
         assert result.exit_code == 0
-        assert "Files indexed: 10" in result.output
-        assert "Symbols found: 42" in result.output
-        mock_indexer.index_directory.assert_called_once()
-        call_kwargs = mock_indexer.index_directory.call_args[1]
-        assert call_kwargs["incremental"] is True
+        assert "Indexed 10 files" in result.output
+        mock_run.assert_called_once()
 
-    @patch("gobby.cli.code_index._get_indexer")
+    @patch("gobby.cli.code_index._gcode_bin")
+    @patch("subprocess.run")
     def test_index_full_flag(
-        self, mock_get_indexer: MagicMock, runner: CliRunner, tmp_path
+        self, mock_run: MagicMock, mock_bin: MagicMock, runner: CliRunner, tmp_path
     ) -> None:
-        mock_indexer = MagicMock()
-        mock_indexer.index_directory = AsyncMock(return_value=_mock_index_result(files_skipped=0))
-        mock_get_indexer.return_value = mock_indexer
+        mock_bin.return_value = tmp_path / "gcode"
+        (tmp_path / "gcode").touch()
+        mock_run.return_value = _mock_subprocess_result()
 
         result = runner.invoke(cli, ["index", str(tmp_path), "--full"])
 
         assert result.exit_code == 0
-        call_kwargs = mock_indexer.index_directory.call_args[1]
-        assert call_kwargs["incremental"] is False
+        cmd = mock_run.call_args[0][0]
+        assert "--full" in cmd
+
+    @patch("gobby.cli.code_index._gcode_bin")
+    def test_index_gcode_not_installed(
+        self, mock_bin: MagicMock, runner: CliRunner, tmp_path
+    ) -> None:
+        mock_bin.return_value = tmp_path / "gcode"  # doesn't exist
+
+        result = runner.invoke(cli, ["index", str(tmp_path)])
+
+        assert result.exit_code != 0
+        assert "gcode not installed" in result.output
 
     def test_index_invalid_path(self, runner: CliRunner) -> None:
         result = runner.invoke(cli, ["index", "/nonexistent/path"])
 
+        # Either gcode-not-installed or not-a-directory, depending on environment
         assert result.exit_code != 0
-        assert "Not a directory" in result.output
 
-    @patch("gobby.cli.code_index._get_indexer")
-    def test_index_with_errors(
-        self, mock_get_indexer: MagicMock, runner: CliRunner, tmp_path
+    @patch("gobby.cli.code_index._gcode_bin")
+    @patch("subprocess.run")
+    def test_index_gcode_failure(
+        self, mock_run: MagicMock, mock_bin: MagicMock, runner: CliRunner, tmp_path
     ) -> None:
-        mock_indexer = MagicMock()
-        mock_indexer.index_directory = AsyncMock(
-            return_value=_mock_index_result(errors=["parse error in foo.py", "timeout in bar.rs"])
-        )
-        mock_get_indexer.return_value = mock_indexer
+        mock_bin.return_value = tmp_path / "gcode"
+        (tmp_path / "gcode").touch()
+        mock_run.return_value = _mock_subprocess_result(returncode=1, stderr="parse error")
 
         result = runner.invoke(cli, ["index", str(tmp_path)])
 
-        assert result.exit_code == 0
-        assert "Errors: 2" in result.output
-        assert "parse error in foo.py" in result.output
+        assert result.exit_code != 0
+        assert "parse error" in result.output
 
     @patch("gobby.cli.code_index._git_repo_root", return_value="/fake/repo")
-    @patch("gobby.cli.code_index._auto_project_id", return_value="auto-proj")
-    @patch("gobby.cli.code_index._get_indexer")
+    @patch("gobby.cli.code_index._gcode_bin")
+    @patch("subprocess.run")
     def test_index_default_path_uses_git_root(
         self,
-        mock_get_indexer: MagicMock,
-        mock_pid: MagicMock,
+        mock_run: MagicMock,
+        mock_bin: MagicMock,
         mock_git: MagicMock,
         runner: CliRunner,
+        tmp_path,
     ) -> None:
-        mock_indexer = MagicMock()
-        mock_indexer.index_directory = AsyncMock(return_value=_mock_index_result())
-        mock_get_indexer.return_value = mock_indexer
+        mock_bin.return_value = tmp_path / "gcode"
+        (tmp_path / "gcode").touch()
+        mock_run.return_value = _mock_subprocess_result()
 
         with patch("gobby.cli.code_index.os.path.isdir", return_value=True):
             result = runner.invoke(cli, ["index"])
 
         assert result.exit_code == 0
-        call_kwargs = mock_indexer.index_directory.call_args[1]
-        assert call_kwargs["root_path"] == "/fake/repo"
-        assert call_kwargs["project_id"] == "auto-proj"
-
-    @patch("gobby.cli.code_index._get_indexer")
-    def test_index_explicit_project_id(
-        self, mock_get_indexer: MagicMock, runner: CliRunner, tmp_path
-    ) -> None:
-        mock_indexer = MagicMock()
-        mock_indexer.index_directory = AsyncMock(return_value=_mock_index_result())
-        mock_get_indexer.return_value = mock_indexer
-
-        result = runner.invoke(cli, ["index", str(tmp_path), "-p", "my-proj"])
-
-        assert result.exit_code == 0
-        call_kwargs = mock_indexer.index_directory.call_args[1]
-        assert call_kwargs["project_id"] == "my-proj"
+        cmd = mock_run.call_args[0][0]
+        assert "/fake/repo" in cmd
 
 
 class TestCodeIndexStatus:
@@ -191,28 +185,26 @@ class TestCodeIndexInvalidate:
     """Tests for gobby index invalidate."""
 
     @patch("gobby.cli.code_index._auto_project_id", return_value="auto-proj")
-    @patch("gobby.cli.code_index._get_indexer")
+    @patch("gobby.cli.code_index._get_storage")
     def test_invalidate_success(
-        self, mock_get_indexer: MagicMock, mock_pid: MagicMock, runner: CliRunner
+        self, mock_get_storage: MagicMock, mock_pid: MagicMock, runner: CliRunner
     ) -> None:
-        mock_indexer = MagicMock()
-        mock_indexer.invalidate = AsyncMock()
-        mock_get_indexer.return_value = mock_indexer
+        mock_storage = MagicMock()
+        mock_get_storage.return_value = mock_storage
 
         result = runner.invoke(cli, ["index", "invalidate"])
 
         assert result.exit_code == 0
         assert "Index invalidated" in result.output
         assert "auto-proj" in result.output
-        mock_indexer.invalidate.assert_called_once()
+        mock_storage.delete_symbols_for_project.assert_called_once_with("auto-proj")
 
-    @patch("gobby.cli.code_index._get_indexer")
+    @patch("gobby.cli.code_index._get_storage")
     def test_invalidate_explicit_project(
-        self, mock_get_indexer: MagicMock, runner: CliRunner
+        self, mock_get_storage: MagicMock, runner: CliRunner
     ) -> None:
-        mock_indexer = MagicMock()
-        mock_indexer.invalidate = AsyncMock()
-        mock_get_indexer.return_value = mock_indexer
+        mock_storage = MagicMock()
+        mock_get_storage.return_value = mock_storage
 
         result = runner.invoke(cli, ["index", "invalidate", "-p", "my-proj"])
 
@@ -230,16 +222,16 @@ def test_help(runner: CliRunner) -> None:
     assert "invalidate" in result.output
 
 
-@patch("gobby.cli.code_index._get_indexer")
+@patch("gobby.cli.code_index._gcode_bin")
+@patch("subprocess.run")
 def test_default_routing_with_path(
-    mock_get_indexer: MagicMock, runner: CliRunner, tmp_path
+    mock_run: MagicMock, mock_bin: MagicMock, runner: CliRunner, tmp_path
 ) -> None:
     """gobby index <path> routes to the index subcommand without explicit 'index'."""
-    mock_indexer = MagicMock()
-    mock_indexer.index_directory = AsyncMock(return_value=_mock_index_result())
-    mock_get_indexer.return_value = mock_indexer
+    mock_bin.return_value = tmp_path / "gcode"
+    (tmp_path / "gcode").touch()
+    mock_run.return_value = _mock_subprocess_result(stdout="Done")
 
     result = runner.invoke(cli, ["index", str(tmp_path)])
 
     assert result.exit_code == 0
-    assert "Files indexed: 10" in result.output

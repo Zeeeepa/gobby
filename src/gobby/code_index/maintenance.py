@@ -12,14 +12,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from gobby.code_index.indexer import CodeIndexer
+    from gobby.code_index.context import CodeIndexContext
     from gobby.code_index.summarizer import SymbolSummarizer
 
 logger = logging.getLogger(__name__)
 
 
 async def code_index_maintenance_loop(
-    indexer: CodeIndexer,
+    context: CodeIndexContext,
     shutdown_flag: asyncio.Event | None = None,
     interval: int = 300,
     summarizer: SymbolSummarizer | None = None,
@@ -28,7 +28,7 @@ async def code_index_maintenance_loop(
     """Background loop that checks for stale indexed files.
 
     Args:
-        indexer: CodeIndexer instance (used for storage access).
+        context: CodeIndexContext (provides storage access).
         shutdown_flag: Event that signals shutdown.
         interval: Seconds between maintenance runs.
         summarizer: Optional SymbolSummarizer for generating summaries.
@@ -42,7 +42,7 @@ async def code_index_maintenance_loop(
             break
 
         try:
-            await _run_maintenance(indexer, summarizer, summary_batch_size)
+            await _run_maintenance(context, summarizer, summary_batch_size)
         except Exception as e:
             logger.error(f"Code index maintenance error: {e}", exc_info=True)
 
@@ -60,12 +60,12 @@ async def code_index_maintenance_loop(
 
 
 async def _run_maintenance(
-    indexer: CodeIndexer,
+    context: CodeIndexContext,
     summarizer: SymbolSummarizer | None = None,
     summary_batch_size: int = 20,
 ) -> None:
     """Single maintenance pass: re-index via gcode, recover unsynced files, generate summaries."""
-    projects = indexer.storage.list_indexed_projects()
+    projects = context.storage.list_indexed_projects()
     gcode_bin = Path.home() / ".gobby" / "bin" / "gcode"
 
     gcode_available = gcode_bin.exists()
@@ -101,17 +101,17 @@ async def _run_maintenance(
 
         # Generate summaries for unsummarized symbols
         if summarizer:
-            await _summarize_unsummarized(indexer, project, summarizer, summary_batch_size)
+            await _summarize_unsummarized(context, project, summarizer, summary_batch_size)
 
 
 async def _summarize_unsummarized(
-    indexer: CodeIndexer,
+    context: CodeIndexContext,
     project: Any,
     summarizer: SymbolSummarizer,
     batch_size: int,
 ) -> None:
     """Generate summaries for symbols that don't have one yet."""
-    symbols = indexer.storage.get_unsummarized_symbols(project.id, limit=batch_size)
+    symbols = context.storage.get_unsummarized_symbols(project.id, limit=batch_size)
     if not symbols:
         return
 
@@ -134,7 +134,7 @@ async def _summarize_unsummarized(
     results = await summarizer.summarize_batch(symbols, read_source)
 
     for symbol_id, summary in results.items():
-        indexer.storage.update_symbol_summary(symbol_id, summary)
+        context.storage.update_symbol_summary(symbol_id, summary)
 
     if results:
         logger.info(
