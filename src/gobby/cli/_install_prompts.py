@@ -374,6 +374,158 @@ def _run_qdrant_install(
     click.echo("")
 
 
+def _run_embedding_install(
+    installer: Callable[..., dict[str, Any]],
+    results: dict[str, dict[str, Any]],
+    no_interactive: bool = False,
+) -> str:
+    """Interactive embedding provider setup.
+
+    Detects available local providers (LM Studio, Ollama), presents a menu,
+    and runs the installer for the chosen provider. Returns the chosen provider
+    name so the caller can gate Docker service installs on the "none" choice.
+
+    Args:
+        installer: The install_embedding function
+        results: Results dict to accumulate install outcomes
+        no_interactive: If True, auto-select best local provider without prompting
+
+    Returns:
+        The provider name chosen: "lmstudio" | "ollama" | "openai" | "none"
+    """
+    from ._detectors import _is_lmstudio_available, _is_ollama_available
+
+    click.echo("-" * 40)
+    click.echo("Embedding Provider")
+    click.echo("-" * 40)
+
+    lmstudio_ok = _is_lmstudio_available()
+    ollama_ok = _is_ollama_available()
+
+    # Build menu options
+    options: list[tuple[str, str]] = []
+    if lmstudio_ok:
+        options.append(("lmstudio", "LM Studio (localhost:1234) - local, recommended"))
+    if ollama_ok:
+        options.append(("ollama", "Ollama (localhost:11434) - local"))
+    options.append(("openai", "OpenAI (cloud, requires API key)"))
+    options.append(("none", "None (disables semantic search, skips Qdrant/Neo4j)"))
+
+    # Determine default choice: prefer LM Studio > Ollama > OpenAI > none
+    default_idx = 1  # 1-indexed for display
+    if not lmstudio_ok and not ollama_ok:
+        # No local providers; default to "none" to avoid unexpected cloud calls
+        default_idx = len(options)  # points at "none"
+
+    if no_interactive:
+        # Auto-select best available local provider; skip if none
+        if lmstudio_ok:
+            provider = "lmstudio"
+        elif ollama_ok:
+            provider = "ollama"
+        else:
+            click.echo("No local embedding provider detected — skipping (no_interactive mode)")
+            results["embedding"] = {"success": True, "provider": "none", "skipped": True}
+            # Still persist "none" so the daemon disables semantic features cleanly
+            try:
+                installer(provider="none")
+            except Exception as e:
+                logger.warning(f"Failed to persist 'none' embedding config: {e}")
+            return "none"
+        click.echo(f"Auto-selected: {provider}")
+    else:
+        # Interactive menu
+        click.echo("")
+        for i, (_, label) in enumerate(options, start=1):
+            marker = " (default)" if i == default_idx else ""
+            click.echo(f"  [{i}] {label}{marker}")
+        click.echo("")
+
+        try:
+            choice = click.prompt(
+                "Select provider",
+                type=click.IntRange(1, len(options)),
+                default=default_idx,
+                show_default=False,
+            )
+        except (click.Abort, EOFError):
+            click.echo("")
+            click.echo("Skipping embedding setup.")
+            results["embedding"] = {"success": True, "provider": "none", "skipped": True}
+            return "none"
+
+        provider = options[choice - 1][0]
+
+    # Collect OpenAI API key if needed
+    openai_api_key: str | None = None
+    if provider == "openai":
+        # Check if already stored
+        try:
+            from gobby.storage.database import LocalDatabase
+            from gobby.storage.secrets import SecretStore
+
+            db = LocalDatabase()
+            secrets = SecretStore(db)
+            if secrets.exists("openai_api_key"):
+                existing = secrets.get("openai_api_key")
+                openai_api_key = existing
+                click.echo("Using existing OpenAI API key from secrets")
+            db.close()
+        except Exception as e:
+            logger.warning(f"Failed to read existing openai_api_key: {e}")
+
+        if not openai_api_key:
+            if no_interactive:
+                click.echo("OpenAI API key not set — skipping embedding setup")
+                results["embedding"] = {"success": False, "error": "OpenAI API key not available"}
+                return "none"
+            try:
+                openai_api_key = click.prompt(
+                    "  OpenAI API Key",
+                    default="",
+                    hide_input=True,
+                    show_default=False,
+                )
+            except (click.Abort, EOFError):
+                click.echo("")
+                results["embedding"] = {"success": False, "error": "API key prompt aborted"}
+                return "none"
+            if not openai_api_key.strip():
+                click.echo("No API key provided — skipping")
+                results["embedding"] = {"success": False, "error": "No API key provided"}
+                return "none"
+            openai_api_key = openai_api_key.strip()
+
+    # Run the installer
+    click.echo("")
+    if provider == "lmstudio":
+        click.echo("Setting up LM Studio (may download model on first run)...")
+    elif provider == "ollama":
+        click.echo("Setting up Ollama (may download model on first run)...")
+    elif provider == "openai":
+        click.echo("Configuring OpenAI embeddings...")
+
+    result = installer(provider=provider, openai_api_key=openai_api_key)
+    results["embedding"] = result
+
+    if result["success"]:
+        if result.get("skipped"):
+            click.echo("Embeddings disabled (provider=none)")
+        else:
+            click.echo(f"Embedding provider configured: {result['provider']}")
+            click.echo(f"  Model: {result['model']}")
+            if result.get("api_base"):
+                click.echo(f"  Endpoint: {result['api_base']}")
+            click.echo(f"  Dimensions: {result['dim']}")
+            if result.get("health_check"):
+                click.echo("  Health check: OK")
+    else:
+        click.echo(f"Failed: {result['error']}", err=True)
+    click.echo("")
+
+    return provider
+
+
 def _run_neo4j_install(
     installer: Callable[..., dict[str, Any]],
     neo4j_password: str | None,

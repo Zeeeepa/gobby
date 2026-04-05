@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from gobby.code_index.graph import CodeGraph
     from gobby.code_index.storage import CodeIndexStorage
     from gobby.config.code_index import CodeIndexConfig
+    from gobby.config.persistence import EmbeddingsConfig
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ async def sync_worker_loop(
     vector_store: Any | None,
     graph: CodeGraph | None,
     config: CodeIndexConfig,
+    embeddings_config: EmbeddingsConfig,
     shutdown_flag: asyncio.Event,
 ) -> None:
     """Continuous worker that syncs pending files to Qdrant and Neo4j.
@@ -51,8 +53,9 @@ async def sync_worker_loop(
                 async def embed(self, texts: list[str]) -> list[list[float]]:
                     return await generate_embeddings(
                         texts,
-                        model=config.embedding_model or "nomic-embed-text",
-                        api_base=config.embedding_api_base or "http://localhost:11434/v1",
+                        model=embeddings_config.model,
+                        api_base=embeddings_config.api_base,
+                        api_key=embeddings_config.api_key,
                     )
 
             embed_model = _EmbedAdapter()

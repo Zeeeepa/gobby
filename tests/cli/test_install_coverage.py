@@ -340,6 +340,8 @@ class TestInstallCommand:
         "gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"}
     )
     @patch("gobby.cli.install.get_install_dir", return_value=Path("/fake/install"))
+    @patch("gobby.cli.install._run_embedding_install", return_value="lmstudio")
+    @patch("gobby.cli.install.install_embedding")
     @patch("gobby.cli.install.install_neo4j")
     @patch("gobby.cli.install.install_qdrant")
     @patch("gobby.cli.install.install_claude")
@@ -348,6 +350,8 @@ class TestInstallCommand:
         mock_claude: MagicMock,
         mock_qdrant: MagicMock,
         mock_neo4j: MagicMock,
+        _embed: MagicMock,
+        _embed_wizard: MagicMock,
         _install_dir: MagicMock,
         _config: MagicMock,
         _setup: MagicMock,

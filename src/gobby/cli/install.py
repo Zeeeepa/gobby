@@ -30,6 +30,7 @@ from ._install_prompts import (
     _run_codex_install,
     _run_codex_uninstall,
     _run_copilot_install,
+    _run_embedding_install,
     _run_git_hooks_install,
     _run_neo4j_install,
     _run_neo4j_uninstall,
@@ -44,6 +45,7 @@ from .installers import (
     install_codex_notify,
     install_copilot,
     install_cursor,
+    install_embedding,
     install_gemini,
     install_git_hooks,
     install_neo4j,
@@ -324,10 +326,19 @@ def install(
     if "antigravity" in clis_to_install:
         _run_antigravity_install(install_antigravity, project_path, results)
 
+    # Embedding provider setup (runs before Docker services so "none" can skip them)
+    embedding_provider = _run_embedding_install(
+        install_embedding, results, no_interactive=no_interactive_flag
+    )
+
     # Docker services (Qdrant + Neo4j, installed by default if Docker available)
-    if not no_ext_services_flag:
+    # Skipped if user chose "none" for embeddings (no semantic search = no vector store needed)
+    if not no_ext_services_flag and embedding_provider != "none":
         _run_qdrant_install(install_qdrant, results)
         _run_neo4j_install(install_neo4j, neo4j_password, results)
+    elif embedding_provider == "none":
+        click.echo("Skipping Qdrant/Neo4j install (embeddings disabled)")
+        click.echo("")
 
     # Migration detection
     if mode == "global":

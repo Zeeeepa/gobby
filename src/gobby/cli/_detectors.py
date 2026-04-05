@@ -2,6 +2,7 @@
 
 import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -50,6 +51,40 @@ def _is_windsurf_installed() -> bool:
         return Path(local_appdata, "Programs", "windsurf").exists()
     else:
         return shutil.which("windsurf") is not None
+
+
+def _is_lmstudio_available() -> bool:
+    """Check if LM Studio server is running via `lms server status`."""
+    if not shutil.which("lms"):
+        return False
+    try:
+        result = subprocess.run(
+            ["lms", "server", "status"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        # lms writes the status to stderr
+        combined = (result.stdout + result.stderr).lower()
+        return result.returncode == 0 and "running" in combined
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return False
+
+
+def _is_ollama_available() -> bool:
+    """Check if Ollama is installed and responding."""
+    if not shutil.which("ollama"):
+        return False
+    try:
+        result = subprocess.run(
+            ["ollama", "list"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return False
 
 
 def _is_copilot_cli_installed() -> bool:

@@ -10,6 +10,7 @@ from .claude import install_claude, uninstall_claude
 from .codex import install_codex_notify, uninstall_codex_notify
 from .copilot import install_copilot, uninstall_copilot
 from .cursor import install_cursor, uninstall_cursor
+from .embedding import install_embedding
 from .gemini import install_gemini, uninstall_gemini
 from .git_hooks import install_git_hooks
 from .mcp_config import install_default_mcp_servers
@@ -53,6 +54,8 @@ __all__ = [
     "install_git_hooks",
     # Antigravity
     "install_antigravity",
+    # Embedding
+    "install_embedding",
     # Neo4j
     "install_neo4j",
     "uninstall_neo4j",

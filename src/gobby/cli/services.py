@@ -1,11 +1,14 @@
 """
-Service lifecycle utilities for Qdrant and Neo4j.
+Service lifecycle utilities for Qdrant, Neo4j, and embedding providers.
 
-Provides status checks for Docker-based services
-without starting or stopping anything.
+Provides status checks for Docker-based services and embedding endpoints
+without starting or stopping anything (except optional model auto-load).
 """
 
+import asyncio
 import logging
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -128,3 +131,81 @@ async def get_neo4j_status(
         "healthy": healthy,
         "url": neo4j_url,
     }
+
+
+# ---------------------------------------------------------------------------
+# Embeddings
+# ---------------------------------------------------------------------------
+
+
+async def is_embedding_healthy(
+    model: str,
+    api_base: str | None,
+    api_key: str | None = None,
+) -> bool:
+    """Check if the embedding endpoint is reachable.
+
+    Sends a single short embedding request with max_retries=1. Returns False
+    on any exception. Logs a warning on failure.
+    """
+    from gobby.search.embeddings import generate_embedding
+
+    try:
+        result = await generate_embedding(
+            "health",
+            model=model,
+            api_base=api_base,
+            api_key=api_key,
+            max_retries=1,
+        )
+        return len(result) > 0
+    except Exception as e:
+        logger.warning(f"Embedding health check failed (model={model}, api_base={api_base}): {e}")
+        return False
+
+
+async def try_autoload_embedding_model(model: str, api_base: str | None) -> bool:
+    """Attempt to auto-load the embedding model via lms or ollama CLI.
+
+    Called when the health check fails. Returns True if load succeeded.
+    Only attempts for local endpoints (api_base matches LM Studio or Ollama ports).
+    """
+    if not api_base:
+        return False
+
+    # LM Studio: try `lms load`
+    if ":1234" in api_base and shutil.which("lms"):
+        try:
+            # Run lms load in a thread to avoid blocking the event loop
+            result = await asyncio.to_thread(
+                subprocess.run,
+                ["lms", "load", "nomic-embed-text-v1.5", "-y"],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if result.returncode == 0:
+                logger.info("Auto-loaded embedding model via lms load")
+                return True
+            logger.warning(f"lms load failed: {result.stderr.strip()}")
+        except (subprocess.TimeoutExpired, OSError) as e:
+            logger.warning(f"lms load failed: {e}")
+
+    # Ollama: model is auto-loaded on first request, but we can pull if missing
+    if ":11434" in api_base and shutil.which("ollama"):
+        try:
+            result = await asyncio.to_thread(
+                subprocess.run,
+                ["ollama", "pull", model],
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if result.returncode == 0:
+                logger.info(f"Auto-pulled embedding model via ollama pull {model}")
+                return True
+            logger.warning(f"ollama pull failed: {result.stderr.strip()}")
+        except (subprocess.TimeoutExpired, OSError) as e:
+            logger.warning(f"ollama pull failed: {e}")
+
+    return False
