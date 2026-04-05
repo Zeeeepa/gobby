@@ -210,7 +210,7 @@ class ClaudeLLMProvider(LLMProvider):
         current: BaseException | None = e
         while current is not None:
             if hasattr(current, "exit_code"):
-                return current.exit_code
+                return int(current.exit_code)
             current = current.__cause__
         return None
 
@@ -371,7 +371,7 @@ class ClaudeLLMProvider(LLMProvider):
                 self.logger.warning(
                     f"Claude SDK query returned empty response for summary generation (session {sid})",
                 )
-            return summary_text
+            return str(summary_text)
         except RuntimeError as e:
             return f"Session summary generation failed: {e}"
 
@@ -888,7 +888,7 @@ class ClaudeLLMProvider(LLMProvider):
             return result_text
 
         try:
-            return await self._execute_sdk_query("describe_image", _run_query, options)
+            return str(await self._execute_sdk_query("describe_image", _run_query, options))
         except RuntimeError as e:
             return f"Image description failed: {e}"
 

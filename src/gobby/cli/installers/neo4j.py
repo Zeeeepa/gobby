@@ -153,7 +153,7 @@ def install_neo4j(
     _update_config(neo4j_url=DEFAULT_NEO4J_HTTP_URL, neo4j_auth=neo4j_auth)
     bootstrap_ok = _write_bootstrap_password(neo4j_password, home)
 
-    result: dict[str, Any] = {
+    response: dict[str, Any] = {
         "success": True,
         "neo4j_url": DEFAULT_NEO4J_HTTP_URL,
         "bolt_url": DEFAULT_NEO4J_BOLT_URL,
@@ -161,8 +161,8 @@ def install_neo4j(
         "mode": "local",
     }
     if not bootstrap_ok:
-        result["warning"] = "Neo4j is running but failed to persist password to bootstrap.yaml"
-    return result
+        response["warning"] = "Neo4j is running but failed to persist password to bootstrap.yaml"
+    return response
 
 
 def uninstall_neo4j(
