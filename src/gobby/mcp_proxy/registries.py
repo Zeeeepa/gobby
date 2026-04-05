@@ -126,7 +126,6 @@ def setup_internal_registries(
                 sync_manager=sync_manager,
                 task_validator=task_validator,
                 config=_config,
-                agent_runner=agent_runner,
                 project_id=project_id,
             )
             manager.add_registry(tasks_registry)
