@@ -497,7 +497,7 @@ class ClaudeLLMProvider(LLMProvider):
         if not self._litellm:
             raise RuntimeError("Generation unavailable (LiteLLM not initialized)")
 
-        from gobby.llm.litellm_executor import resolve_model_alias
+        from gobby.llm.litellm_utils import resolve_model_alias
 
         model = resolve_model_alias(model or "haiku")
         litellm_model = f"anthropic/{model}"
@@ -583,7 +583,7 @@ class ClaudeLLMProvider(LLMProvider):
         if not self._litellm:
             raise RuntimeError("Generation unavailable (LiteLLM not initialized)")
 
-        from gobby.llm.litellm_executor import resolve_model_alias
+        from gobby.llm.litellm_utils import resolve_model_alias
 
         model = resolve_model_alias(model or "haiku")
         litellm_model = f"anthropic/{model}"
@@ -940,7 +940,7 @@ class ClaudeLLMProvider(LLMProvider):
         context: str | None = None,
     ) -> str:
         """Describe image using LiteLLM (api_key mode)."""
-        from gobby.llm.litellm_executor import resolve_model_alias
+        from gobby.llm.litellm_utils import resolve_model_alias
 
         if not self._litellm:
             return "Image description unavailable (LiteLLM not initialized)"
