@@ -121,21 +121,12 @@ class TestKillAgent:
             id="run1",
             parent_session_id="parent1",
             child_session_id="sess1",
-            mode="interactive",
             provider="claude",
             prompt="do it",
             status="running",
             created_at="2024-01-01T00:00:00Z",
             updated_at="2024-01-01T00:00:00Z",
         )
-
-    @pytest.mark.asyncio
-    async def test_kill_autonomous_task(self, agent_run, mock_db):
-        agent_run.mode = "autonomous"
-        task = MagicMock()
-        res = await kill_agent(agent_run, mock_db, async_task=task)
-        assert res["success"] is True
-        task.cancel.assert_called_once()
 
     @pytest.mark.asyncio
     @patch("gobby.agents.kill._close_terminal_window")

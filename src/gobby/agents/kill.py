@@ -197,7 +197,7 @@ async def kill_agent(
     target_pid = run.pid
     found_via = "db"
 
-    if run.mode == "interactive" and session_id and not target_pid:
+    if session_id and not target_pid:
         # Strategy 1: Check session's terminal_context
         try:
             session_mgr = LocalSessionManager(db)

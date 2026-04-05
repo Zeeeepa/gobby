@@ -95,7 +95,6 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
         run_id: str
         session_id: str
         parent_session_id: str
-        mode: str = "interactive"
 
     @router.post("/test/register-agent")
     async def register_test_agent(request: TestAgentRegisterRequest) -> dict[str, Any]:
@@ -133,10 +132,9 @@ def register_testing_routes(router: APIRouter, server: "HTTPServer") -> None:
                 provider="test",
                 prompt="test agent",
             )
-            # Mark as running with child session and mode
+            # Mark as running with child session
             arm.start(request.run_id)
             arm.update_child_session(request.run_id, request.session_id)
-            arm.update_runtime(request.run_id, mode=request.mode)
 
             run = arm.get(request.run_id)
             response_time_ms = (time.perf_counter() - start_time) * 1000
