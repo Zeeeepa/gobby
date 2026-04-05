@@ -405,13 +405,12 @@ class TestGenerateTextNoBackend:
     """Tests for generate_text when no backend is available."""
 
     @pytest.mark.asyncio
-    async def test_no_cli_no_litellm(self, claude_config: DaemonConfig) -> None:
-        """Raises RuntimeError when no backend at all."""
+    async def test_no_cli_raises(self, claude_config: DaemonConfig) -> None:
+        """Raises RuntimeError when CLI is not available."""
         with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
             from gobby.llm.claude import ClaudeLLMProvider
 
             provider = ClaudeLLMProvider(claude_config)
-            provider._litellm = None
 
             with pytest.raises(RuntimeError, match="unavailable"):
                 await provider.generate_text("Hello")
@@ -424,13 +423,12 @@ class TestGenerateSummaryRouting:
     """Tests for generate_summary routing logic."""
 
     @pytest.mark.asyncio
-    async def test_no_backend_returns_unavailable(self, claude_config: DaemonConfig) -> None:
-        """Returns unavailable message when neither CLI nor LiteLLM is available."""
+    async def test_no_cli_returns_unavailable(self, claude_config: DaemonConfig) -> None:
+        """Returns unavailable message when CLI is not available."""
         with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
             from gobby.llm.claude import ClaudeLLMProvider
 
             provider = ClaudeLLMProvider(claude_config)
-            provider._litellm = None
 
             result = await provider.generate_summary(
                 context={},

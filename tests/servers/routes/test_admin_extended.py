@@ -59,61 +59,86 @@ class TestAdminRoutesExtended:
         return TestClient(app)
 
     def test_models_endpoint(self, client, mock_server) -> None:
-        """Test GET /models endpoint with LiteLLM discovery."""
-        mock_model_cost = {
-            "gemini-2.5-pro": {},
-            "gemini-2.5-flash": {},
-            "gemini-1.5-pro": {},  # old generation — should be excluded
-            "gpt-5.3-codex": {},
-            "gpt-4o": {},  # retired generation — should be excluded
-            "gpt-5.3-codex-20250601": {},  # dated variant — should be excluded
-            "anthropic/claude-opus-4-6": {},  # provider-scoped — should be excluded
-            "gemini-2.5-pro-image": {},  # image model — should be excluded
-            "o3-pro": {},  # o1 prefix mapped to codex but o1 is excluded by min version
-            "o4-mini": {},
-        }
-        mock_litellm = MagicMock()
-        mock_litellm.model_cost = mock_model_cost
-        with patch.dict("sys.modules", {"litellm": mock_litellm}):
+        """Test GET /models endpoint with OpenRouter registry discovery."""
+        from gobby.llm.model_registry import ModelInfo
+
+        mock_models = [
+            ModelInfo(
+                "google/gemini-2.5-pro",
+                "Google: Gemini 2.5 Pro",
+                "gemini",
+                1000000,
+                65536,
+                1.25e-6,
+                10e-6,
+            ),
+            ModelInfo(
+                "google/gemini-2.5-flash",
+                "Google: Gemini 2.5 Flash",
+                "gemini",
+                1000000,
+                65536,
+                0.15e-6,
+                0.6e-6,
+            ),
+            ModelInfo(
+                "openai/gpt-5.3-codex",
+                "OpenAI: GPT-5.3 Codex",
+                "codex",
+                128000,
+                16384,
+                2.5e-6,
+                10e-6,
+            ),
+            ModelInfo("openai/o4-mini", "OpenAI: O4 Mini", "codex", 128000, 16384, 1.1e-6, 4.4e-6),
+        ]
+        with patch("gobby.llm.model_registry.fetch_models_sync", return_value=mock_models):
             response = client.get("/api/admin/models")
 
         assert response.status_code == 200
         data = response.json()
 
-        # Gemini models returned as {value, label} dicts with (default) prepended
         assert "gemini" in data["models"]
         gemini = data["models"]["gemini"]
         gemini_values = [e["value"] for e in gemini]
         assert gemini[0] == {"value": "", "label": "(default)"}
         assert "gemini-2.5-pro" in gemini_values
         assert "gemini-2.5-flash" in gemini_values
-        assert "gemini-1.5-pro" not in gemini_values  # old generation filtered
-        assert "gemini-2.5-pro-image" not in gemini_values  # image model filtered
 
-        # Codex (gpt/o3/o4) models
         assert "codex" in data["models"]
         codex = data["models"]["codex"]
         codex_values = [e["value"] for e in codex]
         assert codex[0] == {"value": "", "label": "(default)"}
         assert "gpt-5.3-codex" in codex_values
-        assert "o3-pro" in codex_values
         assert "o4-mini" in codex_values
-        assert "gpt-4o" not in codex_values  # retired
-        assert "gpt-5.3-codex-20250601" not in codex_values  # dated variant
 
         assert data["default_model"] is not None
 
     def test_models_endpoint_provider_filter(self, client, mock_server) -> None:
         """Test GET /models?provider=gemini filters to Gemini only."""
-        mock_model_cost = {
-            "gemini-2.5-pro": {},
-            "gemini-2.5-flash": {},
-            "gpt-5.3-codex": {},
-            "o4-mini": {},
-        }
-        mock_litellm = MagicMock()
-        mock_litellm.model_cost = mock_model_cost
-        with patch.dict("sys.modules", {"litellm": mock_litellm}):
+        from gobby.llm.model_registry import ModelInfo
+
+        mock_models = [
+            ModelInfo(
+                "google/gemini-2.5-pro",
+                "Google: Gemini 2.5 Pro",
+                "gemini",
+                1000000,
+                65536,
+                1.25e-6,
+                10e-6,
+            ),
+            ModelInfo(
+                "openai/gpt-5.3-codex",
+                "OpenAI: GPT-5.3 Codex",
+                "codex",
+                128000,
+                16384,
+                2.5e-6,
+                10e-6,
+            ),
+        ]
+        with patch("gobby.llm.model_registry.fetch_models_sync", return_value=mock_models):
             response = client.get("/api/admin/models?provider=gemini")
 
         assert response.status_code == 200

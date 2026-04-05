@@ -68,7 +68,7 @@ class LLMService:
         Get or create a provider instance by name (lazy initialization).
 
         Args:
-            name: Provider name (claude, codex, gemini, litellm)
+            name: Provider name (claude, codex)
 
         Returns:
             LLMProvider instance
@@ -115,7 +115,7 @@ class LLMService:
         Get a provider by name.
 
         Args:
-            name: Provider name (claude, codex, gemini, litellm)
+            name: Provider name (claude, codex)
 
         Returns:
             LLMProvider instance

@@ -194,11 +194,11 @@ class TestMCPClientProxyConfigCustomValues:
         from gobby.config.servers import MCPClientProxyConfig
 
         config = MCPClientProxyConfig(
-            embedding_provider="litellm",
-            embedding_model="voyage-code-2",
+            embedding_provider="openai",
+            embedding_model="text-embedding-3-small",
         )
-        assert config.embedding_provider == "litellm"
-        assert config.embedding_model == "voyage-code-2"
+        assert config.embedding_provider == "openai"
+        assert config.embedding_model == "text-embedding-3-small"
 
     def test_embedding_api_base_default(self) -> None:
         """Test default embedding_api_base is Ollama."""
