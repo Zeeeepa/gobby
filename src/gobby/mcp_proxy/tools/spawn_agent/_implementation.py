@@ -438,11 +438,6 @@ async def spawn_agent_impl(
         api_base=effective_api_base,
         api_token=effective_api_token,
         sandbox_config=effective_sandbox_config,
-        # Autonomous mode fields
-        system_prompt=agent_body.instructions if agent_body else None,
-        max_turns=max_turns
-        or (agent_body.max_turns if agent_body and agent_body.max_turns else None),
-        agent_run_manager=runner.run_storage,
         timeout_seconds=effective_timeout,
     )
 
