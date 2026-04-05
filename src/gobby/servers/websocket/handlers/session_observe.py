@@ -105,7 +105,7 @@ async def handle_continue_in_chat(
                 run = arm.get_by_session(source_session_id)
                 if run:
                     logger.info(
-                        f"Killing agent {run.id} (mode={run.mode}) before resume",
+                        f"Killing agent {run.id} before resume",
                     )
                     await kill_agent(run, session_manager.db, close_terminal=True)
                     killed = True
