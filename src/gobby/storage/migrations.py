@@ -35,7 +35,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 192
+BASELINE_VERSION = 193
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v171) have been removed.
@@ -552,6 +552,14 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
             ('00000000-0000-0000-0000-000000000001', 'system', 'system', 'system',
              '00000000-0000-0000-0000-000000060887', '_system', 'active', 0,
              datetime('now'), datetime('now'));
+        """,
+    ),
+    (
+        193,
+        "Mark stale cron/pipeline sessions as deleted",
+        """
+        UPDATE sessions SET status = 'deleted', updated_at = datetime('now')
+        WHERE source IN ('cron', 'pipeline') AND status != 'deleted';
         """,
     ),
 ]
