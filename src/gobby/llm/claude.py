@@ -9,7 +9,6 @@ Supports two authentication modes:
 import asyncio
 import json
 import logging
-from collections.abc import AsyncIterator
 from typing import Any, Literal, cast
 
 from claude_agent_sdk import (
@@ -27,10 +26,7 @@ from claude_agent_sdk import (
 from gobby.config.app import DaemonConfig
 from gobby.llm.base import LLMProvider
 from gobby.llm.claude_models import (
-    ChatEvent,
-    DoneEvent,
     MCPToolResult,
-    TextChunk,
     ToolCall,
 )
 
@@ -770,44 +766,6 @@ class ClaudeLLMProvider(LLMProvider):
                 text=f"Generation failed: {e}",
                 tool_calls=tool_calls,
             )
-
-    async def stream_with_mcp_tools(
-        self,
-        prompt: str,
-        allowed_tools: list[str],
-        system_prompt: str | None = None,
-        model: str | None = None,
-        max_turns: int = 10,
-    ) -> AsyncIterator[ChatEvent]:
-        """Stream generation with MCP tools. Delegates to claude_streaming module."""
-        from gobby.llm.claude_streaming import (
-            stream_with_mcp_tools as _stream,
-        )
-
-        # MCP tools require subscription mode (Claude Agent SDK)
-        if self._auth_mode == "api_key":
-            yield TextChunk(
-                content="MCP tools require subscription mode. "
-                "Set auth_mode: subscription in llm_providers.claude config."
-            )
-            yield DoneEvent(tool_calls_count=0)
-            return
-
-        cli_path = await self._verify_cli_path()
-        if not cli_path:
-            yield TextChunk(content="Generation unavailable (Claude CLI not found)")
-            yield DoneEvent(tool_calls_count=0)
-            return
-
-        async for event in _stream(
-            cli_path=cli_path,
-            prompt=prompt,
-            allowed_tools=allowed_tools,
-            system_prompt=system_prompt,
-            model=model,
-            max_turns=max_turns,
-        ):
-            yield event
 
     async def describe_image(
         self,
