@@ -75,7 +75,7 @@ class CheckpointManager:
                 return None
             tree_sha = tree_sha.strip()
 
-            # 4. Get parent commit
+            # 5. Get parent commit
             parent_sha = self._run_git(["rev-parse", "HEAD"], cwd_str)
             if not parent_sha:
                 logger.error(f"Failed to get HEAD for checkpoint in {cwd_str}")

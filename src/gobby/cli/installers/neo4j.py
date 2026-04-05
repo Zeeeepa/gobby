@@ -39,8 +39,6 @@ def _resolve_neo4j_password(password: str | None = None) -> str:
         return bootstrap.neo4j_password
     except (OSError, ValueError, AttributeError):
         pass
-    import os
-
     return os.environ.get("GOBBY_NEO4J_PASSWORD", "gobbyneo4j")
 
 
