@@ -276,6 +276,65 @@ class TestInstallCodex:
             f"Feature flag at {flag_pos} should be before [table] at {table_pos}"
         )
 
+    def test_install_feature_flag_into_existing_features_section(
+        self,
+        mock_home: Path,
+        mock_install_dir: Path,
+        mock_shared_content,
+        mock_mcp_configure,
+    ) -> None:
+        """Test that feature flag is placed inside existing [features] section."""
+        from gobby.cli.installers.codex import install_codex
+
+        codex_dir = mock_home / ".codex"
+        codex_dir.mkdir(parents=True)
+        config_path = codex_dir / "config.toml"
+        config_path.write_text(
+            '[features]\nfast_mode = true\n\n'
+            '[mcp_servers.gobby]\ncommand = "uv"\n'
+        )
+
+        result = install_codex(mock_home)
+
+        assert result["success"] is True
+        config_content = config_path.read_text()
+        # Should be placed as bare key inside [features], not as dotted key
+        assert "codex_hooks = true" in config_content
+        # [features] section should still exist
+        assert "[features]" in config_content
+        # fast_mode preserved
+        assert "fast_mode = true" in config_content
+        # codex_hooks must be between [features] and [mcp_servers]
+        features_pos = config_content.index("[features]")
+        codex_hooks_pos = config_content.index("codex_hooks = true")
+        mcp_pos = config_content.index("[mcp_servers")
+        assert features_pos < codex_hooks_pos < mcp_pos
+
+    def test_install_replaces_flag_in_existing_features_section(
+        self,
+        mock_home: Path,
+        mock_install_dir: Path,
+        mock_shared_content,
+        mock_mcp_configure,
+    ) -> None:
+        """Test that existing codex_hooks in [features] section is updated."""
+        from gobby.cli.installers.codex import install_codex
+
+        codex_dir = mock_home / ".codex"
+        codex_dir.mkdir(parents=True)
+        config_path = codex_dir / "config.toml"
+        config_path.write_text(
+            '[features]\ncodex_hooks = false\nfast_mode = true\n'
+        )
+
+        result = install_codex(mock_home)
+
+        assert result["success"] is True
+        config_content = config_path.read_text()
+        assert "codex_hooks = true" in config_content
+        assert "codex_hooks = false" not in config_content
+        assert config_content.count("codex_hooks") == 1
+
     def test_install_merges_into_existing_hooks_json(
         self,
         mock_home: Path,

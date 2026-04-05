@@ -34,16 +34,48 @@ def _get_hooks_dir() -> Path:
 def _set_toml_value(content: str, key: str, value: str) -> str:
     """Set a top-level dotted key in TOML content (e.g., 'features.codex_hooks').
 
-    Replaces existing line if found. When appending, inserts before the first
-    [table] header to avoid the key landing inside an unrelated section.
+    Replaces existing line if found. For dotted keys like ``features.codex_hooks``,
+    also checks for the bare key inside an existing ``[features]`` section.
+    When appending, inserts into the matching section if it exists, otherwise
+    before the first ``[table]`` header to stay top-level.
     """
+    # Check for the exact dotted key first (e.g., features.codex_hooks = ...)
     pattern = re.compile(rf"(?m)^\s*{re.escape(key)}\s*=.*$")
     line = f"{key} = {value}"
 
     if pattern.search(content):
         return pattern.sub(line, content)
 
-    # Insert before first table header so the key stays top-level
+    # For dotted keys, check if a matching [section] exists with the bare subkey
+    # e.g., key="features.codex_hooks" → look for [features] with codex_hooks = ...
+    if "." in key:
+        section, subkey = key.rsplit(".", 1)
+        section_pattern = re.compile(rf"(?m)^\[{re.escape(section)}\]\s*$")
+        bare_pattern = re.compile(rf"(?m)^\s*{re.escape(subkey)}\s*=.*$")
+
+        section_match = section_pattern.search(content)
+        if section_match:
+            # Section exists — look for the bare key inside it
+            section_start = section_match.end()
+            # Find end of section (next [header] or EOF)
+            next_section = re.search(r"(?m)^\[", content[section_start:])
+            section_end = section_start + next_section.start() if next_section else len(content)
+            section_body = content[section_start:section_end]
+
+            bare_match = bare_pattern.search(section_body)
+            if bare_match:
+                # Replace existing bare key in section
+                abs_start = section_start + bare_match.start()
+                abs_end = section_start + bare_match.end()
+                return content[:abs_start] + f"{subkey} = {value}" + content[abs_end:]
+            # Insert bare key at end of section
+            insert_pos = section_end
+            insert_line = f"{subkey} = {value}\n"
+            before = content[:insert_pos].rstrip()
+            after = content[insert_pos:]
+            return before + "\n" + insert_line + after
+
+    # No matching section — insert before first table header to stay top-level
     table_match = re.search(r"(?m)^\[", content)
     if table_match:
         insert_pos = table_match.start()
