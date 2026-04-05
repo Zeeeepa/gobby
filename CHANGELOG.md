@@ -8,6 +8,48 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.4]
+
+### Features
+
+- Bootstrap static system session for pipelines and cron (#11291)
+- Add block-reopen-task rule to prevent agents from unclaiming tasks (#11303)
+
+### Refactors
+
+#### Remove Agent Mode System
+
+Agents now always spawn via tmux — the `mode` concept (autonomous, interactive, in_process) has been fully removed across models, interfaces, web UI, YAML templates, and the database.
+
+- Kill AutonomousRunner and simplify spawn dispatch (#11296)
+- Remove mode from data models (#11297)
+- Remove mode from all interfaces (#11298)
+- Remove mode from web UI (#11299)
+- Drop mode column from agent_runs table with migration (#11300)
+- Remove mode from YAML templates and delete deprecated definitions (#11301)
+
+#### Remove Dead Code
+
+- Remove executor layer — all executor files, ExecutorRegistry, dead AgentRunner methods (#11287)
+- Remove in_process spawn mode (#11288)
+- Remove streaming code — claude_streaming.py and stream_with_mcp_tools (#11289)
+- Remove dead run_fix_attempt and validate_and_fix MCP tools (#11286)
+- Remove stale validate_and_fix/run_fix_attempt from stdio tool list (#11290)
+- Extract _execute_sdk_query helper for consistent SDK error diagnostics (#11283)
+
+### Fixes
+
+- 12 CodeRabbit findings — markdown formatting, doc accuracy, code robustness (#11285)
+- Resolve mypy type errors in neo4j.py and claude.py (#11294)
+- Use PRAGMA foreign_keys=OFF for agent_runs migration (#11300)
+- Make migration 194 idempotent — DROP IF EXISTS before CREATE (#11300)
+- Clean up remaining mode references caught by mypy/pytest (#11304)
+
+### Chores
+
+- Clean up stale cron/pipeline sessions and hide from UI (#11292, #11293)
+- Add gsqz pipeline config and update lockfile
+
 ## [0.3.2]
 
 ### Features
