@@ -441,48 +441,6 @@ class TestAgentsSpawnCommand:
     @patch("gobby.cli.agents.resolve_session_id")
     @patch("gobby.cli.agents.httpx.post")
     @patch("gobby.cli.agents.get_daemon_url")
-    def test_spawn_in_process_mode_with_output(
-        self,
-        mock_get_url: MagicMock,
-        mock_post: MagicMock,
-        mock_resolve_session: MagicMock,
-        runner: CliRunner,
-    ) -> None:
-        """Test spawn in in_process mode shows output."""
-        mock_get_url.return_value = "http://localhost:60887"
-        mock_resolve_session.return_value = "sess-parent"
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "success": True,
-            "run_id": "ar-inproc123",
-            "child_session_id": "sess-inproc",
-            "status": "success",
-            "output": "Task completed: Feature X implemented successfully.",
-        }
-        mock_response.raise_for_status = MagicMock()
-        mock_post.return_value = mock_response
-
-        result = runner.invoke(
-            cli,
-            [
-                "agents",
-                "spawn",
-                "Implement feature",
-                "--session",
-                "sess-parent",
-                "--mode",
-                "in_process",
-            ],
-        )
-
-        assert result.exit_code == 0
-        assert "Started agent run" in result.output
-        assert "Output:" in result.output
-        assert "Feature X implemented successfully" in result.output
-
-    @patch("gobby.cli.agents.resolve_session_id")
-    @patch("gobby.cli.agents.httpx.post")
-    @patch("gobby.cli.agents.get_daemon_url")
     def test_start_generic_exception(
         self,
         mock_get_url: MagicMock,

@@ -130,8 +130,8 @@ class TestKillAgent:
         )
 
     @pytest.mark.asyncio
-    async def test_kill_in_process_task(self, agent_run, mock_db):
-        agent_run.mode = "in_process"
+    async def test_kill_autonomous_task(self, agent_run, mock_db):
+        agent_run.mode = "autonomous"
         task = MagicMock()
         res = await kill_agent(agent_run, mock_db, async_task=task)
         assert res["success"] is True

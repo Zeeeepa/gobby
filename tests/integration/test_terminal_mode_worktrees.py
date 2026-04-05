@@ -350,7 +350,6 @@ class TestSpawnModeEnum:
         """Test SpawnMode enum values."""
         assert SpawnMode.INTERACTIVE.value == "interactive"
         assert SpawnMode.AUTONOMOUS.value == "autonomous"
-        assert SpawnMode.IN_PROCESS.value == "in_process"
 
     def test_spawn_mode_from_string(self) -> None:
         """Test creating SpawnMode from string."""

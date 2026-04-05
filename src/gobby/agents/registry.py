@@ -59,7 +59,7 @@ class RunningAgent:
     """Parent session that spawned this agent."""
 
     mode: str
-    """Execution mode: in_process, interactive, autonomous."""
+    """Execution mode: interactive, autonomous."""
 
     started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     """When the agent started running."""
@@ -109,9 +109,9 @@ class RunningAgent:
     last_stall_check_at: float | None = None
     """Monotonic timestamp of the last stall check."""
 
-    # In-process agent tracking
+    # Autonomous agent tracking
     task: Any | None = None
-    """Async task object for in-process agents (asyncio.Task)."""
+    """Async task object for autonomous agents (asyncio.Task)."""
 
     monitor_task: Any | None = None
     """Background monitoring task for autonomous agents (asyncio.Task)."""
@@ -467,7 +467,6 @@ class RunningAgentRegistry:
         Strategy varies by mode:
         - autonomous: Cancel asyncio task
         - terminal: Check terminal_context for PID, fallback to pgrep
-        - in_process: Cancel asyncio task
 
         Args:
             run_id: Agent run ID
@@ -490,11 +489,11 @@ class RunningAgentRegistry:
                 "message": f"Agent {run_id} not in registry (already exited)",
             }
 
-        # Handle in_process/autonomous mode (asyncio.Task)
-        if agent.mode in ("in_process", "autonomous") and agent.task:
+        # Handle autonomous mode (asyncio.Task)
+        if agent.mode == "autonomous" and agent.task:
             agent.task.cancel()
             self.remove(run_id, status="cancelled")
-            return {"success": True, "message": "Cancelled in-process task"}
+            return {"success": True, "message": "Cancelled autonomous task"}
 
         # For terminal mode with close_terminal=True, try terminal-specific close methods
         if close_terminal and agent.mode == "interactive" and agent.session_id:
@@ -732,7 +731,7 @@ class RunningAgentRegistry:
         List all running agents by execution mode.
 
         Args:
-            mode: Execution mode (in_process, terminal, autonomous).
+            mode: Execution mode (interactive, autonomous).
 
         Returns:
             List of running agents with this mode.

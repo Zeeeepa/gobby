@@ -535,6 +535,13 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         CREATE INDEX idx_checkpoints_run ON checkpoints(run_id);
         """,
     ),
+    (
+        191,
+        "Migrate in_process agent mode to autonomous",
+        """
+        UPDATE agent_runs SET mode = 'autonomous' WHERE mode = 'in_process';
+        """,
+    ),
 ]
 
 
