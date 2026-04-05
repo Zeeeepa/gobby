@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -102,9 +102,8 @@ async def test_execute_agent_spawn_no_runner(
 async def test_execute_agent_spawn_with_mock_runner(
     cron_storage: CronJobStorage,
 ) -> None:
-    """agent_spawn delegates to agent_runner.spawn_headless."""
+    """agent_spawn delegates to spawn_agent_impl and reports success."""
     mock_runner = MagicMock()
-    mock_runner.spawn_headless = AsyncMock(return_value={"output": "Agent said hello"})
     executor = CronExecutor(storage=cron_storage, agent_runner=mock_runner)
 
     job = _make_job(
@@ -114,10 +113,17 @@ async def test_execute_agent_spawn_with_mock_runner(
     )
     run = cron_storage.create_run(job.id)
 
-    result = await executor.execute(job, run)
+    mock_result = {"success": True, "run_id": "run-abc123"}
+    with patch(
+        "gobby.mcp_proxy.tools.spawn_agent._implementation.spawn_agent_impl",
+        new_callable=AsyncMock,
+        return_value=mock_result,
+    ) as mock_spawn:
+        result = await executor.execute(job, run)
+
     assert result.status == "completed"
-    assert "Agent said hello" in (result.output or "")
-    mock_runner.spawn_headless.assert_called_once()
+    assert "run_id=run-abc123" in (result.output or "")
+    mock_spawn.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -256,9 +262,8 @@ async def test_execute_handler_error_propagates(
 async def test_execute_agent_spawn_with_agent_definition(
     cron_storage: CronJobStorage,
 ) -> None:
-    """agent_spawn with agent_definition prepends preamble to prompt."""
+    """agent_spawn with agent_definition prepends preamble to prompt and uses its provider."""
     mock_runner = MagicMock()
-    mock_runner.spawn_headless = AsyncMock(return_value={"output": "Done"})
     executor = CronExecutor(storage=cron_storage, agent_runner=mock_runner)
 
     job = _make_job(
@@ -276,24 +281,24 @@ async def test_execute_agent_spawn_with_agent_definition(
     mock_body.build_prompt_preamble.return_value = "## Role\nYou are a developer"
     mock_body.provider = "gemini"
 
-    with __import__("unittest.mock", fromlist=["patch"]).patch(
+    mock_result = {"success": True, "run_id": "run-def456"}
+    with patch(
         "gobby.workflows.agent_resolver.resolve_agent", return_value=mock_body
-    ):
+    ), patch(
+        "gobby.mcp_proxy.tools.spawn_agent._implementation.spawn_agent_impl",
+        new_callable=AsyncMock,
+        return_value=mock_result,
+    ) as mock_spawn:
         result = await executor.execute(job, run)
 
     assert result.status == "completed"
-    call_kwargs = mock_runner.spawn_headless.call_args
-    prompt = call_kwargs.kwargs.get("prompt") or call_kwargs[1].get("prompt", "")
-    if not prompt:
-        prompt = call_kwargs[0][0] if call_kwargs[0] else ""
-    # Check preamble was prepended
+    call_kwargs = mock_spawn.call_args
+    # Check preamble was prepended to prompt
+    prompt = call_kwargs.kwargs.get("prompt", "")
     assert "## Role" in prompt
     assert "Fix the bug" in prompt
     # Provider from agent definition should be used (no explicit provider in config)
-    provider = call_kwargs.kwargs.get("provider") or call_kwargs[1].get("provider", "")
-    if not provider:
-        provider = call_kwargs[0][2] if len(call_kwargs[0]) > 2 else ""
-    assert provider == "gemini"
+    assert call_kwargs.kwargs.get("provider") == "gemini"
 
 
 @pytest.mark.asyncio
@@ -302,7 +307,6 @@ async def test_execute_agent_spawn_agent_definition_not_found(
 ) -> None:
     """agent_spawn continues without preamble if agent_definition not found."""
     mock_runner = MagicMock()
-    mock_runner.spawn_headless = AsyncMock(return_value={"output": "Done"})
     executor = CronExecutor(storage=cron_storage, agent_runner=mock_runner)
 
     job = _make_job(
@@ -315,15 +319,17 @@ async def test_execute_agent_spawn_agent_definition_not_found(
     )
     run = cron_storage.create_run(job.id)
 
-    with __import__("unittest.mock", fromlist=["patch"]).patch(
+    mock_result = {"success": True, "run_id": "run-ghi789"}
+    with patch(
         "gobby.workflows.agent_resolver.resolve_agent", return_value=None
-    ):
+    ), patch(
+        "gobby.mcp_proxy.tools.spawn_agent._implementation.spawn_agent_impl",
+        new_callable=AsyncMock,
+        return_value=mock_result,
+    ) as mock_spawn:
         result = await executor.execute(job, run)
 
     assert result.status == "completed"
     # Prompt should be unchanged (no preamble)
-    call_kwargs = mock_runner.spawn_headless.call_args
-    prompt = call_kwargs.kwargs.get("prompt") or call_kwargs[1].get("prompt", "")
-    if not prompt:
-        prompt = call_kwargs[0][0] if call_kwargs[0] else ""
-    assert prompt == "Do stuff"
+    call_kwargs = mock_spawn.call_args
+    assert call_kwargs.kwargs.get("prompt") == "Do stuff"
