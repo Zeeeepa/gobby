@@ -37,7 +37,6 @@ steps:
         provider: "${{ inputs.provider }}"
         model: "${{ inputs.model }}"
         parent_session_id: "${{ session_id }}"
-        mode: interactive
 
 outputs:
   run_id: "${{ steps.spawn_merge.output.run_id }}"

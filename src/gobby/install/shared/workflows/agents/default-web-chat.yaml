@@ -1,6 +1,5 @@
 name: default-web-chat
 description: Web chat agent — baseline with canvas UI rendering
-mode: inherit
 sources: [claude_sdk_web_chat]
 
 role: >
