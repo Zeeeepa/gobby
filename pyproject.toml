@@ -25,7 +25,6 @@ dependencies = [
     # fastmcp <3.2.0 has CVE-2025-64340, CVE-2026-27124
     "fastmcp>=3.2.0",
     "httpx>=0.27.0",
-    "litellm>=1.83.0",
     "psutil>=6.1.0",
     "py-machineid>=0.6.0",
     "pydantic>=2.9.0",
@@ -78,8 +77,6 @@ dependencies = [
     "opentelemetry-instrumentation-openai>=0.34.0",
     "opentelemetry-instrumentation-google-genai>=0.1b0",
     "requests>=2.33.0",
-    # llama-cpp-python for local embeddings (nomic-embed-text-v1.5 GGUF)
-    "llama-cpp-python>=0.3.0",
 ]
 
 [project.optional-dependencies]
@@ -151,9 +148,7 @@ filterwarnings = [
     "ignore:unclosed database:ResourceWarning",
     # Ignore fork() deprecation warning from embedded spawner tests (expected on macOS)
     "ignore:This process.*is multi-threaded.*use of fork:DeprecationWarning",
-    # Ignore third-party deprecation warnings (litellm, google-genai, oletools)
-    "ignore::DeprecationWarning:litellm",
-    "ignore::DeprecationWarning:litellm.*",
+    # Ignore third-party deprecation warnings (google-genai, oletools)
     "ignore::DeprecationWarning:google.genai",
     "ignore::DeprecationWarning:google.genai.*",
     "ignore::DeprecationWarning:oletools",
