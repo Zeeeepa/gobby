@@ -339,12 +339,12 @@ class TestSourceTaxonomy:
         assert len(project) == 1
         assert project[0].name == "proj"
 
-    def test_count_skills_with_source(self, storage: LocalSkillManager) -> None:
+    def test_count_skills_with_source(self, storage: LocalSkillManager, project_id: str) -> None:
         """count_skills respects source filter."""
         storage.create_skill(name="inst", description="I", content="#")
         storage.create_skill(name="inst2", description="I2", content="#2")
-        storage.create_skill(name="proj", description="P", content="#p", source="project")
+        storage.create_skill(name="proj", description="P", content="#p", project_id=project_id)
 
         assert storage.count_skills(source="installed") == 2
-        assert storage.count_skills(source="project") == 1
-        assert storage.count_skills() == 3
+        assert storage.count_skills(source="project", project_id=project_id) == 1
+        assert storage.count_skills(project_id=project_id) == 3

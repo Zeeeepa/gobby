@@ -328,8 +328,7 @@ export function useVoice(
       } catch { /* noop */ }
       audioQueueRef.current = []
       try {
-        audioContextRef.current?.close()
-        audioContextRef.current = null
+        audioContextRef.current?.suspend()
       } catch { /* noop */ }
       if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
     }
