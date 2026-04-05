@@ -31,7 +31,6 @@ instructions: |
   - Use progressive discovery: list_mcp_servers → list_tools → get_tool_schema → call_tool.
 
 provider: claude
-mode: autonomous
 isolation: clone
 
 workflows:
