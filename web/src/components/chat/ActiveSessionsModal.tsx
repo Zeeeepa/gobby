@@ -138,11 +138,6 @@ function AgentCard({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-foreground">{agent.provider}</span>
-          {agent.mode && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-              {agent.mode}
-            </span>
-          )}
         </div>
         <div className="text-xs text-muted-foreground mt-0.5">
           Started {uptime}

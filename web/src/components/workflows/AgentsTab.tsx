@@ -74,11 +74,6 @@ const PROVIDER_COLORS: Record<string, string> = {
   copilot: '#f97316',
 }
 
-const MODE_COLORS: Record<string, string> = {
-  interactive: '#f59e0b',
-  headless: '#6b7280',
-  embedded: '#06b6d4',
-}
 
 const ISOLATION_COLORS: Record<string, string> = {
   clone: '#ef4444',
@@ -875,12 +870,6 @@ export function AgentsTab({ searchText, sourceFilter, devMode, showCreateForm, o
                         style={{ background: PROVIDER_COLORS[d.provider] || '#666' }}
                       >
                         {d.provider}
-                      </span>
-                      <span
-                        className="agent-def-badge agent-def-badge--filled"
-                        style={{ background: MODE_COLORS[d.mode] || '#666' }}
-                      >
-                        {d.mode}
                       </span>
                       {d.isolation && (
                         <span
