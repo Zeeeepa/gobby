@@ -35,7 +35,6 @@ class TestRunningAgentRegistryKill:
             run_id="ar-autonomous",
             session_id="sess",
             parent_session_id="parent",
-            mode="autonomous",
             pid=12345,
         )
         registry.add(agent)
@@ -66,7 +65,6 @@ class TestRunningAgentRegistryKill:
             run_id="ar-no-pid",
             session_id="sess",
             parent_session_id="parent",
-            mode="autonomous",
             pid=None,
         )
         registry.add(agent)
@@ -83,7 +81,6 @@ class TestRunningAgentRegistryKill:
             run_id="ar-dead",
             session_id="sess",
             parent_session_id="parent",
-            mode="autonomous",
             pid=12345,
         )
         registry.add(agent)
@@ -95,32 +92,12 @@ class TestRunningAgentRegistryKill:
         assert registry.get("ar-dead") is None
 
     @pytest.mark.asyncio
-    async def test_kill_autonomous(self, registry):
-        """Kill cancels autonomous task."""
-        mock_task = MagicMock()
-        agent = RunningAgent(
-            run_id="ar-process",
-            session_id="sess",
-            parent_session_id="parent",
-            mode="autonomous",
-            task=mock_task,
-        )
-        registry.add(agent)
-
-        result = await registry.kill("ar-process")
-
-        assert result["success"] is True
-        mock_task.cancel.assert_called_once()
-        assert registry.get("ar-process") is None
-
-    @pytest.mark.asyncio
     async def test_kill_terminal_pgrep_fallback(self, registry, mock_os_kill, mock_subprocess):
         """Kill terminal agent falls back to pgrep if no PID."""
         agent = RunningAgent(
             run_id="ar-term",
             session_id="sess-term",
             parent_session_id="parent",
-            mode="interactive",
             pid=None,
         )
         registry.add(agent)
@@ -146,7 +123,6 @@ class TestRunningAgentRegistryKill:
             run_id="ar-has-pid",
             session_id="sess-has-pid",
             parent_session_id="parent",
-            mode="interactive",
             pid=54321,
         )
         registry.add(agent)
@@ -171,7 +147,6 @@ class TestRunningAgentRegistryKill:
             run_id="ar-multi",
             session_id="sess-multi",
             parent_session_id="parent",
-            mode="interactive",
             pid=None,
             provider="claude",
         )
@@ -216,7 +191,6 @@ class TestRunningAgentRegistryCloseTerminal:
             run_id="ar-tmux",
             session_id="sess-tmux",
             parent_session_id="parent",
-            mode="interactive",
         )
 
         # Mock session context retrieval

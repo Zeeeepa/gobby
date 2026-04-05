@@ -87,7 +87,6 @@ class TestAgentConfig:
         assert config.workflow is None
         assert config.task is None
         assert config.session_context == "summary_markdown"
-        assert config.mode == "interactive"
         assert config.worktree_id is None
         assert config.provider == "claude"
         assert config.model is None
@@ -147,7 +146,6 @@ class TestRunningAgent:
             run_id="run-123",
             session_id="sess-child",
             parent_session_id="sess-parent",
-            mode="interactive",
             provider="claude",
             workflow_name="plan-execute",
             worktree_id="wt-abc",
@@ -162,7 +160,6 @@ class TestRunningAgent:
         assert agent.provider == "claude"
         assert agent.workflow_name == "plan-execute"
         assert agent.worktree_id == "wt-abc"
-        assert agent.mode == "interactive"
         assert agent.pid == 12345
         assert agent.terminal_type == "ghostty"
         assert agent.master_fd == 5
@@ -173,7 +170,6 @@ class TestRunningAgent:
             run_id="run-1",
             session_id="sess-c",
             parent_session_id="sess-p",
-            mode="interactive",
         )
 
         assert agent.workflow_name is None
@@ -190,7 +186,6 @@ class TestRunningAgent:
             run_id="run-abc",
             session_id="sess-c",
             parent_session_id="sess-p",
-            mode="autonomous",
             provider="claude",
         )
 
@@ -200,7 +195,6 @@ class TestRunningAgent:
         assert result["parent_session_id"] == "sess-p"
         assert result["session_id"] == "sess-c"
         assert result["provider"] == "claude"
-        assert result["mode"] == "autonomous"
         assert "started_at" in result
 
 

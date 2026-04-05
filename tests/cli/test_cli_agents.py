@@ -276,8 +276,6 @@ class TestAgentsSpawnCommand:
                 "plan-execute",
                 "--task",
                 "gt-task123",
-                "--mode",
-                "interactive",
                 "--terminal",
                 "iterm",
                 "--provider",
@@ -303,7 +301,6 @@ class TestAgentsSpawnCommand:
         assert call_args[1]["json"]["parent_session_id"] == "sess-parent123"
         assert call_args[1]["json"]["workflow"] == "plan-execute"
         assert call_args[1]["json"]["task"] == "gt-task123"
-        assert call_args[1]["json"]["mode"] == "interactive"
         assert call_args[1]["json"]["terminal"] == "iterm"
         assert call_args[1]["json"]["provider"] == "claude"
         assert call_args[1]["json"]["model"] == "claude-3-opus"
@@ -460,24 +457,6 @@ class TestAgentsSpawnCommand:
 
         assert result.exit_code == 0
         assert "Error: Unexpected error" in result.output
-
-    def test_start_mode_choices(self, runner: CliRunner) -> None:
-        """Test start mode option validates choices."""
-        result = runner.invoke(
-            cli,
-            [
-                "agents",
-                "spawn",
-                "Test",
-                "--session",
-                "sess",
-                "--mode",
-                "invalid_mode",
-            ],
-        )
-
-        assert result.exit_code == 2
-        assert "Invalid value" in result.output or "invalid_mode" in result.output
 
     def test_start_terminal_choices(self, runner: CliRunner) -> None:
         """Test start terminal option validates choices."""

@@ -82,7 +82,7 @@ class TestSpawnAgent:
         ):
             response = client.post(
                 "/api/agents/spawn",
-                json={"task_id": "nonexistent-id", "mode": "interactive"},
+                json={"task_id": "nonexistent-id"},
             )
         assert response.status_code == 400
 
@@ -97,12 +97,11 @@ class TestSpawnAgent:
         ):
             response = client.post(
                 "/api/agents/spawn",
-                json={"task_id": task.id, "mode": "web_chat"},
+                json={"task_id": task.id, "web_chat": True},
             )
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
-        assert data["mode"] == "web_chat"
         assert "conversation_id" in data
 
     def test_spawn_terminal_no_runner(
@@ -116,7 +115,7 @@ class TestSpawnAgent:
         ):
             response = client.post(
                 "/api/agents/spawn",
-                json={"task_id": task.id, "mode": "interactive"},
+                json={"task_id": task.id},
             )
         assert response.status_code == 400
         data = response.json()
@@ -133,7 +132,7 @@ class TestSpawnAgent:
         ):
             response = client.post(
                 "/api/agents/spawn",
-                json={"task_id": task.id, "mode": "web_chat"},
+                json={"task_id": task.id, "web_chat": True},
             )
         assert response.status_code == 200
 
@@ -154,7 +153,7 @@ class TestBatchSpawn:
 
     def test_batch_too_many(self, client: TestClient) -> None:
         """More than 20 spawns returns 400."""
-        spawns = [{"task_id": f"task-{i}", "mode": "web_chat"} for i in range(21)]
+        spawns = [{"task_id": f"task-{i}", "web_chat": True} for i in range(21)]
         response = client.post("/api/agents/spawn/batch", json={"spawns": spawns})
         assert response.status_code == 400
 
@@ -173,8 +172,8 @@ class TestBatchSpawn:
                 "/api/agents/spawn/batch",
                 json={
                     "spawns": [
-                        {"task_id": t1.id, "mode": "web_chat"},
-                        {"task_id": t2.id, "mode": "web_chat"},
+                        {"task_id": t1.id, "web_chat": True},
+                        {"task_id": t2.id, "web_chat": True},
                     ]
                 },
             )
@@ -198,8 +197,8 @@ class TestBatchSpawn:
                 "/api/agents/spawn/batch",
                 json={
                     "spawns": [
-                        {"task_id": t1.id, "mode": "web_chat"},
-                        {"task_id": "nonexistent", "mode": "web_chat"},
+                        {"task_id": t1.id, "web_chat": True},
+                        {"task_id": "nonexistent", "web_chat": True},
                     ]
                 },
             )
@@ -233,7 +232,6 @@ class TestLaunchDefaults:
                 "project_id": "proj-1",
                 "category": "code",
                 "agent_name": "developer",
-                "mode": "interactive",
                 "isolation": "worktree",
                 "model": "sonnet",
             },
@@ -248,7 +246,6 @@ class TestLaunchDefaults:
         assert "code" in data["defaults"]
         code_defaults = data["defaults"]["code"]
         assert code_defaults["agent_name"] == "developer"
-        assert code_defaults["mode"] == "interactive"
         assert code_defaults["isolation"] == "worktree"
         assert code_defaults["model"] == "sonnet"
 
@@ -261,7 +258,6 @@ class TestLaunchDefaults:
                     "project_id": "proj-2",
                     "category": cat,
                     "agent_name": agent,
-                    "mode": "interactive",
                     "isolation": "none",
                 },
             )
