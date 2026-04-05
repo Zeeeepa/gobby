@@ -12,11 +12,11 @@ OpenAI-compatible endpoint: OpenAI cloud, Ollama, LM Studio, etc.
 Example usage:
     from gobby.search.embeddings import generate_embeddings, is_embedding_available
 
-    if is_embedding_available("nomic-embed-text", api_base="http://localhost:11434/v1"):
+    if is_embedding_available("nomic-embed-text", api_base="http://localhost:1234/v1"):
         embeddings = await generate_embeddings(
             texts=["hello world", "foo bar"],
             model="nomic-embed-text",
-            api_base="http://localhost:11434/v1",
+            api_base="http://localhost:1234/v1",
         )
 """
 
@@ -38,7 +38,7 @@ _DEFAULT_MAX_DELAY = 60.0  # seconds
 async def generate_embeddings(
     texts: list[str],
     model: str = "nomic-embed-text",
-    api_base: str | None = "http://localhost:11434/v1",
+    api_base: str | None = None,
     api_key: str | None = None,
     max_retries: int = _DEFAULT_MAX_RETRIES,
     base_delay: float = _DEFAULT_BASE_DELAY,
@@ -53,7 +53,7 @@ async def generate_embeddings(
     Args:
         texts: List of texts to embed
         model: Model name (e.g., "nomic-embed-text", "text-embedding-3-small")
-        api_base: API base URL (e.g., "http://localhost:11434/v1" for Ollama)
+        api_base: API base URL for OpenAI-compatible endpoint (e.g., "http://localhost:1234/v1" for LM Studio)
         api_key: Optional API key (uses env var OPENAI_API_KEY if not set)
         max_retries: Maximum retry attempts for rate limit errors (default: 5)
         base_delay: Initial backoff delay in seconds (default: 1.0)
@@ -110,7 +110,7 @@ async def generate_embeddings(
 async def generate_embedding(
     text: str,
     model: str = "nomic-embed-text",
-    api_base: str | None = "http://localhost:11434/v1",
+    api_base: str | None = None,
     api_key: str | None = None,
     max_retries: int = _DEFAULT_MAX_RETRIES,
     base_delay: float = _DEFAULT_BASE_DELAY,
@@ -155,11 +155,11 @@ async def generate_embedding(
 def is_embedding_available(
     model: str = "nomic-embed-text",
     api_key: str | None = None,
-    api_base: str | None = "http://localhost:11434/v1",
+    api_base: str | None = None,
 ) -> bool:
     """Check if embedding is available for the given model.
 
-    If api_base is set (Ollama, LM Studio, custom endpoints), assumes available.
+    If api_base is set (LM Studio, Ollama, custom endpoints), assumes available.
     Otherwise, requires an API key.
 
     Args:
