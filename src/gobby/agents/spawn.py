@@ -20,7 +20,6 @@ from gobby.agents.constants import get_terminal_env_vars
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
 from gobby.agents.spawners import (
     MAX_ENV_PROMPT_LENGTH,
-    SpawnMode,
     SpawnResult,
     TerminalSpawnerBase,
     build_cli_command,
@@ -35,8 +34,6 @@ from gobby.agents.tmux.spawner import TmuxSpawner
 TerminalSpawner = TmuxSpawner
 
 __all__ = [
-    # Enums
-    "SpawnMode",
     # Result dataclasses
     "SpawnResult",
     # Base class

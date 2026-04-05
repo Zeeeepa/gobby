@@ -24,7 +24,6 @@ class TestSpawnRequest:
         request = SpawnRequest(
             prompt="Test prompt",
             cwd="/path/to/project",
-            mode="interactive",
             provider="claude",
             session_id="session-123",
             run_id="run-456",
@@ -34,7 +33,6 @@ class TestSpawnRequest:
 
         assert request.prompt == "Test prompt"
         assert request.cwd == "/path/to/project"
-        assert request.mode == "interactive"
         assert request.provider == "claude"
         assert request.session_id == "session-123"
         assert request.run_id == "run-456"
@@ -46,7 +44,6 @@ class TestSpawnRequest:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -65,7 +62,6 @@ class TestSpawnRequest:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -83,7 +79,6 @@ class TestSpawnRequest:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -105,7 +100,6 @@ class TestSpawnRequest:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -121,7 +115,6 @@ class TestSpawnRequest:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -180,7 +173,6 @@ class TestSpawnResult:
 
         assert result.pid is None
         assert result.terminal_type is None
-        assert result.master_fd is None
         assert result.error is None
         assert result.message is None
 
@@ -195,7 +187,6 @@ class TestExecuteSpawn:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -237,32 +228,12 @@ class TestExecuteSpawn:
             assert result.child_session_id == "child-session-id"
 
     @pytest.mark.asyncio
-    async def test_autonomous_mode_requires_session_manager(self):
-        """Test that autonomous mode requires session_manager."""
-        request = SpawnRequest(
-            prompt="Test",
-            cwd="/path",
-            mode="autonomous",
-            provider="claude",
-            session_id="sess",
-            run_id="run",
-            parent_session_id="parent",
-            project_id="proj",
-        )
-
-        result = await execute_spawn(request)
-
-        assert result.success is False
-        assert "session_manager is required" in result.error
-
-    @pytest.mark.asyncio
     async def test_spawn_failure_propagates_error(self):
         """Test that spawn failure returns error in result."""
         mock_session_manager = MagicMock()
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -306,7 +277,6 @@ class TestExecuteSpawn:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -357,7 +327,6 @@ class TestExecuteSpawn:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="interactive",
             provider="gemini",
             session_id="sess",
             run_id="run",
@@ -413,7 +382,6 @@ class TestExecuteSpawn:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="interactive",
             provider="codex",
             session_id="sess",
             run_id="run",
@@ -461,7 +429,6 @@ class TestExecuteSpawn:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -481,7 +448,6 @@ class TestExecuteSpawn:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="interactive",
             provider="gemini",
             session_id="sess",
             run_id="run",
@@ -502,7 +468,6 @@ class TestExecuteSpawn:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="interactive",
             provider="gemini",
             session_id="sess",
             run_id="run",
@@ -557,7 +522,6 @@ class TestExecuteSpawnSandbox:
         request = SpawnRequest(
             prompt="Test with sandbox",
             cwd="/path",
-            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -621,7 +585,6 @@ class TestExecuteSpawnSandbox:
         request = SpawnRequest(
             prompt="Test without sandbox",
             cwd="/path",
-            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -663,26 +626,6 @@ class TestExecuteSpawnSandbox:
             assert result.success is True
 
     @pytest.mark.asyncio
-    async def test_autonomous_spawn_without_session_manager_and_sandbox(self) -> None:
-        """Test that autonomous mode without session_manager fails even with sandbox."""
-        sandbox_config = SandboxConfig(enabled=True, mode="restrictive")
-        request = SpawnRequest(
-            prompt="Test",
-            cwd="/path",
-            mode="autonomous",
-            provider="claude",
-            session_id="sess",
-            run_id="run",
-            parent_session_id="parent",
-            project_id="proj",
-            sandbox_config=sandbox_config,
-        )
-
-        result = await execute_spawn(request)
-        assert result.success is False
-        assert "session_manager is required" in result.error
-
-    @pytest.mark.asyncio
     async def test_sandbox_disabled_explicitly_passed(self) -> None:
         """Test that explicitly disabled sandbox doesn't add sandbox env vars."""
         sandbox_config = SandboxConfig(enabled=False)
@@ -690,7 +633,6 @@ class TestExecuteSpawnSandbox:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -739,7 +681,6 @@ class TestExecuteSpawnSandbox:
         request = SpawnRequest(
             prompt="Test with sandbox",
             cwd="/path",
-            mode="interactive",
             provider="gemini",
             session_id="sess",
             run_id="run",
@@ -797,32 +738,11 @@ class TestExecuteSpawnErrorPaths:
     """Tests for spawn execution error paths and edge cases."""
 
     @pytest.mark.asyncio
-    async def test_unknown_mode_returns_error(self) -> None:
-        """Test that an unknown spawn mode returns an error result."""
-        request = SpawnRequest(
-            prompt="Test",
-            cwd="/path",
-            mode="self",
-            provider="claude",
-            session_id="sess",
-            run_id="run",
-            parent_session_id="parent",
-            project_id="proj",
-        )
-
-        result = await execute_spawn(request)
-
-        assert result.success is False
-        assert result.status == "failed"
-        assert "Unknown spawn mode" in (result.error or "")
-
-    @pytest.mark.asyncio
     async def test_codex_terminal_requires_session_manager(self) -> None:
         """Test that Codex terminal spawn requires session_manager."""
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="interactive",
             provider="codex",
             session_id="sess",
             run_id="run",
@@ -843,7 +763,6 @@ class TestExecuteSpawnErrorPaths:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="interactive",
             provider="codex",
             session_id="sess",
             run_id="run",
@@ -868,7 +787,6 @@ class TestExecuteSpawnErrorPaths:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="interactive",
             provider="codex",
             session_id="sess",
             run_id="run",
@@ -893,7 +811,6 @@ class TestExecuteSpawnErrorPaths:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="interactive",
             provider="codex",
             session_id="sess",
             run_id="run",
@@ -936,125 +853,12 @@ class TestExecuteSpawnErrorPaths:
         assert "tmux failed" in (result.error or "")
 
     @pytest.mark.asyncio
-    async def test_codex_autonomous_requires_session_manager(self) -> None:
-        """Test that Codex autonomous spawn requires session_manager."""
-        request = SpawnRequest(
-            prompt="Test",
-            cwd="/path",
-            mode="autonomous",
-            provider="codex",
-            session_id="sess",
-            run_id="run",
-            parent_session_id="parent",
-            project_id="proj",
-            # No session_manager
-        )
-
-        result = await execute_spawn(request)
-
-        assert result.success is False
-        assert "session_manager is required" in (result.error or "")
-
-    @pytest.mark.asyncio
-    async def test_codex_autonomous_success(self) -> None:
-        """Test Codex autonomous spawn creates background task."""
-        mock_session_manager = MagicMock()
-        request = SpawnRequest(
-            prompt="Test",
-            cwd="/path",
-            mode="autonomous",
-            provider="codex",
-            session_id="sess",
-            run_id="run",
-            parent_session_id="parent",
-            project_id="proj",
-            session_manager=mock_session_manager,
-        )
-
-        mock_spawn_context = MagicMock()
-        mock_spawn_context.session_id = "child-sess"
-        mock_spawn_context.agent_run_id = "run-codex"
-        mock_spawn_context.env_vars = {}
-        mock_spawn_context.seq_num = 1
-
-        mock_runner = MagicMock()
-        mock_runner.run = AsyncMock()
-
-        with (
-            patch(
-                "gobby.agents.spawn_executor.prepare_terminal_spawn",
-                return_value=mock_spawn_context,
-            ),
-            patch(
-                "gobby.agents.spawners.codex_autonomous.CodexAutonomousRunner",
-                return_value=mock_runner,
-            ),
-        ):
-            result = await execute_spawn(request)
-
-        try:
-            assert result.success is True
-            assert result.status == "running"
-            assert result.child_session_id == "child-sess"
-        finally:
-            # Cancel the background task
-            if result.process:
-                result.process.cancel()
-
-    @pytest.mark.asyncio
-    async def test_autonomous_spawn_success(self) -> None:
-        """Test Claude autonomous spawn creates background task."""
-        mock_session_manager = MagicMock()
-        request = SpawnRequest(
-            prompt="Test autonomous",
-            cwd="/path",
-            mode="autonomous",
-            provider="claude",
-            session_id="sess",
-            run_id="run",
-            parent_session_id="parent",
-            project_id="proj",
-            session_manager=mock_session_manager,
-        )
-
-        mock_spawn_context = MagicMock()
-        mock_spawn_context.session_id = "child-sess"
-        mock_spawn_context.agent_run_id = "run-auto"
-        mock_spawn_context.env_vars = {}
-        mock_spawn_context.seq_num = 1
-
-        mock_runner = MagicMock()
-        mock_runner.run = AsyncMock()
-
-        with (
-            patch(
-                "gobby.agents.spawn_executor.prepare_terminal_spawn",
-                return_value=mock_spawn_context,
-            ),
-            patch(
-                "gobby.agents.spawners.autonomous.AutonomousRunner",
-                return_value=mock_runner,
-            ),
-        ):
-            result = await execute_spawn(request)
-
-        try:
-            assert result.success is True
-            assert result.status == "running"
-            assert result.run_id == "run-auto"
-        finally:
-            # Cancel the background task
-            if result.process:
-                result.process.cancel()
-
-    @pytest.mark.asyncio
     async def test_claude_terminal_passes_machine_id_env(self) -> None:
         """Test that machine_id is passed as GOBBY_MACHINE_ID env var."""
         mock_session_manager = MagicMock()
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",
@@ -1100,7 +904,6 @@ class TestExecuteSpawnErrorPaths:
         request = SpawnRequest(
             prompt="Test",
             cwd="/path",
-            mode="interactive",
             provider="claude",
             session_id="sess",
             run_id="run",

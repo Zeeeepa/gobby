@@ -6,8 +6,6 @@ with proper flags for prompts, permissions, and session management.
 
 from __future__ import annotations
 
-from typing import Literal
-
 
 def build_cli_command(
     cli: str,
@@ -15,27 +13,24 @@ def build_cli_command(
     session_id: str | None = None,
     auto_approve: bool = False,
     working_directory: str | None = None,
-    mode: Literal["interactive", "autonomous"] = "interactive",
     sandbox_args: list[str] | None = None,
     model: str | None = None,
 ) -> list[str]:
     """
     Build the CLI command with proper prompt passing and permission flags.
 
+    All spawned agents run autonomously (auto-approve, single-shot).
+
     Each CLI has different syntax for passing prompts and handling permissions:
 
     Claude Code:
-    - claude --session-id <uuid> --dangerously-skip-permissions [prompt]
-    - Use --dangerously-skip-permissions for autonomous subagent operation
+    - claude --session-id <uuid> --dangerously-skip-permissions -p [prompt]
 
     Gemini CLI:
-    - gemini -i "prompt" (interactive mode with initial prompt)
-    - gemini --approval-mode yolo -i "prompt" (YOLO + interactive)
-    - gemini "prompt" (one-shot non-interactive for headless)
+    - gemini --approval-mode yolo "prompt" (one-shot)
 
     Codex CLI:
     - codex --full-auto -C <dir> [PROMPT]
-    - Or: codex -c 'sandbox_permissions=["disk-full-read-access"]' -a never [PROMPT]
 
     Args:
         cli: CLI name (claude, gemini, codex, cursor, windsurf, copilot)
@@ -43,7 +38,6 @@ def build_cli_command(
         session_id: Optional session ID (used by Claude-compatible CLIs)
         auto_approve: If True, add flags to auto-approve actions/permissions
         working_directory: Optional working directory (used by Codex -C flag)
-        mode: Execution mode - "interactive" (multi-turn) or "autonomous" (non-interactive)
         sandbox_args: Optional list of CLI args for sandbox configuration
         model: Optional model name to pass to the CLI (used by CLIs that accept a --model flag)
 
@@ -53,18 +47,13 @@ def build_cli_command(
     command = [cli]
 
     if cli == "cursor":
-        # Cursor CLI flags — similar to Claude but with --output stream-json for capture
+        # Cursor CLI flags — similar to Claude
         if session_id:
             command.extend(["--session-id", session_id])
         if model:
             command.extend(["--model", model])
         if auto_approve:
             command.append("--dangerously-skip-permissions")
-        # Add --output stream-json to enable NDJSON transcript capture
-        if mode == "interactive":
-            command.extend(["--output", "stream-json"])
-        elif prompt:
-            command.append("-p")
 
     elif cli in ("claude", "windsurf", "copilot"):
         # Claude-compatible CLI flags
@@ -75,10 +64,6 @@ def build_cli_command(
         if auto_approve:
             # Skip all permission prompts for autonomous subagent operation
             command.append("--dangerously-skip-permissions")
-        # For autonomous mode, use -p (print mode) for single-turn execution
-        # For interactive mode, don't use -p to allow multi-turn interaction
-        if prompt and mode != "interactive":
-            command.append("-p")
 
     elif cli == "gemini":
         # Gemini CLI flags
@@ -86,16 +71,7 @@ def build_cli_command(
             command.extend(["--model", model])
         if auto_approve:
             command.extend(["--approval-mode", "yolo"])
-        # For interactive mode, use -i (prompt-interactive) to execute prompt and stay interactive
-        # For autonomous mode, use positional prompt for one-shot execution
-        if prompt:
-            if mode == "interactive":
-                command.extend(["-i", prompt])
-                # Add sandbox args before returning (prompt already added via -i flag)
-                if sandbox_args:
-                    command.extend(sandbox_args)
-                return command  # Don't add prompt again as positional
-            # else: fall through to add as positional for headless
+        # Positional prompt for one-shot execution (no -i flag)
 
     elif cli == "codex":
         # Codex CLI flags
