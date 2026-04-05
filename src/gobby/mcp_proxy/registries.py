@@ -375,11 +375,15 @@ def setup_internal_registries(
             getattr(_config, "skill_description", None) if _config else None
         )
 
+        _emb_cfg = _config.embeddings if _config else None
         skills_registry = create_skills_registry(
             db=db,
             project_id=project_id,
             hub_manager=hub_manager,
             search_config=_config.get_search_config() if _config else None,
+            embedding_model=_emb_cfg.model if _emb_cfg else "nomic-embed-text",
+            embedding_api_base=_emb_cfg.api_base if _emb_cfg else None,
+            embedding_api_key=_emb_cfg.api_key if _emb_cfg else None,
         )
         manager.add_registry(skills_registry)
         logger.debug("Skills registry initialized")

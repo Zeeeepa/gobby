@@ -9,7 +9,7 @@ Example usage:
     from gobby.search.models import SearchConfig
 
     config = SearchConfig(mode="auto")
-    searcher = UnifiedSearcher(config)
+    searcher = UnifiedSearcher(config, embedding_model="nomic-embed-text")
 
     await searcher.fit_async([
         ("id1", "hello world"),
@@ -81,6 +81,9 @@ class UnifiedSearcher:
         fts_content_table: str | None = None,
         fts_id_column: str = "id",
         fts_weights: tuple[float, ...] | None = None,
+        embedding_model: str = "nomic-embed-text",
+        embedding_api_base: str | None = None,
+        embedding_api_key: str | None = None,
     ):
         """Initialize UnifiedSearcher.
 
@@ -92,9 +95,15 @@ class UnifiedSearcher:
             fts_content_table: Content table name for FTS5 JOINs (None for contentless)
             fts_id_column: ID column name in the content table
             fts_weights: bm25 column weights for FTS5 ranking
+            embedding_model: Embedding model name (from EmbeddingsConfig)
+            embedding_api_base: API base URL for embedding endpoint
+            embedding_api_key: API key for embedding provider
         """
         self._config = config or SearchConfig()
         self._event_callback = event_callback
+        self._embedding_model = embedding_model
+        self._embedding_api_base = embedding_api_base
+        self._embedding_api_key = embedding_api_key
 
         # FTS5 config
         self._db = db
@@ -136,9 +145,9 @@ class UnifiedSearcher:
         """Get or create the embedding backend."""
         if self._embedding_backend is None:
             self._embedding_backend = EmbeddingBackend(
-                model=self._config.embedding_model,
-                api_base=self._config.embedding_api_base,
-                api_key=self._config.embedding_api_key,
+                model=self._embedding_model,
+                api_base=self._embedding_api_base,
+                api_key=self._embedding_api_key,
             )
         return self._embedding_backend
 
@@ -227,12 +236,12 @@ class UnifiedSearcher:
         elif mode == SearchMode.EMBEDDING:
             # Embedding only - fail if unavailable
             if not is_embedding_available(
-                model=self._config.embedding_model,
-                api_key=self._config.embedding_api_key,
-                api_base=self._config.embedding_api_base,
+                model=self._embedding_model,
+                api_key=self._embedding_api_key,
+                api_base=self._embedding_api_base,
             ):
                 raise RuntimeError(
-                    f"Embedding unavailable for model {self._config.embedding_model}. "
+                    f"Embedding unavailable for model {self._embedding_model}. "
                     "Set the appropriate API key or use mode='auto' for fallback."
                 )
 
@@ -245,13 +254,13 @@ class UnifiedSearcher:
         elif mode == SearchMode.AUTO:
             # Try embedding, fallback to keyword
             if not is_embedding_available(
-                model=self._config.embedding_model,
-                api_key=self._config.embedding_api_key,
-                api_base=self._config.embedding_api_base,
+                model=self._embedding_model,
+                api_key=self._embedding_api_key,
+                api_base=self._embedding_api_base,
             ):
                 # No embedding available - use keyword
                 await self._fallback_to_keyword(
-                    f"Embedding unavailable (no API key for {self._config.embedding_model})",
+                    f"Embedding unavailable (no API key for {self._embedding_model})",
                     items=items,
                 )
             else:
@@ -275,9 +284,9 @@ class UnifiedSearcher:
             await keyword.fit_async(items)
 
             if is_embedding_available(
-                model=self._config.embedding_model,
-                api_key=self._config.embedding_api_key,
-                api_base=self._config.embedding_api_base,
+                model=self._embedding_model,
+                api_key=self._embedding_api_key,
+                api_base=self._embedding_api_base,
             ):
                 try:
                     embedding = self._get_embedding_backend()
@@ -292,7 +301,7 @@ class UnifiedSearcher:
                     self._active_backend = "fts5"
             else:
                 self._emit_fallback_event(
-                    f"Hybrid mode: embedding unavailable for {self._config.embedding_model}"
+                    f"Hybrid mode: embedding unavailable for {self._embedding_model}"
                 )
                 self._active_backend = "fts5"
 

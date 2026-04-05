@@ -35,23 +35,17 @@ class SearchConfig(BaseModel):
 
     This config controls how UnifiedSearcher behaves, including:
     - Which search mode to use (keyword, embedding, auto, hybrid)
-    - Which embedding model to use
     - Weights for hybrid mode
     - Whether to notify on fallback
+
+    Embedding model/endpoint/key are configured once in EmbeddingsConfig
+    (config.embeddings.*) and passed to search consumers as constructor args.
 
     Supported modes:
     - keyword: FTS5 keyword search only (always works, no API needed)
     - embedding: Embedding-based search only (fails if unavailable)
     - auto: Try embedding, fallback to keyword if unavailable
     - hybrid: Combine both with weighted scores
-
-    Embedding model format examples:
-    - OpenAI: text-embedding-3-small (needs OPENAI_API_KEY)
-    - Ollama: openai/nomic-embed-text (with embedding_api_base)
-    - Azure: azure/azure-embedding-model
-    - Vertex AI: vertex_ai/text-embedding-004
-    - Gemini: gemini/text-embedding-004 (needs GEMINI_API_KEY)
-    - Mistral: mistral/mistral-embed (needs MISTRAL_API_KEY)
     """
 
     model_config = ConfigDict(populate_by_name=True)
@@ -59,18 +53,6 @@ class SearchConfig(BaseModel):
     mode: str = Field(
         default="auto",
         description="Search mode: keyword, embedding, auto, hybrid",
-    )
-    embedding_model: str = Field(
-        default="nomic-embed-text",
-        description="Embedding model name (e.g., nomic-embed-text, text-embedding-3-small)",
-    )
-    embedding_api_base: str | None = Field(
-        default="http://localhost:11434/v1",
-        description="API base URL for OpenAI-compatible endpoint (e.g., http://localhost:11434/v1 for Ollama)",
-    )
-    embedding_api_key: str | None = Field(
-        default=None,
-        description="API key for embedding provider (uses env var if not set)",
     )
     keyword_weight: float = Field(
         default=0.4,

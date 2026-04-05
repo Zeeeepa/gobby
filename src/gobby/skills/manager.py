@@ -62,15 +62,19 @@ class SkillManager:
         db: DatabaseProtocol,
         project_id: str | None = None,
         search_config: SearchConfig | None = None,
+        embedding_model: str = "nomic-embed-text",
+        embedding_api_base: str | None = None,
+        embedding_api_key: str | None = None,
     ):
         """Initialize the skill manager.
 
         Args:
             db: Database connection for storage
             project_id: Optional default project scope
-            search_config: Optional search config with embedding_api_key
-                for embedding-based skill search. Falls back to keyword search
-                when None or when the key is unavailable.
+            search_config: Optional search config for mode/weights.
+            embedding_model: Embedding model name (from EmbeddingsConfig)
+            embedding_api_base: API base URL for embedding endpoint
+            embedding_api_key: API key for embedding provider
         """
         self._project_id = project_id
 
@@ -81,8 +85,14 @@ class SkillManager:
         # Initialize storage with notifier
         self._storage = LocalSkillManager(db, notifier=self._notifier)
 
-        # Initialize search with config (propagates embedding API key)
-        self._search = SkillSearch(config=search_config, db=db)
+        # Initialize search with config and embedding settings
+        self._search = SkillSearch(
+            config=search_config,
+            db=db,
+            embedding_model=embedding_model,
+            embedding_api_base=embedding_api_base,
+            embedding_api_key=embedding_api_key,
+        )
 
     @property
     def storage(self) -> LocalSkillManager:

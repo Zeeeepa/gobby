@@ -126,7 +126,13 @@ class DatabasesConfig(BaseModel):
 
 
 class EmbeddingsConfig(BaseModel):
-    """Embedding model configuration shared across all subsystems."""
+    """Embedding model configuration — single source of truth for all subsystems.
+
+    Used by: memory, code index, search (UnifiedSearcher, SkillSearch),
+    MCP proxy (SemanticToolSearch). If a vision/multimodal model is needed
+    in the future, add a nested ``vision: EmbeddingsConfig`` field; the
+    current flat fields remain the text embedding defaults.
+    """
 
     model_config = {"extra": "ignore"}
 

@@ -278,15 +278,11 @@ def _persist_embedding_config(
     provider: str,
     openai_api_key: str | None = None,
 ) -> None:
-    """Write embedding config to all three namespaces via ConfigStore.
+    """Write embedding config to the unified embeddings.* namespace via ConfigStore.
 
-    Sets:
-    - embeddings.model, embeddings.api_base, embeddings.dim
-    - search.embedding_model, search.embedding_api_base
-    - mcp_client_proxy.embedding_model, mcp_client_proxy.embedding_api_base
-    - mcp_client_proxy.embedding_provider
+    Sets: embeddings.model, embeddings.api_base, embeddings.dim
 
-    For the "none" provider, writes empty/null values to disable semantic search.
+    For the "none" provider, writes null/zero values to disable semantic search.
     If openai_api_key is provided, stores it in SecretStore.
     """
     from gobby.config.app import load_config
@@ -302,24 +298,16 @@ def _persist_embedding_config(
 
         entries: dict[str, Any]
         if provider == "none":
-            # Disable semantic search by clearing endpoints
             entries = {
+                "embeddings.model": None,
                 "embeddings.api_base": None,
-                "search.embedding_api_base": None,
-                "mcp_client_proxy.embedding_api_base": None,
+                "embeddings.dim": 0,
             }
         else:
             entries = {
                 "embeddings.model": model,
                 "embeddings.api_base": api_base,
                 "embeddings.dim": dim,
-                "search.embedding_model": model,
-                "search.embedding_api_base": api_base,
-                "mcp_client_proxy.embedding_model": model,
-                "mcp_client_proxy.embedding_api_base": api_base,
-                "mcp_client_proxy.embedding_provider": (
-                    "openai" if provider == "openai" else "openai-compatible"
-                ),
             }
 
         store.set_many(entries, source="install")

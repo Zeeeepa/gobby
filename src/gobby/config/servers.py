@@ -3,7 +3,7 @@ Server configuration module.
 
 Contains server and networking Pydantic config models:
 - WebSocketSettings: WebSocket server settings (port, ping interval)
-- MCPClientProxyConfig: MCP proxy settings (timeouts, embeddings, search mode)
+- MCPClientProxyConfig: MCP proxy settings (timeouts, search mode)
 
 Extracted from app.py using Strangler Fig pattern for code decomposition.
 """
@@ -76,26 +76,10 @@ class MCPClientProxyConfig(BaseModel):
         description="Map of tool names to specific timeouts in seconds",
     )
 
-    # Semantic search and embeddings
+    # Semantic search (embedding model/endpoint configured in EmbeddingsConfig)
     search_mode: Literal["llm", "semantic", "hybrid"] = Field(
         default="llm",
         description="Default search mode for tool recommendations: 'llm' (LLM-based), 'semantic' (embedding similarity), 'hybrid' (both)",
-    )
-    embedding_provider: str = Field(
-        default="openai-compatible",
-        description="Provider for embedding generation (openai-compatible)",
-    )
-    embedding_model: str = Field(
-        default="nomic-embed-text",
-        description="Model to use for tool embedding generation",
-    )
-    embedding_api_base: str | None = Field(
-        default="http://localhost:11434/v1",
-        description=(
-            "API base URL for the embedding endpoint. "
-            "Default: Ollama (http://localhost:11434/v1). "
-            "Use for any OpenAI-compatible endpoint (Ollama, LM Studio, OpenAI)."
-        ),
     )
     min_similarity: float = Field(
         default=0.3,

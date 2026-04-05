@@ -657,6 +657,30 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         WHERE key = 'search.mode' AND value = '"tfidf"';
         """,
     ),
+    (
+        198,
+        "Consolidate embedding config to embeddings.* namespace",
+        """
+        INSERT OR IGNORE INTO config_store (key, value)
+            SELECT 'embeddings.model', value FROM config_store
+            WHERE key = 'search.embedding_model';
+        INSERT OR IGNORE INTO config_store (key, value)
+            SELECT 'embeddings.api_base', value FROM config_store
+            WHERE key = 'search.embedding_api_base';
+        INSERT OR IGNORE INTO config_store (key, value)
+            SELECT 'embeddings.api_key', value FROM config_store
+            WHERE key = 'search.embedding_api_key';
+
+        DELETE FROM config_store WHERE key IN (
+            'search.embedding_model',
+            'search.embedding_api_base',
+            'search.embedding_api_key',
+            'mcp_client_proxy.embedding_model',
+            'mcp_client_proxy.embedding_api_base',
+            'mcp_client_proxy.embedding_provider'
+        );
+        """,
+    ),
 ]
 
 

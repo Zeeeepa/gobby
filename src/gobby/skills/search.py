@@ -106,15 +106,19 @@ class SkillSearch:
         db: Any,
         config: SearchConfig | None = None,
         refit_threshold: int = 10,
+        embedding_model: str = "nomic-embed-text",
+        embedding_api_base: str | None = None,
+        embedding_api_key: str | None = None,
     ):
         """Initialize skill search.
 
         Args:
             db: LocalDatabase instance for FTS5 backend (required)
             config: Search configuration (defaults to auto mode).
-                Pass a SearchConfig with embedding_api_key set to enable
-                embedding-based search.
             refit_threshold: Number of updates before automatic refit
+            embedding_model: Embedding model name (from EmbeddingsConfig)
+            embedding_api_base: API base URL for embedding endpoint
+            embedding_api_key: API key for embedding provider
         """
         if config is None:
             config = SearchConfig(mode="auto")
@@ -134,6 +138,9 @@ class SkillSearch:
             fts_content_table=None,  # Contentless — no JOIN
             fts_id_column="id",
             fts_weights=(10.0, 5.0, 2.0, 2.0),
+            embedding_model=embedding_model,
+            embedding_api_base=embedding_api_base,
+            embedding_api_key=embedding_api_key,
         )
 
         # Rowid → skill_id mapping for contentless FTS5 results

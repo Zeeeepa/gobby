@@ -52,9 +52,6 @@ class TestSearchConfig:
         config = SearchConfig()
 
         assert config.mode == "auto"
-        assert config.embedding_model == "nomic-embed-text"
-        assert config.embedding_api_base == "http://localhost:11434/v1"
-        assert config.embedding_api_key is None
         assert config.keyword_weight == 0.4
         assert config.embedding_weight == 0.6
         assert config.notify_on_fallback is True
@@ -63,15 +60,12 @@ class TestSearchConfig:
         """Test custom configuration values."""
         config = SearchConfig(
             mode="hybrid",
-            embedding_model="openai/nomic-embed-text",
-            embedding_api_base="http://localhost:11434/v1",
             keyword_weight=0.5,
             embedding_weight=0.5,
         )
 
         assert config.mode == "hybrid"
-        assert config.embedding_model == "openai/nomic-embed-text"
-        assert config.embedding_api_base == "http://localhost:11434/v1"
+        assert config.keyword_weight == 0.5
 
     def test_get_mode_enum(self) -> None:
         """Test get_mode_enum returns correct SearchMode."""
@@ -395,10 +389,12 @@ class TestEmbeddingBackend:
     """Tests for EmbeddingBackend."""
 
     def test_from_config(self) -> None:
-        """Test creating backend from config."""
-        config = SearchConfig(
-            embedding_model="openai/nomic-embed-text",
-            embedding_api_base="http://localhost:11434/v1",
+        """Test creating backend from EmbeddingsConfig."""
+        from gobby.config.persistence import EmbeddingsConfig
+
+        config = EmbeddingsConfig(
+            model="openai/nomic-embed-text",
+            api_base="http://localhost:11434/v1",
         )
 
         backend = EmbeddingBackend.from_config(config)

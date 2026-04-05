@@ -163,13 +163,13 @@ def init_storage_and_config(runner: GobbyRunner, config_path: Path | None, verbo
         config_store=runner.config_store,
     )
 
-    # Auto-populate search.embedding_api_key from secrets if not already set
-    if hasattr(runner.config, "search") and not runner.config.search.embedding_api_key:
+    # Auto-populate embeddings.api_key from secrets if not already set
+    if hasattr(runner.config, "embeddings") and not runner.config.embeddings.api_key:
         resolved_key = resolve_embedding_api_key(
-            runner.secret_store, runner.config.search.embedding_model
+            runner.secret_store, runner.config.embeddings.model
         )
         if resolved_key:
-            runner.config.search.embedding_api_key = resolved_key
+            runner.config.embeddings.api_key = resolved_key
 
     # Populate model costs from OpenRouter into DB and load into memory
     from gobby.llm.cost_table import init as init_cost_table

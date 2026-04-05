@@ -11,7 +11,7 @@ import math
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from gobby.search.models import SearchConfig
+    from gobby.config.persistence import EmbeddingsConfig
 
 logger = logging.getLogger(__name__)
 
@@ -83,19 +83,19 @@ class EmbeddingBackend:
         self._fitted = False
 
     @classmethod
-    def from_config(cls, config: SearchConfig) -> EmbeddingBackend:
-        """Create an EmbeddingBackend from a SearchConfig.
+    def from_config(cls, config: EmbeddingsConfig) -> EmbeddingBackend:
+        """Create an EmbeddingBackend from an EmbeddingsConfig.
 
         Args:
-            config: SearchConfig with model and API settings
+            config: EmbeddingsConfig with model and API settings
 
         Returns:
             Configured EmbeddingBackend instance
         """
         return cls(
-            model=config.embedding_model,
-            api_base=config.embedding_api_base,
-            api_key=config.embedding_api_key,
+            model=config.model,
+            api_base=config.api_base,
+            api_key=config.api_key,
         )
 
     async def fit_async(self, items: list[tuple[str, str]]) -> None:

@@ -261,7 +261,7 @@ class TestPersistEmbeddingConfig:
     @patch("gobby.storage.config_store.ConfigStore")
     @patch("gobby.storage.database.LocalDatabase")
     @patch("gobby.config.app.load_config")
-    def test_persists_all_three_namespaces(
+    def test_persists_embeddings_namespace_only(
         self,
         mock_load_config: MagicMock,
         mock_db_class: MagicMock,
@@ -289,14 +289,15 @@ class TestPersistEmbeddingConfig:
 
         mock_store.set_many.assert_called_once()
         entries = mock_store.set_many.call_args.args[0]
-        # All three namespaces must be set
-        assert "embeddings.model" in entries
-        assert "search.embedding_model" in entries
-        assert "mcp_client_proxy.embedding_model" in entries
-        assert entries["embeddings.model"] == "nomic-embed-text"
-        assert entries["embeddings.api_base"] == "http://localhost:1234/v1"
-        assert entries["embeddings.dim"] == 768
-        assert entries["mcp_client_proxy.embedding_provider"] == "openai-compatible"
+        # Only unified embeddings.* namespace
+        assert entries == {
+            "embeddings.model": "nomic-embed-text",
+            "embeddings.api_base": "http://localhost:1234/v1",
+            "embeddings.dim": 768,
+        }
+        # No duplicate namespaces
+        assert not any(k.startswith("search.") for k in entries)
+        assert not any(k.startswith("mcp_client_proxy.") for k in entries)
         mock_db.close.assert_called_once()
 
     @patch("gobby.storage.secrets.SecretStore")
@@ -322,9 +323,11 @@ class TestPersistEmbeddingConfig:
         _persist_embedding_config(model=None, api_base=None, dim=0, provider="none")
 
         entries = mock_store.set_many.call_args.args[0]
-        assert entries["embeddings.api_base"] is None
-        assert entries["search.embedding_api_base"] is None
-        assert entries["mcp_client_proxy.embedding_api_base"] is None
+        assert entries == {
+            "embeddings.model": None,
+            "embeddings.api_base": None,
+            "embeddings.dim": 0,
+        }
 
     @patch("gobby.storage.secrets.SecretStore")
     @patch("gobby.storage.config_store.ConfigStore")
@@ -364,7 +367,7 @@ class TestPersistEmbeddingConfig:
     @patch("gobby.storage.config_store.ConfigStore")
     @patch("gobby.storage.database.LocalDatabase")
     @patch("gobby.config.app.load_config")
-    def test_openai_provider_label_written(
+    def test_openai_provider_uses_unified_namespace(
         self,
         mock_load_config: MagicMock,
         mock_db_class: MagicMock,
@@ -389,7 +392,11 @@ class TestPersistEmbeddingConfig:
         )
 
         entries = mock_store.set_many.call_args.args[0]
-        assert entries["mcp_client_proxy.embedding_provider"] == "openai"
+        assert entries == {
+            "embeddings.model": "text-embedding-3-small",
+            "embeddings.api_base": None,
+            "embeddings.dim": 1536,
+        }
 
 
 class TestHealthCheck:
