@@ -115,9 +115,6 @@ class TestLLMProvidersConfigDefaults:
         assert config.claude.models == "haiku,sonnet,opus"
         assert config.claude.auth_mode == "subscription"
         assert config.codex is None
-        assert config.gemini is None
-        assert config.litellm is None
-        assert config.api_keys == {}
 
     def test_claude_enabled_by_default(self) -> None:
         """Test Claude provider is enabled by default."""
@@ -147,22 +144,9 @@ class TestLLMProvidersConfigWithProviders:
         config = LLMProvidersConfig(
             claude=LLMProviderConfig(models="claude-haiku-4-5"),
             codex=LLMProviderConfig(models="gpt-4o-mini", auth_mode="api_key"),
-            gemini=LLMProviderConfig(models="gemini-2.0-flash", auth_mode="adc"),
         )
         assert config.claude is not None
         assert config.codex is not None
-        assert config.gemini is not None
-        assert config.litellm is None
-
-    def test_api_keys(self) -> None:
-        """Test configuring API keys."""
-        from gobby.config.llm_providers import LLMProvidersConfig
-
-        config = LLMProvidersConfig(
-            api_keys={"OPENAI_API_KEY": "sk-test", "MISTRAL_API_KEY": "test-key"}
-        )
-        assert config.api_keys["OPENAI_API_KEY"] == "sk-test"
-        assert config.api_keys["MISTRAL_API_KEY"] == "test-key"
 
 
 class TestLLMProvidersConfigGetEnabledProviders:
@@ -181,14 +165,12 @@ class TestLLMProvidersConfigGetEnabledProviders:
 
         config = LLMProvidersConfig(
             claude=LLMProviderConfig(models="claude-haiku"),
-            gemini=LLMProviderConfig(models="gemini-flash"),
-            litellm=LLMProviderConfig(models="gpt-4o"),
+            codex=LLMProviderConfig(models="gpt-4o"),
         )
         providers = config.get_enabled_providers()
         assert "claude" in providers
-        assert "gemini" in providers
-        assert "litellm" in providers
-        assert len(providers) == 3
+        assert "codex" in providers
+        assert len(providers) == 2
 
     def test_get_enabled_providers_all(self) -> None:
         """Test get_enabled_providers with all providers enabled."""
@@ -197,11 +179,9 @@ class TestLLMProvidersConfigGetEnabledProviders:
         config = LLMProvidersConfig(
             claude=LLMProviderConfig(models="c"),
             codex=LLMProviderConfig(models="c"),
-            gemini=LLMProviderConfig(models="g"),
-            litellm=LLMProviderConfig(models="l"),
         )
         providers = config.get_enabled_providers()
-        assert providers == ["claude", "codex", "gemini", "litellm"]
+        assert providers == ["claude", "codex"]
 
 
 class TestLLMProviderConfigFromAppPy:

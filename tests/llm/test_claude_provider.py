@@ -145,56 +145,6 @@ async def test_generate_text(claude_config):
         assert text == "Generated text"
 
 
-# --- api_key Mode Tests ---
-
-
-@pytest.fixture
-def api_key_config():
-    """Config with api_key auth mode."""
-    return DaemonConfig(
-        llm_providers=LLMProvidersConfig(
-            claude=LLMProviderConfig(models="claude-haiku-4-5", auth_mode="api_key"),
-            api_keys={"ANTHROPIC_API_KEY": "sk-ant-test-key"},
-        ),
-        session_summary=SessionSummaryConfig(enabled=True),
-    )
-
-
-class MockLiteLLMResponse:
-    """Mock LiteLLM response object."""
-
-    def __init__(self, content: str):
-        self.choices = [MockChoice(content)]
-
-
-class MockChoice:
-    """Mock choice in LiteLLM response."""
-
-    def __init__(self, content: str):
-        self.message = MockMessage(content)
-
-
-class MockMessage:
-    """Mock message in LiteLLM response."""
-
-    def __init__(self, content: str):
-        self.content = content
-
-
-class MockLiteLLM:
-    """Mock LiteLLM module."""
-
-    def __init__(self, response_content: str = "Generated response"):
-        self.response_content = response_content
-        self.call_count = 0
-        self.last_call_args = None
-
-    async def acompletion(self, **kwargs):
-        self.call_count += 1
-        self.last_call_args = kwargs
-        return MockLiteLLMResponse(self.response_content)
-
-
 def test_auth_mode_default_is_subscription(claude_config):
     """Test default auth_mode is subscription."""
 
@@ -205,74 +155,6 @@ def test_auth_mode_default_is_subscription(claude_config):
     with mock_claude_sdk(mock_query):
         provider = ClaudeLLMProvider(claude_config)
         assert provider.auth_mode == "subscription"
-
-
-def test_auth_mode_from_config(api_key_config):
-    """Test auth_mode read from config."""
-    with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-        provider = ClaudeLLMProvider(api_key_config)
-        assert provider.auth_mode == "api_key"
-
-
-def test_auth_mode_override_parameter(claude_config):
-    """Test auth_mode can be overridden via parameter."""
-    with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-        provider = ClaudeLLMProvider(claude_config, auth_mode="api_key")
-        assert provider.auth_mode == "api_key"
-
-
-def test_api_key_mode_no_cli_needed(api_key_config):
-    """Test api_key mode does not require Claude CLI."""
-    with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-        provider = ClaudeLLMProvider(api_key_config)
-        assert provider._claude_cli_path is None
-        assert provider.auth_mode == "api_key"
-
-
-@pytest.mark.asyncio
-async def test_generate_text_api_key_mode(api_key_config):
-    """Test generate_text uses LiteLLM in api_key mode."""
-    mock_litellm = MockLiteLLM("LiteLLM generated text")
-
-    with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-        provider = ClaudeLLMProvider(api_key_config)
-        provider._litellm = mock_litellm
-
-        text = await provider.generate_text("test prompt", system_prompt="Be helpful")
-        assert text == "LiteLLM generated text"
-        assert mock_litellm.call_count == 1
-        assert mock_litellm.last_call_args["model"] == "anthropic/claude-haiku-4-5"
-
-
-@pytest.mark.asyncio
-async def test_generate_summary_api_key_mode(api_key_config):
-    """Test generate_summary uses LiteLLM in api_key mode."""
-    mock_litellm = MockLiteLLM("Session summary via LiteLLM")
-
-    with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-        provider = ClaudeLLMProvider(api_key_config)
-        provider._litellm = mock_litellm
-
-        context = {"transcript_summary": "test", "last_messages": []}
-        summary = await provider.generate_summary(
-            context, prompt_template="Summarize: {transcript_summary}"
-        )
-        assert summary == "Session summary via LiteLLM"
-        assert mock_litellm.call_count == 1
-
-
-@pytest.mark.asyncio
-async def test_generate_with_mcp_tools_api_key_mode_returns_error(api_key_config):
-    """Test generate_with_mcp_tools returns error in api_key mode."""
-    with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-        provider = ClaudeLLMProvider(api_key_config)
-
-        result = await provider.generate_with_mcp_tools(
-            prompt="test",
-            allowed_tools=["mcp__test__tool"],
-        )
-        assert "subscription mode" in result.text
-        assert result.tool_calls == []
 
 
 @pytest.mark.asyncio
@@ -289,23 +171,3 @@ async def test_describe_image_subscription_mode(claude_config, tmp_path):
         provider = ClaudeLLMProvider(claude_config)
         description = await provider.describe_image(str(test_image))
         assert "Image description from SDK" in description
-
-
-@pytest.mark.asyncio
-async def test_describe_image_api_key_mode(api_key_config, tmp_path):
-    """Test describe_image uses LiteLLM in api_key mode."""
-    # Create a test image file
-    test_image = tmp_path / "test.png"
-    test_image.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
-
-    mock_litellm = MockLiteLLM("Image description from LiteLLM")
-
-    with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-        provider = ClaudeLLMProvider(api_key_config)
-        provider._litellm = mock_litellm
-
-        description = await provider.describe_image(str(test_image))
-        assert description == "Image description from LiteLLM"
-        assert mock_litellm.call_count == 1
-        # Verify model used
-        assert "anthropic/claude-haiku" in mock_litellm.last_call_args["model"]

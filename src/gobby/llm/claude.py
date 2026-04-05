@@ -9,7 +9,7 @@ Supports two authentication modes:
 import asyncio
 import json
 import logging
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from claude_agent_sdk import (
     AssistantMessage,
@@ -75,23 +75,9 @@ class ClaudeLLMProvider(LLMProvider):
         """
         self.config = config
         self.logger = logger
-        self._litellm: Any = None
 
-        # Determine auth mode from param -> config -> default
         self._auth_mode: AuthMode = "subscription"
-        if auth_mode:
-            self._auth_mode = auth_mode
-        elif config.llm_providers and config.llm_providers.claude:
-            config_auth = config.llm_providers.claude.auth_mode
-            if config_auth in ("subscription", "api_key"):
-                self._auth_mode = cast(AuthMode, config_auth)
-
-        # Set up based on auth mode
-        if self._auth_mode == "subscription":
-            self._claude_cli_path = self._find_cli_path()
-        else:  # api_key
-            self._claude_cli_path = None
-            self._setup_litellm()
+        self._claude_cli_path = self._find_cli_path()
 
     def _find_cli_path(self) -> str | None:
         """Find Claude CLI path. Delegates to claude_cli.find_cli_path()."""
@@ -106,20 +92,6 @@ class ClaudeLLMProvider(LLMProvider):
         cli_path = await verify_cli_path(self._claude_cli_path)
         self._claude_cli_path = cli_path
         return cli_path
-
-    def _setup_litellm(self) -> None:
-        """
-        Initialize LiteLLM for api_key mode.
-
-        LiteLLM reads ANTHROPIC_API_KEY from the environment automatically.
-        """
-        try:
-            import litellm
-
-            self._litellm = litellm
-            self.logger.debug("LiteLLM initialized for Claude api_key mode")
-        except ImportError:
-            self.logger.error("litellm package required for api_key mode")
 
     def _format_summary_context(self, context: dict[str, Any], prompt_template: str | None) -> str:
         """
@@ -321,16 +293,12 @@ class ClaudeLLMProvider(LLMProvider):
         """
         Generate session summary using Claude.
 
-        Always tries SDK first (works with any auth_mode if CLI is available),
-        falls back to LiteLLM only if CLI is unavailable.
+        Uses Claude Agent SDK via CLI.
         """
         cli_path = await self._verify_cli_path()
         if cli_path:
             return await self._generate_summary_sdk(context, prompt_template)
-        elif self._litellm:
-            return await self._generate_summary_litellm(context, prompt_template)
-        else:
-            return "Session summary unavailable (no LLM backend configured)"
+        return "Session summary unavailable (Claude CLI not found)"
 
     async def _generate_summary_sdk(
         self, context: dict[str, Any], prompt_template: str | None = None
@@ -375,33 +343,6 @@ class ClaudeLLMProvider(LLMProvider):
         except RuntimeError as e:
             return f"Session summary generation failed: {e}"
 
-    async def _generate_summary_litellm(
-        self, context: dict[str, Any], prompt_template: str | None = None
-    ) -> str:
-        """Generate session summary using LiteLLM (api_key mode)."""
-        if not self._litellm:
-            return "Session summary unavailable (LiteLLM not initialized)"
-
-        prompt = self._format_summary_context(context, prompt_template)
-
-        try:
-            response = await self._litellm.acompletion(
-                model=f"anthropic/{self.config.session_summary.model}",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a session summary generator. Create comprehensive, actionable summaries.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=8000,
-                timeout=120,
-            )
-            return response.choices[0].message.content or ""
-        except Exception as e:
-            self.logger.error(f"Failed to generate summary with LiteLLM: {e}")
-            return f"Session summary generation failed: {e}"
-
     async def generate_text(
         self,
         prompt: str,
@@ -412,15 +353,12 @@ class ClaudeLLMProvider(LLMProvider):
         """
         Generate text using Claude.
 
-        Always tries SDK first, falls back to LiteLLM only if CLI is unavailable.
+        Uses Claude Agent SDK via CLI.
         """
         cli_path = await self._verify_cli_path()
         if cli_path:
             return await self._generate_text_sdk(prompt, system_prompt, model, max_tokens)
-        elif self._litellm:
-            return await self._generate_text_litellm(prompt, system_prompt, model, max_tokens)
-        else:
-            raise RuntimeError("Generation unavailable (no LLM backend configured)")
+        raise RuntimeError("Generation unavailable (Claude CLI not found)")
 
     async def _generate_text_sdk(
         self,
@@ -482,39 +420,6 @@ class ClaudeLLMProvider(LLMProvider):
             result = result[: max_tokens * 4]
         return result
 
-    async def _generate_text_litellm(
-        self,
-        prompt: str,
-        system_prompt: str | None = None,
-        model: str | None = None,
-        max_tokens: int | None = None,
-    ) -> str:
-        """Generate text using LiteLLM (api_key mode)."""
-        if not self._litellm:
-            raise RuntimeError("Generation unavailable (LiteLLM not initialized)")
-
-        from gobby.llm.litellm_utils import resolve_model_alias
-
-        model = resolve_model_alias(model or "haiku")
-        litellm_model = f"anthropic/{model}"
-
-        try:
-            response = await self._litellm.acompletion(
-                model=litellm_model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_prompt or "You are a helpful assistant.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=max_tokens or 8000,
-            )
-            return response.choices[0].message.content or ""
-        except Exception as e:
-            self.logger.error(f"Failed to generate text with LiteLLM: {e}", exc_info=True)
-            raise RuntimeError(f"Failed to generate text with LiteLLM: {e}") from e
-
     async def generate_json(
         self,
         prompt: str,
@@ -522,22 +427,16 @@ class ClaudeLLMProvider(LLMProvider):
         model: str | None = None,
     ) -> dict[str, Any]:
         """
-        Generate structured JSON using Claude.
-
-        In api_key mode, uses LiteLLM with response_format.
-        In subscription mode, uses SDK with prompt-based JSON instruction.
+        Generate structured JSON using Claude Agent SDK with prompt-based JSON instruction.
 
         Raises:
-            RuntimeError: If no LLM backend is available
+            RuntimeError: If CLI is unavailable
             ValueError: If response is empty or not valid JSON
         """
         cli_path = await self._verify_cli_path()
         if cli_path:
             return await self._generate_json_sdk(prompt, system_prompt, model)
-        elif self._litellm:
-            return await self._generate_json_litellm(prompt, system_prompt, model)
-        else:
-            raise RuntimeError("Generation unavailable (no LLM backend configured)")
+        raise RuntimeError("Generation unavailable (Claude CLI not found)")
 
     async def _generate_json_sdk(
         self,
@@ -564,43 +463,6 @@ class ClaudeLLMProvider(LLMProvider):
                 else:
                     lines = content.split("\n")
                     content = "\n".join(lines[1:-1]).strip()
-            result: dict[str, Any] = json.loads(content)
-            return result
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Failed to parse LLM response as JSON: {e}") from e
-
-    async def _generate_json_litellm(
-        self,
-        prompt: str,
-        system_prompt: str | None = None,
-        model: str | None = None,
-    ) -> dict[str, Any]:
-        """Generate JSON using LiteLLM (api_key mode)."""
-        if not self._litellm:
-            raise RuntimeError("Generation unavailable (LiteLLM not initialized)")
-
-        from gobby.llm.litellm_utils import resolve_model_alias
-
-        model = resolve_model_alias(model or "haiku")
-        litellm_model = f"anthropic/{model}"
-
-        try:
-            response = await self._litellm.acompletion(
-                model=litellm_model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_prompt
-                        or "You are a helpful assistant. Respond with valid JSON.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=8000,
-                response_format={"type": "json_object"},
-            )
-            content = response.choices[0].message.content
-            if not content:
-                raise ValueError("Empty response from LLM")
             result: dict[str, Any] = json.loads(content)
             return result
         except json.JSONDecodeError as e:
@@ -775,9 +637,6 @@ class ClaudeLLMProvider(LLMProvider):
         """
         Generate a text description of an image using Claude's vision capabilities.
 
-        In subscription mode, uses Claude Agent SDK.
-        In api_key mode, uses LiteLLM with anthropic/ prefix.
-
         Args:
             image_path: Path to the image file to describe
             context: Optional context to guide the description
@@ -785,10 +644,7 @@ class ClaudeLLMProvider(LLMProvider):
         Returns:
             Text description of the image
         """
-        if self._auth_mode == "subscription":
-            return await self._describe_image_sdk(image_path, context)
-        else:
-            return await self._describe_image_litellm(image_path, context)
+        return await self._describe_image_sdk(image_path, context)
 
     def _prepare_image_data(self, image_path: str) -> tuple[str, str] | str:
         """
@@ -890,54 +746,4 @@ class ClaudeLLMProvider(LLMProvider):
         try:
             return str(await self._execute_sdk_query("describe_image", _run_query, options))
         except RuntimeError as e:
-            return f"Image description failed: {e}"
-
-    async def _describe_image_litellm(
-        self,
-        image_path: str,
-        context: str | None = None,
-    ) -> str:
-        """Describe image using LiteLLM (api_key mode)."""
-        from gobby.llm.litellm_utils import resolve_model_alias
-
-        if not self._litellm:
-            return "Image description unavailable (LiteLLM not initialized)"
-
-        # Prepare image data
-        result = self._prepare_image_data(image_path)
-        if isinstance(result, str):
-            return result
-        image_base64, mime_type = result
-
-        # Build prompt
-        prompt = "Please describe this image in detail, focusing on the key visual elements and any text visible."
-        if context:
-            prompt = f"{context}\n\n{prompt}"
-
-        try:
-            # Route through LiteLLM with anthropic prefix
-            # Use same model as SDK path for consistency
-            response = await self._litellm.acompletion(
-                model=f"anthropic/{resolve_model_alias('haiku')}",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": f"data:{mime_type};base64,{image_base64}"},
-                            },
-                        ],
-                    }
-                ],
-                max_tokens=1024,
-            )
-
-            if not response or not getattr(response, "choices", None):
-                return "No description generated"
-            return response.choices[0].message.content or "No description generated"
-
-        except Exception as e:
-            self.logger.error(f"Failed to describe image with LiteLLM: {e}")
             return f"Image description failed: {e}"

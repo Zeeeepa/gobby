@@ -1,9 +1,8 @@
 """
 LLM Service for multi-provider support.
 
-Provides a unified interface for accessing multiple LLM providers (Claude, Codex,
-Gemini, LiteLLM) based on the multi-provider config structure with feature-specific
-provider routing.
+Provides a unified interface for accessing multiple LLM providers (Claude, Codex)
+based on the multi-provider config structure with feature-specific provider routing.
 """
 
 import logging
@@ -104,22 +103,8 @@ class LLMService:
             provider = CodexProvider(self._config)
             logger.debug(f"Initialized Codex provider (auth_mode: {provider_config.auth_mode})")
 
-        elif name == "gemini":
-            from gobby.llm.gemini import GeminiProvider
-
-            provider = GeminiProvider(self._config)
-            logger.debug(f"Initialized Gemini provider (auth_mode: {provider_config.auth_mode})")
-
-        elif name == "litellm":
-            from gobby.llm.litellm import LiteLLMProvider
-
-            provider = LiteLLMProvider(self._config)
-            logger.debug("Initialized LiteLLM provider")
-
         else:
-            raise ValueError(
-                f"Unknown provider '{name}'. Supported providers: claude, codex, gemini, litellm"
-            )
+            raise ValueError(f"Unknown provider '{name}'. Supported providers: claude, codex")
 
         self._providers[name] = provider
         self._initialized_providers.add(name)

@@ -14,7 +14,7 @@ class LLMProvider(ABC):
     Abstract base class for LLM providers.
 
     Defines the interface for generating summaries and synthesizing titles
-    across different providers (Claude, Codex, Gemini, LiteLLM).
+    across different providers (Claude, Codex).
 
     Properties:
         provider_name: Unique identifier for this provider (e.g., "claude", "codex")
@@ -28,7 +28,7 @@ class LLMProvider(ABC):
         Return the unique provider name.
 
         Returns:
-            Provider name string (e.g., "claude", "codex", "gemini", "litellm")
+            Provider name string (e.g., "claude", "codex")
         """
         pass
 

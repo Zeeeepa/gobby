@@ -18,7 +18,7 @@ def llm_config() -> DaemonConfig:
     return DaemonConfig(
         llm_providers=LLMProvidersConfig(
             claude=LLMProviderConfig(models="claude-haiku-4-5, claude-sonnet-4-5"),
-            gemini=LLMProviderConfig(models="gemini-2.0-flash"),
+            codex=LLMProviderConfig(models="gpt-4o-mini"),
         ),
     )
 
@@ -67,8 +67,8 @@ class TestLLMServiceGetProvider:
         """Test getting an unconfigured provider raises error."""
         service = LLMService(llm_config_claude_only)
 
-        with pytest.raises(ValueError, match="Provider 'gemini' is not configured"):
-            service.get_provider("gemini")
+        with pytest.raises(ValueError, match="Provider 'codex' is not configured"):
+            service.get_provider("codex")
 
     def test_get_provider_unknown_raises(self, llm_config: DaemonConfig) -> None:
         """Test getting an unknown provider raises error."""
@@ -198,17 +198,16 @@ class TestLLMServiceGetDefaultProvider:
 
         assert provider == mock_instance
 
-    @patch("gobby.llm.gemini.GeminiProvider")
-    def test_get_default_provider_fallback(self, mock_gemini_provider: MagicMock) -> None:
+    @patch("gobby.llm.codex.CodexProvider")
+    def test_get_default_provider_fallback(self, mock_codex_provider: MagicMock) -> None:
         """Test default provider falls back to first available when Claude not configured."""
         mock_instance = MagicMock()
-        mock_gemini_provider.return_value = mock_instance
+        mock_codex_provider.return_value = mock_instance
 
-        # Config with only Gemini
         config = DaemonConfig(
             llm_providers=LLMProvidersConfig(
                 claude=None,
-                gemini=LLMProviderConfig(models="gemini-2.0-flash"),
+                codex=LLMProviderConfig(models="gpt-4o-mini"),
             ),
         )
 
@@ -237,7 +236,7 @@ class TestLLMServiceProperties:
 
         enabled = service.enabled_providers
         assert "claude" in enabled
-        assert "gemini" in enabled
+        assert "codex" in enabled
         assert len(enabled) == 2
 
     @patch("gobby.llm.claude.ClaudeLLMProvider")

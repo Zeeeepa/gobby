@@ -65,10 +65,6 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 # was started/restarted from within a Claude Code session.
 os.environ.pop("CLAUDECODE", None)
 
-# Suppress litellm's never-awaited coroutine warnings (upstream bug in LoggingWorker)
-import warnings
-
-warnings.filterwarnings("ignore", message="coroutine.*async_success_handler.*was never awaited")
 
 logger = logging.getLogger(__name__)
 
