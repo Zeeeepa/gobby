@@ -29,7 +29,6 @@ def _make_mock_agent_run(
     run_id: str = "run-123",
     session_id: str | None = "sess-456",
     parent_session_id: str = "sess-parent",
-    mode: str = "interactive",
     status: str = "running",
     pid: int | None = None,
     provider: str = "claude",
@@ -40,7 +39,6 @@ def _make_mock_agent_run(
     run.id = run_id
     run.child_session_id = session_id
     run.parent_session_id = parent_session_id
-    run.mode = mode
     run.status = status
     run.pid = pid
     run.provider = provider
@@ -57,7 +55,6 @@ def _make_mock_agent_run(
         "id": run_id,
         "session_id": session_id,
         "parent_session_id": parent_session_id,
-        "mode": mode,
         "status": status,
         "pid": pid,
         "provider": provider,
@@ -67,7 +64,6 @@ def _make_mock_agent_run(
         "run_id": run_id,
         "session_id": session_id,
         "parent_session_id": parent_session_id,
-        "mode": mode,
         "pid": pid,
         "provider": provider,
         "status": status,
@@ -81,7 +77,6 @@ def _make_runner_with_run_storage() -> MagicMock:
     runner.run_storage = MagicMock()
     runner.run_storage.list_active.return_value = []
     runner.run_storage.list_by_parent.return_value = []
-    runner.run_storage.list_by_mode.return_value = []
     runner.run_storage.get.return_value = None
     runner.run_storage.get_by_session.return_value = None
     return runner
@@ -346,21 +341,18 @@ class TestListRunningAgents:
                 run_id="run-1",
                 session_id="sess-1",
                 parent_session_id="parent-1",
-                mode="interactive",
                 pid=1001,
             ),
             _make_mock_agent_run(
                 run_id="run-2",
                 session_id="sess-2",
                 parent_session_id="parent-1",
-                mode="autonomous",
                 pid=1002,
             ),
             _make_mock_agent_run(
                 run_id="run-3",
                 session_id="sess-3",
                 parent_session_id="parent-2",
-                mode="interactive",
                 pid=1003,
             ),
         ]
@@ -398,24 +390,6 @@ class TestListRunningAgents:
         assert result["count"] == 2
         runner.run_storage.list_by_parent.assert_called_once_with("parent-1")
 
-    @pytest.mark.asyncio
-    async def test_filter_by_mode(self):
-        """Test filtering by execution mode."""
-        runner = _make_runner_with_run_storage()
-        agents = self._make_agents()
-        terminal_agents = [a for a in agents if a.mode == "interactive"]
-        runner.run_storage.list_by_mode.return_value = terminal_agents
-
-        registry = create_agents_registry(runner)
-        list_running = registry._tools["list_running_agents"].func
-
-        result = await list_running(mode="interactive")
-
-        assert result["success"] is True
-        assert result["count"] == 2
-        runner.run_storage.list_by_mode.assert_called_once_with("interactive")
-
-
 class TestGetRunningAgent:
     """Tests for get_running_agent MCP tool (DB-backed)."""
 
@@ -427,7 +401,7 @@ class TestGetRunningAgent:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-            mode="interactive",
+
             pid=12345,
             provider="claude",
             status="running",
@@ -560,7 +534,7 @@ class TestKillAgent:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-            mode="interactive",
+
         )
         runner.run_storage.get_by_session.return_value = mock_run
         runner.get_run.return_value = mock_run
@@ -601,7 +575,7 @@ class TestKillAgent:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-            mode="interactive",
+
         )
         runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True
@@ -626,7 +600,7 @@ class TestKillAgent:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-            mode="interactive",
+
         )
         runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True
@@ -655,7 +629,7 @@ class TestKillAgentSelfTerminationViaRunId:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-            mode="interactive",
+
         )
         runner.get_run.return_value = mock_run
         runner.complete_run.return_value = True
@@ -689,7 +663,7 @@ class TestKillAgentSelfTerminationViaRunId:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-            mode="interactive",
+
         )
         runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True
@@ -722,7 +696,7 @@ class TestKillAgentSelfTerminationViaRunId:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-            mode="interactive",
+
         )
         runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True
@@ -758,7 +732,6 @@ class TestRunningAgentStats:
 
         assert result["success"] is True
         assert result["total"] == 0
-        assert result["by_mode"] == {}
         assert result["by_parent_count"] == 0
 
     @pytest.mark.asyncio
@@ -769,22 +742,18 @@ class TestRunningAgentStats:
             _make_mock_agent_run(
                 run_id="run-1",
                 parent_session_id="parent-1",
-                mode="interactive",
             ),
             _make_mock_agent_run(
                 run_id="run-2",
                 parent_session_id="parent-1",
-                mode="interactive",
             ),
             _make_mock_agent_run(
                 run_id="run-3",
                 parent_session_id="parent-2",
-                mode="autonomous",
             ),
             _make_mock_agent_run(
                 run_id="run-4",
                 parent_session_id="parent-3",
-                mode="autonomous",
             ),
         ]
 
@@ -795,8 +764,6 @@ class TestRunningAgentStats:
 
         assert result["success"] is True
         assert result["total"] == 4
-        assert result["by_mode"]["interactive"] == 2
-        assert result["by_mode"]["autonomous"] == 2
         assert result["by_parent_count"] == 3  # 3 unique parents
 
 
@@ -849,7 +816,7 @@ class TestFireSyntheticStop:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-            mode="interactive",
+
         )
         runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True

@@ -54,7 +54,6 @@ class TestLoadAgentBody:
             instructions="Write clean code.",
             provider="claude",
             model="claude-sonnet-4-6",
-            mode="interactive",
             isolation="worktree",
             base_branch="main",
             timeout=120.0,
@@ -74,7 +73,6 @@ class TestLoadAgentBody:
         assert result.name == "test-dev-load"
         assert result.provider == "claude"
         assert result.model == "claude-sonnet-4-6"
-        assert result.mode == "interactive"
         assert result.isolation == "worktree"
         assert result.workflows.rules == ["require-task-before-edit", "require-commit"]
 
@@ -152,7 +150,6 @@ class TestSpawnAgentDefaults:
         agent_body = AgentDefinitionBody(
             name="default",
             provider="claude",
-            mode="interactive",
         )
 
         registry = create_spawn_agent_registry(mock_runner, db=MagicMock())
@@ -213,7 +210,6 @@ class TestSpawnAgentIsolation:
         return AgentDefinitionBody(
             name="default",
             provider="claude",
-            mode="interactive",
         )
 
     @pytest.mark.asyncio
@@ -417,11 +413,9 @@ class TestSpawnAgentParamOverrides:
     async def test_tool_params_override_agent_definition(self, mock_runner) -> None:
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
-        # Agent definition says mode=autonomous
         agent_body = AgentDefinitionBody(
             name="default",
             provider="claude",
-            mode="autonomous",
         )
 
         registry = create_spawn_agent_registry(mock_runner, db=MagicMock())
@@ -459,19 +453,15 @@ class TestSpawnAgentParamOverrides:
                 status="pending",
             )
 
-            # Override with mode=interactive via tool param
             result = await registry.call(
                 "spawn_agent",
                 {
                     "prompt": "Test prompt",
                     "parent_session_id": "parent-789",
-                    "mode": "interactive",
                 },
             )
 
             assert result["success"] is True
-            execute_call = mock_execute.call_args
-            assert execute_call[0][0].mode == "interactive"
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -495,7 +485,6 @@ class TestSpawnAgentTaskResolution:
         return AgentDefinitionBody(
             name="default",
             provider="claude",
-            mode="interactive",
         )
 
     @pytest.mark.asyncio
@@ -586,7 +575,6 @@ class TestSpawnAgentSandbox:
         return AgentDefinitionBody(
             name="default",
             provider="claude",
-            mode="interactive",
         )
 
     @pytest.mark.asyncio
@@ -775,7 +763,6 @@ class TestSpawnAgentPreRegistration:
         return AgentDefinitionBody(
             name="default",
             provider="claude",
-            mode="interactive",
         )
 
     @pytest.mark.asyncio
@@ -907,7 +894,7 @@ class TestSpawnAgentNotFound:
 
 
 class TestSpawnAgentPromptPreamble:
-    """Tests for prompt preamble composition from agent definition."""
+    """Tests for prompt handling — preamble is injected via hooks, not prompt."""
 
     @pytest.fixture
     def mock_runner(self):
@@ -917,14 +904,14 @@ class TestSpawnAgentPromptPreamble:
         return runner
 
     @pytest.mark.asyncio
-    async def test_preamble_prepended_to_prompt(self, mock_runner) -> None:
+    async def test_prompt_passed_without_preamble(self, mock_runner) -> None:
+        """Preamble is injected via session_start hooks, not prepended to prompt."""
         from gobby.mcp_proxy.tools.spawn_agent import create_spawn_agent_registry
 
         agent_body = AgentDefinitionBody(
             name="dev",
             role="Backend developer",
             instructions="Write clean code.",
-            mode="autonomous",
         )
 
         registry = create_spawn_agent_registry(mock_runner, db=MagicMock())
@@ -960,11 +947,9 @@ class TestSpawnAgentPromptPreamble:
                 },
             )
 
-            # Check the prompt passed to spawn_agent_impl includes preamble
+            # Prompt is passed through as-is; preamble injected via hooks
             spawn_request = mock_execute.call_args[0][0]
-            assert "Backend developer" in spawn_request.prompt
-            assert "Write clean code" in spawn_request.prompt
-            assert "Fix the bug" in spawn_request.prompt
+            assert spawn_request.prompt == "Fix the bug"
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -989,7 +974,6 @@ class TestSpawnAgentPipelineInjection:
 
         agent_body = AgentDefinitionBody(
             name="pipeline-agent",
-            mode="interactive",
             workflows=AgentWorkflows(pipeline="my-pipeline"),
         )
 
@@ -1043,7 +1027,6 @@ class TestSpawnAgentPipelineInjection:
 
         agent_body = AgentDefinitionBody(
             name="step-agent",
-            mode="interactive",
             workflows=AgentWorkflows(pipeline="my-workflow"),
         )
 
@@ -1112,7 +1095,6 @@ class TestSpawnAgentStepVariables:
 
         agent_body = AgentDefinitionBody(
             name="qa-agent",
-            mode="interactive",
             workflows=AgentWorkflows(rules=["no-code-writing"]),
         )
 
@@ -1174,7 +1156,6 @@ class TestDispatchBatchIsolationParity:
         return AgentDefinitionBody(
             name="developer",
             provider="claude",
-            mode="interactive",
         )
 
     @pytest.mark.asyncio
@@ -1335,7 +1316,6 @@ class TestSpawnAgentDedup:
         agent_body = AgentDefinitionBody(
             name="default",
             provider="claude",
-            mode="interactive",
         )
 
         mock_task_manager = MagicMock()
@@ -1393,32 +1373,6 @@ class TestSpawnAgentImplErrorBranches:
     """Tests for spawn_agent_impl error paths not covered by factory tests."""
 
     @pytest.mark.asyncio
-    async def test_invalid_mode_returns_error(self) -> None:
-        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
-
-        runner = MagicMock()
-        result = await spawn_agent_impl(
-            prompt="test",
-            runner=runner,
-            mode="invalid_mode",
-        )
-        assert result["success"] is False
-        assert "Invalid mode" in result["error"]
-
-    @pytest.mark.asyncio
-    async def test_mode_self_is_now_invalid(self) -> None:
-        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
-
-        runner = MagicMock()
-        result = await spawn_agent_impl(
-            prompt="test",
-            runner=runner,
-            mode="self",
-        )
-        assert result["success"] is False
-        assert "Invalid mode" in result["error"]
-
-    @pytest.mark.asyncio
     async def test_no_project_context_returns_error(self) -> None:
         from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
 
@@ -1433,7 +1387,6 @@ class TestSpawnAgentImplErrorBranches:
             result = await spawn_agent_impl(
                 prompt="test",
                 runner=runner,
-                mode="interactive",
                 parent_session_id="sess-1",
             )
             assert result["success"] is False
@@ -1453,7 +1406,6 @@ class TestSpawnAgentImplErrorBranches:
             result = await spawn_agent_impl(
                 prompt="test",
                 runner=runner,
-                mode="interactive",
                 parent_session_id="sess-1",
             )
             assert result["success"] is False
@@ -1473,7 +1425,6 @@ class TestSpawnAgentImplErrorBranches:
             result = await spawn_agent_impl(
                 prompt="test",
                 runner=runner,
-                mode="interactive",
             )
             assert result["success"] is False
             assert "parent_session_id" in result["error"]
@@ -1492,7 +1443,6 @@ class TestSpawnAgentImplErrorBranches:
             result = await spawn_agent_impl(
                 prompt="test",
                 runner=runner,
-                mode="interactive",
                 parent_session_id="sess-1",
             )
             assert result["success"] is False
@@ -1516,7 +1466,6 @@ class TestSpawnAgentImplErrorBranches:
             result = await spawn_agent_impl(
                 prompt="test",
                 runner=runner,
-                mode="interactive",
                 parent_session_id="sess-1",
                 worktree_id="wt-missing",
                 worktree_storage=worktree_storage,
@@ -1547,7 +1496,6 @@ class TestSpawnAgentImplErrorBranches:
             result = await spawn_agent_impl(
                 prompt="test",
                 runner=runner,
-                mode="interactive",
                 parent_session_id="sess-1",
                 worktree_id="wt-1",
                 worktree_storage=worktree_storage,
@@ -1574,7 +1522,6 @@ class TestSpawnAgentImplErrorBranches:
             result = await spawn_agent_impl(
                 prompt="test",
                 runner=runner,
-                mode="interactive",
                 parent_session_id="sess-1",
                 clone_id="clone-missing",
                 clone_storage=clone_storage,
@@ -1605,7 +1552,6 @@ class TestSpawnAgentImplErrorBranches:
             result = await spawn_agent_impl(
                 prompt="test",
                 runner=runner,
-                mode="interactive",
                 parent_session_id="sess-1",
                 clone_id="clone-1",
                 clone_storage=clone_storage,
@@ -1639,7 +1585,6 @@ class TestSpawnAgentImplErrorBranches:
             result = await spawn_agent_impl(
                 prompt="test",
                 runner=runner,
-                mode="interactive",
                 parent_session_id="sess-1",
             )
             assert result["success"] is False
@@ -1688,7 +1633,6 @@ class TestSpawnAgentImplErrorBranches:
             result = await spawn_agent_impl(
                 prompt="test",
                 runner=runner,
-                mode="interactive",
                 parent_session_id="sess-1",
                 timeout=0,
             )

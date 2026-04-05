@@ -217,6 +217,7 @@ def create_hub_registry(
                 """
                 SELECT id, project_id, source, status, machine_id, created_at, updated_at
                 FROM sessions
+                WHERE source != 'system'
                 ORDER BY created_at DESC
                 LIMIT ?
                 """,
@@ -267,7 +268,7 @@ def create_hub_registry(
                 FROM (
                     SELECT project_id FROM tasks WHERE project_id IS NOT NULL
                     UNION
-                    SELECT project_id FROM sessions WHERE project_id IS NOT NULL
+                    SELECT project_id FROM sessions WHERE project_id IS NOT NULL AND source != 'system'
                 )
                 """
             )
@@ -289,6 +290,7 @@ def create_hub_registry(
                 """
                 SELECT status, COUNT(*) as count
                 FROM sessions
+                WHERE source != 'system'
                 GROUP BY status
                 """
             )
