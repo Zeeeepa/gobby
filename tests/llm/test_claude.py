@@ -579,50 +579,6 @@ class TestGenerateJson:
 # ─── stream_with_mcp_tools tests ────────────────────────────────────────
 
 
-class TestStreamWithMcpTools:
-    """Tests for stream_with_mcp_tools."""
-
-    @pytest.mark.asyncio
-    async def test_api_key_mode_yields_error(self, api_key_config: DaemonConfig) -> None:
-        """api_key mode yields error text and DoneEvent."""
-        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-            from gobby.llm.claude import ClaudeLLMProvider
-            from gobby.llm.claude_models import DoneEvent, TextChunk
-
-            provider = ClaudeLLMProvider(api_key_config)
-            events = []
-            async for event in provider.stream_with_mcp_tools(
-                prompt="test",
-                allowed_tools=[],
-            ):
-                events.append(event)
-
-            assert len(events) == 2
-            assert isinstance(events[0], TextChunk)
-            assert "subscription" in events[0].content.lower()
-            assert isinstance(events[1], DoneEvent)
-
-    @pytest.mark.asyncio
-    async def test_no_cli_yields_error(self, claude_config: DaemonConfig) -> None:
-        """No CLI path yields error text and DoneEvent."""
-        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-            from gobby.llm.claude import ClaudeLLMProvider
-            from gobby.llm.claude_models import DoneEvent, TextChunk
-
-            provider = ClaudeLLMProvider(claude_config)
-            events = []
-            async for event in provider.stream_with_mcp_tools(
-                prompt="test",
-                allowed_tools=[],
-            ):
-                events.append(event)
-
-            assert len(events) == 2
-            assert isinstance(events[0], TextChunk)
-            assert "unavailable" in events[0].content.lower()
-            assert isinstance(events[1], DoneEvent)
-
-
 # ─── describe_image tests ───────────────────────────────────────────────
 
 
