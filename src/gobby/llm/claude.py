@@ -203,6 +203,21 @@ class ClaudeLLMProvider(LLMProvider):
                 return False
         return True
 
+    @staticmethod
+    def _extract_exit_code(e: BaseException) -> int | None:
+        """Walk __cause__ chain to find ProcessError exit code.
+
+        The SDK's ProcessError has an exit_code attribute, but it gets
+        wrapped as a plain Exception through the message stream. This
+        walks the chain defensively in case the SDK fixes that.
+        """
+        current: BaseException | None = e
+        while current is not None:
+            if hasattr(current, "exit_code"):
+                return current.exit_code
+            current = current.__cause__
+        return None
+
     async def _retry_async(
         self,
         operation: Any,
@@ -245,6 +260,64 @@ class ClaudeLLMProvider(LLMProvider):
                     await asyncio.sleep(backoff)
                 else:
                     raise
+
+    async def _execute_sdk_query(
+        self,
+        operation: str,
+        query_fn: Any,
+        options: ClaudeAgentOptions,
+        *,
+        max_retries: int = 1,
+        retry_delay: float = 2.0,
+    ) -> Any:
+        """Execute an SDK query with stderr capture, retry, drain, and error logging.
+
+        This is the single entry point for all Claude SDK query execution.
+        It owns the full lifecycle:
+        1. Injects stderr callback into options
+        2. Runs query_fn with retry logic
+        3. On failure: drains stderr, extracts exit code, logs diagnostics
+        4. Re-raises as RuntimeError with stderr content
+
+        Args:
+            operation: Human-readable name for logging (e.g. "generate_text").
+            query_fn: Async callable that runs the SDK query loop.
+            options: ClaudeAgentOptions — stderr will be overwritten.
+            max_retries: Number of attempts (1 = no retry).
+            retry_delay: Base delay between retries in seconds.
+        """
+        stderr_lines: list[str] = []
+        options.stderr = lambda line: stderr_lines.append(line)
+
+        def _on_retry(attempt: int, error: Exception) -> None:
+            stderr_ctx = f" stderr={stderr_lines}" if stderr_lines else ""
+            self.logger.warning(
+                f"{operation} failed (attempt {attempt + 1}), retrying: {error}{stderr_ctx}"
+            )
+            stderr_lines.clear()
+
+        try:
+            return await self._retry_async(
+                query_fn, max_retries=max_retries, delay=retry_delay, on_retry=_on_retry
+            )
+        except ExceptionGroup:
+            # Let ExceptionGroup propagate for callers that handle it
+            raise
+        except Exception as e:
+            # Give stderr handler task time to drain before logging
+            await asyncio.sleep(0.2)
+            exit_code = self._extract_exit_code(e)
+            stderr_text = "\n".join(stderr_lines)
+            self.logger.error(
+                f"{operation} failed: {e}"
+                + (f" [exit_code={exit_code}]" if exit_code else "")
+                + (f"\nCLI stderr:\n{stderr_text}" if stderr_text else " (no stderr captured)"),
+                exc_info=True,
+            )
+            raise RuntimeError(
+                f"{operation} failed: {e}"
+                + (f"\nCLI stderr:\n{stderr_text}" if stderr_text else "")
+            ) from e
 
     async def generate_summary(
         self, context: dict[str, Any], prompt_template: str | None = None
@@ -296,15 +369,14 @@ class ClaudeLLMProvider(LLMProvider):
             return summary_text
 
         try:
-            summary_text = await _run_query()
+            summary_text = await self._execute_sdk_query("generate_summary", _run_query, options)
             if not summary_text:
                 sid = context.get("session_id", "unknown")
                 self.logger.warning(
                     f"Claude SDK query returned empty response for summary generation (session {sid})",
                 )
             return summary_text
-        except Exception as e:
-            self.logger.error(f"Failed to generate summary with Claude: {e}")
+        except RuntimeError as e:
             return f"Session summary generation failed: {e}"
 
     async def _generate_summary_litellm(
@@ -366,12 +438,6 @@ class ClaudeLLMProvider(LLMProvider):
         if not cli_path:
             raise RuntimeError("Generation unavailable (Claude CLI not found)")
 
-        # Capture stderr from Claude CLI subprocess for diagnostics
-        stderr_lines: list[str] = []
-
-        def _on_stderr(line: str) -> None:
-            stderr_lines.append(line)
-
         # Configure Claude Agent SDK
         # Use tools=[] to disable all tools for pure text generation
         options = ClaudeAgentOptions(
@@ -383,13 +449,9 @@ class ClaudeLLMProvider(LLMProvider):
             mcp_servers={},
             permission_mode="default",
             cli_path=cli_path,
-            stderr=_on_stderr,
         )
-        _max_tokens = max_tokens
 
-        # Run async query
         async def _run_query() -> str:
-            stderr_lines.clear()
             result_text = ""
             message_count = 0
             async for message in query(prompt=prompt, options=options):
@@ -405,7 +467,6 @@ class ClaudeLLMProvider(LLMProvider):
                         elif isinstance(block, ToolUseBlock):
                             self.logger.debug(f"  ToolUseBlock: {block.name}")
                 elif isinstance(message, ResultMessage):
-                    # ResultMessage contains the final result from the agent
                     self.logger.debug(
                         f"  ResultMessage: result={message.result}, type={type(message.result)}"
                     )
@@ -417,26 +478,13 @@ class ClaudeLLMProvider(LLMProvider):
                 self.logger.warning(f"generate_text: {message_count} messages but no text content")
             return result_text
 
-        def _on_retry(attempt: int, error: Exception) -> None:
-            stderr_ctx = f" stderr={stderr_lines}" if stderr_lines else ""
-            self.logger.warning(
-                f"generate_text failed (attempt {attempt + 1}), retrying: {error}{stderr_ctx}"
-            )
-
-        try:
-            result: str = await self._retry_async(
-                _run_query, max_retries=3, delay=2.0, on_retry=_on_retry
-            )
-            # SDK doesn't support max_tokens directly; post-truncate if needed
-            if _max_tokens and len(result) > _max_tokens * 4:
-                result = result[: _max_tokens * 4]
-            return result
-        except Exception as e:
-            stderr_ctx = f" stderr={stderr_lines}" if stderr_lines else ""
-            self.logger.error(
-                f"Failed to generate text with Claude: {e}{stderr_ctx}", exc_info=True
-            )
-            raise RuntimeError(f"Failed to generate text with Claude: {e}") from e
+        result: str = await self._execute_sdk_query(
+            "generate_text", _run_query, options, max_retries=3
+        )
+        # SDK doesn't support max_tokens directly; post-truncate if needed
+        if max_tokens and len(result) > max_tokens * 4:
+            result = result[: max_tokens * 4]
+        return result
 
     async def _generate_text_litellm(
         self,
@@ -703,7 +751,9 @@ class ClaudeLLMProvider(LLMProvider):
             return result_text
 
         try:
-            final_text = await _run_query()
+            final_text = await self._execute_sdk_query(
+                "generate_with_mcp_tools", _run_query, options
+            )
             return MCPToolResult(text=final_text, tool_calls=tool_calls)
         except ExceptionGroup as eg:
             # Handle Python 3.11+ ExceptionGroup from TaskGroup
@@ -715,8 +765,7 @@ class ClaudeLLMProvider(LLMProvider):
                 text=f"Generation failed: {'; '.join(errors)}",
                 tool_calls=tool_calls,
             )
-        except Exception as e:
-            self.logger.error(f"Failed to generate with MCP tools: {e}", exc_info=True)
+        except RuntimeError as e:
             return MCPToolResult(
                 text=f"Generation failed: {e}",
                 tool_calls=tool_calls,
@@ -881,9 +930,8 @@ class ClaudeLLMProvider(LLMProvider):
             return result_text
 
         try:
-            return await _run_query()
-        except Exception as e:
-            self.logger.error(f"Failed to describe image with Claude SDK: {e}")
+            return await self._execute_sdk_query("describe_image", _run_query, options)
+        except RuntimeError as e:
             return f"Image description failed: {e}"
 
     async def _describe_image_litellm(
