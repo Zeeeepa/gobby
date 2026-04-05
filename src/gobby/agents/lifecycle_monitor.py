@@ -97,7 +97,7 @@ class AgentLifecycleMonitor:
         self._session_coordinator = coordinator
 
     def register_async_task(self, run_id: str, task: asyncio.Task[Any]) -> None:
-        """Register an asyncio.Task for an autonomous/in-process agent."""
+        """Register an asyncio.Task for an autonomous agent."""
         self._async_tasks[run_id] = task
 
     def register_master_fd(self, run_id: str, fd: int) -> None:
@@ -465,11 +465,7 @@ class AgentLifecycleMonitor:
 
                 # Autonomous agents: check if asyncio.Task completed
                 async_task = self._async_tasks.get(run.id)
-                if (
-                    reason is None
-                    and async_task is not None
-                    and run.mode in ("autonomous", "in_process")
-                ):
+                if reason is None and async_task is not None and run.mode == "autonomous":
                     if async_task.done():
                         try:
                             exc = async_task.exception()

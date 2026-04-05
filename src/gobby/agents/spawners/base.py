@@ -16,7 +16,6 @@ class SpawnMode(str, Enum):
 
     INTERACTIVE = "interactive"  # Spawn in tmux for interactive use
     AUTONOMOUS = "autonomous"  # SDK in-process, auto-approve all tools
-    IN_PROCESS = "in_process"  # Run via SDK in daemon process (web chat)
 
 
 @dataclass

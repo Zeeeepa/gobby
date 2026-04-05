@@ -179,7 +179,7 @@ async def kill_agent(
     Args:
         run: Agent run DB record.
         db: Database connection.
-        async_task: Optional asyncio.Task for autonomous/in-process agents.
+        async_task: Optional asyncio.Task for autonomous agents.
         master_fd: Optional PTY file descriptor to close.
         signal_name: Signal without SIG prefix (TERM, KILL).
         timeout: Seconds before escalating TERM → KILL.
@@ -190,10 +190,10 @@ async def kill_agent(
     """
     session_id = run.child_session_id or run.parent_session_id
 
-    # Handle in_process/autonomous mode (asyncio.Task)
-    if run.mode in ("in_process", "autonomous") and async_task:
+    # Handle autonomous mode (asyncio.Task)
+    if run.mode == "autonomous" and async_task:
         async_task.cancel()
-        return {"success": True, "message": "Cancelled in-process task"}
+        return {"success": True, "message": "Cancelled autonomous task"}
 
     # For terminal mode with close_terminal=True, try terminal-specific close
     if close_terminal and run.mode == "interactive" and session_id:

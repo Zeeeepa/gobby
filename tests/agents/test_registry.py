@@ -42,7 +42,7 @@ class TestRunningAgent:
             run_id="ar-1",
             session_id="sess-c",
             parent_session_id="sess-p",
-            mode="in_process",
+            mode="autonomous",
         )
 
         assert agent.pid is None
@@ -408,7 +408,7 @@ class TestRunningAgentRegistry:
             run_id="ar-no-pid",
             session_id="sess-no-pid",
             parent_session_id="sess-parent",
-            mode="in_process",
+            mode="autonomous",
             pid=None,
         )
         registry.add(agent)
@@ -493,7 +493,7 @@ class TestRunningAgentRegistry:
         )
         registry.add(agent)
 
-        result = registry.list_by_mode("in_process")
+        result = registry.list_by_mode("interactive")
 
         assert result == []
 
@@ -636,14 +636,14 @@ class TestRunningAgentRegistryCleanup:
 
     def test_cleanup_by_pids_ignores_none_pids(self, registry) -> None:
         """cleanup_by_pids() ignores agents with None pid."""
-        in_process_agent = RunningAgent(
-            run_id="ar-in-process",
-            session_id="sess-in-process",
+        autonomous_agent = RunningAgent(
+            run_id="ar-autonomous-np",
+            session_id="sess-autonomous-np",
             parent_session_id="parent",
-            mode="in_process",
+            mode="autonomous",
             pid=None,
         )
-        registry.add(in_process_agent)
+        registry.add(autonomous_agent)
 
         removed = registry.cleanup_by_pids({None})  # type: ignore
 
@@ -1057,7 +1057,7 @@ class TestRunningAgentRegistryThreadSafety:
                     run_id=f"ar-read-{i}",
                     session_id=f"sess-read-{i}",
                     parent_session_id=f"parent-{i % 10}",
-                    mode=["interactive", "autonomous", "in_process", "interactive"][i % 4],
+                    mode=["interactive", "autonomous", "autonomous", "interactive"][i % 4],
                     pid=i if i % 2 == 0 else None,
                 )
             )
@@ -1468,14 +1468,14 @@ class TestRunningAgentRegistryKill:
         assert result["already_completed"] is True
 
     @pytest.mark.asyncio
-    async def test_kill_in_process_with_task(self, registry) -> None:
-        """kill() cancels asyncio task for in_process mode."""
+    async def test_kill_autonomous_with_task(self, registry) -> None:
+        """kill() cancels asyncio task for autonomous mode."""
         mock_task = MagicMock()
         agent = RunningAgent(
             run_id="ar-inproc",
             session_id="sess-inproc",
             parent_session_id="parent",
-            mode="in_process",
+            mode="autonomous",
             task=mock_task,
         )
         registry.add(agent)
@@ -1488,8 +1488,8 @@ class TestRunningAgentRegistryKill:
         assert registry.get("ar-inproc") is None
 
     @pytest.mark.asyncio
-    async def test_kill_autonomous_with_task(self, registry) -> None:
-        """kill() cancels asyncio task for autonomous mode."""
+    async def test_kill_autonomous_with_task_cancels(self, registry) -> None:
+        """kill() cancels asyncio task for autonomous mode (minimal assertions)."""
         mock_task = MagicMock()
         agent = RunningAgent(
             run_id="ar-auto",

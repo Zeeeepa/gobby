@@ -290,7 +290,7 @@ class TestCheckDeadAgents:
 
 
 class TestCheckDeadAutonomousAgents:
-    """Tests for autonomous/in_process task-based agent detection in check_unhealthy_agents."""
+    """Tests for autonomous task-based agent detection in check_unhealthy_agents."""
 
     @pytest.mark.asyncio
     async def test_detects_completed_autonomous_task(

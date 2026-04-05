@@ -95,14 +95,14 @@ class TestRunningAgentRegistryKill:
         assert registry.get("ar-dead") is None
 
     @pytest.mark.asyncio
-    async def test_kill_in_process(self, registry):
-        """Kill cancels in-process task."""
+    async def test_kill_autonomous(self, registry):
+        """Kill cancels autonomous task."""
         mock_task = MagicMock()
         agent = RunningAgent(
             run_id="ar-process",
             session_id="sess",
             parent_session_id="parent",
-            mode="in_process",
+            mode="autonomous",
             task=mock_task,
         )
         registry.add(agent)
