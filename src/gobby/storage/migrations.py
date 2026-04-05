@@ -234,6 +234,57 @@ def _add_summary_column(db: LocalDatabase) -> None:
     _setup_code_symbols_fts(db, include_summary=True)
 
 
+def _drop_agent_runs_mode(db: LocalDatabase) -> None:
+    """Drop the mode column from agent_runs via table rebuild.
+
+    Requires PRAGMA foreign_keys=OFF because other tables (checkpoints)
+    reference agent_runs.id.
+    """
+    db.execute("PRAGMA foreign_keys=OFF")
+    db.connection.executescript("""
+        CREATE TABLE agent_runs_new (
+            id TEXT PRIMARY KEY,
+            parent_session_id TEXT NOT NULL REFERENCES sessions(id),
+            child_session_id TEXT REFERENCES sessions(id),
+            workflow_name TEXT,
+            provider TEXT DEFAULT 'claude',
+            model TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            prompt TEXT,
+            result TEXT,
+            error TEXT,
+            tool_calls_count INTEGER DEFAULT 0,
+            turns_used INTEGER DEFAULT 0,
+            started_at TEXT,
+            completed_at TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            sdk_session_id TEXT,
+            continuation_prompt TEXT,
+            task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+            pid INTEGER,
+            tmux_session_name TEXT,
+            worktree_id TEXT,
+            clone_id TEXT,
+            timeout_seconds REAL
+        );
+        INSERT INTO agent_runs_new SELECT
+            id, parent_session_id, child_session_id, workflow_name,
+            provider, model, status, prompt, result, error,
+            tool_calls_count, turns_used, started_at, completed_at,
+            created_at, updated_at, sdk_session_id, continuation_prompt,
+            task_id, pid, tmux_session_name, worktree_id, clone_id,
+            timeout_seconds
+        FROM agent_runs;
+        DROP TABLE agent_runs;
+        ALTER TABLE agent_runs_new RENAME TO agent_runs;
+        CREATE INDEX idx_agent_runs_parent_session ON agent_runs(parent_session_id);
+        CREATE INDEX idx_agent_runs_child_session ON agent_runs(child_session_id);
+        CREATE INDEX idx_agent_runs_status ON agent_runs(status);
+    """)
+    db.execute("PRAGMA foreign_keys=ON")
+
+
 # Migrations beyond v171.
 # Add new migrations here. Do not modify the baseline schema above.
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
@@ -565,47 +616,7 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (
         194,
         "Drop mode column from agent_runs (all agents spawn via tmux)",
-        """
-        CREATE TABLE agent_runs_new (
-            id TEXT PRIMARY KEY,
-            parent_session_id TEXT NOT NULL REFERENCES sessions(id),
-            child_session_id TEXT REFERENCES sessions(id),
-            workflow_name TEXT,
-            provider TEXT DEFAULT 'claude',
-            model TEXT,
-            status TEXT NOT NULL DEFAULT 'pending',
-            prompt TEXT,
-            result TEXT,
-            error TEXT,
-            tool_calls_count INTEGER DEFAULT 0,
-            turns_used INTEGER DEFAULT 0,
-            started_at TEXT,
-            completed_at TEXT,
-            created_at TEXT NOT NULL DEFAULT (datetime('now')),
-            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-            sdk_session_id TEXT,
-            continuation_prompt TEXT,
-            task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
-            pid INTEGER,
-            tmux_session_name TEXT,
-            worktree_id TEXT,
-            clone_id TEXT,
-            timeout_seconds REAL
-        );
-        INSERT INTO agent_runs_new SELECT
-            id, parent_session_id, child_session_id, workflow_name,
-            provider, model, status, prompt, result, error,
-            tool_calls_count, turns_used, started_at, completed_at,
-            created_at, updated_at, sdk_session_id, continuation_prompt,
-            task_id, pid, tmux_session_name, worktree_id, clone_id,
-            timeout_seconds
-        FROM agent_runs;
-        DROP TABLE agent_runs;
-        ALTER TABLE agent_runs_new RENAME TO agent_runs;
-        CREATE INDEX idx_agent_runs_parent_session ON agent_runs(parent_session_id);
-        CREATE INDEX idx_agent_runs_child_session ON agent_runs(child_session_id);
-        CREATE INDEX idx_agent_runs_status ON agent_runs(status);
-        """,
+        _drop_agent_runs_mode,
     ),
 ]
 
