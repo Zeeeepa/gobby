@@ -41,8 +41,6 @@ dependencies = [
     "gitingest>=0.3.1",
     # croniter for cron expression parsing (scheduler)
     "croniter>=6.0.0",
-    # scikit-learn for TF-IDF search (used by task search and skill search)
-    "scikit-learn>=1.0.0",
     "qdrant-client>=1.12.0",
     # python-multipart 0.0.21 has CVE-2026-24486 - pin to fixed version
     "python-multipart>=0.0.22",

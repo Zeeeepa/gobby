@@ -218,7 +218,7 @@ class EmbeddingBackend:
     def get_item_contents(self) -> dict[str, str]:
         """Get stored item contents.
 
-        Useful for reindexing into a different backend (e.g., TF-IDF fallback).
+        Useful for reindexing into a different backend (e.g., keyword fallback).
 
         Returns:
             Dict mapping item_id to content

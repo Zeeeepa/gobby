@@ -1,7 +1,7 @@
 """Tests for Memory V2 features.
 
 Covers:
-- TF-IDF search backend
+- Keyword search backend
 - Cross-reference creation and retrieval
 - Knowledge graph visualization export
 """
@@ -137,7 +137,7 @@ class TestCrossReferences:
         _related_ids = [m.id for m in related]
 
         # At minimum, we should get some results
-        # The exact linking depends on TF-IDF similarity
+        # The exact linking depends on keyword similarity
         assert isinstance(related, list)
 
     @pytest.mark.asyncio

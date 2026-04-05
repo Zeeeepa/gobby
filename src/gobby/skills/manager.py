@@ -33,7 +33,7 @@ class SkillManager:
     This class provides a unified interface for skill management,
     wiring together:
     - LocalSkillManager for persistent storage
-    - SkillSearch for TF-IDF based search
+    - SkillSearch for keyword-based search (FTS5)
     - SkillChangeNotifier for automatic reindex tracking
 
     Example usage:
@@ -69,7 +69,7 @@ class SkillManager:
             db: Database connection for storage
             project_id: Optional default project scope
             search_config: Optional search config with embedding_api_key
-                for embedding-based skill search. Falls back to TF-IDF
+                for embedding-based skill search. Falls back to keyword search
                 when None or when the key is unavailable.
         """
         self._project_id = project_id

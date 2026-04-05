@@ -554,7 +554,7 @@ class SkillMetadataMixin:
     ) -> list[Skill]:
         """Search skills by name and description.
 
-        This is a simple text search. For advanced search with TF-IDF
+        This is a simple text search. For advanced search with keyword (FTS5)
         and embeddings, use SkillSearch from the skills module.
 
         Args:

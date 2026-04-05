@@ -49,7 +49,7 @@ def test_removed_fields_no_longer_exist() -> None:
     removed_fields = [
         "search_backend",
         "embedding_weight",
-        "tfidf_weight",
+        "keyword_weight",
         "importance_threshold",
         "decay_enabled",
         "decay_rate",
@@ -89,7 +89,7 @@ def test_old_config_with_removed_fields_does_not_crash() -> None:
             "enabled": True,
             "search_backend": "auto",
             "embedding_weight": 0.6,
-            "tfidf_weight": 0.4,
+            "keyword_weight": 0.4,
             "importance_threshold": 0.7,
             "decay_enabled": True,
             "decay_rate": 0.05,

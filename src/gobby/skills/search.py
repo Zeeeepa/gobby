@@ -1,12 +1,12 @@
 """Skill search using unified search backend.
 
 This module provides skill search functionality using the UnifiedSearcher
-for TF-IDF, embedding, or hybrid search with automatic fallback.
+for keyword, embedding, or hybrid search with automatic fallback.
 
 Features:
 - Indexes skills by name, description, tags, and category
 - Post-search filtering by category and tags
-- Automatic fallback from embedding to TF-IDF when API unavailable
+- Automatic fallback from embedding to keyword search when API unavailable
 """
 
 from __future__ import annotations
@@ -78,9 +78,9 @@ class SkillSearch:
     """Search skills using unified search with automatic fallback.
 
     Uses UnifiedSearcher to provide skill search with:
-    - TF-IDF mode (always available)
+    - Keyword mode (FTS5, always available)
     - Embedding mode (requires API key)
-    - Auto mode (embedding with TF-IDF fallback)
+    - Auto mode (embedding with keyword fallback)
     - Hybrid mode (combines both with weighted scores)
 
     Example usage:
@@ -96,7 +96,7 @@ class SkillSearch:
 
         # Check if using fallback
         if search.is_using_fallback():
-            print(f"Using TF-IDF fallback: {search.get_fallback_reason()}")
+            print(f"Using keyword fallback: {search.get_fallback_reason()}")
         ```
     """
 
@@ -165,9 +165,9 @@ class SkillSearch:
         return self._config.mode
 
     @property
-    def tfidf_weight(self) -> float:
-        """Return the TF-IDF weight for hybrid search."""
-        return self._config.tfidf_weight
+    def keyword_weight(self) -> float:
+        """Return the keyword weight for hybrid search."""
+        return self._config.keyword_weight
 
     @property
     def embedding_weight(self) -> float:
@@ -262,7 +262,7 @@ class SkillSearch:
     async def index_skills_async(self, skills: list[Skill]) -> None:
         """Build search index from skills.
 
-        Indexes skills using the configured search mode (auto, tfidf,
+        Indexes skills using the configured search mode (auto, keyword,
         embedding, or hybrid). When a database is available, also populates
         the skills_fts FTS5 table for keyword fallback.
 
@@ -499,10 +499,10 @@ class SkillSearch:
         return self._pending_updates >= self._refit_threshold or self._searcher.needs_refit()
 
     def is_using_fallback(self) -> bool:
-        """Check if search is using TF-IDF fallback.
+        """Check if search is using keyword fallback.
 
         Returns:
-            True if using TF-IDF due to embedding failure
+            True if using keyword backend due to embedding failure
         """
         return self._searcher.is_using_fallback()
 
@@ -518,7 +518,7 @@ class SkillSearch:
         """Get the name of the currently active backend.
 
         Returns:
-            One of "tfidf", "embedding", "hybrid", or "none"
+            One of "fts5", "embedding", "hybrid", or "none"
         """
         return self._searcher.get_active_backend()
 

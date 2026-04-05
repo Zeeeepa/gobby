@@ -1,6 +1,6 @@
 """Search operations for task management.
 
-Provides semantic search tools for tasks using TF-IDF.
+Provides FTS5 full-text search tools for tasks.
 """
 
 from typing import Any
@@ -36,7 +36,7 @@ def create_search_registry(ctx: RegistryContext) -> InternalToolRegistry:
         all_projects: bool = False,
         project: str | None = None,
     ) -> dict[str, Any]:
-        """Search tasks using semantic TF-IDF search.
+        """Search tasks using FTS5 full-text search.
 
         Performs semantic search on task title, description, labels, and type.
         Results are ranked by relevance and can be filtered by status, type, etc.
@@ -111,7 +111,7 @@ def create_search_registry(ctx: RegistryContext) -> InternalToolRegistry:
 
     registry.register(
         name="search_tasks",
-        description="Search tasks using semantic TF-IDF search. Returns tasks ranked by relevance to the query.",
+        description="Search tasks using FTS5 full-text search. Returns tasks ranked by relevance to the query.",
         input_schema={
             "type": "object",
             "properties": {

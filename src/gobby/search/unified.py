@@ -1,7 +1,7 @@
 """Unified search orchestration with fallback.
 
 This module provides UnifiedSearcher, the main entry point for the unified
-search layer. It orchestrates between embedding-based and TF-IDF backends
+search layer. It orchestrates between embedding-based and FTS5 keyword backends
 with automatic fallback and configurable search modes.
 
 Example usage:
@@ -44,7 +44,7 @@ class UnifiedSearcher:
     based on the configured mode and availability of embedding providers.
 
     Search Modes:
-    - tfidf: FTS5 keyword search only (always works, no API needed)
+    - keyword: FTS5 keyword search only (always works, no API needed)
     - embedding: Embedding-based only (fails if unavailable)
     - auto: Try embedding, fallback to FTS5 if unavailable
     - hybrid: Combine both with weighted scores
@@ -173,7 +173,7 @@ class UnifiedSearcher:
         error: Exception | None = None,
         items: list[tuple[str, str]] | None = None,
     ) -> None:
-        """Switch to keyword backend (FTS5 or TF-IDF) and reindex.
+        """Switch to keyword backend (FTS5) and reindex.
 
         Args:
             reason: Human-readable reason for fallback
@@ -192,7 +192,7 @@ class UnifiedSearcher:
             await keyword.fit_async(fit_items)
             items_reindexed = len(fit_items)
             self._fitted = True
-            self._fitted_mode = SearchMode.TFIDF
+            self._fitted_mode = SearchMode.KEYWORD
 
         self._emit_fallback_event(reason, error, items_reindexed)
 
@@ -200,10 +200,10 @@ class UnifiedSearcher:
         """Build or rebuild the search index.
 
         Indexes items into the appropriate backend(s) based on mode:
-        - tfidf: TF-IDF only
+        - keyword: FTS5 keyword only
         - embedding: Embedding only (raises if unavailable)
-        - auto: Try embedding, fallback to TF-IDF if unavailable
-        - hybrid: Both TF-IDF and embedding
+        - auto: Try embedding, fallback to keyword if unavailable
+        - hybrid: Both keyword and embedding
 
         Args:
             items: List of (item_id, content) tuples to index
@@ -216,10 +216,10 @@ class UnifiedSearcher:
         self._fitted_mode = None
         mode = self._config.get_mode_enum()
 
-        if mode == SearchMode.TFIDF:
-            # TF-IDF only
-            tfidf = self._get_keyword_backend()
-            await tfidf.fit_async(items)
+        if mode == SearchMode.KEYWORD:
+            # Keyword only
+            keyword = self._get_keyword_backend()
+            await keyword.fit_async(items)
             self._active_backend = "fts5"
             self._fitted = True
             self._fitted_mode = mode
@@ -243,13 +243,13 @@ class UnifiedSearcher:
             self._fitted_mode = mode
 
         elif mode == SearchMode.AUTO:
-            # Try embedding, fallback to TF-IDF
+            # Try embedding, fallback to keyword
             if not is_embedding_available(
                 model=self._config.embedding_model,
                 api_key=self._config.embedding_api_key,
                 api_base=self._config.embedding_api_base,
             ):
-                # No embedding available - use TF-IDF
+                # No embedding available - use keyword
                 await self._fallback_to_keyword(
                     f"Embedding unavailable (no API key for {self._config.embedding_model})",
                     items=items,
@@ -262,7 +262,7 @@ class UnifiedSearcher:
                     self._fitted = True
                     self._fitted_mode = mode
                 except Exception as e:
-                    # Embedding failed - fallback to TF-IDF
+                    # Embedding failed - fallback to keyword
                     await self._fallback_to_keyword(
                         f"Embedding indexing failed: {e}",
                         error=e,
@@ -270,9 +270,9 @@ class UnifiedSearcher:
                     )
 
         elif mode == SearchMode.HYBRID:
-            # Both TF-IDF and embedding
-            tfidf = self._get_keyword_backend()
-            await tfidf.fit_async(items)
+            # Both keyword and embedding
+            keyword = self._get_keyword_backend()
+            await keyword.fit_async(items)
 
             if is_embedding_available(
                 model=self._config.embedding_model,
@@ -339,7 +339,7 @@ class UnifiedSearcher:
             )
             return await self._get_keyword_backend().search_async(query, top_k)
 
-        if mode == SearchMode.TFIDF:
+        if mode == SearchMode.KEYWORD:
             return await self._get_keyword_backend().search_async(query, top_k)
 
         elif mode == SearchMode.EMBEDDING:
@@ -353,19 +353,19 @@ class UnifiedSearcher:
             return await embedding_backend.search_async(query, top_k)
 
         elif mode == SearchMode.AUTO:
-            # Try embedding, fallback to TF-IDF on error
+            # Try embedding, fallback to keyword on error
             embedding_backend = self._get_embedding_backend()
             # Defensively check if embedding backend is fitted
             if embedding_backend.needs_refit():
                 logger.warning(
-                    "Embedding backend needs refit in AUTO mode. Falling back to TF-IDF."
+                    "Embedding backend needs refit in AUTO mode. Falling back to keyword."
                 )
                 await self._fallback_to_keyword("Embedding backend not properly fitted")
                 return await self._get_keyword_backend().search_async(query, top_k)
             try:
                 return await embedding_backend.search_async(query, top_k)
             except Exception as e:
-                # Fallback to TF-IDF
+                # Fallback to keyword
                 await self._fallback_to_keyword(f"Embedding search failed: {e}", error=e)
                 return await self._get_keyword_backend().search_async(query, top_k)
 
@@ -379,12 +379,12 @@ class UnifiedSearcher:
         query: str,
         top_k: int,
     ) -> list[tuple[str, float]]:
-        """Perform hybrid search combining TF-IDF and embedding scores."""
-        tfidf_weight, embedding_weight = self._config.get_normalized_weights()
+        """Perform hybrid search combining keyword and embedding scores."""
+        keyword_weight, embedding_weight = self._config.get_normalized_weights()
 
-        # Get TF-IDF results
-        tfidf_results = await self._get_keyword_backend().search_async(query, top_k * 2)
-        tfidf_scores = dict(tfidf_results)
+        # Get keyword results
+        keyword_results = await self._get_keyword_backend().search_async(query, top_k * 2)
+        keyword_scores = dict(keyword_results)
 
         # Try to get embedding results
         embedding_scores: dict[str, float] = {}
@@ -395,16 +395,16 @@ class UnifiedSearcher:
             except Exception as e:
                 logger.warning(f"Hybrid embedding search failed: {e}")
                 self._emit_fallback_event(f"Hybrid search embedding failed: {e}", error=e)
-                # Continue with TF-IDF only for this search
+                # Continue with keyword only for this search
 
         # Combine scores
-        all_ids = set(tfidf_scores.keys()) | set(embedding_scores.keys())
+        all_ids = set(keyword_scores.keys()) | set(embedding_scores.keys())
         combined: list[tuple[str, float]] = []
 
         for item_id in all_ids:
-            tfidf_score = tfidf_scores.get(item_id, 0.0)
+            keyword_score = keyword_scores.get(item_id, 0.0)
             emb_score = embedding_scores.get(item_id, 0.0)
-            combined_score = (tfidf_weight * tfidf_score) + (embedding_weight * emb_score)
+            combined_score = (keyword_weight * keyword_score) + (embedding_weight * emb_score)
             combined.append((item_id, combined_score))
 
         # Sort by combined score descending
@@ -416,15 +416,15 @@ class UnifiedSearcher:
         """Get the name of the currently active backend.
 
         Returns:
-            One of "tfidf", "embedding", "hybrid", or "none" if not fitted.
+            One of "fts5", "embedding", "hybrid", or "none" if not fitted.
         """
         return self._active_backend or "none"
 
     def is_using_fallback(self) -> bool:
-        """Check if search is currently using TF-IDF fallback.
+        """Check if search is currently using keyword fallback.
 
         Returns:
-            True if using TF-IDF due to embedding failure.
+            True if using keyword backend due to embedding failure.
         """
         return self._using_fallback
 
@@ -447,21 +447,21 @@ class UnifiedSearcher:
 
         mode = self._config.get_mode_enum()
 
-        if mode == SearchMode.TFIDF or self._using_fallback:
+        if mode == SearchMode.KEYWORD or self._using_fallback:
             return self._get_keyword_backend().needs_refit()
 
         if mode == SearchMode.EMBEDDING:
             return self._get_embedding_backend().needs_refit()
 
         if mode == SearchMode.HYBRID:
-            tfidf_needs = self._get_keyword_backend().needs_refit()
+            keyword_needs = self._get_keyword_backend().needs_refit()
             embedding_needs = (
                 self._embedding_backend.needs_refit() if self._embedding_backend else False
             )
-            return tfidf_needs or embedding_needs
+            return keyword_needs or embedding_needs
 
         if mode == SearchMode.AUTO:
-            # _using_fallback case already handled above in the TFIDF branch
+            # _using_fallback case already handled above in the KEYWORD branch
             return self._get_embedding_backend().needs_refit()
 
         return True

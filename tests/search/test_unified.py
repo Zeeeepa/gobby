@@ -55,7 +55,7 @@ class TestSearchConfig:
         assert config.embedding_model == "nomic-embed-text"
         assert config.embedding_api_base == "http://localhost:11434/v1"
         assert config.embedding_api_key is None
-        assert config.tfidf_weight == 0.4
+        assert config.keyword_weight == 0.4
         assert config.embedding_weight == 0.6
         assert config.notify_on_fallback is True
 
@@ -65,7 +65,7 @@ class TestSearchConfig:
             mode="hybrid",
             embedding_model="openai/nomic-embed-text",
             embedding_api_base="http://localhost:11434/v1",
-            tfidf_weight=0.5,
+            keyword_weight=0.5,
             embedding_weight=0.5,
         )
 
@@ -78,8 +78,8 @@ class TestSearchConfig:
         config = SearchConfig(mode="auto")
         assert config.get_mode_enum() == SearchMode.AUTO
 
-        config = SearchConfig(mode="tfidf")
-        assert config.get_mode_enum() == SearchMode.TFIDF
+        config = SearchConfig(mode="keyword")
+        assert config.get_mode_enum() == SearchMode.KEYWORD
 
         config = SearchConfig(mode="embedding")
         assert config.get_mode_enum() == SearchMode.EMBEDDING
@@ -89,21 +89,21 @@ class TestSearchConfig:
 
     def test_get_normalized_weights(self) -> None:
         """Test weight normalization."""
-        config = SearchConfig(tfidf_weight=0.4, embedding_weight=0.6)
-        tfidf, embedding = config.get_normalized_weights()
-        assert tfidf == 0.4
+        config = SearchConfig(keyword_weight=0.4, embedding_weight=0.6)
+        keyword, embedding = config.get_normalized_weights()
+        assert keyword == 0.4
         assert embedding == 0.6
 
         # Test non-standard weights
-        config = SearchConfig(tfidf_weight=1.0, embedding_weight=1.0)
-        tfidf, embedding = config.get_normalized_weights()
-        assert tfidf == 0.5
+        config = SearchConfig(keyword_weight=1.0, embedding_weight=1.0)
+        keyword, embedding = config.get_normalized_weights()
+        assert keyword == 0.5
         assert embedding == 0.5
 
         # Test zero weights fallback
-        config = SearchConfig(tfidf_weight=0.0, embedding_weight=0.0)
-        tfidf, embedding = config.get_normalized_weights()
-        assert tfidf == 0.5
+        config = SearchConfig(keyword_weight=0.0, embedding_weight=0.0)
+        keyword, embedding = config.get_normalized_weights()
+        assert keyword == 0.5
         assert embedding == 0.5
 
 
@@ -112,14 +112,14 @@ class TestSearchMode:
 
     def test_enum_values(self) -> None:
         """Test SearchMode enum values."""
-        assert SearchMode.TFIDF.value == "tfidf"
+        assert SearchMode.KEYWORD.value == "keyword"
         assert SearchMode.EMBEDDING.value == "embedding"
         assert SearchMode.AUTO.value == "auto"
         assert SearchMode.HYBRID.value == "hybrid"
 
     def test_string_equality(self) -> None:
         """Test SearchMode string comparison."""
-        assert SearchMode.TFIDF == "tfidf"
+        assert SearchMode.KEYWORD == "keyword"
         assert SearchMode.AUTO == "auto"
 
 
@@ -173,9 +173,9 @@ class TestUnifiedSearcher:
     """Tests for UnifiedSearcher."""
 
     @pytest.mark.asyncio
-    async def test_tfidf_mode(self, db) -> None:
+    async def test_keyword_mode(self, db) -> None:
         """Test FTS5 keyword-only mode."""
-        config = SearchConfig(mode="tfidf")
+        config = SearchConfig(mode="keyword")
         searcher = _make_searcher(db, config)
 
         items = [
@@ -276,7 +276,7 @@ class TestUnifiedSearcher:
         """Test hybrid mode combines both backends."""
         config = SearchConfig(
             mode="hybrid",
-            tfidf_weight=0.5,
+            keyword_weight=0.5,
             embedding_weight=0.5,
         )
 
@@ -308,7 +308,7 @@ class TestUnifiedSearcher:
     @pytest.mark.asyncio
     async def test_get_stats(self, db) -> None:
         """Test get_stats returns comprehensive info."""
-        config = SearchConfig(mode="tfidf")
+        config = SearchConfig(mode="keyword")
         searcher = _make_searcher(db, config)
 
         items = [("id1", "test content")]
@@ -316,7 +316,7 @@ class TestUnifiedSearcher:
 
         stats = searcher.get_stats()
 
-        assert stats["mode"] == "tfidf"
+        assert stats["mode"] == "keyword"
         assert stats["fitted"] is True
         assert stats["active_backend"] == "fts5"
         assert stats["using_fallback"] is False
@@ -325,7 +325,7 @@ class TestUnifiedSearcher:
     @pytest.mark.asyncio
     async def test_clear(self, db) -> None:
         """Test clear resets all state."""
-        config = SearchConfig(mode="tfidf")
+        config = SearchConfig(mode="keyword")
         searcher = _make_searcher(db, config)
 
         await searcher.fit_async([("id1", "test")])
@@ -338,7 +338,7 @@ class TestUnifiedSearcher:
     @pytest.mark.asyncio
     async def test_needs_refit(self, db) -> None:
         """Test needs_refit tracking."""
-        config = SearchConfig(mode="tfidf")
+        config = SearchConfig(mode="keyword")
         searcher = _make_searcher(db, config)
 
         assert searcher.needs_refit()
@@ -349,7 +349,7 @@ class TestUnifiedSearcher:
     @pytest.mark.asyncio
     async def test_search_unfitted_returns_empty(self, db) -> None:
         """Test search before fitting returns empty."""
-        config = SearchConfig(mode="tfidf")
+        config = SearchConfig(mode="keyword")
         searcher = _make_searcher(db, config)
 
         results = await searcher.search_async("test")

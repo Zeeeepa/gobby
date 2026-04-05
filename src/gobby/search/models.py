@@ -1,9 +1,9 @@
 """Search models and configuration.
 
 This module defines the core data structures for the unified search layer:
-- SearchMode: Enum for search modes (tfidf, embedding, auto, hybrid)
+- SearchMode: Enum for search modes (keyword, embedding, auto, hybrid)
 - SearchConfig: Configuration for search behavior
-- FallbackEvent: Event emitted when falling back to TF-IDF
+- FallbackEvent: Event emitted when falling back to keyword search
 """
 
 from dataclasses import dataclass, field
@@ -18,13 +18,13 @@ class SearchMode(str, Enum):
     """Search mode options for UnifiedSearcher.
 
     Modes:
-    - TFIDF: TF-IDF only (always works, no API needed)
+    - KEYWORD: FTS5 keyword search only (always works, no API needed)
     - EMBEDDING: Embedding-based search only (fails if unavailable)
-    - AUTO: Try embedding, fallback to TF-IDF if unavailable
+    - AUTO: Try embedding, fallback to keyword if unavailable
     - HYBRID: Combine both with weighted scores
     """
 
-    TFIDF = "tfidf"
+    KEYWORD = "keyword"
     EMBEDDING = "embedding"
     AUTO = "auto"
     HYBRID = "hybrid"
@@ -34,18 +34,18 @@ class SearchConfig(BaseModel):
     """Configuration for unified search with fallback.
 
     This config controls how UnifiedSearcher behaves, including:
-    - Which search mode to use (tfidf, embedding, auto, hybrid)
-    - Which embedding model to use (LiteLLM format)
+    - Which search mode to use (keyword, embedding, auto, hybrid)
+    - Which embedding model to use
     - Weights for hybrid mode
     - Whether to notify on fallback
 
     Supported modes:
-    - tfidf: TF-IDF only (always works, no API needed)
+    - keyword: FTS5 keyword search only (always works, no API needed)
     - embedding: Embedding-based search only (fails if unavailable)
-    - auto: Try embedding, fallback to TF-IDF if unavailable
+    - auto: Try embedding, fallback to keyword if unavailable
     - hybrid: Combine both with weighted scores
 
-    LiteLLM model format examples:
+    Embedding model format examples:
     - OpenAI: text-embedding-3-small (needs OPENAI_API_KEY)
     - Ollama: openai/nomic-embed-text (with embedding_api_base)
     - Azure: azure/azure-embedding-model
@@ -58,7 +58,7 @@ class SearchConfig(BaseModel):
 
     mode: str = Field(
         default="auto",
-        description="Search mode: tfidf, embedding, auto, hybrid",
+        description="Search mode: keyword, embedding, auto, hybrid",
     )
     embedding_model: str = Field(
         default="nomic-embed-text",
@@ -72,11 +72,11 @@ class SearchConfig(BaseModel):
         default=None,
         description="API key for embedding provider (uses env var if not set)",
     )
-    tfidf_weight: float = Field(
+    keyword_weight: float = Field(
         default=0.4,
         ge=0.0,
         le=1.0,
-        description="Weight for TF-IDF scores in hybrid mode",
+        description="Weight for keyword (FTS5) scores in hybrid mode",
     )
     embedding_weight: float = Field(
         default=0.6,
@@ -86,20 +86,20 @@ class SearchConfig(BaseModel):
     )
     notify_on_fallback: bool = Field(
         default=True,
-        description="Log warning when falling back to TF-IDF",
+        description="Log warning when falling back to keyword search",
     )
 
     def get_normalized_weights(self) -> tuple[float, float]:
         """Get normalized weights that sum to 1.0.
 
         Returns:
-            Tuple of (tfidf_weight, embedding_weight) normalized to sum to 1.0
+            Tuple of (keyword_weight, embedding_weight) normalized to sum to 1.0
         """
-        total = self.tfidf_weight + self.embedding_weight
+        total = self.keyword_weight + self.embedding_weight
         if total == 0:
             # Default to equal weights if both are 0
             return (0.5, 0.5)
-        return (self.tfidf_weight / total, self.embedding_weight / total)
+        return (self.keyword_weight / total, self.embedding_weight / total)
 
     def get_mode_enum(self) -> SearchMode:
         """Get the SearchMode enum instance for the configured mode.
@@ -121,7 +121,7 @@ class SearchConfig(BaseModel):
 
 @dataclass
 class FallbackEvent:
-    """Event emitted when UnifiedSearcher falls back to TF-IDF.
+    """Event emitted when UnifiedSearcher falls back to keyword search.
 
     This event is emitted via the event_callback when:
     - Embedding provider is unavailable (no API key, no connection)
@@ -133,7 +133,7 @@ class FallbackEvent:
         original_error: The underlying exception, if any
         timestamp: When the fallback occurred
         mode: The original search mode that was attempted
-        items_reindexed: Number of items reindexed into TF-IDF (if applicable)
+        items_reindexed: Number of items reindexed into keyword backend (if applicable)
         metadata: Additional context about the fallback
     """
 
