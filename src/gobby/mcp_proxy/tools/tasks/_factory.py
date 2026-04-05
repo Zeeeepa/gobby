@@ -24,7 +24,6 @@ from gobby.sync.tasks import TaskSyncManager
 from gobby.tasks.validation import TaskValidator
 
 if TYPE_CHECKING:
-    from gobby.agents.runner import AgentRunner
     from gobby.config.app import DaemonConfig
 
 
@@ -33,7 +32,6 @@ def create_task_registry(
     sync_manager: TaskSyncManager,
     task_validator: TaskValidator | None = None,
     config: "DaemonConfig | None" = None,
-    agent_runner: "AgentRunner | None" = None,
     project_id: str | None = None,
 ) -> InternalToolRegistry:
     """
@@ -44,7 +42,6 @@ def create_task_registry(
         sync_manager: TaskSyncManager instance
         task_validator: TaskValidator instance (optional)
         config: DaemonConfig instance (optional)
-        agent_runner: AgentRunner instance for external validator agent mode (optional)
         project_id: Default project ID (optional)
 
     Returns:
@@ -55,7 +52,6 @@ def create_task_registry(
         task_manager=task_manager,
         sync_manager=sync_manager,
         task_validator=task_validator,
-        agent_runner=agent_runner,
         config=config,
     )
 

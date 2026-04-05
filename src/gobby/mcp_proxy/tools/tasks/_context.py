@@ -17,7 +17,6 @@ from gobby.utils.project_context import get_project_context
 from gobby.workflows.state_manager import SessionVariableManager
 
 if TYPE_CHECKING:
-    from gobby.agents.runner import AgentRunner
     from gobby.config.app import DaemonConfig
     from gobby.config.tasks import TaskValidationConfig
     from gobby.storage.database import DatabaseProtocol
@@ -38,7 +37,6 @@ class RegistryContext:
 
     # Optional managers
     task_validator: "TaskValidator | None" = None
-    agent_runner: "AgentRunner | None" = None
     config: "DaemonConfig | None" = None
 
     # Derived managers (initialized in __post_init__)
