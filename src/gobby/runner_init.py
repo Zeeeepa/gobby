@@ -18,7 +18,6 @@ from gobby.agents.runner import AgentRunner
 from gobby.app_context import ServiceContainer, set_app_context
 from gobby.config.app import load_config
 from gobby.llm import create_llm_service
-from gobby.llm.resolver import ExecutorRegistry
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.memory.manager import MemoryManager
 from gobby.memory.vectorstore import VectorStore
@@ -583,30 +582,14 @@ def init_orchestration(runner: GobbyRunner) -> None:
             logger.warning(f"Failed to initialize pipeline executor at startup: {e}")
 
     # Initialize Agent Runner (Phase 7 - Subagents)
-    # Create executor registry for lazy executor creation
-    runner.executor_registry = ExecutorRegistry(
-        config=runner.config,
-        secret_resolver=runner.secret_store.get,
-    )
     runner.agent_runner = None
     try:
-        # Pre-initialize common executors
-        executors = {}
-        for provider in ["claude", "gemini", "litellm"]:
-            try:
-                executors[provider] = runner.executor_registry.get(provider=provider)
-                logger.info(f"Pre-initialized {provider} executor")
-            except Exception as e:
-                logger.debug(f"Could not pre-initialize {provider} executor: {e}")
-
         runner.agent_runner = AgentRunner(
             db=runner.database,
             session_storage=runner.session_manager,
-            executors=executors,
             max_agent_depth=5,
-            completion_registry=runner.completion_registry,
         )
-        logger.debug(f"AgentRunner initialized with executors: {list(executors.keys())}")
+        logger.debug("AgentRunner initialized")
     except Exception as e:
         logger.error(f"Failed to initialize AgentRunner: {e}")
 

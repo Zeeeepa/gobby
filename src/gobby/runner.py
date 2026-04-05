@@ -27,7 +27,6 @@ if TYPE_CHECKING:
     from gobby.events.completion_registry import CompletionEventRegistry
     from gobby.events.wake import WakeDispatcher
     from gobby.llm import LLMService
-    from gobby.llm.resolver import ExecutorRegistry
     from gobby.mcp_proxy.manager import MCPClientManager
     from gobby.mcp_proxy.metrics import ToolMetricsManager
     from gobby.mcp_proxy.metrics_events import MetricsEventStore
@@ -140,7 +139,6 @@ class GobbyRunner:
     workflow_loader: WorkflowLoader | None
     pipeline_execution_manager: LocalPipelineExecutionManager | None
     pipeline_executor: PipelineExecutor | None
-    executor_registry: ExecutorRegistry
     agent_runner: AgentRunner | None
     agent_lifecycle_monitor: AgentLifecycleMonitor | None
     lifecycle_manager: SessionLifecycleManager
