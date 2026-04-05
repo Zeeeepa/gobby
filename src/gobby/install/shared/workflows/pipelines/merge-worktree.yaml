@@ -36,7 +36,6 @@ steps:
         worktree_id: "${{ inputs.worktree_id }}"
         provider: "${{ inputs.provider }}"
         model: "${{ inputs.model }}"
-        mode: interactive
 
 outputs:
   run_id: "${{ spawn_merge.output.run_id }}"

@@ -10,7 +10,6 @@ priority: 20
 
 provider: claude
 model: opus
-mode: interactive
 isolation: inherit
 timeout: 1800
 max_turns: 80

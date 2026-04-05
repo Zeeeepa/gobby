@@ -1,6 +1,5 @@
 name: pipeline-worker
 description: Minimal agent restricted to pipeline execution via inline step enforcement
-mode: interactive
 provider: inherit
 isolation: none
 timeout: 300
