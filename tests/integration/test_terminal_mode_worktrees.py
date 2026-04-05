@@ -28,7 +28,7 @@ from gobby.agents.spawn import (
     PreparedSpawn,
     prepare_terminal_spawn,
 )
-from gobby.agents.spawners.base import SpawnMode, SpawnResult
+from gobby.agents.spawners.base import SpawnResult
 from gobby.agents.tmux.spawner import TmuxSpawner
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
@@ -341,20 +341,6 @@ class TestTmuxSpawnerDetection:
 
             assert result.success is False
             assert result.error is not None
-
-
-class TestSpawnModeEnum:
-    """Tests for SpawnMode enum."""
-
-    def test_spawn_mode_values(self) -> None:
-        """Test SpawnMode enum values."""
-        assert SpawnMode.INTERACTIVE.value == "interactive"
-        assert SpawnMode.AUTONOMOUS.value == "autonomous"
-
-    def test_spawn_mode_from_string(self) -> None:
-        """Test creating SpawnMode from string."""
-        assert SpawnMode("interactive") == SpawnMode.INTERACTIVE
-        assert SpawnMode("autonomous") == SpawnMode.AUTONOMOUS
 
 
 class TestWorktreeIntegration:
