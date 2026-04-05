@@ -508,7 +508,6 @@ def check_agent(
     if result.get("agent_found"):
         click.echo(f"  Agent: {result.get('agent_name')}")
         click.echo(f"  Provider: {result.get('effective_provider')}")
-        click.echo(f"  Mode: {result.get('effective_mode')}")
         click.echo(f"  Isolation: {result.get('effective_isolation')}")
         if result.get("effective_workflow"):
             click.echo(f"  Workflow: {result.get('effective_workflow')}")

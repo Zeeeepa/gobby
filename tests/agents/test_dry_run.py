@@ -33,7 +33,6 @@ def _setup_db(tmp_path: Path) -> LocalDatabase:
 def _create_agent(
     db: LocalDatabase,
     name: str = "test-agent",
-    mode: str = "autonomous",
     provider: str = "claude",
     isolation: str | None = None,
     pipeline: str | None = None,
@@ -42,7 +41,6 @@ def _create_agent(
     """Create an agent definition in the DB."""
     body = AgentDefinitionBody(
         name=name,
-        mode=mode,
         provider=provider,
         isolation=isolation,
         base_branch=base_branch,

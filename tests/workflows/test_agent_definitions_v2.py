@@ -60,7 +60,6 @@ class TestAgentDefinitionBodyModel:
         assert body.model is None
         assert body.api_base is None
         assert body.api_token is None
-        assert body.mode == "inherit"
         assert body.isolation == "inherit"
         assert body.base_branch == "inherit"
         assert body.timeout == 0
@@ -83,7 +82,6 @@ class TestAgentDefinitionBodyModel:
             instructions="You are a QA agent. Only write test files.",
             provider="gemini",
             model="gemini-2.5-pro",
-            mode="interactive",
             isolation="worktree",
             base_branch="develop",
             timeout=300.0,
@@ -99,7 +97,6 @@ class TestAgentDefinitionBodyModel:
         assert body.instructions == "You are a QA agent. Only write test files."
         assert body.provider == "gemini"
         assert body.model == "gemini-2.5-pro"
-        assert body.mode == "interactive"
         assert body.isolation == "worktree"
         assert body.base_branch == "develop"
         assert body.timeout == 300.0
@@ -108,11 +105,11 @@ class TestAgentDefinitionBodyModel:
         assert body.enabled is False
 
     def test_field_count(self) -> None:
-        """AgentDefinitionBody has exactly 24 fields."""
+        """AgentDefinitionBody has exactly 23 fields."""
         from gobby.workflows.definitions import AgentDefinitionBody
 
         fields = AgentDefinitionBody.model_fields
-        assert len(fields) == 24, f"Expected 24 fields, got {len(fields)}: {list(fields.keys())}"
+        assert len(fields) == 23, f"Expected 23 fields, got {len(fields)}: {list(fields.keys())}"
 
     def test_workflows_default_empty(self) -> None:
         """Workflows defaults to empty AgentWorkflows."""
@@ -123,14 +120,6 @@ class TestAgentDefinitionBodyModel:
         assert body.workflows.pipeline is None
         assert body.workflows.variables == {}
         assert isinstance(body.workflows.rules, list)
-
-    def test_mode_values(self) -> None:
-        """Mode accepts terminal, autonomous."""
-        from gobby.workflows.definitions import AgentDefinitionBody
-
-        for mode in ("interactive", "autonomous"):
-            body = AgentDefinitionBody(name="test", mode=mode)
-            assert body.mode == mode
 
     def test_isolation_values(self) -> None:
         """Isolation accepts none, worktree, clone, or None."""
@@ -183,7 +172,6 @@ class TestAgentDefinitionBodySerialization:
             instructions="Write clean code.",
             provider="claude",
             model="claude-sonnet-4-6",
-            mode="interactive",
             isolation="worktree",
             base_branch="main",
             timeout=120.0,
@@ -203,7 +191,6 @@ class TestAgentDefinitionBodySerialization:
         assert restored.instructions == original.instructions
         assert restored.provider == original.provider
         assert restored.model == original.model
-        assert restored.mode == original.mode
         assert restored.isolation == original.isolation
         assert restored.base_branch == original.base_branch
         assert restored.timeout == original.timeout
@@ -322,7 +309,6 @@ class TestAgentDefinitionStorage:
             instructions="Test everything.",
             provider="gemini",
             model="gemini-2.5-pro",
-            mode="interactive",
             isolation="worktree",
             base_branch="develop",
             timeout=300.0,
@@ -346,7 +332,6 @@ class TestAgentDefinitionStorage:
         assert restored.instructions == original.instructions
         assert restored.provider == original.provider
         assert restored.model == original.model
-        assert restored.mode == original.mode
         assert restored.isolation == original.isolation
         assert restored.base_branch == original.base_branch
         assert restored.timeout == original.timeout
