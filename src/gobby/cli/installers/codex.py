@@ -34,14 +34,22 @@ def _get_hooks_dir() -> Path:
 def _set_toml_value(content: str, key: str, value: str) -> str:
     """Set a top-level dotted key in TOML content (e.g., 'features.codex_hooks').
 
-    Replaces existing line or appends. Handles simple key=value pairs only.
+    Replaces existing line if found. When appending, inserts before the first
+    [table] header to avoid the key landing inside an unrelated section.
     """
-    # Split dotted key for section-style matching too
     pattern = re.compile(rf"(?m)^\s*{re.escape(key)}\s*=.*$")
     line = f"{key} = {value}"
 
     if pattern.search(content):
         return pattern.sub(line, content)
+
+    # Insert before first table header so the key stays top-level
+    table_match = re.search(r"(?m)^\[", content)
+    if table_match:
+        insert_pos = table_match.start()
+        before = content[:insert_pos].rstrip()
+        after = content[insert_pos:]
+        return (before + "\n" if before else "") + line + "\n\n" + after
     return (content.rstrip() + "\n" if content.strip() else "") + line + "\n"
 
 

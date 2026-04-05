@@ -245,6 +245,37 @@ class TestInstallCodex:
         # Should not have duplicate lines
         assert config_content.count("features.codex_hooks") == 1
 
+    def test_install_feature_flag_before_table_headers(
+        self,
+        mock_home: Path,
+        mock_install_dir: Path,
+        mock_shared_content,
+        mock_mcp_configure,
+    ) -> None:
+        """Test that feature flag is placed before [table] headers, not inside them."""
+        from gobby.cli.installers.codex import install_codex
+
+        codex_dir = mock_home / ".codex"
+        codex_dir.mkdir(parents=True)
+        config_path = codex_dir / "config.toml"
+        config_path.write_text(
+            '[mcp_servers.gobby]\ncommand = "uv"\n\n'
+            '[projects."/some/path"]\ntrust_level = "trusted"\n'
+        )
+
+        result = install_codex(mock_home)
+
+        assert result["success"] is True
+        config_content = config_path.read_text()
+        assert "features.codex_hooks = true" in config_content
+
+        # Feature flag must appear BEFORE the first [table] header
+        flag_pos = config_content.index("features.codex_hooks")
+        table_pos = config_content.index("[mcp_servers")
+        assert flag_pos < table_pos, (
+            f"Feature flag at {flag_pos} should be before [table] at {table_pos}"
+        )
+
     def test_install_merges_into_existing_hooks_json(
         self,
         mock_home: Path,
