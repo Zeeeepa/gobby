@@ -146,7 +146,7 @@ def get_active_session_id(db: LocalDatabase | None = None) -> str | None:
         # if using session manager directly which might pull in other things.
         # But we import LocalSessionManager at top, so let's use it if possible or raw SQL for speed.
         row = db.fetchone(
-            "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
+            "SELECT id FROM sessions WHERE status = 'active' AND source != 'system' ORDER BY updated_at DESC LIMIT 1"
         )
         return row["id"] if row else None
     finally:
