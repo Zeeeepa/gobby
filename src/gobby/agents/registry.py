@@ -58,13 +58,10 @@ class RunningAgent:
     parent_session_id: str
     """Parent session that spawned this agent."""
 
-    mode: str
-    """Execution mode: interactive, autonomous."""
-
     started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     """When the agent started running."""
 
-    # Process tracking (for terminal/autonomous modes)
+    # Process tracking
     pid: int | None = None
     """Process ID if running externally."""
 
@@ -122,7 +119,6 @@ class RunningAgent:
             "run_id": self.run_id,
             "session_id": self.session_id,
             "parent_session_id": self.parent_session_id,
-            "mode": self.mode,
             "started_at": self.started_at.isoformat(),
             "pid": self.pid,
             "master_fd": self.master_fd,
@@ -146,7 +142,6 @@ class RunningAgent:
             "run_id": self.run_id,
             "session_id": self.session_id,
             "parent_session_id": self.parent_session_id,
-            "mode": self.mode,
             "started_at": self.started_at.isoformat(),
             "pid": self.pid,
             "provider": self.provider,
@@ -272,9 +267,7 @@ class RunningAgentRegistry:
         """
         with self._lock:
             self._agents[agent.run_id] = agent
-            self._logger.debug(
-                f"Registered running agent {agent.run_id} (mode={agent.mode}, pid={agent.pid})"
-            )
+            self._logger.debug(f"Registered running agent {agent.run_id} (pid={agent.pid})")
         # Emit event outside lock
         self._emit_event(
             "agent_started",
@@ -282,7 +275,6 @@ class RunningAgentRegistry:
             {
                 "session_id": agent.session_id,
                 "parent_session_id": agent.parent_session_id,
-                "mode": agent.mode,
                 "provider": agent.provider,
                 "pid": agent.pid,
                 "tmux_session_name": agent.tmux_session_name,
@@ -325,7 +317,6 @@ class RunningAgentRegistry:
                 {
                     "session_id": agent.session_id,
                     "parent_session_id": agent.parent_session_id,
-                    "mode": agent.mode,
                     "provider": agent.provider,
                     "tmux_session_name": agent.tmux_session_name,
                 },
@@ -489,14 +480,8 @@ class RunningAgentRegistry:
                 "message": f"Agent {run_id} not in registry (already exited)",
             }
 
-        # Handle autonomous mode (asyncio.Task)
-        if agent.mode == "autonomous" and agent.task:
-            agent.task.cancel()
-            self.remove(run_id, status="cancelled")
-            return {"success": True, "message": "Cancelled autonomous task"}
-
-        # For terminal mode with close_terminal=True, try terminal-specific close methods
-        if close_terminal and agent.mode == "interactive" and agent.session_id:
+        # Try terminal-specific close methods
+        if close_terminal and agent.session_id:
             result = await self._close_terminal_window(agent, signal_name, timeout)
             if result.get("success"):
                 self.remove(run_id, status="killed")
@@ -507,7 +492,7 @@ class RunningAgentRegistry:
         target_pid = agent.pid
         found_via = "registry"
 
-        if agent.mode == "interactive" and agent.session_id and not target_pid:
+        if agent.session_id and not target_pid:
             # Strategy 1: Check session's terminal_context (Claude hooks)
             # Only used when agent.pid is not set (e.g., daemon restart lost PID)
             try:
@@ -726,19 +711,6 @@ class RunningAgentRegistry:
                 if agent.parent_session_id == parent_session_id
             ]
 
-    def list_by_mode(self, mode: str) -> list[RunningAgent]:
-        """
-        List all running agents by execution mode.
-
-        Args:
-            mode: Execution mode (interactive, autonomous).
-
-        Returns:
-            List of running agents with this mode.
-        """
-        with self._lock:
-            return [agent for agent in self._agents.values() if agent.mode == mode]
-
     def list_all(self) -> list[RunningAgent]:
         """
         List all running agents.
@@ -802,7 +774,6 @@ class RunningAgentRegistry:
                 {
                     "session_id": agent.session_id,
                     "parent_session_id": agent.parent_session_id,
-                    "mode": agent.mode,
                     "provider": agent.provider,
                     "cleanup_reason": "dead_pid",
                 },
@@ -836,7 +807,6 @@ class RunningAgentRegistry:
                 {
                     "session_id": agent.session_id,
                     "parent_session_id": agent.parent_session_id,
-                    "mode": agent.mode,
                     "provider": agent.provider,
                     "cleanup_reason": "stale",
                 },

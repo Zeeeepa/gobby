@@ -52,9 +52,6 @@ class AgentConfig:
     session_context: str = "summary_markdown"
     """Context source: summary_markdown, session_id:<id>, transcript:<n>, file:<path>."""
 
-    mode: str = "interactive"
-    """Execution mode: interactive, autonomous."""
-
     worktree_id: str | None = None
     """Existing worktree to use for terminal mode."""
 

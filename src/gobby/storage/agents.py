@@ -41,7 +41,6 @@ class AgentRun:
     task_id: str | None = None
     pid: int | None = None
     tmux_session_name: str | None = None
-    mode: str = "interactive"
     worktree_id: str | None = None
     clone_id: str | None = None
     timeout_seconds: float | None = None
@@ -75,7 +74,6 @@ class AgentRun:
             tmux_session_name=row["tmux_session_name"]
             if "tmux_session_name" in row.keys()
             else None,
-            mode=row["mode"] if "mode" in row.keys() and row["mode"] else "interactive",
             worktree_id=row["worktree_id"] if "worktree_id" in row.keys() else None,
             clone_id=row["clone_id"] if "clone_id" in row.keys() else None,
             timeout_seconds=row["timeout_seconds"] if "timeout_seconds" in row.keys() else None,
@@ -105,7 +103,6 @@ class AgentRun:
             "task_id": self.task_id,
             "pid": self.pid,
             "tmux_session_name": self.tmux_session_name,
-            "mode": self.mode,
             "worktree_id": self.worktree_id,
             "clone_id": self.clone_id,
             "timeout_seconds": self.timeout_seconds,
@@ -118,7 +115,6 @@ class AgentRun:
             "run_id": self.id,
             "session_id": self.child_session_id,
             "parent_session_id": self.parent_session_id,
-            "mode": self.mode,
             "started_at": self.started_at,
             "pid": self.pid,
             "provider": self.provider,
@@ -575,20 +571,6 @@ class LocalAgentRunManager:
             LIMIT ?
             """,
             (parent_session_id, limit),
-        )
-        return [AgentRun.from_row(row) for row in rows]
-
-    def list_by_mode(self, mode: str, limit: int = 100) -> list[AgentRun]:
-        """List active agent runs filtered by mode."""
-        rows = self.db.fetchall(
-            """
-            SELECT * FROM agent_runs
-            WHERE mode = ?
-            AND status IN ('running', 'pending')
-            ORDER BY started_at ASC
-            LIMIT ?
-            """,
-            (mode, limit),
         )
         return [AgentRun.from_row(row) for row in rows]
 

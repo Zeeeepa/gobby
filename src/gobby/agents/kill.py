@@ -165,7 +165,6 @@ async def kill_agent(
     run: AgentRun,
     db: DatabaseProtocol,
     *,
-    async_task: asyncio.Task[object] | None = None,
     master_fd: int | None = None,
     signal_name: str = "TERM",
     timeout: float = 5.0,
@@ -173,13 +172,11 @@ async def kill_agent(
 ) -> dict[str, Any]:
     """Kill an agent process using DB records.
 
-    Works entirely from the AgentRun DB model. Optional async_task and
-    master_fd parameters handle the inherently in-memory cases.
+    Works entirely from the AgentRun DB model. All agents run via tmux.
 
     Args:
         run: Agent run DB record.
         db: Database connection.
-        async_task: Optional asyncio.Task for autonomous agents.
         master_fd: Optional PTY file descriptor to close.
         signal_name: Signal without SIG prefix (TERM, KILL).
         timeout: Seconds before escalating TERM → KILL.
@@ -190,13 +187,8 @@ async def kill_agent(
     """
     session_id = run.child_session_id or run.parent_session_id
 
-    # Handle autonomous mode (asyncio.Task)
-    if run.mode == "autonomous" and async_task:
-        async_task.cancel()
-        return {"success": True, "message": "Cancelled autonomous task"}
-
-    # For terminal mode with close_terminal=True, try terminal-specific close
-    if close_terminal and run.mode == "interactive" and session_id:
+    # Try terminal-specific close
+    if close_terminal and session_id:
         result = await _close_terminal_window(session_id, db, signal_name, timeout)
         if result.get("success"):
             return result

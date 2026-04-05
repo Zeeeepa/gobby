@@ -13,7 +13,7 @@ import asyncio
 import logging
 import os
 import signal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from gobby.agents.checkpoint_manager import CheckpointManager
 from gobby.agents.idle_detector import IdleDetector
@@ -89,16 +89,11 @@ class AgentLifecycleMonitor:
         self._running = False
         self._task: asyncio.Task[None] | None = None
         # In-memory tracking for inherently non-persistable state
-        self._async_tasks: dict[str, asyncio.Task[Any]] = {}
         self._master_fds: dict[str, int] = {}
 
     def set_session_coordinator(self, coordinator: SessionCoordinator) -> None:
         """Inject session coordinator after construction (avoids circular init ordering)."""
         self._session_coordinator = coordinator
-
-    def register_async_task(self, run_id: str, task: asyncio.Task[Any]) -> None:
-        """Register an asyncio.Task for an autonomous agent."""
-        self._async_tasks[run_id] = task
 
     def register_master_fd(self, run_id: str, fd: int) -> None:
         """Register a PTY master file descriptor for an agent."""
@@ -373,7 +368,6 @@ class AgentLifecycleMonitor:
                 logger.warning(f"Failed to notify completion for {run.id}: {e}")
 
         # 4. Clear in-memory state
-        self._async_tasks.pop(run.id, None)
         fd = self._master_fds.pop(run.id, None)
         if fd is not None:
             try:
@@ -462,27 +456,6 @@ class AgentLifecycleMonitor:
                             f"Detected dead tmux session '{run.tmux_session_name}' "
                             f"for agent {run.id}"
                         )
-
-                # Autonomous agents: check if asyncio.Task completed
-                async_task = self._async_tasks.get(run.id)
-                if reason is None and async_task is not None and run.mode == "autonomous":
-                    if async_task.done():
-                        try:
-                            exc = async_task.exception()
-                            if exc:
-                                reason = f"Autonomous agent failed: {exc}"
-                                logger.info(
-                                    f"Detected failed autonomous task for agent {run.id}: {exc}"
-                                )
-                            else:
-                                reason = "Completed (detected by lifecycle monitor)"
-                                is_success = True
-                                logger.info(
-                                    f"Detected completed autonomous task for agent {run.id}"
-                                )
-                        except asyncio.CancelledError:
-                            reason = "Autonomous agent was cancelled"
-                            logger.info(f"Detected cancelled autonomous task for agent {run.id}")
 
                 if reason is None:
                     continue
