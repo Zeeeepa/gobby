@@ -13,21 +13,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Model family substring -> context window size (tokens).
-# litellm incorrectly returns 1M for some Claude models (the beta
-# context-1m-2025-08-07 window), so we never trust litellm for Claude.
-_CLAUDE_CONTEXT_WINDOWS: dict[str, int] = {
-    "opus": 1_000_000,
-    "sonnet": 200_000,
-    "haiku": 200_000,
-}
 CLAUDE_DEFAULT_CONTEXT_WINDOW = 200_000  # fallback for unknown Claude models
-
-# Substrings that identify a model as Claude.
-# This list is used to identify Claude model variants and should be extended
-# when new naming conventions appear (e.g., "claude" as a fallback).
-# A more robust detection strategy (prefix/suffix check for "claude") could be implemented later.
-_CLAUDE_IDENTIFIERS = ("opus", "sonnet", "haiku", "claude")
 
 
 def resolve_context_window(
@@ -38,11 +24,12 @@ def resolve_context_window(
     """Resolve the context window size for a model.
 
     Priority order:
-    1. Model-specific context windows for Claude (config overrides > built-in map)
-    2. litellm lookup for non-Claude models only
+    1. Config overrides (model substring match)
+    2. OpenRouter registry data (via cost_table cache)
+    3. CLAUDE_DEFAULT_CONTEXT_WINDOW for Claude models
 
     Args:
-        model: Model name (e.g. "claude-opus-4-6", "gemini-2.0-flash").
+        model: Model name (e.g. "claude-opus-4-6", "gpt-4o").
         _unused: Deprecated, kept for call-site compat. Ignored.
         overrides: Optional config-driven overrides mapping model substring to
             context window size (e.g. ``{"opus": 1_000_000}``).
@@ -55,28 +42,21 @@ def resolve_context_window(
 
     model_lower = model.lower()
 
-    # 2. Model-specific context windows for Claude
-    if any(k in model_lower for k in _CLAUDE_IDENTIFIERS):
-        # Config overrides first
-        for substr, window in (overrides or {}).items():
-            if substr in model_lower:
-                return window
-        # Then built-in map
-        for family, window in _CLAUDE_CONTEXT_WINDOWS.items():
-            if family in model_lower:
-                return window
+    # 1. Config overrides
+    for substr, window in (overrides or {}).items():
+        if substr in model_lower:
+            return window
+
+    # 2. Registry lookup (OpenRouter data cached in cost_table)
+    from gobby.llm.cost_table import lookup_context_window
+
+    registry_val = lookup_context_window(model)
+    if registry_val is not None:
+        return registry_val
+
+    # 3. Fallback for Claude models when registry has no data
+    if any(k in model_lower for k in ("opus", "sonnet", "haiku", "claude")):
         return CLAUDE_DEFAULT_CONTEXT_WINDOW
-
-    # 3. litellm for non-Claude models only
-    try:
-        import litellm
-
-        model_info = litellm.get_model_info(model=model)
-        val = model_info.get("max_input_tokens")
-        if val is not None:
-            return int(val)
-    except Exception as e:
-        logger.debug(f"Could not derive context window for {model}: {e}")
 
     return None
 
