@@ -23,8 +23,9 @@ This replaces both `litellm.model_cost` (pricing) and `_discover_models()` (mode
 The `model_costs` table persists across daemon restarts. If OpenRouter is unreachable on startup, skip the refresh and use cached data from the last successful fetch. Same pattern as the current litellm approach — just a different source. First-ever startup with no cached data gets zero costs (harmless).
 
 ### Module contents:
-- **`async fetch_models() -> list[ModelInfo]`** — hits OpenRouter, parses response into clean internal format. Filters to providers we care about (anthropic, openai, google). Returns empty list on failure (caller uses cached DB data).
+- **`async fetch_models() -> list[ModelInfo]`** — hits OpenRouter, parses response into clean internal format. Filters to providers we care about (anthropic, openai, google). Returns empty list on failure (caller uses cached DB data). Extracts: pricing, context_length, max_completion_tokens, model name, provider.
 - **Provider prefix mapping** — maps OpenRouter prefixes (`anthropic/`, `openai/`, `google/`) to Gobby provider names (`claude`, `codex`, `gemini`).
+- Context windows from OpenRouter are stored in the DB alongside cost data — single source of truth for all models including Claude.
 
 No aliases or utility functions needed — `resolve_model_alias` and `get_litellm_model` are only used inside dead code paths being deleted.
 
@@ -45,10 +46,12 @@ No aliases or utility functions needed — `resolve_model_alias` and `get_litell
 
 **File**: `src/gobby/llm/claude_models.py` (lines 70-81)
 
-- Replace `import litellm` / `litellm.get_model_info()` fallback with a lookup into the `model_costs` DB table (which now stores `context_length` from OpenRouter alongside pricing)
-- Alternatively, add a `model_context_windows` DB table or column populated from OpenRouter's `context_length` field during the same startup fetch
+- Replace `import litellm` / `litellm.get_model_info()` with a lookup into the `model_costs` DB table (which now stores `context_length` from OpenRouter alongside pricing)
+- **Delete `_CLAUDE_CONTEXT_WINDOWS` hardcoded dict** — OpenRouter has up-to-date context windows for all models including Claude. No reason to maintain a separate hardcoded map.
+- Delete `_CLAUDE_IDENTIFIERS` and the Claude-specific branching logic — all models use the same OpenRouter-backed lookup path
+- `resolve_context_window()` becomes a simple DB lookup by model name/prefix, same for Claude and non-Claude
 - Keep the `_unused` parameter signature for now (avoids churn at call sites)
-- Claude context windows stay hardcoded in `_CLAUDE_CONTEXT_WINDOWS` (already handled, never trusted litellm for Claude)
+- Note: OpenRouter supports Claude aliases (haiku, sonnet, opus) in model names, so alias resolution at the lookup layer may not even be needed
 
 ## Phase 4: Rewire `_config.py`
 
