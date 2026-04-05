@@ -447,7 +447,6 @@ def create_agents_registry(
     )
     async def list_running_agents(
         parent_session_id: str | None = None,
-        mode: str | None = None,
     ) -> dict[str, Any]:
         """
         List all currently running agents.
@@ -555,7 +554,6 @@ def create_agents_registry(
         workflow: str | None = None,
         task_id: str | None = None,
         isolation: str | None = None,
-        mode: str | None = None,
         provider: str | None = None,
         branch_name: str | None = None,
         base_branch: str | None = None,
@@ -610,7 +608,6 @@ def create_agents_registry(
             workflow=workflow,
             task_id=task_id,
             isolation=isolation,
-            mode=mode,
             provider=provider,
             branch_name=branch_name,
             base_branch=base_branch,
