@@ -4,7 +4,7 @@
 
 LiteLLM is a required dependency (~heavy, pulls in dozens of transitive deps) that Gobby no longer uses for LLM calls. All LLM consumption now routes through CLI/tmux — the CLI handles its own auth (subscription or API key) internally, so Gobby doesn't need to manage auth modes or make direct API calls. LiteLLM as a provider is dead code with zero production call paths. However, it's still load-bearing for three utility functions: model cost population, model discovery for the admin API, and context window resolution for non-Claude models.
 
-This plan removes the provider entirely, replaces those utilities with a maintained static registry, and demotes litellm to an optional dependency — only needed for **remote embeddings** (users on low-end hardware like Raspberry Pi who can't run local nomic embeddings).
+This plan removes litellm entirely — provider, cost data, model discovery, and embeddings. Cost/model/context data comes from OpenRouter's public API. Embeddings use the `openai` SDK (already a dependency) which works with any OpenAI-compatible endpoint (cloud, Ollama, LM Studio). Local embeddings run nomic via Ollama/LM Studio instead of in-process llama-cpp-python.
 
 ## Phase 1: Create `src/gobby/llm/model_registry.py` (new file)
 
@@ -91,15 +91,28 @@ No aliases or utility functions needed — `resolve_model_alias` and `get_litell
 **`src/gobby/llm/base.py`:**
 - Update docstring references
 
-## Phase 6: Embeddings — demote litellm to optional
+## Phase 6: Embeddings — replace litellm + llama-cpp-python with OpenAI SDK
+
+Remove litellm entirely (not even optional). Remove llama-cpp-python optional dependency. Use the `openai` package (already a required dependency) for all embeddings.
 
 **`pyproject.toml`:**
-- Move `"litellm>=1.83.0"` from `dependencies` to `[project.optional-dependencies]` under `embeddings = [...]`
+- Remove `"litellm>=1.83.0"` from `dependencies` entirely
 - Remove litellm deprecation warning filters (lines 155-156)
+- Remove `local-embeddings = ["llama-cpp-python>=..."]` from `[project.optional-dependencies]`
 
-**`src/gobby/search/embeddings.py`:**
-- Update error message (line 99) to say `"Run: uv sync --extra embeddings"`
-- No other changes — the ImportError guard already works correctly
+**`src/gobby/search/embeddings.py`** — rewrite to use OpenAI SDK:
+- Replace `litellm.aembedding()` with `openai.AsyncOpenAI(base_url=...).embeddings.create()`
+- OpenAI SDK works with any OpenAI-compatible endpoint: OpenAI cloud, Ollama (`http://localhost:11434/v1`), LM Studio (`http://localhost:1234/v1`)
+- Remove the `local/` prefix routing to `local_embeddings.py` — local embeddings now go through Ollama/LM Studio serving nomic models via the same OpenAI-compatible API
+- Config: `embedding_model` + `embedding_api_base` + optional `embedding_api_key` (same fields, just different backend)
+
+**`src/gobby/search/local_embeddings.py`** — delete entirely:
+- In-process llama-cpp-python embedding generation is replaced by Ollama/LM Studio serving nomic
+- No more C++ compilation surprises, no more `uv sync --extra local-embeddings`
+
+**Default config change:**
+- Old default: `model: "local/nomic-embed-text-v1.5"` (in-process via llama-cpp-python)
+- New default: `model: "nomic-embed-text"` with `api_base: "http://localhost:11434/v1"` (Ollama) or user-configured endpoint
 
 ## Phase 7: Schema migration
 
