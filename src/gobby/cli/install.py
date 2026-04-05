@@ -42,7 +42,7 @@ from .install_setup import ensure_daemon_config, run_daemon_setup
 from .installers import (
     install_antigravity,
     install_claude,
-    install_codex_notify,
+    install_codex,
     install_copilot,
     install_cursor,
     install_embedding,
@@ -52,7 +52,7 @@ from .installers import (
     install_qdrant,
     install_windsurf,
     uninstall_claude,
-    uninstall_codex_notify,
+    uninstall_codex,
     uninstall_copilot,
     uninstall_cursor,
     uninstall_gemini,
@@ -312,7 +312,7 @@ def install(
 
     # Codex (special: detection check + custom echo)
     if "codex" in clis_to_install:
-        _run_codex_install(install_codex_notify, project_path, codex_detected, results)
+        _run_codex_install(install_codex, project_path, codex_detected, results)
 
     # Copilot (special: has 'skipped' case)
     if "copilot" in clis_to_install:
@@ -547,7 +547,7 @@ def uninstall(
 
     # Codex (special: no base path arg)
     if "codex" in clis_to_uninstall:
-        _run_codex_uninstall(uninstall_codex_notify, results)
+        _run_codex_uninstall(uninstall_codex, results)
 
     # Windsurf (special: takes project_path + mode kwarg)
     if "windsurf" in clis_to_uninstall:

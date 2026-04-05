@@ -287,7 +287,7 @@ class TestInstallCommand:
         mock_install_gemini.assert_called_once()
 
     @patch("gobby.cli.install._ensure_daemon_config")
-    @patch("gobby.cli.install.install_codex_notify")
+    @patch("gobby.cli.install.install_codex")
     @patch("gobby.cli.install._is_claude_code_installed")
     @patch("gobby.cli.install._is_gemini_cli_installed")
     @patch("gobby.cli.install._is_codex_cli_installed")
@@ -703,7 +703,7 @@ class TestInstallCommand:
         assert "Created daemon config" in result.output
 
     @patch("gobby.cli.install._ensure_daemon_config")
-    @patch("gobby.cli.install.install_codex_notify")
+    @patch("gobby.cli.install.install_codex")
     @patch("gobby.cli.install._is_claude_code_installed")
     @patch("gobby.cli.install._is_gemini_cli_installed")
     @patch("gobby.cli.install._is_codex_cli_installed")
@@ -842,7 +842,7 @@ class TestUninstallCommand:
         assert "Removed 1 hooks" in result.output
         mock_uninstall_gemini.assert_called_once()
 
-    @patch("gobby.cli.install.uninstall_codex_notify")
+    @patch("gobby.cli.install.uninstall_codex")
     @patch("gobby.cli.load_config")
     def test_uninstall_codex_only_flag(
         self,
@@ -918,7 +918,7 @@ class TestUninstallCommand:
         assert result.exit_code == 0
         assert "(no hooks found to remove)" in result.output
 
-    @patch("gobby.cli.install.uninstall_codex_notify")
+    @patch("gobby.cli.install.uninstall_codex")
     @patch("gobby.cli.load_config")
     def test_uninstall_codex_no_integration_found(
         self,
@@ -944,7 +944,7 @@ class TestUninstallCommand:
     @patch("gobby.cli.install.uninstall_windsurf")
     @patch("gobby.cli.install.uninstall_cursor")
     @patch("gobby.cli.install.uninstall_copilot")
-    @patch("gobby.cli.install.uninstall_codex_notify")
+    @patch("gobby.cli.install.uninstall_codex")
     @patch("gobby.cli.install.uninstall_claude")
     @patch("gobby.cli.install.uninstall_gemini")
     @patch("gobby.cli.load_config")
@@ -1065,7 +1065,7 @@ class TestUninstallCommand:
     @patch("gobby.cli.install.uninstall_windsurf")
     @patch("gobby.cli.install.uninstall_cursor")
     @patch("gobby.cli.install.uninstall_copilot")
-    @patch("gobby.cli.install.uninstall_codex_notify")
+    @patch("gobby.cli.install.uninstall_codex")
     @patch("gobby.cli.install.uninstall_claude")
     @patch("gobby.cli.install.uninstall_gemini")
     @patch("gobby.cli.load_config")
@@ -1342,7 +1342,7 @@ class TestUninstallEdgeCases:
         """Create a CLI test runner."""
         return CliRunner()
 
-    @patch("gobby.cli.install.uninstall_codex_notify")
+    @patch("gobby.cli.install.uninstall_codex")
     @patch("gobby.cli.load_config")
     def test_uninstall_codex_checks_home_path(
         self,
@@ -1401,7 +1401,7 @@ class TestUninstallEdgeCases:
         assert result.exit_code == 1
         assert "Failed: Permission denied" in result.output
 
-    @patch("gobby.cli.install.uninstall_codex_notify")
+    @patch("gobby.cli.install.uninstall_codex")
     @patch("gobby.cli.load_config")
     def test_uninstall_codex_failure(
         self,
@@ -1557,7 +1557,7 @@ class TestInstallFullOutput:
         assert "Some installations failed" in result.output
 
     @patch("gobby.cli.install._ensure_daemon_config")
-    @patch("gobby.cli.install.install_codex_notify")
+    @patch("gobby.cli.install.install_codex")
     @patch("gobby.cli.install._is_claude_code_installed")
     @patch("gobby.cli.install._is_gemini_cli_installed")
     @patch("gobby.cli.install._is_codex_cli_installed")
@@ -1600,7 +1600,7 @@ class TestInstallFullOutput:
         assert "Configured MCP server" in result.output
 
     @patch("gobby.cli.install._ensure_daemon_config")
-    @patch("gobby.cli.install.install_codex_notify")
+    @patch("gobby.cli.install.install_codex")
     @patch("gobby.cli.install._is_claude_code_installed")
     @patch("gobby.cli.install._is_gemini_cli_installed")
     @patch("gobby.cli.install._is_codex_cli_installed")
@@ -1786,7 +1786,7 @@ class TestInstallWithCodexAllDetected:
         return CliRunner()
 
     @patch("gobby.cli.install._ensure_daemon_config")
-    @patch("gobby.cli.install.install_codex_notify")
+    @patch("gobby.cli.install.install_codex")
     @patch("gobby.cli.install.install_git_hooks")
     @patch("gobby.cli.install._is_claude_code_installed")
     @patch("gobby.cli.install._is_gemini_cli_installed")

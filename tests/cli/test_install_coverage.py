@@ -455,7 +455,7 @@ class TestInstallCommand:
     )
     @patch("gobby.cli.install.get_install_dir", return_value=Path("/fake/install"))
     @patch("gobby.cli.install._is_codex_cli_installed", return_value=True)
-    @patch("gobby.cli.install.install_codex_notify")
+    @patch("gobby.cli.install.install_codex")
     def test_install_codex_success(
         self,
         mock_install: MagicMock,
@@ -533,7 +533,7 @@ class TestUninstallCommand:
         assert result.exit_code == 0
         assert "Gemini" in result.output
 
-    @patch("gobby.cli.install.uninstall_codex_notify")
+    @patch("gobby.cli.install.uninstall_codex")
     def test_uninstall_codex(self, mock_uninstall: MagicMock, runner: CliRunner) -> None:
         mock_uninstall.return_value = {
             "success": True,

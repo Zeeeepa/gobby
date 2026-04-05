@@ -1,0 +1,56 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run \"$HOOKS_DIR/hook_dispatcher.py\" --cli=codex --type=SessionStart"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run \"$HOOKS_DIR/hook_dispatcher.py\" --cli=codex --type=UserPromptSubmit"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run \"$HOOKS_DIR/hook_dispatcher.py\" --cli=codex --type=PreToolUse"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run \"$HOOKS_DIR/hook_dispatcher.py\" --cli=codex --type=PostToolUse"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run \"$HOOKS_DIR/hook_dispatcher.py\" --cli=codex --type=Stop"
+          }
+        ]
+      }
+    ]
+  }
+}

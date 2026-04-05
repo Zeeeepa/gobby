@@ -26,10 +26,6 @@ import asyncio
 import logging
 import os
 import random
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from gobby.search.models import SearchConfig
 
 logger = logging.getLogger(__name__)
 
@@ -181,25 +177,3 @@ def is_embedding_available(
     # Cloud models need an API key
     effective_key = api_key or os.environ.get("OPENAI_API_KEY")
     return effective_key is not None and len(effective_key) > 0
-
-
-def is_embedding_available_for_config(config: SearchConfig) -> bool:
-    """Check if embedding is available for a SearchConfig."""
-    return is_embedding_available(
-        model=config.embedding_model,
-        api_key=config.embedding_api_key,
-        api_base=config.embedding_api_base,
-    )
-
-
-async def generate_embeddings_for_config(
-    texts: list[str],
-    config: SearchConfig,
-) -> list[list[float]]:
-    """Generate embeddings using a SearchConfig."""
-    return await generate_embeddings(
-        texts=texts,
-        model=config.embedding_model,
-        api_base=config.embedding_api_base,
-        api_key=config.embedding_api_key,
-    )

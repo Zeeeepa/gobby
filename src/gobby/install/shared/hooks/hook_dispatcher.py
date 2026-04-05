@@ -113,6 +113,15 @@ CLI_CONFIGS: dict[str, CLIConfig] = {
         suppress_logs=True,
         has_source_detection=False,
     ),
+    "codex": CLIConfig(
+        source="codex",
+        critical_hooks=frozenset({"SessionStart", "Stop"}),
+        session_start_hooks=frozenset({"SessionStart"}),
+        json_error_exit_code=2,
+        logger_name="gobby.hooks.dispatcher.codex",
+        suppress_logs=True,
+        has_source_detection=False,
+    ),
 }
 
 

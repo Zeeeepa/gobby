@@ -7,7 +7,7 @@ using the strangler fig pattern for incremental migration.
 
 from .antigravity import install_antigravity
 from .claude import install_claude, uninstall_claude
-from .codex import install_codex_notify, uninstall_codex_notify
+from .codex import install_codex, install_codex_notify, uninstall_codex, uninstall_codex_notify
 from .copilot import install_copilot, uninstall_copilot
 from .cursor import install_cursor, uninstall_cursor
 from .embedding import install_embedding
@@ -39,8 +39,10 @@ __all__ = [
     "install_gemini",
     "uninstall_gemini",
     # Codex
-    "install_codex_notify",
-    "uninstall_codex_notify",
+    "install_codex",
+    "uninstall_codex",
+    "install_codex_notify",  # backward-compat alias
+    "uninstall_codex_notify",  # backward-compat alias
     # Cursor
     "install_cursor",
     "uninstall_cursor",

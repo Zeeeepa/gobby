@@ -1,14 +1,15 @@
 """
 Codex CLI installation for Gobby hooks.
 
-This module handles installing and uninstalling Gobby notify integration
-for OpenAI Codex CLI.
+This module handles installing and uninstalling Gobby hook integration
+for OpenAI Codex CLI via hooks.json (codex_hooks feature).
 """
 
 import json
 import logging
 import os
 import re
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -16,172 +17,292 @@ from gobby.cli.utils import get_install_dir
 
 from .mcp_config import configure_mcp_server_toml, remove_mcp_server_toml
 from .shared import (
-    _install_file,
+    clean_project_hooks,
     install_cli_content,
+    install_global_hooks,
     install_shared_content,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def install_codex_notify(project_path: Path) -> dict[str, Any]:
-    """Install Codex notify script and configure ~/.codex/config.toml.
+def _get_hooks_dir() -> Path:
+    """Get the global hooks directory path."""
+    return Path(os.environ.get("GOBBY_HOOKS_DIR", str(Path.home() / ".gobby" / "hooks")))
+
+
+def _set_toml_value(content: str, key: str, value: str) -> str:
+    """Set a top-level dotted key in TOML content (e.g., 'features.codex_hooks').
+
+    Replaces existing line or appends. Handles simple key=value pairs only.
+    """
+    # Split dotted key for section-style matching too
+    pattern = re.compile(rf"(?m)^\s*{re.escape(key)}\s*=.*$")
+    line = f"{key} = {value}"
+
+    if pattern.search(content):
+        return pattern.sub(line, content)
+    return (content.rstrip() + "\n" if content.strip() else "") + line + "\n"
+
+
+def _remove_toml_key(content: str, key: str) -> str:
+    """Remove a top-level key from TOML content."""
+    pattern = re.compile(rf"(?m)^\s*{re.escape(key)}\s*=.*$\n?")
+    result = pattern.sub("", content)
+    return re.sub(r"\n{3,}", "\n\n", result)
+
+
+def _migrate_from_notify(config_content: str, hooks_dir: Path) -> str:
+    """Remove legacy notify config and clean up old notify script."""
+    # Remove notify = [...] from config.toml
+    config_content = _remove_toml_key(config_content, "notify")
+
+    # Clean up old installed notify script
+    old_notify = hooks_dir / "codex" / "hook_dispatcher.py"
+    if old_notify.exists():
+        old_notify.unlink()
+    old_notify_dir = hooks_dir / "codex"
+    if old_notify_dir.exists() and not any(old_notify_dir.iterdir()):
+        try:
+            old_notify_dir.rmdir()
+        except OSError:
+            pass
+
+    return config_content
+
+
+def _install_hooks_json(codex_home: Path, hooks_dir: Path) -> list[str]:
+    """Load hooks-template.json, substitute $HOOKS_DIR, merge into ~/.codex/hooks.json.
+
+    Returns list of installed hook type names.
+    """
+    install_dir = get_install_dir()
+    template_path = install_dir / "codex" / "hooks-template.json"
+
+    if not template_path.exists():
+        raise FileNotFoundError(f"Missing hooks template: {template_path}")
+
+    template_str = template_path.read_text(encoding="utf-8")
+    template_str = template_str.replace("$HOOKS_DIR", str(hooks_dir.resolve()))
+    gobby_hooks_config = json.loads(template_str)
+
+    hooks_file = codex_home / "hooks.json"
+    existing: dict[str, Any] = {}
+    if hooks_file.exists():
+        try:
+            existing = json.loads(hooks_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Could not read existing hooks.json, overwriting: {e}")
+
+    if "hooks" not in existing:
+        existing["hooks"] = {}
+
+    hooks_installed = []
+    for hook_type, hook_config in gobby_hooks_config.get("hooks", {}).items():
+        existing["hooks"][hook_type] = hook_config
+        hooks_installed.append(hook_type)
+
+    # Atomic write
+    fd, temp_path = tempfile.mkstemp(dir=str(codex_home), suffix=".tmp", prefix="hooks_")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(existing, f, indent=2)
+            f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp_path, hooks_file)
+    except Exception:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+        raise
+
+    return hooks_installed
+
+
+def install_codex(project_path: Path) -> dict[str, Any]:
+    """Install Codex hooks via hooks.json and configure MCP server.
 
     Args:
-        project_path: Project root directory. Shared content (workflows, plugins)
+        project_path: Project root directory. Shared content (plugins)
             installs to {project_path}/.gobby/.
 
     Returns:
         Dict with installation results including success status and installed items
     """
+    hooks_installed: list[str] = []
     files_installed: list[str] = []
     result: dict[str, Any] = {
         "success": False,
+        "hooks_installed": hooks_installed,
         "files_installed": files_installed,
         "workflows_installed": [],
         "commands_installed": [],
+        "agents_installed": [],
+        "plugins_installed": [],
         "config_updated": False,
         "mcp_configured": False,
         "mcp_already_configured": False,
         "error": None,
     }
 
-    install_dir = get_install_dir()
-    source_notify = install_dir / "codex" / "hooks" / "hook_dispatcher.py"
-    if not source_notify.exists():
-        result["error"] = f"Missing source file: {source_notify}"
+    codex_home = Path.home() / ".codex"
+    codex_home.mkdir(parents=True, exist_ok=True)
+    hooks_dir = _get_hooks_dir()
+
+    # 1. Install shared global hooks (hook_dispatcher.py etc.)
+    try:
+        global_hooks = install_global_hooks()
+        files_installed.extend(global_hooks)
+
+        # Clean up project-level hooks to prevent double-firing
+        cleaned = clean_project_hooks(project_path / ".codex" / "hooks.json")
+        if cleaned:
+            result["project_hooks_cleaned"] = cleaned
+    except OSError as e:
+        result["error"] = f"Failed to install global hooks: {e}"
         return result
 
-    # Install hook dispatcher to ~/.gobby/hooks/codex/hook_dispatcher.py
-    hooks_base = Path(os.environ.get("GOBBY_HOOKS_DIR", str(Path.home() / ".gobby" / "hooks")))
-    notify_dir = hooks_base / "codex"
-    notify_dir.mkdir(parents=True, exist_ok=True)
-    target_notify = notify_dir / "hook_dispatcher.py"
+    # 2. Install hooks.json
+    try:
+        installed_hooks = _install_hooks_json(codex_home, hooks_dir)
+        hooks_installed.extend(installed_hooks)
+    except (FileNotFoundError, OSError, json.JSONDecodeError) as e:
+        result["error"] = f"Failed to install hooks.json: {e}"
+        return result
 
-    _install_file(source_notify, target_notify, executable=True)
-    files_installed.append(str(target_notify))
-
-    # Install shared content - workflows to {project_path}/.gobby/
-    codex_home = Path.home() / ".codex"
-
+    # 3. Install shared + CLI content
     shared = install_shared_content(codex_home, project_path)
-    # Install CLI-specific content (can override shared)
     cli = install_cli_content("codex", codex_home)
-
-    # Skills are now auto-synced to database on daemon startup (sync_bundled_skills)
-    # No longer need to copy to .codex/skills/
 
     result["workflows_installed"] = []  # DB-managed via sync_bundled_content_to_db()
     result["agents_installed"] = shared.get("agents", [])
     result["commands_installed"] = cli.get("commands", [])
     result["plugins_installed"] = shared.get("plugins", [])
 
-    # Update ~/.codex/config.toml
-    codex_config_dir = codex_home
-
-    codex_config_dir.mkdir(parents=True, exist_ok=True)
-    codex_config_path = codex_config_dir / "config.toml"
-
-    notify_command = ["python3", str(target_notify)]
-    notify_line = f"notify = {json.dumps(notify_command)}"
-
+    # 4. Update ~/.codex/config.toml: enable feature flag, migrate from notify
+    codex_config_path = codex_home / "config.toml"
     try:
+        existing_config = ""
         if codex_config_path.exists():
-            existing = codex_config_path.read_text(encoding="utf-8")
-        else:
-            existing = ""
+            existing_config = codex_config_path.read_text(encoding="utf-8")
 
-        pattern = re.compile(r"(?m)^\s*notify\s*=.*$")
-        if pattern.search(existing):
-            updated = pattern.sub(notify_line, existing)
-        else:
-            updated = (existing.rstrip() + "\n\n" if existing.strip() else "") + notify_line + "\n"
+        updated_config = existing_config
 
-        if updated != existing:
+        # Migrate from legacy notify mechanism
+        updated_config = _migrate_from_notify(updated_config, hooks_dir)
+
+        # Enable codex_hooks feature flag
+        updated_config = _set_toml_value(updated_config, "features.codex_hooks", "true")
+
+        if updated_config != existing_config:
             if codex_config_path.exists():
                 backup_path = codex_config_path.with_suffix(".toml.bak")
-                backup_path.write_text(existing, encoding="utf-8")
+                backup_path.write_text(existing_config, encoding="utf-8")
 
-            codex_config_path.write_text(updated, encoding="utf-8")
+            codex_config_path.write_text(updated_config, encoding="utf-8")
             result["config_updated"] = True
-
-        # Configure MCP server in global config (~/.codex/config.toml)
-        mcp_result = configure_mcp_server_toml(codex_config_path)
-        if mcp_result["success"]:
-            result["mcp_configured"] = mcp_result.get("added", False)
-            result["mcp_already_configured"] = mcp_result.get("already_configured", False)
-        else:
-            # MCP config failure is non-fatal, just log it
-            logger.warning(f"Failed to configure MCP server: {mcp_result['error']}")
-
-        result["success"] = True
-        return result
 
     except Exception as e:
         result["error"] = f"Failed to update Codex config: {e}"
         return result
 
+    # 5. Configure MCP server in config.toml
+    mcp_result = configure_mcp_server_toml(codex_config_path)
+    if mcp_result["success"]:
+        result["mcp_configured"] = mcp_result.get("added", False)
+        result["mcp_already_configured"] = mcp_result.get("already_configured", False)
+    else:
+        logger.warning(f"Failed to configure MCP server: {mcp_result['error']}")
 
-def uninstall_codex_notify() -> dict[str, Any]:
-    """Uninstall Codex notify script and remove from ~/.codex/config.toml.
+    result["success"] = True
+    return result
+
+
+def uninstall_codex() -> dict[str, Any]:
+    """Uninstall Codex hooks and remove configuration.
 
     Returns:
         Dict with uninstallation results including success status and removed items
     """
-    files_removed: list[str] = []
     result: dict[str, Any] = {
         "success": False,
-        "files_removed": files_removed,
+        "hooks_removed": [],
+        "files_removed": [],
         "config_updated": False,
         "mcp_removed": False,
         "error": None,
     }
 
-    # Remove hook dispatcher from ~/.gobby/hooks/codex/hook_dispatcher.py
-    notify_file = Path.home() / ".gobby" / "hooks" / "codex" / "hook_dispatcher.py"
-    if notify_file.exists():
-        notify_file.unlink()
-        files_removed.append(str(notify_file))
+    codex_home = Path.home() / ".codex"
+    hooks_dir = _get_hooks_dir()
 
-    # Try to remove empty parent directories
-    notify_dir = notify_file.parent
-    try:
-        if notify_dir.exists() and not any(notify_dir.iterdir()):
-            notify_dir.rmdir()
-    except Exception as e:
-        logger.debug(f"Best-effort cleanup failed, directory removal is non-critical: {e}")
+    # 1. Remove gobby hooks from ~/.codex/hooks.json
+    hooks_file = codex_home / "hooks.json"
+    if hooks_file.exists():
+        try:
+            hooks_config = json.loads(hooks_file.read_text(encoding="utf-8"))
+            if "hooks" in hooks_config:
+                for hook_type in list(hooks_config["hooks"].keys()):
+                    entry_str = json.dumps(hooks_config["hooks"][hook_type])
+                    if "hook_dispatcher.py" in entry_str:
+                        del hooks_config["hooks"][hook_type]
+                        result["hooks_removed"].append(hook_type)
 
-    # Update ~/.codex/config.toml to remove notify line
-    codex_config_path = Path.home() / ".codex" / "config.toml"
+                if not hooks_config["hooks"]:
+                    del hooks_config["hooks"]
 
+                if result["hooks_removed"]:
+                    if hooks_config:
+                        hooks_file.write_text(
+                            json.dumps(hooks_config, indent=2) + "\n", encoding="utf-8"
+                        )
+                    else:
+                        hooks_file.unlink()
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Could not clean hooks.json: {e}")
+
+    # 2. Clean up legacy notify script if still present
+    old_notify = hooks_dir / "codex" / "hook_dispatcher.py"
+    if old_notify.exists():
+        old_notify.unlink()
+        result["files_removed"].append(str(old_notify))
+    old_notify_dir = hooks_dir / "codex"
+    if old_notify_dir.exists() and not any(old_notify_dir.iterdir()):
+        try:
+            old_notify_dir.rmdir()
+        except OSError:
+            pass
+
+    # 3. Update config.toml: remove feature flag and legacy notify
+    codex_config_path = codex_home / "config.toml"
     try:
         if codex_config_path.exists():
             existing = codex_config_path.read_text(encoding="utf-8")
+            updated = existing
 
-            # Remove notify = [...] line
-            pattern = re.compile(r"(?m)^\s*notify\s*=.*$\n?")
-            if pattern.search(existing):
-                updated = pattern.sub("", existing)
+            # Remove feature flag
+            updated = _remove_toml_key(updated, "features.codex_hooks")
 
-                # Clean up multiple blank lines
-                updated = re.sub(r"\n{3,}", "\n\n", updated)
+            # Remove legacy notify if still present
+            updated = _remove_toml_key(updated, "notify")
 
-                if updated != existing:
-                    # Backup before modifying
-                    backup_path = codex_config_path.with_suffix(".toml.bak")
-                    backup_path.write_text(existing, encoding="utf-8")
-
-                    codex_config_path.write_text(updated, encoding="utf-8")
-                    result["config_updated"] = True
-
-        # Remove MCP server from config
-        mcp_result = remove_mcp_server_toml(codex_config_path)
-        if mcp_result["success"]:
-            result["mcp_removed"] = mcp_result.get("removed", False)
-
-        result["success"] = True
-        return result
-
+            if updated != existing:
+                backup_path = codex_config_path.with_suffix(".toml.bak")
+                backup_path.write_text(existing, encoding="utf-8")
+                codex_config_path.write_text(updated, encoding="utf-8")
+                result["config_updated"] = True
     except Exception as e:
-        result["error"] = f"Failed to update Codex config: {e}"
-        return result
+        logger.warning(f"Failed to update config.toml during uninstall: {e}")
+
+    # 4. Remove MCP server from config
+    mcp_result = remove_mcp_server_toml(codex_config_path)
+    if mcp_result["success"]:
+        result["mcp_removed"] = mcp_result.get("removed", False)
+
+    result["success"] = True
+    return result
+
+
+# Backward-compatible aliases
+install_codex_notify = install_codex
+uninstall_codex_notify = uninstall_codex
