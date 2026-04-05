@@ -455,7 +455,6 @@ def create_agents_registry(
         Args:
             parent_session_id: Optional session reference (#N, N, UUID, or prefix) to filter by parent.
                                Falls back to SessionContext if no filter provided.
-            mode: Optional filter by execution mode (interactive, embedded, headless).
 
         Returns:
             Dict with list of running agents.
@@ -579,7 +578,6 @@ def create_agents_registry(
             workflow: Optional workflow name override.
             task_id: Optional task ID for branch naming.
             isolation: Optional isolation mode (none, worktree, clone).
-            mode: Optional execution mode (interactive, embedded, headless).
             provider: Optional provider override.
             branch_name: Optional explicit branch name.
             base_branch: Optional base branch for isolation.

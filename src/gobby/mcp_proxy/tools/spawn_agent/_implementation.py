@@ -53,7 +53,6 @@ async def spawn_agent_impl(
     clone_manager: Any | None = None,
     # Execution
     workflow: str | None = None,
-    mode: Literal["interactive", "autonomous"] | None = None,
     provider: str | None = None,
     model: str | None = None,
     # Limits
@@ -128,24 +127,6 @@ async def spawn_agent_impl(
         _raw_provider = "claude"
     assert _raw_provider is not None  # guaranteed by fallback above
     effective_provider: str = _raw_provider
-
-    VALID_MODES = ("interactive", "autonomous")
-
-    _raw_mode: str | None = mode
-    # Reject explicitly invalid modes early (before fallback logic)
-    if _raw_mode is not None and _raw_mode not in (*VALID_MODES, "inherit"):
-        return {
-            "success": False,
-            "error": f"Invalid mode '{_raw_mode}'. Must be one of: {', '.join(VALID_MODES)}",
-        }
-    if _raw_mode is None and agent_body:
-        _raw_mode = agent_body.mode
-    if _raw_mode in (None, "inherit"):
-        _raw_mode = "interactive"
-    effective_mode = cast(
-        Literal["interactive", "autonomous"],
-        _raw_mode if _raw_mode in VALID_MODES else "interactive",
-    )
 
     effective_model = model
     if effective_model is None and agent_body:
@@ -438,7 +419,6 @@ async def spawn_agent_impl(
     spawn_request = SpawnRequest(
         prompt=enhanced_prompt,
         cwd=isolation_ctx.cwd,
-        mode=effective_mode,
         provider=effective_provider,
         session_id=session_id,
         run_id=run_id,
@@ -486,17 +466,11 @@ async def spawn_agent_impl(
                 run_id,
                 pid=spawn_result.pid,
                 tmux_session_name=spawn_result.tmux_session_name,
-                mode=effective_mode,
                 worktree_id=isolation_ctx.worktree_id,
                 clone_id=isolation_ctx.clone_id,
             )
         except Exception as e:
             logger.warning(f"Failed to persist runtime state for {run_id}: {e}")
-
-        # TODO: For autonomous agents, spawn_result.process is an asyncio.Task
-        # that needs to be tracked by the lifecycle monitor for completion
-        # detection. Currently the lifecycle monitor discovers these via DB
-        # polling, but direct task registration would be more responsive.
 
         # Fire agent_started event for WebSocket broadcasting
         try:
@@ -508,7 +482,6 @@ async def spawn_agent_impl(
                 {
                     "session_id": spawn_result.child_session_id,
                     "parent_session_id": parent_session_id,
-                    "mode": effective_mode,
                     "provider": effective_provider,
                     "pid": spawn_result.pid,
                     "tmux_session_name": spawn_result.tmux_session_name,

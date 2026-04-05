@@ -150,7 +150,6 @@ def create_spawn_agent_registry(
         worktree_id: str | None = None,
         # Execution
         workflow: str | None = None,
-        mode: Literal["interactive", "autonomous"] | None = None,
         provider: str | None = None,
         model: str | None = None,
         # Limits
@@ -178,7 +177,6 @@ def create_spawn_agent_registry(
             clone_id: Existing clone ID to reuse
             worktree_id: Existing worktree ID to reuse
             workflow: Workflow/pipeline to use
-            mode: Execution mode (interactive/autonomous)
             provider: AI provider (claude/gemini/codex/cursor/windsurf/copilot)
             model: Model to use
             timeout: Timeout in seconds
@@ -208,15 +206,9 @@ def create_spawn_agent_registry(
         if agent_body is None and agent != "default":
             return {"success": False, "error": f"Agent '{agent}' not found"}
 
-        # Compose prompt with preamble from agent definition
-        # For terminal-mode agents, hooks inject instructions via session_start —
-        # only prepend preamble for autonomous/headless modes that lack hook injection.
-        effective_mode = mode or (agent_body.mode if agent_body else "interactive")
+        # Compose prompt — hooks inject agent instructions via session_start,
+        # so no preamble prepend needed here.
         effective_prompt = prompt
-        if agent_body and effective_mode != "interactive":
-            preamble = agent_body.build_prompt_preamble()
-            if preamble:
-                effective_prompt = f"{preamble}\n\n---\n\n{prompt}"
 
         # Determine effective workflow
         # Agent's pipeline (if set) is the default; explicit param overrides
@@ -321,7 +313,6 @@ def create_spawn_agent_registry(
             clone_storage=clone_storage,
             clone_manager=clone_manager,
             workflow=effective_workflow,
-            mode=mode,
             provider=provider,
             model=model,
             timeout=timeout,
@@ -370,7 +361,6 @@ def create_spawn_agent_registry(
         provider: str | None = None,
         model: str | None = None,
         parent_session_id: str | None = None,
-        mode: str = "interactive",
         timeout: float | None = None,
     ) -> dict[str, Any]:
         """Dispatch multiple agents for non-conflicting tasks.
@@ -386,7 +376,6 @@ def create_spawn_agent_registry(
             provider: AI provider override
             model: Model override
             parent_session_id: Parent session reference
-            mode: Execution mode (default: "interactive")
             timeout: Timeout in seconds for each agent
 
         Returns:
@@ -422,7 +411,6 @@ def create_spawn_agent_registry(
                     model=model,
                     timeout=timeout,
                     parent_session_id=parent_session_id,
-                    mode=mode,
                 )
                 out: dict[str, Any] = {
                     "task_ref": task_ref,
