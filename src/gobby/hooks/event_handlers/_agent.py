@@ -352,6 +352,8 @@ class AgentEventHandlerMixin(EventHandlersBase):
 
         Marks the subagent's session with correct agent_depth so that
         lifecycle processing can skip LLM-heavy steps for subagents.
+        Also sets is_subagent=True so rule engine unblocks native task
+        tools and blocks gobby-tasks for the duration of the subagent.
         """
         input_data = event.data
         session_id = event.metadata.get("_platform_session_id")
@@ -381,6 +383,17 @@ class AgentEventHandlerMixin(EventHandlersBase):
             except Exception as e:
                 self.logger.debug(f"Failed to track subagent depth: {e}")
 
+        # Toggle is_subagent so rule engine unblocks native task tools
+        if session_id and self._session_storage:
+            try:
+                from gobby.workflows.state_manager import SessionVariableManager
+
+                sv_mgr = SessionVariableManager(self._session_storage.db)
+                sv_mgr.set_variable(session_id, "is_subagent", True)
+                self.logger.debug(f"Set is_subagent=True for session {session_id}")
+            except Exception as e:
+                self.logger.warning(f"Failed to set is_subagent on SUBAGENT_START: {e}")
+
         return HookResponse(decision="allow")
 
     def handle_subagent_stop(self, event: HookEvent) -> HookResponse:
@@ -391,5 +404,16 @@ class AgentEventHandlerMixin(EventHandlersBase):
             self.logger.debug(f"SUBAGENT_STOP: session {session_id}")
         else:
             self.logger.debug("SUBAGENT_STOP")
+
+        # Clear is_subagent so rule engine re-blocks native task tools
+        if session_id and self._session_storage:
+            try:
+                from gobby.workflows.state_manager import SessionVariableManager
+
+                sv_mgr = SessionVariableManager(self._session_storage.db)
+                sv_mgr.set_variable(session_id, "is_subagent", False)
+                self.logger.debug(f"Set is_subagent=False for session {session_id}")
+            except Exception as e:
+                self.logger.warning(f"Failed to clear is_subagent on SUBAGENT_STOP: {e}")
 
         return HookResponse(decision="allow")
