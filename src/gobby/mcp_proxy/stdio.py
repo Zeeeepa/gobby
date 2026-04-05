@@ -47,8 +47,6 @@ LLM_TASK_TOOLS = (
     "apply_tdd",
     "suggest_next_task",
     "validate_task",
-    "validate_and_fix",
-    "run_fix_attempt",
 )
 
 
