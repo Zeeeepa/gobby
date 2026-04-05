@@ -2170,13 +2170,17 @@ class TestPipelineChildSession:
         assert captured_context["session_id"] == "caller-direct"
 
     @pytest.mark.asyncio
-    async def test_no_child_session_without_session_id(
+    async def test_fallback_to_system_session_without_session_id(
         self, mock_db, mock_execution_manager, mock_llm_service
     ) -> None:
-        """Without session_id, no child session is created."""
+        """Without session_id, pipeline falls back to SYSTEM_SESSION_ID as parent."""
+        from gobby.storage.sessions import SYSTEM_SESSION_ID
         from gobby.workflows.pipeline_executor import PipelineExecutor
 
         mock_session_manager = MagicMock()
+        child_session = MagicMock()
+        child_session.id = "child-of-system"
+        mock_session_manager.register.return_value = child_session
 
         pipeline = PipelineDefinition(
             name="no-sid-test",
@@ -2194,10 +2198,12 @@ class TestPipelineChildSession:
             pipeline=pipeline,
             inputs={},
             project_id="proj-123",
-            # No session_id
+            # No session_id — should fall back to SYSTEM_SESSION_ID
         )
 
-        mock_session_manager.register.assert_not_called()
+        mock_session_manager.register.assert_called_once()
+        call_kwargs = mock_session_manager.register.call_args[1]
+        assert call_kwargs["parent_session_id"] == SYSTEM_SESSION_ID
 
     @pytest.mark.asyncio
     async def test_nested_pipeline_inherits_session(
