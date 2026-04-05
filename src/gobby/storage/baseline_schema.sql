@@ -807,7 +807,9 @@ CREATE TABLE model_costs (
     output_cost_per_token REAL NOT NULL,
     cache_read_cost_per_token REAL,
     cache_creation_cost_per_token REAL,
-    source TEXT NOT NULL DEFAULT 'litellm',
+    context_length INTEGER,
+    max_completion_tokens INTEGER,
+    source TEXT NOT NULL DEFAULT 'registry',
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

@@ -6,7 +6,15 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from gobby.llm.cost_table import ModelCost, _costs, calculate_cost, init, lookup_cost
+from gobby.llm.cost_table import (
+    ModelCost,
+    _costs,
+    calculate_cost,
+    init,
+    lookup_context_window,
+    lookup_cost,
+)
+from gobby.llm.model_registry import ModelInfo
 from gobby.storage.model_costs import ModelCostStore
 
 if TYPE_CHECKING:
@@ -14,13 +22,50 @@ if TYPE_CHECKING:
 
 pytestmark = pytest.mark.unit
 
+# Test fixture data matching OpenRouter format
+_TEST_MODELS = [
+    ModelInfo(
+        id="openai/gpt-4o",
+        name="OpenAI: GPT-4o",
+        provider="codex",
+        context_length=128000,
+        max_completion_tokens=16384,
+        input_cost_per_token=2.5e-6,
+        output_cost_per_token=10e-6,
+        cache_read_cost_per_token=None,
+        cache_creation_cost_per_token=None,
+    ),
+    ModelInfo(
+        id="openai/gpt-4o-mini",
+        name="OpenAI: GPT-4o Mini",
+        provider="codex",
+        context_length=128000,
+        max_completion_tokens=16384,
+        input_cost_per_token=0.15e-6,
+        output_cost_per_token=0.6e-6,
+        cache_read_cost_per_token=None,
+        cache_creation_cost_per_token=None,
+    ),
+    ModelInfo(
+        id="anthropic/claude-sonnet-4-6",
+        name="Anthropic: Claude Sonnet 4.6",
+        provider="claude",
+        context_length=200000,
+        max_completion_tokens=64000,
+        input_cost_per_token=3e-6,
+        output_cost_per_token=15e-6,
+        cache_read_cost_per_token=0.3e-6,
+        cache_creation_cost_per_token=3.75e-6,
+    ),
+]
+
 
 @pytest.fixture()
 def populated_db(temp_db: LocalDatabase) -> LocalDatabase:
-    """DB with model_costs populated from LiteLLM."""
+    """DB with model_costs populated from test fixture data."""
     store = ModelCostStore(temp_db)
-    count = store.populate_from_litellm()
-    assert count > 0, "LiteLLM should have model cost data"
+    count = store.populate(_TEST_MODELS)
+    assert count == 3
     init(temp_db)
     return temp_db
 
@@ -29,28 +74,65 @@ class TestModelCostStore:
     """Tests for the ModelCostStore storage layer."""
 
     def test_populate_returns_count(self, temp_db: LocalDatabase) -> None:
-        """populate_from_litellm inserts models and returns count."""
+        """populate inserts models and returns count."""
         store = ModelCostStore(temp_db)
-        count = store.populate_from_litellm()
-        assert count > 100  # LiteLLM has hundreds of models
+        count = store.populate(_TEST_MODELS)
+        assert count == 3
 
     def test_populate_is_idempotent(self, temp_db: LocalDatabase) -> None:
         """Calling populate twice replaces data, not appends."""
         store = ModelCostStore(temp_db)
-        count1 = store.populate_from_litellm()
-        count2 = store.populate_from_litellm()
+        count1 = store.populate(_TEST_MODELS)
+        count2 = store.populate(_TEST_MODELS)
         assert count1 == count2
 
-    def test_get_all_returns_dict(self, temp_db: LocalDatabase) -> None:
-        """get_all returns model -> ModelCost(input, output, cache_read, cache_creation) dict."""
+    def test_populate_empty_keeps_existing(self, temp_db: LocalDatabase) -> None:
+        """Empty model list preserves existing cached data."""
         store = ModelCostStore(temp_db)
-        store.populate_from_litellm()
+        store.populate(_TEST_MODELS)
+        count = store.populate([])
+        assert count == 0
+        # Data should still be there
+        assert len(store.get_all()) == 3
+
+    def test_get_all_returns_dict(self, temp_db: LocalDatabase) -> None:
+        """get_all returns model -> ModelCost dict."""
+        store = ModelCostStore(temp_db)
+        store.populate(_TEST_MODELS)
         costs = store.get_all()
-        assert len(costs) > 100
-        for model, mc in list(costs.items())[:5]:
+        assert len(costs) == 3
+        for model, mc in costs.items():
             assert isinstance(model, str)
             assert isinstance(mc.input, float)
             assert isinstance(mc.output, float)
+
+    def test_strips_provider_prefix_in_db(self, temp_db: LocalDatabase) -> None:
+        """Model keys in DB have provider prefix stripped."""
+        store = ModelCostStore(temp_db)
+        store.populate(_TEST_MODELS)
+        costs = store.get_all()
+        # Keys should be "gpt-4o" not "openai/gpt-4o"
+        assert "gpt-4o" in costs
+        assert "openai/gpt-4o" not in costs
+
+    def test_get_context_window(self, temp_db: LocalDatabase) -> None:
+        """get_context_window returns context_length from DB."""
+        store = ModelCostStore(temp_db)
+        store.populate(_TEST_MODELS)
+        assert store.get_context_window("claude-sonnet-4-6") == 200000
+        assert store.get_context_window("gpt-4o") == 128000
+
+    def test_get_context_window_strips_prefix(self, temp_db: LocalDatabase) -> None:
+        """get_context_window strips provider prefix."""
+        store = ModelCostStore(temp_db)
+        store.populate(_TEST_MODELS)
+        assert store.get_context_window("anthropic/claude-sonnet-4-6") == 200000
+
+    def test_get_context_window_unknown(self, temp_db: LocalDatabase) -> None:
+        """Unknown model returns None."""
+        store = ModelCostStore(temp_db)
+        store.populate(_TEST_MODELS)
+        assert store.get_context_window("totally-unknown") is None
 
 
 class TestLookupCost:
@@ -65,7 +147,6 @@ class TestLookupCost:
     def test_prefix_match_versioned_model(self, populated_db: LocalDatabase) -> None:
         """Versioned model name matches via prefix."""
         cost = lookup_cost("gpt-4o-2024-08-06-extended")
-        # Should find some match (gpt-4o or gpt-4o-2024-08-06)
         assert cost.input_cost_per_token > 0
 
     def test_strips_provider_prefix(self, populated_db: LocalDatabase) -> None:
@@ -82,7 +163,6 @@ class TestLookupCost:
 
     def test_uninitialized_returns_zero(self) -> None:
         """When init() never called, lookups return zero."""
-        # Clear the module-level cache to simulate uninitialized state
         saved = dict(_costs)
         _costs.clear()
         try:
@@ -94,11 +174,34 @@ class TestLookupCost:
 
     def test_longest_prefix_wins(self, populated_db: LocalDatabase) -> None:
         """Longer prefix match takes priority over shorter one."""
-        # gpt-4o-mini should not resolve to gpt-4o's price
         mini_cost = lookup_cost("gpt-4o-mini")
         base_cost = lookup_cost("gpt-4o")
-        if mini_cost.input_cost_per_token > 0 and base_cost.input_cost_per_token > 0:
-            assert mini_cost != base_cost
+        assert mini_cost != base_cost
+
+
+class TestLookupContextWindow:
+    """Tests for lookup_context_window function."""
+
+    def test_known_model(self, populated_db: LocalDatabase) -> None:
+        """Known model returns context window."""
+        assert lookup_context_window("claude-sonnet-4-6") == 200000
+
+    def test_strips_provider_prefix(self, populated_db: LocalDatabase) -> None:
+        """Provider prefix is stripped."""
+        assert lookup_context_window("anthropic/claude-sonnet-4-6") == 200000
+
+    def test_unknown_returns_none(self, populated_db: LocalDatabase) -> None:
+        """Unknown model returns None."""
+        assert lookup_context_window("unknown-model") is None
+
+    def test_uninitialized_returns_none(self) -> None:
+        """When cache empty, returns None."""
+        saved = dict(_costs)
+        _costs.clear()
+        try:
+            assert lookup_context_window("claude-sonnet-4-6") is None
+        finally:
+            _costs.update(saved)
 
 
 class TestCalculateCost:
@@ -147,3 +250,13 @@ class TestModelCost:
         cost = ModelCost(1.0, 2.0)
         with pytest.raises(AttributeError):
             cost.input_cost_per_token = 3.0  # type: ignore[misc]
+
+    def test_context_length_default_none(self) -> None:
+        """context_length defaults to None."""
+        cost = ModelCost(1.0, 2.0)
+        assert cost.context_length is None
+
+    def test_context_length_set(self) -> None:
+        """context_length can be set."""
+        cost = ModelCost(1.0, 2.0, context_length=200000)
+        assert cost.context_length == 200000

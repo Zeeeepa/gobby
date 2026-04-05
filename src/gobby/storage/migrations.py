@@ -35,7 +35,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 194
+BASELINE_VERSION = 195
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v171) have been removed.
@@ -618,6 +618,15 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         194,
         "Drop mode column from agent_runs (all agents spawn via tmux)",
         _drop_agent_runs_mode,
+    ),
+    (
+        195,
+        "Add context_length/max_completion_tokens to model_costs, change source default to registry",
+        """
+        ALTER TABLE model_costs ADD COLUMN context_length INTEGER;
+        ALTER TABLE model_costs ADD COLUMN max_completion_tokens INTEGER;
+        UPDATE model_costs SET source = 'registry' WHERE source = 'litellm';
+        """,
     ),
 ]
 

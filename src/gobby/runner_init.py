@@ -171,13 +171,13 @@ def init_storage_and_config(runner: GobbyRunner, config_path: Path | None, verbo
         if resolved_key:
             runner.config.search.embedding_api_key = resolved_key
 
-    # Populate model costs from LiteLLM into DB and load into memory
+    # Populate model costs from OpenRouter into DB and load into memory
     from gobby.llm.cost_table import init as init_cost_table
     from gobby.storage.model_costs import ModelCostStore
 
     try:
         cost_store = ModelCostStore(runner.database)
-        cost_store.populate_from_litellm()
+        cost_store.populate()
         init_cost_table(runner.database)
     except Exception as e:
         logger.warning(f"Failed to populate model costs: {e}")
