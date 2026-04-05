@@ -1,7 +1,6 @@
-"""DB-backed model cost table for native SDK executors.
+"""DB-backed model cost table for LLM cost tracking.
 
 Provides per-token cost lookups with prefix matching for versioned model names.
-Used by GeminiExecutor and OpenAIExecutor.
 
 On daemon startup, costs are populated from LiteLLM's model_cost registry into
 the model_costs DB table, then loaded into memory via init().

@@ -14,7 +14,7 @@ from typing import Any, Literal, cast
 
 from gobby.config.app import DaemonConfig
 from gobby.llm.base import AuthMode, LLMProvider
-from gobby.llm.litellm_executor import AuthModeType, get_litellm_model, setup_provider_env
+from gobby.llm.litellm_utils import AuthModeType, get_litellm_model, setup_provider_env
 
 logger = logging.getLogger(__name__)
 

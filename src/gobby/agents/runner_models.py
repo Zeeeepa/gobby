@@ -9,7 +9,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from gobby.llm.executor import ToolSchema
 from gobby.storage.agents import AgentRun
 from gobby.storage.session_models import Session
 
@@ -76,7 +75,7 @@ class AgentConfig:
     system_prompt: str | None = None
     """Optional system prompt override."""
 
-    tools: list[ToolSchema] | None = None
+    tools: list[Any] | None = None
     """Optional list of tools to provide."""
 
     git_branch: str | None = None
