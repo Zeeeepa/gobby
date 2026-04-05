@@ -38,7 +38,6 @@ interface SessionEntry {
   runId?: string;
   startedAt?: string;
   seqNum?: number | null;
-  sessionMode?: "interactive" | "autonomous";
   hasTmux: boolean;
 }
 
@@ -152,8 +151,7 @@ export const SessionsTab = memo(function SessionsTab({
         runId: a.run_id,
         startedAt: a.started_at,
         seqNum: matchedSession?.seq_num,
-        sessionMode: "autonomous",
-        hasTmux: a.mode === "interactive",
+        hasTmux: !!a.pid,
       };
     });
 
@@ -169,9 +167,6 @@ export const SessionsTab = memo(function SessionsTab({
           | "paused",
         startedAt: s.updated_at,
         seqNum: s.seq_num,
-        sessionMode: ((s.agent_depth ?? 0) > 0
-          ? "autonomous"
-          : "interactive") as "interactive" | "autonomous",
         hasTmux: !!s.terminal_context,
       }));
 
@@ -362,13 +357,6 @@ export const SessionsTab = memo(function SessionsTab({
                 {entry.hasTmux && (
                   <span className="session-tmux-badge">tmux</span>
                 )}
-                <span
-                  className={`session-type-badge ${entry.sessionMode === "autonomous" ? "session-type-badge--autonomous" : "session-type-badge--interactive"}`}
-                >
-                  {entry.sessionMode === "autonomous"
-                    ? "Autonomous"
-                    : "Interactive"}
-                </span>
                 {isMobile ? (
                   <button
                     className="session-more-btn"

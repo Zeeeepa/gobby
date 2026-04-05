@@ -26,7 +26,6 @@ interface BatchLaunchAgentDialogProps {
   onSpawned?: (succeeded: number, failed: number) => void
 }
 
-type Mode = 'interactive' | 'web_chat' | 'headless'
 type Isolation = 'none' | 'worktree' | 'clone'
 
 // ---------------------------------------------------------------------------
@@ -69,7 +68,6 @@ export function LaunchAgentDialog({
 
   // Form state
   const [agentName, setAgentName] = useState('default')
-  const [mode, setMode] = useState<Mode>('interactive')
   const [isolation, setIsolation] = useState<Isolation>('none')
   const [model, setModel] = useState<string>('')
   const [promptText, setPromptText] = useState('')
@@ -98,7 +96,6 @@ export function LaunchAgentDialog({
         const catDefaults = allDefaults[cat]
         if (catDefaults) {
           setAgentName(catDefaults.agent_name || 'default')
-          setMode(catDefaults.mode || 'interactive')
           setIsolation(catDefaults.isolation || 'none')
           setModel(catDefaults.model || '')
         }
@@ -124,7 +121,6 @@ export function LaunchAgentDialog({
       task_id: taskId,
       agent_name: agentName,
       prompt: promptText || undefined,
-      mode,
       isolation: isolation !== 'none' ? isolation : undefined,
       model: model || undefined,
     })
@@ -135,7 +131,6 @@ export function LaunchAgentDialog({
         const cat = taskCategory || '_default'
         await saveDefaults(projectId, cat, {
           agent_name: agentName,
-          mode,
           isolation,
           model: model || undefined,
         })
@@ -145,7 +140,7 @@ export function LaunchAgentDialog({
     } else {
       setError(spawnResult.error || 'Launch failed')
     }
-  }, [taskId, agentName, promptText, mode, isolation, model, rememberDefaults, projectId, taskCategory, spawn, saveDefaults, onSpawned])
+  }, [taskId, agentName, promptText, isolation, model, rememberDefaults, projectId, taskCategory, spawn, saveDefaults, onSpawned])
 
   if (!isOpen) return null
 
@@ -161,13 +156,7 @@ export function LaunchAgentDialog({
           </div>
           <div className="launch-agent-success">
             <div className="launch-agent-success-icon">&#10003;</div>
-            {result.mode === 'web_chat' ? (
-              <p>Chat session created. Navigate to Chat to interact with the agent.</p>
-            ) : result.mode === 'interactive' ? (
-              <p>Agent running in terminal.{result.run_id && <> Run ID: <code>{result.run_id}</code></>}</p>
-            ) : (
-              <p>Agent working in background.{result.run_id && <> Run ID: <code>{result.run_id}</code></>}</p>
-            )}
+            <p className="launch-success-text">Agent spawned successfully.</p>
             <button className="launch-agent-btn launch-agent-btn--primary" onClick={onClose}>
               Done
             </button>
@@ -213,21 +202,6 @@ export function LaunchAgentDialog({
 
           {/* Mode selector */}
           <div className="launch-agent-field">
-            <label className="launch-agent-label">Mode</label>
-            <div className="launch-agent-radio-group">
-              {([['interactive', 'Interactive (tmux)'], ['web_chat', 'Web Chat'], ['headless', 'Headless']] as const).map(([val, label]) => (
-                <label key={val} className={`launch-agent-radio ${mode === val ? 'active' : ''}`}>
-                  <input
-                    type="radio"
-                    name="mode"
-                    value={val}
-                    checked={mode === val}
-                    onChange={() => setMode(val)}
-                  />
-                  {label}
-                </label>
-              ))}
-            </div>
           </div>
 
           {/* Isolation picker */}
@@ -334,7 +308,6 @@ export function BatchLaunchAgentDialog({
   const { spawnBatch, spawning, fetchDefinitions } = useAgentSpawn()
 
   const [agentName, setAgentName] = useState('default')
-  const [mode, setMode] = useState<Mode>('interactive')
   const [isolation, setIsolation] = useState<Isolation>('none')
   const [model, setModel] = useState<string>('')
   const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set())
@@ -370,7 +343,6 @@ export function BatchLaunchAgentDialog({
     const spawns = activeTasks.map(t => ({
       task_id: t.id,
       agent_name: agentName,
-      mode,
       isolation: isolation !== 'none' ? isolation : undefined as any,
       model: model || undefined,
     }))
@@ -378,7 +350,7 @@ export function BatchLaunchAgentDialog({
     const result = await spawnBatch(spawns)
     setBatchResult({ succeeded: result.succeeded, failed: result.failed })
     onSpawned?.(result.succeeded, result.failed)
-  }, [tasks, excludedIds, agentName, mode, isolation, model, spawnBatch, onSpawned])
+  }, [tasks, excludedIds, agentName, isolation, model, spawnBatch, onSpawned])
 
   if (!isOpen) return null
 
@@ -449,18 +421,6 @@ export function BatchLaunchAgentDialog({
                 </option>
               ))}
             </select>
-          </div>
-
-          <div className="launch-agent-field">
-            <label className="launch-agent-label">Mode</label>
-            <div className="launch-agent-radio-group">
-              {([['interactive', 'Interactive'], ['web_chat', 'Web Chat'], ['headless', 'Headless']] as const).map(([val, label]) => (
-                <label key={val} className={`launch-agent-radio ${mode === val ? 'active' : ''}`}>
-                  <input type="radio" name="batch-mode" value={val} checked={mode === val} onChange={() => setMode(val)} />
-                  {label}
-                </label>
-              ))}
-            </div>
           </div>
 
           <div className="launch-agent-field">

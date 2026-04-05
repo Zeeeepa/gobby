@@ -8,7 +8,6 @@ export interface SpawnParams {
   task_id: string
   agent_name?: string
   prompt?: string
-  mode?: 'interactive' | 'web_chat' | 'headless'
   isolation?: 'none' | 'worktree' | 'clone'
   provider?: string
   model?: string
@@ -24,7 +23,6 @@ export interface SpawnResult {
   run_id?: string
   child_session_id?: string
   conversation_id?: string
-  mode: string
   isolation?: string
   branch_name?: string
   pid?: number
@@ -39,7 +37,6 @@ export interface BatchResult {
 
 export interface CategoryDefaults {
   agent_name: string
-  mode: 'interactive' | 'web_chat' | 'headless'
   isolation: 'none' | 'worktree' | 'clone'
   model?: string
 }
@@ -49,7 +46,6 @@ export interface AgentDefinition {
     name: string
     description?: string
     role?: string
-    mode?: string
     provider?: string
     model?: string
     isolation?: string
@@ -84,8 +80,7 @@ export function useAgentSpawn() {
       if (!res.ok) {
         const result: SpawnResult = {
           success: false,
-          mode: params.mode || 'interactive',
-          error: data.detail || 'Spawn failed',
+                    error: data.detail || 'Spawn failed',
         }
         setLastResult(result)
         return result
@@ -96,8 +91,7 @@ export function useAgentSpawn() {
     } catch (e) {
       const result: SpawnResult = {
         success: false,
-        mode: params.mode || 'interactive',
-        error: e instanceof Error ? e.message : 'Network error',
+                error: e instanceof Error ? e.message : 'Network error',
       }
       setLastResult(result)
       return result

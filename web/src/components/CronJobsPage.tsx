@@ -13,7 +13,7 @@ function getDefaultActionConfig(actionType: string): string {
     case 'shell':
       return '{\n  "command": "echo",\n  "args": ["hello"]\n}'
     case 'agent_spawn':
-      return '{\n  "prompt": "...",\n  "provider": "claude",\n  "model": "sonnet",\n  "mode": "headless"\n}'
+      return '{\n  "prompt": "...",\n  "provider": "claude",\n  "model": "sonnet"\n}'
     case 'pipeline':
       return '{\n  "pipeline_name": "my-pipeline",\n  "inputs": {}\n}'
     default:
