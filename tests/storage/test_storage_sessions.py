@@ -877,13 +877,15 @@ class TestLocalSessionManager:
 
         counts = session_manager.count_by_status()
 
-        assert counts.get("active") == 1
+        # +1 active for the bootstrapped system session
+        assert counts.get("active") == 2
         assert counts.get("paused") == 2
 
     def test_count_by_status_empty(self, session_manager: LocalSessionManager) -> None:
-        """Test count_by_status returns empty dict when no sessions."""
+        """Test count_by_status with no user sessions (only bootstrapped system session)."""
         counts = session_manager.count_by_status()
-        assert counts == {}
+        # The bootstrapped system session is always present
+        assert counts == {"active": 1}
 
     def test_update_terminal_pickup_metadata(
         self,
