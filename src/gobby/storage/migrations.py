@@ -35,7 +35,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 196
+BASELINE_VERSION = 197
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v171) have been removed.
@@ -644,6 +644,17 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         UPDATE config_store SET value = '"openai-compatible"'
         WHERE key = 'mcp_client_proxy.embedding_provider'
         AND value = '"local"';
+        """,
+    ),
+    (
+        197,
+        "Rename search.tfidf_weight to search.keyword_weight and map mode tfidf->keyword",
+        """
+        UPDATE config_store SET key = 'search.keyword_weight'
+        WHERE key = 'search.tfidf_weight';
+
+        UPDATE config_store SET value = '"keyword"'
+        WHERE key = 'search.mode' AND value = '"tfidf"';
         """,
     ),
 ]
