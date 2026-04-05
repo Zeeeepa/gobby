@@ -64,7 +64,6 @@ def expansion_registry(
         task_manager=task_manager,
         sync_manager=sync_manager,
         task_validator=None,
-        agent_runner=None,
         config=None,
     )
     registry = create_expansion_registry(ctx)

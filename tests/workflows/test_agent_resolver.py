@@ -74,7 +74,6 @@ class TestResolveAgentLookup:
             "name": "developer",
             "role": "Backend developer",
             "provider": "claude",
-            "mode": "interactive",
         }
         manager.create(
             name="developer",
@@ -87,7 +86,6 @@ class TestResolveAgentLookup:
         assert result.name == "developer"
         assert result.role == "Backend developer"
         assert result.provider == "claude"
-        assert result.mode == "interactive"
 
     def test_skips_non_agent_type(
         self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager

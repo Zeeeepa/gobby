@@ -33,7 +33,6 @@ class SpawnEvaluation:
     agent_name: str | None = None
     agent_found: bool = False
     effective_workflow: str | None = None
-    effective_mode: str | None = None
     effective_isolation: str | None = None
     effective_provider: str | None = None
     branch_name: str | None = None
@@ -48,7 +47,6 @@ class SpawnEvaluation:
             "agent_name": self.agent_name,
             "agent_found": self.agent_found,
             "effective_workflow": self.effective_workflow,
-            "effective_mode": self.effective_mode,
             "effective_isolation": self.effective_isolation,
             "effective_provider": self.effective_provider,
             "branch_name": self.branch_name,
@@ -92,7 +90,6 @@ async def evaluate_spawn(
     workflow: str | None = None,
     task_id: str | None = None,
     isolation: str | None = None,
-    mode: str | None = None,
     provider: str | None = None,
     branch_name: str | None = None,
     base_branch: str | None = None,
@@ -148,10 +145,9 @@ async def evaluate_spawn(
             layer="agent",
             level="info",
             code="AGENT_RESOLVED",
-            message=f"Agent '{agent}' found: provider={eff_provider}, mode={agent_body.mode}",
+            message=f"Agent '{agent}' found: provider={eff_provider}, isolation={eff_isolation}",
             detail={
                 "provider": eff_provider,
-                "mode": agent_body.mode,
                 "isolation": eff_isolation,
                 "model": agent_body.model,
                 "timeout": agent_body.timeout,
@@ -162,9 +158,7 @@ async def evaluate_spawn(
 
     # ---- Layer 2: Workflow Resolution ----
     effective_workflow = workflow or agent_body.workflows.pipeline
-    eff_mode = mode or agent_body.mode
     result.effective_workflow = effective_workflow
-    result.effective_mode = eff_mode
 
     if effective_workflow:
         result.items.append(
@@ -172,8 +166,8 @@ async def evaluate_spawn(
                 layer="workflow_resolution",
                 level="info",
                 code="WORKFLOW_RESOLVED",
-                message=f"Workflow resolved to '{effective_workflow}' (mode={eff_mode})",
-                detail={"workflow": effective_workflow, "mode": eff_mode},
+                message=f"Workflow resolved to '{effective_workflow}'",
+                detail={"workflow": effective_workflow},
             )
         )
 
@@ -283,32 +277,31 @@ async def evaluate_spawn(
                 )
             )
 
-    # Terminal availability check
-    if eff_mode == "interactive":
-        try:
-            from gobby.agents.tmux.spawner import TmuxSpawner
+    # Terminal availability check (all agents use tmux)
+    try:
+        from gobby.agents.tmux.spawner import TmuxSpawner
 
-            spawner = TmuxSpawner()
-            if not spawner.is_available():
-                result.items.append(
-                    EvaluationItem(
-                        layer="runtime",
-                        level="warning",
-                        code="NO_TERMINALS_AVAILABLE",
-                        message="tmux is not available — agent may fail to spawn",
-                    )
+        spawner = TmuxSpawner()
+        if not spawner.is_available():
+            result.items.append(
+                EvaluationItem(
+                    layer="runtime",
+                    level="warning",
+                    code="NO_TERMINALS_AVAILABLE",
+                    message="tmux is not available — agent may fail to spawn",
                 )
-            else:
-                result.items.append(
-                    EvaluationItem(
-                        layer="runtime",
-                        level="info",
-                        code="TERMINALS_AVAILABLE",
-                        message="Available terminals: ['tmux']",
-                    )
+            )
+        else:
+            result.items.append(
+                EvaluationItem(
+                    layer="runtime",
+                    level="info",
+                    code="TERMINALS_AVAILABLE",
+                    message="Available terminals: ['tmux']",
                 )
-        except Exception:
-            logger.debug("Failed to check terminal availability", exc_info=True)
+            )
+    except Exception:
+        logger.debug("Failed to check terminal availability", exc_info=True)
 
     # ---- Layer 5: Workflow Evaluation (delegates to evaluate_workflow) ----
     if effective_workflow and workflow_loader is not None:
