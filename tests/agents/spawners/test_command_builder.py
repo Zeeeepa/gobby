@@ -11,51 +11,36 @@ pytestmark = pytest.mark.unit
 
 class TestBuildCliCommand:
     def test_claude_basic(self):
-        # Default mode is "interactive" — no -p flag (allows multi-turn interaction)
         cmd = build_cli_command("claude", prompt="hello")
         assert cmd == ["claude", "hello"]
 
-    def test_claude_interactive_mode(self):
-        cmd = build_cli_command("claude", prompt="hello", mode="interactive")
-        assert cmd == ["claude", "hello"]
-
     def test_claude_with_session_id(self):
-        cmd = build_cli_command("claude", session_id="123", prompt="hello", mode="headless")
-        assert cmd == ["claude", "--session-id", "123", "-p", "hello"]
+        cmd = build_cli_command("claude", session_id="123", prompt="hello")
+        assert cmd == ["claude", "--session-id", "123", "hello"]
 
     def test_claude_auto_approve(self):
-        cmd = build_cli_command("claude", auto_approve=True, prompt="hello", mode="headless")
-        assert cmd == ["claude", "--dangerously-skip-permissions", "-p", "hello"]
+        cmd = build_cli_command("claude", auto_approve=True, prompt="hello")
+        assert cmd == ["claude", "--dangerously-skip-permissions", "hello"]
 
     def test_claude_with_model(self):
-        cmd = build_cli_command("claude", model="claude-3-opus", prompt="hello", mode="headless")
-        assert cmd == ["claude", "--model", "claude-3-opus", "-p", "hello"]
+        cmd = build_cli_command("claude", model="claude-3-opus", prompt="hello")
+        assert cmd == ["claude", "--model", "claude-3-opus", "hello"]
 
     def test_cursor_basic(self):
-        cmd = build_cli_command("cursor", prompt="hello", mode="headless")
-        assert cmd == ["cursor", "-p", "hello"]
+        cmd = build_cli_command("cursor", prompt="hello")
+        assert cmd == ["cursor", "hello"]
 
-    def test_gemini_basic_headless(self):
-        cmd = build_cli_command("gemini", prompt="hello", mode="headless")
+    def test_gemini_basic(self):
+        cmd = build_cli_command("gemini", prompt="hello")
         assert cmd == ["gemini", "hello"]
 
-    def test_gemini_basic_interactive(self):
-        cmd = build_cli_command("gemini", prompt="hello", mode="interactive")
-        assert cmd == ["gemini", "-i", "hello"]
-
     def test_gemini_auto_approve(self):
-        cmd = build_cli_command("gemini", auto_approve=True, prompt="hello", mode="headless")
+        cmd = build_cli_command("gemini", auto_approve=True, prompt="hello")
         assert cmd == ["gemini", "--approval-mode", "yolo", "hello"]
 
     def test_gemini_with_model(self):
-        cmd = build_cli_command("gemini", model="gemini-1.5-pro", prompt="hello", mode="headless")
+        cmd = build_cli_command("gemini", model="gemini-1.5-pro", prompt="hello")
         assert cmd == ["gemini", "--model", "gemini-1.5-pro", "hello"]
-
-    def test_gemini_interactive_with_sandbox_args(self):
-        cmd = build_cli_command(
-            "gemini", prompt="hello", mode="interactive", sandbox_args=["--foo", "bar"]
-        )
-        assert cmd == ["gemini", "-i", "hello", "--foo", "bar"]
 
     def test_codex_basic(self):
         cmd = build_cli_command("codex", prompt="hello")
@@ -74,11 +59,9 @@ class TestBuildCliCommand:
         assert cmd == ["codex", "--model", "gpt-4", "hello"]
 
     def test_generic_sandbox_args(self):
-        cmd = build_cli_command(
-            "claude", prompt="hello", sandbox_args=["--sandbox"], mode="headless"
-        )
+        cmd = build_cli_command("claude", prompt="hello", sandbox_args=["--sandbox"])
         # sandbox args come before prompt
-        assert cmd == ["claude", "-p", "--sandbox", "hello"]
+        assert cmd == ["claude", "--sandbox", "hello"]
 
 
 class TestBuildGeminiResume:
@@ -121,16 +104,18 @@ class TestBuildCodexResume:
         cmd = build_codex_command_with_resume("ext-123", auto_approve=True)
         assert cmd == ["codex", "resume", "ext-123", "--full-auto"]
 
-    def test_resume_working_directory(self):
-        cmd = build_codex_command_with_resume("ext-123", working_directory="/tmp")
-        assert cmd == ["codex", "resume", "ext-123", "-C", "/tmp"]
-
     def test_resume_with_model(self):
         cmd = build_codex_command_with_resume("ext-123", model="gpt-4")
         assert cmd == ["codex", "resume", "ext-123", "--model", "gpt-4"]
 
+    def test_resume_with_working_directory(self):
+        cmd = build_codex_command_with_resume("ext-123", working_directory="/tmp")
+        assert cmd == ["codex", "resume", "ext-123", "-C", "/tmp"]
+
     def test_resume_with_gobby_session(self):
-        cmd = build_codex_command_with_resume("ext-123", gobby_session_id="gob-456", prompt="do it")
+        cmd = build_codex_command_with_resume(
+            "ext-123", gobby_session_id="gob-789", prompt="fix it"
+        )
         assert cmd[0:3] == ["codex", "resume", "ext-123"]
-        assert "Your Gobby session_id is: gob-456" in cmd[-1]
-        assert "do it" in cmd[-1]
+        assert "Your Gobby session_id is: gob-789" in cmd[3]
+        assert "fix it" in cmd[3]

@@ -2,14 +2,12 @@
 Unified Spawn Executor for Agent Spawning.
 
 This module consolidates the spawn dispatch logic from agents.py, worktrees.py,
-and clones.py into a single unified executor that handles terminal and
-autonomous modes.
+and clones.py into a single executor. All agents spawn via tmux.
 """
 
-import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from gobby.agents.sandbox import (
     GeminiSandboxResolver,
@@ -38,7 +36,6 @@ class SpawnRequest:
     # Required fields
     prompt: str
     cwd: str
-    mode: Literal["interactive", "autonomous"]
     provider: str
     session_id: str
     run_id: str
@@ -72,11 +69,6 @@ class SpawnRequest:
     # Timeout
     timeout_seconds: float | None = None  # Agent timeout (persisted to DB for restart survival)
 
-    # Autonomous mode fields
-    system_prompt: str | None = None  # Agent system prompt
-    max_turns: int | None = None  # From agent definition
-    agent_run_manager: Any | None = None  # LocalAgentRunManager for complete/fail
-
 
 @dataclass
 class SpawnResult:
@@ -90,21 +82,17 @@ class SpawnResult:
     # Optional result fields
     pid: int | None = None
     terminal_type: str | None = None
-    master_fd: int | None = None
     error: str | None = None
     message: str | None = None
-    process: Any | None = None  # asyncio.Task for autonomous
-    gemini_session_id: str | None = None  # Gemini external session ID
     codex_session_id: str | None = None  # Codex external session ID
     tmux_session_name: str | None = None  # Tmux session name for output streaming
 
 
 async def execute_spawn(request: SpawnRequest) -> SpawnResult:
     """
-    Unified spawn dispatch for terminal and autonomous modes.
+    Unified spawn dispatch — all agents spawn via tmux.
 
-    Consolidates duplicated logic from agents.py, worktrees.py, clones.py
-    into a single dispatch function.
+    Routes to provider-specific terminal spawners based on request.provider.
 
     Args:
         request: SpawnRequest with all spawn parameters
@@ -112,25 +100,11 @@ async def execute_spawn(request: SpawnRequest) -> SpawnResult:
     Returns:
         SpawnResult with spawn outcome and metadata
     """
-    if request.mode == "interactive":
-        # Special handling for Gemini/Codex: requires preflight session capture
-        if request.provider == "gemini":
-            return await _spawn_gemini_terminal(request)
-        elif request.provider == "codex":
-            return await _spawn_codex_terminal(request)
-        return await _spawn_claude_terminal(request)
-    elif request.mode == "autonomous":
-        if request.provider == "codex":
-            return await _spawn_codex_autonomous(request)
-        return await _spawn_autonomous(request)
-    else:
-        return SpawnResult(
-            success=False,
-            run_id=request.run_id,
-            child_session_id=request.session_id,
-            status="failed",
-            error=f"Unknown spawn mode: {request.mode}",
-        )
+    if request.provider == "gemini":
+        return await _spawn_gemini_terminal(request)
+    elif request.provider == "codex":
+        return await _spawn_codex_terminal(request)
+    return await _spawn_claude_terminal(request)
 
 
 async def _spawn_claude_terminal(request: SpawnRequest) -> SpawnResult:
@@ -180,7 +154,6 @@ async def _spawn_claude_terminal(request: SpawnRequest) -> SpawnResult:
         prompt=request.prompt,
         session_id=gobby_session_id,
         auto_approve=True,
-        mode="interactive",
         model=request.model,
     )
 
@@ -294,7 +267,6 @@ async def _spawn_gemini_terminal(request: SpawnRequest) -> SpawnResult:
         cli="gemini",
         prompt=request.prompt,
         auto_approve=True,
-        mode="interactive",
         model=request.model,
     )
 
@@ -440,173 +412,4 @@ async def _spawn_codex_terminal(request: SpawnRequest) -> SpawnResult:
         pid=terminal_result.pid,
         codex_session_id=codex_session_id,
         message=f"Codex agent spawned in terminal with session {gobby_session_id}",
-    )
-
-
-async def _spawn_codex_autonomous(request: SpawnRequest) -> SpawnResult:
-    """
-    Spawn Codex agent using in-process CodexAutonomousRunner.
-
-    Creates a child session via prepare_terminal_spawn, then launches
-    a CodexAutonomousRunner as an asyncio.Task.
-    """
-    from gobby.agents.spawners.codex_autonomous import CodexAutonomousRunner
-
-    if request.session_manager is None:
-        return SpawnResult(
-            success=False,
-            run_id=request.run_id,
-            child_session_id=None,
-            status="failed",
-            error="session_manager is required for Codex autonomous spawn",
-        )
-
-    # Create child session (same as terminal — reuses session/run infrastructure)
-    spawn_context = prepare_terminal_spawn(
-        session_manager=cast("ChildSessionManager", request.session_manager),
-        parent_session_id=request.parent_session_id,
-        project_id=request.project_id,
-        machine_id=request.machine_id or "unknown",
-        source="codex",
-        workflow_name=request.workflow,
-        initial_variables=request.initial_variables,
-        prompt=request.prompt,
-        max_agent_depth=request.max_agent_depth,
-        git_branch=request.branch_name,
-        agent_run_id=request.agent_run_id,
-        task_id=request.task_id,
-        title=request.title,
-        timeout_seconds=request.timeout_seconds,
-    )
-
-    gobby_session_id = spawn_context.session_id
-    seq_num = spawn_context.seq_num
-
-    runner = CodexAutonomousRunner(
-        session_id=gobby_session_id,
-        run_id=spawn_context.agent_run_id,
-        project_id=request.project_id,
-        cwd=request.cwd,
-        prompt=request.prompt,
-        model=request.model,
-        system_prompt=request.system_prompt,
-        max_turns=request.max_turns,
-        agent_run_manager=request.agent_run_manager,
-        seq_num=seq_num,
-    )
-
-    # Launch as background task for lifecycle monitoring
-    task = asyncio.create_task(
-        runner.run(),
-        name=f"codex-autonomous-{spawn_context.agent_run_id}",
-    )
-
-    return SpawnResult(
-        success=True,
-        run_id=spawn_context.agent_run_id,
-        child_session_id=gobby_session_id,
-        status="running",
-        process=task,
-        message=f"Codex autonomous agent spawned with session {gobby_session_id}",
-    )
-
-
-async def _spawn_autonomous(request: SpawnRequest) -> SpawnResult:
-    """
-    Spawn Claude agent using in-process SDK (AutonomousRunner).
-
-    Creates a child session via prepare_terminal_spawn, then launches
-    an AutonomousRunner as an asyncio.Task. The task reference is
-    returned on SpawnResult.process for lifecycle monitoring.
-    """
-    from gobby.agents.spawners.autonomous import AutonomousRunner
-
-    if request.session_manager is None:
-        return SpawnResult(
-            success=False,
-            run_id=request.run_id,
-            child_session_id=None,
-            status="failed",
-            error="session_manager is required for autonomous spawn",
-        )
-
-    # Create child session (same as terminal — reuses session/run infrastructure)
-    spawn_context = prepare_terminal_spawn(
-        session_manager=cast("ChildSessionManager", request.session_manager),
-        parent_session_id=request.parent_session_id,
-        project_id=request.project_id,
-        machine_id=request.machine_id or "unknown",
-        source="claude",
-        workflow_name=request.workflow,
-        initial_variables=request.initial_variables,
-        prompt=request.prompt,
-        max_agent_depth=request.max_agent_depth,
-        git_branch=request.branch_name,
-        agent_run_id=request.agent_run_id,
-        task_id=request.task_id,
-        title=request.title,
-        timeout_seconds=request.timeout_seconds,
-    )
-
-    gobby_session_id = spawn_context.session_id
-
-    # Build PreCompact callback so Gobby context survives compaction
-    from gobby.servers.chat_session_helpers import build_compaction_context
-
-    seq_num = spawn_context.seq_num
-    session_ref = f"#{seq_num}" if seq_num else gobby_session_id
-
-    async def _on_pre_compact(data: dict[str, Any]) -> dict[str, Any] | None:
-        return {
-            "context": build_compaction_context(
-                session_ref=session_ref,
-                project_id=request.project_id,
-                cwd=request.cwd,
-                source="autonomous_sdk",
-            )
-        }
-
-    # Subagent lifecycle callbacks — log the event so the daemon can
-    # correlate subagent sessions even without a full hook manager.
-    async def _on_subagent_start(data: dict[str, Any]) -> dict[str, Any] | None:
-        logger.info(
-            f"SubagentStart in autonomous run {spawn_context.agent_run_id}: {data.get('session_id', 'unknown')}",
-        )
-        return None
-
-    async def _on_subagent_stop(data: dict[str, Any]) -> dict[str, Any] | None:
-        logger.info(
-            f"SubagentStop in autonomous run {spawn_context.agent_run_id}: {data.get('session_id', 'unknown')}",
-        )
-        return None
-
-    runner = AutonomousRunner(
-        session_id=gobby_session_id,
-        run_id=spawn_context.agent_run_id,
-        project_id=request.project_id,
-        cwd=request.cwd,
-        prompt=request.prompt,
-        model=request.model,
-        system_prompt=request.system_prompt,
-        max_turns=request.max_turns,
-        agent_run_manager=request.agent_run_manager,
-        seq_num=seq_num,
-        on_pre_compact=_on_pre_compact,
-        on_subagent_start=_on_subagent_start,
-        on_subagent_stop=_on_subagent_stop,
-    )
-
-    # Launch as background task for lifecycle monitoring
-    task = asyncio.create_task(
-        runner.run(),
-        name=f"autonomous-{spawn_context.agent_run_id}",
-    )
-
-    return SpawnResult(
-        success=True,
-        run_id=spawn_context.agent_run_id,
-        child_session_id=gobby_session_id,
-        status="running",
-        process=task,
-        message=f"Autonomous agent spawned with session {gobby_session_id}",
     )

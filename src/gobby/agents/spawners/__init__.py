@@ -14,7 +14,6 @@ if TYPE_CHECKING:
     from gobby.agents.tmux.spawner import TmuxSpawner as TmuxSpawner
 
 from gobby.agents.spawners.base import (
-    SpawnMode,
     SpawnResult,
     TerminalSpawnerBase,
     make_spawn_env,
@@ -31,7 +30,6 @@ from gobby.agents.spawners.prompt_manager import (
 
 __all__ = [
     # Base types
-    "SpawnMode",
     "SpawnResult",
     "TerminalSpawnerBase",
     "make_spawn_env",
