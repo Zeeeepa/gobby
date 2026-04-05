@@ -120,16 +120,23 @@ class CronExecutor:
                 if "provider" not in config and agent_body.provider != "inherit":
                     provider = agent_body.provider
 
-        # Use the agent runner's spawn method
-        result = await self.agent_runner.spawn_headless(
+        # Spawn agent via spawn_agent_impl (all agents go through tmux)
+        from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
+
+        result = await spawn_agent_impl(
             prompt=prompt,
-            project_id=job.project_id,
+            runner=self.agent_runner,
             provider=provider,
             workflow=workflow,
             timeout=timeout,
+            parent_session_id=job.project_id,  # Cron jobs use project as parent context
+            session_manager=getattr(self.agent_runner, "child_session_manager", None),
+            db=self.storage.db,
         )
 
-        return result.get("output", "Agent completed") if isinstance(result, dict) else str(result)
+        if result.get("success"):
+            return f"Agent spawned: run_id={result.get('run_id')}"
+        return f"Agent spawn failed: {result.get('error', 'unknown')}"
 
     async def _execute_pipeline(self, job: CronJob, run: CronRun) -> str:
         """Execute a pipeline action."""

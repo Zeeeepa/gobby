@@ -86,13 +86,6 @@ def agents() -> None:
 @click.option("--workflow", "-w", help="Workflow name to execute")
 @click.option("--task", "-t", help="Task ID or 'next' for auto-select")
 @click.option(
-    "--mode",
-    "-m",
-    type=click.Choice(["interactive", "autonomous"]),
-    default="interactive",
-    help="Execution mode (default: interactive)",
-)
-@click.option(
     "--terminal",
     type=click.Choice(["auto", "ghostty", "iterm", "kitty", "wezterm", "terminal"]),
     default="auto",
@@ -115,7 +108,6 @@ def spawn_agent_cmd(
     parent_session_id: str,
     workflow: str | None,
     task: str | None,
-    mode: str,
     terminal: str,
     provider: str,
     model: str | None,
@@ -130,9 +122,9 @@ def spawn_agent_cmd(
 
         gobby agents spawn "Implement feature X" --session sess-abc123
 
-        gobby agents spawn "Fix the bug" -s sess-abc123 --mode terminal
+        gobby agents spawn "Fix the bug" -s sess-abc123 -p gemini
 
-        gobby agents spawn "Run tests" -s sess-abc123 --mode headless
+        gobby agents spawn "Run tests" -s sess-abc123 --task next
     """
     daemon_url = get_daemon_url()
 
@@ -146,7 +138,6 @@ def spawn_agent_cmd(
     arguments = {
         "prompt": prompt,
         "parent_session_id": parent_session_id,
-        "mode": mode,
         "terminal": terminal,
         "provider": provider,
         "timeout": timeout,

@@ -371,7 +371,6 @@ class LocalAgentRunManager:
         *,
         pid: int | None = None,
         tmux_session_name: str | None = None,
-        mode: str | None = None,
         worktree_id: str | None = None,
         clone_id: str | None = None,
     ) -> None:
@@ -388,9 +387,6 @@ class LocalAgentRunManager:
         if tmux_session_name is not None:
             updates.append("tmux_session_name = ?")
             params.append(tmux_session_name)
-        if mode is not None:
-            updates.append("mode = ?")
-            params.append(mode)
         if worktree_id is not None:
             updates.append("worktree_id = ?")
             params.append(worktree_id)
