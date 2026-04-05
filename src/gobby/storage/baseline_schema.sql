@@ -222,6 +222,10 @@ CREATE INDEX idx_sessions_agent_run ON sessions(agent_run_id);
 CREATE UNIQUE INDEX idx_sessions_seq_num ON sessions(project_id, seq_num);
 CREATE UNIQUE INDEX idx_sessions_unique ON sessions(external_id, machine_id, source, project_id);
 
+-- System session: static root for pipelines and cron jobs with no caller session
+INSERT INTO sessions (id, external_id, machine_id, source, project_id, title, status, agent_depth, created_at, updated_at)
+VALUES ('00000000-0000-0000-0000-000000000001', 'system', 'system', 'system', '00000000-0000-0000-0000-000000060887', '_system', 'active', 0, datetime('now'), datetime('now'));
+
 CREATE TABLE session_message_state (
     session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
     last_byte_offset INTEGER DEFAULT 0,

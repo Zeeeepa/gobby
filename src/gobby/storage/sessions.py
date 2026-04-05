@@ -15,6 +15,10 @@ from gobby.storage.session_models import Session
 
 logger = logging.getLogger(__name__)
 
+# Well-known system session ID — bootstrapped at DB init.
+# Used as the default parent for pipelines and cron jobs that have no caller session.
+SYSTEM_SESSION_ID = "00000000-0000-0000-0000-000000000001"
+
 
 class LocalSessionManager:
     """Manager for local session storage."""

@@ -329,11 +329,13 @@ class PipelineExecutor:
                 )
 
                 # 2b. Create child session for top-level pipelines
-                caller_session_id = session_id
-                pipeline_session_id = session_id
+                from gobby.storage.sessions import SYSTEM_SESSION_ID
+
+                caller_session_id = session_id or SYSTEM_SESSION_ID
+                pipeline_session_id = caller_session_id
                 parent_session_id = _parent_session_id
 
-                if _depth == 0 and session_id and self.session_manager:
+                if _depth == 0 and self.session_manager:
                     try:
                         child_session = self.session_manager.register(
                             external_id=f"pipeline-{execution.id}",
