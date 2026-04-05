@@ -76,25 +76,23 @@ class TestListAgentDefinitions:
 
     def test_summary_fields(self, tmp_path: Path) -> None:
         mgr = _setup(tmp_path)
-        _insert_agent(mgr, "summary-test", provider="gemini", mode="interactive")
+        _insert_agent(mgr, "summary-test", provider="gemini")
         result = list_agent_definitions(mgr)
         agent = result["agents"][0]
         assert agent["provider"] == "gemini"
-        assert agent["mode"] == "interactive"
         assert agent["source"] == "installed"
 
 
 class TestGetAgentDefinition:
     def test_found(self, tmp_path: Path) -> None:
         mgr = _setup(tmp_path)
-        _insert_agent(mgr, "worker", description="A worker", provider="claude", mode="autonomous")
+        _insert_agent(mgr, "worker", description="A worker", provider="claude")
         result = get_agent_definition(mgr, "worker")
         assert result["success"] is True
         agent = result["agent"]
         assert agent["name"] == "worker"
         assert agent["description"] == "A worker"
         assert agent["provider"] == "claude"
-        assert agent["mode"] == "autonomous"
 
     def test_not_found(self, tmp_path: Path) -> None:
         mgr = _setup(tmp_path)
@@ -155,7 +153,6 @@ class TestCreateAgentDefinition:
                 "goal": "build things",
                 "provider": "gemini",
                 "model": "flash",
-                "mode": "interactive",
                 "timeout": 300.0,
                 "max_turns": 20,
             },
@@ -172,7 +169,7 @@ class TestCreateAgentDefinition:
 
     def test_invalid_definition(self, tmp_path: Path) -> None:
         mgr = _setup(tmp_path)
-        result = create_agent_definition(mgr, "bad", {"mode": "invalid_mode"})
+        result = create_agent_definition(mgr, "bad", {"isolation": "invalid_isolation"})
         assert result["success"] is False
         assert "Validation failed" in result["error"]
 
