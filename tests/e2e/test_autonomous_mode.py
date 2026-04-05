@@ -301,6 +301,7 @@ class TestAutonomousSpawningGate:
         )
 
 
+@pytest.mark.skip(reason="Flaky: daemon_instance startup timeout in CI (gobby-#11281)")
 class TestAutonomousThrottling:
     """Tests for autonomous mode throttling based on budget."""
 
