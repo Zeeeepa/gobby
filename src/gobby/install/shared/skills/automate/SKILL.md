@@ -277,7 +277,7 @@ workflows:
 | Developer working on tasks | `interactive` | `worktree` | Isolated branch, visible in tmux |
 | Background automation | `autonomous` | `worktree` | No terminal needed |
 | Merge agent | `interactive` | `none` | Works in main repo |
-| Review-only agent | `interactive` | `none` | Read-only, no branch needed |
+| Review-only agent | `autonomous` | `none` | Read-only, no branch needed |
 
 ### Step Workflow Mechanics
 

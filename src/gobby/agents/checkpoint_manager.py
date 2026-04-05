@@ -123,9 +123,16 @@ class CheckpointManager:
 
         finally:
             # 9. Unstage our temporary staging, then restore pre-existing staged files
-            self._run_git(["reset", "HEAD"], cwd_str)
-            if pre_staged:
-                self._run_git(["add", "--", *pre_staged], cwd_str)
+            # Best-effort: must not propagate exceptions from cleanup
+            try:
+                self._run_git(["reset", "HEAD"], cwd_str)
+            except Exception as e:
+                logger.warning(f"Failed to reset staging after checkpoint in {cwd_str}: {e}")
+            try:
+                if pre_staged:
+                    self._run_git(["add", "--", *pre_staged], cwd_str)
+            except Exception as e:
+                logger.warning(f"Failed to restore pre-staged files in {cwd_str}: {e}")
 
     def _run_git(self, args: list[str], cwd: str, timeout: int = 30) -> str | None:
         """Run a git command synchronously. Returns stdout or None on failure."""

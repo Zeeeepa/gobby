@@ -133,6 +133,7 @@ New session variable `is_subagent` (separate from `is_spawned_agent` which contr
 | **NEW**: `task-enforcement/block-gobby-tasks-subagent.yaml` | Block gobby-tasks MCP tools when `is_subagent` is true |
 
 **New rule** (`block-gobby-tasks-subagent.yaml`):
+
 ```yaml
 tags: [task-enforcement, enforcement, tasks, gobby, default]
 
@@ -161,7 +162,7 @@ rules:
 
 **Why a new variable**: `is_spawned_agent` controls worker-safety rules and is set at session creation for Gobby-managed agents. Different lifecycle, different semantics.
 
-**SDK upgrade**: Bump `claude-agent-sdk` from `>=0.1.39` (installed: 0.1.45) to `>=0.1.55`. The latest SDK has richer `SubagentStartHookInput` (`agent_id`, `agent_type`) and `SubagentStopHookInput` (`agent_id`, `agent_transcript_path`, `agent_type`, `stop_hook_active`). The TypeScript SDK also has `WorktreeCreate`/`WorktreeRemove`, `TaskCompleted`, `TeammateIdle` events that may land in Python SDK soon — useful for Phase 0.5 delegation and worktree tracking.
+**SDK upgrade (deferred)**: Bump `claude-agent-sdk` to `>=0.1.55` is deferred — currently pinned `>=0.1.39,<=0.1.45` due to a breaking change in `query()` at >0.1.45 that requires investigation before upgrading. The latest SDK has richer `SubagentStartHookInput` (`agent_id`, `agent_type`) and `SubagentStopHookInput` (`agent_id`, `agent_transcript_path`, `agent_type`, `stop_hook_active`). The TypeScript SDK also has `WorktreeCreate`/`WorktreeRemove`, `TaskCompleted`, `TeammateIdle` events that may land in Python SDK soon — useful for Phase 0.5 delegation and worktree tracking. Phase 0 can proceed without the upgrade; richer input fields are a Phase 1+ enhancement.
 
 Update `handle_subagent_start()` and `handle_subagent_stop()` in `_agent.py` to capture the richer input fields (`agent_type`, `agent_transcript_path`).
 
@@ -172,6 +173,7 @@ Update `handle_subagent_start()` and `handle_subagent_stop()` in `_agent.py` to 
 The web chat session (`src/gobby/servers/websocket/chat/_session.py:231-246`) wires `_on_before_agent`, `_on_pre_tool`, `_on_post_tool`, `_on_pre_compact`, `_on_stop` — but **does NOT wire `_on_subagent_start` or `_on_subagent_stop`**. The `ChatSession` class has the fields and hook registration (`chat_session.py:403-435`), but the WebSocket session manager never connects them.
 
 Fix at `src/gobby/servers/websocket/chat/_session.py` after line 246:
+
 ```python
 session._on_subagent_start = lambda data: self._fire_lifecycle(
     conversation_id, HookEventType.SUBAGENT_START, data

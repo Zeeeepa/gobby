@@ -151,15 +151,18 @@ def install_neo4j(
 
     # Update daemon config and bootstrap
     _update_config(neo4j_url=DEFAULT_NEO4J_HTTP_URL, neo4j_auth=neo4j_auth)
-    _write_bootstrap_password(neo4j_password, home)
+    bootstrap_ok = _write_bootstrap_password(neo4j_password, home)
 
-    return {
+    result: dict[str, Any] = {
         "success": True,
         "neo4j_url": DEFAULT_NEO4J_HTTP_URL,
         "bolt_url": DEFAULT_NEO4J_BOLT_URL,
         "compose_file": str(compose_file),
         "mode": "local",
     }
+    if not bootstrap_ok:
+        result["warning"] = "Neo4j is running but failed to persist password to bootstrap.yaml"
+    return result
 
 
 def uninstall_neo4j(
@@ -248,8 +251,11 @@ async def _wait_for_health_async(url: str, retries: int = 30, interval: float = 
     return False
 
 
-def _write_bootstrap_password(password: str, gobby_home: Path) -> None:
-    """Write neo4j_password to bootstrap.yaml so _services_start can read it."""
+def _write_bootstrap_password(password: str, gobby_home: Path) -> bool:
+    """Write neo4j_password to bootstrap.yaml so _services_start can read it.
+
+    Returns True on success, False on failure.
+    """
     bootstrap_path = gobby_home / "bootstrap.yaml"
     try:
         import yaml
@@ -261,8 +267,10 @@ def _write_bootstrap_password(password: str, gobby_home: Path) -> None:
         data["neo4j_password"] = password
         with open(bootstrap_path, "w", encoding="utf-8") as f:
             yaml.safe_dump(data, f, default_flow_style=False)
+        return True
     except (OSError, yaml.YAMLError) as e:
         logger.warning(f"Failed to write neo4j_password to bootstrap.yaml: {e}")
+        return False
 
 
 def _update_config(

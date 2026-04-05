@@ -72,9 +72,7 @@ def _apply_tdd_sandwich(subtasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     # Group subtasks by phase number
     phase_groups: dict[int, list[int]] = {}
     for i, st in enumerate(subtasks):
-        phase = _extract_phase_number(st)
-        if phase is None:
-            phase = 0  # Unphased tasks go to phase 0
+        phase = _get_subtask_phase(st)  # Returns 0 for unphased tasks
         phase_groups.setdefault(phase, []).append(i)
 
     # If everything is phase 0 (no plan sections), treat as single phase
@@ -114,8 +112,8 @@ def _apply_tdd_sandwich(subtasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         for orig_idx in orig_indices:
             for dep in subtasks[orig_idx].get("depends_on", []):
                 if dep not in orig_set and dep in old_to_new:
-                    dep_phase = _extract_phase_number(subtasks[dep])
-                    if dep_phase is not None and dep_phase in phase_ref_idx:
+                    dep_phase = _get_subtask_phase(subtasks[dep])
+                    if dep_phase != 0 and dep_phase in phase_ref_idx:
                         cross_deps.add(phase_ref_idx[dep_phase])
                     else:
                         cross_deps.add(old_to_new[dep])
