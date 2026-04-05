@@ -117,7 +117,7 @@ class ResumeStrategy(Protocol):
 | Strategy | Providers | Resume method | Confirmed API |
 |----------|-----------|--------------|---------------|
 | `ClaudeResumeStrategy` | claude_code, claude_sdk_web_chat, local models (via --model) | SDK native via `resume` param | `ClaudeAgentOptions(resume="session-xyz")` |
-| `CodexResumeStrategy` | codex, codex_web_chat | Thread resume via Codex SDK | `codex.thread_resume(thread_id)` or JSON-RPC `thread/resume` |
+| `CodexResumeStrategy` | codex, codex_web_chat | Thread resume via JSON-RPC | JSON-RPC `thread/resume` |
 | `GeminiResumeStrategy` | gemini, gemini_cli, gemini_web_chat | Native CLI resume via `--resume` flag | `gemini --resume <session-uuid> -p "prompt" --output-format stream-json` |
 | `TranscriptResumeStrategy` | Any without native resume (Cursor, Windsurf, etc.) | Parse JSONL via existing `TranscriptParser` subclasses | Fallback only |
 

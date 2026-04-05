@@ -21,19 +21,19 @@ def _seed_parents(temp_db: LocalDatabase) -> None:
             "INSERT INTO sessions (id, external_id, machine_id, source, project_id) "
             "VALUES ('sess-1', 'ext-1', 'machine-1', 'test', 'proj-1')"
         )
-        now = "datetime('now')"
         conn.execute(
             "INSERT INTO tasks (id, project_id, title, status, task_type, category, created_at, updated_at) "
-            f"VALUES ('task-1', 'proj-1', 'test task', 'open', 'task', 'code', {now}, {now})"
+            "VALUES ('task-1', 'proj-1', 'test task', 'open', 'task', 'code', datetime('now'), datetime('now'))"
         )
         conn.execute(
             "INSERT INTO tasks (id, project_id, title, status, task_type, category, created_at, updated_at) "
-            f"VALUES ('task-2', 'proj-1', 'test task 2', 'open', 'task', 'code', {now}, {now})"
+            "VALUES ('task-2', 'proj-1', 'test task 2', 'open', 'task', 'code', datetime('now'), datetime('now'))"
         )
         for i in range(5):
             conn.execute(
                 "INSERT INTO agent_runs (id, parent_session_id, status, provider, prompt) "
-                f"VALUES ('run-{i}', 'sess-1', 'running', 'test', 'test prompt')"
+                "VALUES (?, 'sess-1', 'running', 'test', 'test prompt')",
+                (f"run-{i}",),
             )
 
 

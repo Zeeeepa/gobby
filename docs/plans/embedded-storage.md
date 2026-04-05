@@ -2,7 +2,7 @@
 
 ## Context
 
-Gobby currently depends on Docker-managed Neo4j and Qdrant servers for graph storage and vector search. This conflicts with the local-first philosophy — users must run Docker containers just to get knowledge graph and semantic search features. 
+Gobby currently depends on Docker-managed Neo4j and Qdrant servers for graph storage and vector search. This conflicts with the local-first philosophy — users must run Docker containers just to get knowledge graph and semantic search features.
 
 **Goals:**
 1. Replace Neo4j with Kùzu (embedded graph DB, no server process)
@@ -21,6 +21,7 @@ Gobby currently depends on Docker-managed Neo4j and Qdrant servers for graph sto
 **Goal:** Abstract Neo4j behind a protocol. Move vector operations from Neo4j proprietary procedures to Qdrant.
 
 ### 1.1 Define storage protocols
+
 - Create `src/gobby/storage/protocols.py` with two protocols:
 
 **GraphDatabaseProtocol:**
@@ -35,11 +36,13 @@ Gobby currently depends on Docker-managed Neo4j and Qdrant servers for graph sto
 Both protocols are backend-agnostic — consumers never know which implementation they're talking to.
 
 ### 1.2 Neo4jClient implements protocol (no changes to Neo4jClient itself)
+
 - Verify `Neo4jClient` (`src/gobby/memory/neo4j_client.py`) structurally satisfies the protocol
 - Minor signature adjustments if needed
 - **Neo4jClient stays fully intact** — it's still the default backend until Kùzu is verified
 
 ### 1.3 Move entity vectors from Neo4j to Qdrant
+
 - In `KnowledgeGraphService` (`src/gobby/memory/services/knowledge_graph.py`):
   - Replace `self._neo4j.set_node_vector()` → `self._vector_store.upsert()` into `kg_entities` collection
   - Replace `self._neo4j.vector_search()` → `self._vector_store.search()` on `kg_entities`
@@ -47,6 +50,7 @@ Both protocols are backend-agnostic — consumers never know which implementatio
 - Eliminates all Neo4j proprietary procedure calls
 
 ### 1.4 Refactor consumers to accept protocols
+
 - `KnowledgeGraphService.__init__`: `neo4j_client: Neo4jClient` → `graph_client: GraphDatabaseProtocol`
 - `CodeGraph.__init__` (`src/gobby/code_index/graph.py`): `neo4j_client: Any` → `graph_client: GraphDatabaseProtocol | None`
 - `MemoryManager`: accept `GraphDatabaseProtocol` + `VectorStoreProtocol` instead of concrete classes
@@ -54,6 +58,7 @@ Both protocols are backend-agnostic — consumers never know which implementatio
 - `VectorStore` usage sites: accept `VectorStoreProtocol` instead of `VectorStore` directly
 
 ### 1.5 Update tests
+
 - Tests mocking `Neo4jClient` → mock `GraphDatabaseProtocol`
 - Tag integration tests needing real Neo4j with `@pytest.mark.neo4j`
 
@@ -73,8 +78,9 @@ Both protocols are backend-agnostic — consumers never know which implementatio
 **Goal:** Add Kùzu as embedded graph backend, make it the default.
 
 ### 2.1 KuzuClient
+
 - Create `src/gobby/memory/kuzu_client.py` implementing `GraphDatabaseProtocol`
-- Database path: `~/.gobby/kuzu/` 
+- Database path: `~/.gobby/kuzu/`
 - Schema: node tables (`_Entity`, `Memory`, `CodeFile`, `CodeSymbol`, `CodeModule`), relationship tables (`CALLS`, `IMPORTS`, `DEFINES`, `MENTIONED_IN`, `RELATES_TO_CODE`)
 - openCypher translation notes:
   - `labels(n)` → use table name
@@ -83,6 +89,7 @@ Both protocols are backend-agnostic — consumers never know which implementatio
   - Variable-length paths `[*1..N]` → supported but returned differently
 
 ### 2.2 Config updates
+
 - `src/gobby/config/persistence.py` — unified, symmetric config model:
 
 ```yaml
@@ -112,11 +119,13 @@ storage:
 - Adding a new backend = new protocol implementation + config block + enum value
 
 ### 2.3 Factory wiring
+
 - Daemon init reads `graph_backend` → instantiates the right `GraphDatabaseProtocol`
 - Daemon init reads `vector_backend` + `use_docker` → instantiates the right `VectorStoreProtocol`
 - **Cutover:** Once verified, flip defaults: `graph_backend: kuzu`, `use_docker: false`
 
 ### 2.4 Migration CLI
+
 - `gobby graph migrate` command: reads Neo4j → writes to Kùzu, migrates entity vectors to `kg_entities` Qdrant collection
 
 **Files modified:**
@@ -165,6 +174,7 @@ gcode already uses HTTP clients for Neo4j and Qdrant. The migration is re-pointi
 - `resolve_daemon_url()` — already exists in gcode
 
 ### 3.3 gcode only talks to the daemon API
+
 - gcode should never call graph/vector databases directly — the daemon API is the contract
 - If the daemon changes backends, gcode doesn't break
 - Delete `neo4j.rs` and direct Qdrant REST code from gcode as part of this phase (not deferred)
@@ -186,21 +196,25 @@ gcode already uses HTTP clients for Neo4j and Qdrant. The migration is re-pointi
 **Goal:** FTS5 + Qdrant + graph traversal session search with RRF hybrid scoring.
 
 ### 4.1 Session FTS5 table
+
 - Add `sessions_fts` to migrations (`src/gobby/storage/migrations.py`)
 - Content-synced with `sessions` table via triggers
 - Columns: `title`, `original_prompt`, `summary_markdown`, `digest_markdown`, `last_assistant_content`
 - BM25 weights: title (10.0), original_prompt (5.0), summary (3.0), digest (2.0), last_assistant (1.0)
 
 ### 4.2 Session embeddings
+
 - On digest update (existing lifecycle event), embed `title + summary_markdown` into Qdrant `session_embeddings` collection
 - Point ID = session UUID, payload = `{project_id, source, status, created_at}`
 
 ### 4.3 Session-entity graph links
+
 - Add `Session` node table to Kùzu schema
 - `PRODUCED` relationship: `Session → Memory`
 - Enables traversal: query entity → related entities → memories → sessions
 
 ### 4.4 Hybrid search endpoint
+
 - `GET /api/sessions/search?q=&project_id=&limit=10`
 - Three sources merged via RRF (K=60):
   1. FTS5 on `sessions_fts` (keyword)
@@ -209,6 +223,7 @@ gcode already uses HTTP clients for Neo4j and Qdrant. The migration is re-pointi
 - Response: `{query, results: [{session_id, title, score, sources, snippet, created_at}]}`
 
 ### 4.5 Backfill CLI
+
 - `gobby sessions reindex`: populates FTS5, embeds all sessions, creates Session nodes + PRODUCED edges
 
 **Files modified:**
