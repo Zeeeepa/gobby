@@ -16,7 +16,6 @@ import tempfile
 import time
 import uuid
 from pathlib import Path
-from typing import Literal
 
 from gobby.agents.constants import get_terminal_env_vars
 from gobby.agents.sandbox import SandboxConfig, compute_sandbox_paths, get_sandbox_resolver
@@ -181,7 +180,6 @@ class TmuxSpawner(TerminalSpawnerBase):
         max_agent_depth: int = 5,
         prompt: str | None = None,
         sandbox_config: SandboxConfig | None = None,
-        mode: Literal["interactive", "autonomous"] = "interactive",
     ) -> SpawnResult:
         """Spawn a CLI agent in a new tmux session with Gobby env vars.
 
@@ -197,7 +195,6 @@ class TmuxSpawner(TerminalSpawnerBase):
             max_agent_depth: Maximum allowed depth.
             prompt: Optional initial prompt.
             sandbox_config: Optional sandbox configuration.
-            mode: Execution mode - "interactive" (multi-turn) or "autonomous" (non-interactive).
 
         Returns:
             SpawnResult with success status.
@@ -218,7 +215,6 @@ class TmuxSpawner(TerminalSpawnerBase):
             session_id=session_id,
             auto_approve=True,
             working_directory=str(cwd) if cli == "codex" else None,
-            mode=mode,
             sandbox_args=sandbox_args,
         )
 

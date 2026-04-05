@@ -468,8 +468,6 @@ def create_agents_registry(
             except ValueError as e:
                 return {"success": False, "error": str(e)}
             runs = agent_run_manager.list_by_parent(resolved_parent_id)
-        elif mode:
-            runs = agent_run_manager.list_by_mode(mode)
         else:
             runs = agent_run_manager.list_active()
 
@@ -537,17 +535,14 @@ def create_agents_registry(
             Dict with counts by mode and parent.
         """
         all_runs = agent_run_manager.list_active()
-        by_mode: dict[str, int] = {}
         by_parent: dict[str, int] = {}
 
         for run in all_runs:
-            by_mode[run.mode] = by_mode.get(run.mode, 0) + 1
             by_parent[run.parent_session_id] = by_parent.get(run.parent_session_id, 0) + 1
 
         return {
             "success": True,
             "total": len(all_runs),
-            "by_mode": by_mode,
             "by_parent_count": len(by_parent),
         }
 
