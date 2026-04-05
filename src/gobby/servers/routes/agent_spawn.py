@@ -34,7 +34,7 @@ class AgentSpawnRequest(BaseModel):
     task_id: str
     agent_name: str = "default"
     prompt: str | None = None
-    mode: Literal["interactive", "web_chat", "autonomous"] = "interactive"
+    web_chat: bool = False
     isolation: Literal["none", "worktree", "clone"] | None = None
     provider: str | None = None
     model: str | None = None
@@ -52,7 +52,6 @@ class AgentSpawnResponse(BaseModel):
     run_id: str | None = None
     child_session_id: str | None = None
     conversation_id: str | None = None
-    mode: str
     isolation: str | None = None
     branch_name: str | None = None
     pid: int | None = None
@@ -79,7 +78,7 @@ class LaunchDefaultsRequest(BaseModel):
     project_id: str
     category: str
     agent_name: str = "default"
-    mode: Literal["interactive", "web_chat", "autonomous"] = "interactive"
+    web_chat: bool = False
     isolation: Literal["none", "worktree", "clone"] = "none"
     model: str | None = None
 
@@ -90,7 +89,6 @@ class LaunchDefaultsRequest(BaseModel):
 
 _BUILT_IN_DEFAULTS: dict[str, Any] = {
     "agent_name": "default",
-    "mode": "inherit",
     "isolation": "inherit",
     "model": None,
 }
@@ -197,9 +195,7 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
         """Execute a single spawn request."""
         task_manager = server.services.task_manager
         if not task_manager:
-            return AgentSpawnResponse(
-                success=False, mode=req.mode, error="Task manager unavailable"
-            )
+            return AgentSpawnResponse(success=False, error="Task manager unavailable")
 
         # Resolve task
         try:
@@ -208,15 +204,11 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
             logger.debug(f"Failed to get task {req.task_id}: {e}")
             task = None
         if not task:
-            return AgentSpawnResponse(
-                success=False, mode=req.mode, error=f"Task '{req.task_id}' not found"
-            )
+            return AgentSpawnResponse(success=False, error=f"Task '{req.task_id}' not found")
 
         effective_project_id = project_id or getattr(task, "project_id", None)
         if not effective_project_id:
-            return AgentSpawnResponse(
-                success=False, mode=req.mode, error="Could not determine project_id"
-            )
+            return AgentSpawnResponse(success=False, error="Could not determine project_id")
 
         # Build prompt
         prompt = req.prompt
@@ -236,7 +228,7 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
             prompt = _build_task_prompt(task, deps)
 
         # Handle web_chat mode — return conversation_id for frontend to open
-        if req.mode == "web_chat":
+        if req.web_chat:
             conversation_id = str(uuid.uuid4())
 
             # Update task status
@@ -252,17 +244,14 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
 
             return AgentSpawnResponse(
                 success=True,
-                mode="web_chat",
                 conversation_id=conversation_id,
                 # Store the prompt so the frontend can send it as the first message
             )
 
-        # Terminal / headless mode — use spawn_agent_impl
+        # Spawn agent via tmux
         runner = server.services.agent_runner
         if not runner:
-            return AgentSpawnResponse(
-                success=False, mode=req.mode, error="Agent runner unavailable"
-            )
+            return AgentSpawnResponse(success=False, error="Agent runner unavailable")
 
         # Get parent session for spawning
         parent_session_id = await _get_or_create_launcher_session(effective_project_id)
@@ -279,7 +268,6 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
             if req.agent_name != "default":
                 return AgentSpawnResponse(
                     success=False,
-                    mode=req.mode,
                     error=f"Agent definition '{req.agent_name}' not found",
                 )
 
@@ -306,11 +294,6 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
 
         from gobby.mcp_proxy.tools.spawn_agent._implementation import spawn_agent_impl
 
-        # Map HTTP modes to the mode enum spawn_agent_impl expects
-        spawn_mode: Literal["interactive", "autonomous"] = (
-            "autonomous" if req.mode == "autonomous" else "interactive"
-        )
-
         result = await spawn_agent_impl(
             prompt=effective_prompt,
             runner=runner,
@@ -326,7 +309,6 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
             clone_storage=server.services.clone_storage,
             clone_manager=None,
             workflow=effective_workflow,
-            mode=spawn_mode,
             provider=req.provider,
             model=req.model,
             timeout=req.timeout,
@@ -351,7 +333,6 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
                 success=True,
                 run_id=result.get("run_id"),
                 child_session_id=result.get("child_session_id"),
-                mode=req.mode,
                 isolation=result.get("isolation"),
                 branch_name=result.get("branch_name"),
                 pid=result.get("pid"),
@@ -359,7 +340,6 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
         else:
             return AgentSpawnResponse(
                 success=False,
-                mode=req.mode,
                 error=result.get("error", "Unknown spawn error"),
             )
 
@@ -423,7 +403,7 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
                     return await _do_spawn(req, project_id)
                 except Exception as e:
                     logger.error(f"Batch spawn error for task {req.task_id}: {e}")
-                    return AgentSpawnResponse(success=False, mode=req.mode, error=str(e))
+                    return AgentSpawnResponse(success=False, error=str(e))
 
         results = await asyncio.gather(*[_limited_spawn(s) for s in request.spawns])
         succeeded = sum(1 for r in results if r.success)
@@ -465,7 +445,6 @@ def create_agent_spawn_router(server: HTTPServer) -> APIRouter:
             existing = store.get(key) or {}
             existing[request.category] = {
                 "agent_name": request.agent_name,
-                "mode": request.mode,
                 "isolation": request.isolation,
                 "model": request.model,
             }

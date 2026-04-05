@@ -148,16 +148,12 @@ def create_clone(
     required=True,
     help="Parent session ID (required)",
 )
-@click.option(
-    "--mode", "-m", default="interactive", help="Agent mode (interactive, embedded, headless)"
-)
 @click.option("--workflow", "-w", help="Workflow to activate")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def spawn_agent(
     clone_ref: str,
     prompt: str,
     parent_session_id: str,
-    mode: str,
     workflow: str | None,
     json_format: bool,
 ) -> None:
@@ -167,7 +163,7 @@ def spawn_agent(
 
         gobby clones spawn clone-123 "Fix the authentication bug"
 
-        gobby clones spawn clone-123 "Implement feature" --mode headless
+        gobby clones spawn clone-123 "Implement feature" --workflow auto-task
     """
     manager = get_clone_manager()
     clone_id = resolve_clone_id(manager, clone_ref)
@@ -181,7 +177,6 @@ def spawn_agent(
     arguments = {
         "prompt": prompt,
         "parent_session_id": parent_session_id,
-        "mode": mode,
         "isolation": "clone",
         "clone_id": clone_id,
     }

@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # --- Workflow Definition Models (YAML) ---
 
@@ -240,7 +240,7 @@ class AgentDefinitionBody(BaseModel):
     def normalize_empty_strings(cls, data: Any) -> Any:
         """Replace empty strings with 'inherit' for Literal fields that don't accept ''."""
         if isinstance(data, dict):
-            defaults = {"mode": "inherit", "isolation": "inherit", "provider": "inherit"}
+            defaults = {"isolation": "inherit", "provider": "inherit"}
             for field, default in defaults.items():
                 if field in data and data[field] == "":
                     data[field] = default
@@ -266,7 +266,8 @@ class AgentDefinitionBody(BaseModel):
         default=None,
         description="Auth token for the endpoint. Supports ${ENV_VAR} pattern for env var expansion.",
     )
-    mode: Literal["interactive", "autonomous", "inherit"] = "inherit"
+    model_config = ConfigDict(extra="ignore")  # Tolerate stale YAML with mode: field
+
     isolation: Literal["none", "worktree", "clone", "inherit"] | None = "inherit"
     base_branch: str = "inherit"
     timeout: float = 0
