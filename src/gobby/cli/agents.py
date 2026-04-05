@@ -88,7 +88,7 @@ def agents() -> None:
 @click.option(
     "--mode",
     "-m",
-    type=click.Choice(["in_process", "interactive", "autonomous"]),
+    type=click.Choice(["interactive", "autonomous"]),
     default="interactive",
     help="Execution mode (default: interactive)",
 )
@@ -199,7 +199,7 @@ def spawn_agent_cmd(
         if result.get("message"):
             click.echo(f"  {result['message']}")
 
-        if mode == "in_process" and result.get("output"):
+        if result.get("output"):
             click.echo(f"\nOutput:\n{result['output']}")
     else:
         error = result.get("error", "Unknown error")

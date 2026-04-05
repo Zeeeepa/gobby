@@ -87,7 +87,7 @@ class TestAgentConfig:
         assert config.workflow is None
         assert config.task is None
         assert config.session_context == "summary_markdown"
-        assert config.mode == "in_process"
+        assert config.mode == "interactive"
         assert config.worktree_id is None
         assert config.provider == "claude"
         assert config.model is None
@@ -173,7 +173,7 @@ class TestRunningAgent:
             run_id="run-1",
             session_id="sess-c",
             parent_session_id="sess-p",
-            mode="in_process",
+            mode="interactive",
         )
 
         assert agent.workflow_name is None

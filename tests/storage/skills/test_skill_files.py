@@ -266,4 +266,3 @@ class TestSkillFileCRUD:
 
         stored = storage.get_skill_files(sample_skill.id, exclude_license=False)
         assert len(stored) == 3
-
