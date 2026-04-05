@@ -51,6 +51,7 @@ TASK_ENFORCEMENT_RULES = {
     "strip-skip-validation-with-commit",
     "block-ask-during-stop-compliance",
     "track-task-claim",
+    "reset-subagent-flag",
 }
 
 
@@ -113,14 +114,15 @@ class TestBlockNativeTaskTools:
         expected_tools = {"TaskCreate", "TaskUpdate", "TaskGet", "TaskList", "TodoWrite"}
         assert set(body.effects[0].tools) == expected_tools
 
-    def test_no_when_condition(self, db, manager) -> None:
-        """Should always fire (no when condition)."""
+    def test_when_checks_is_subagent(self, db, manager) -> None:
+        """Should only fire when is_subagent is falsy."""
         _sync_bundled(db)
 
         row = manager.get_by_name("block-native-task-tools")
         body = RuleDefinitionBody.model_validate_json(row.definition_json)
 
-        assert body.when is None
+        assert body.when is not None
+        assert "is_subagent" in body.when
 
 
 class TestRequireTaskBeforeEdit:

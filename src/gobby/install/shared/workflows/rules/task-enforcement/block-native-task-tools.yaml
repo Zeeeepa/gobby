@@ -6,6 +6,7 @@ rules:
     event: before_tool
     enabled: true
     priority: 30
+    when: "not variables.get('is_subagent')"
     effects:
       - type: block
         tools: [TaskCreate, TaskUpdate, TaskGet, TaskList, TodoWrite]
