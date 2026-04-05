@@ -8,7 +8,6 @@ Exposes functionality for:
 - Validation status (get_validation_status, reset_validation_count)
 - Validation history (get_validation_history, get_recurring_issues, clear_validation_history)
 - De-escalation (de_escalate_task)
-- QA loop (validate_and_fix, run_fix_attempt)
 
 These tools are registered with the InternalToolRegistry and accessed
 via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
@@ -24,7 +23,6 @@ from gobby.tasks.validation import TaskValidator
 from gobby.tasks.validation_history import ValidationHistoryManager
 
 if TYPE_CHECKING:
-    from gobby.agents.runner import AgentRunner
     from gobby.storage.projects import LocalProjectManager
 
 logger = logging.getLogger(__name__)
@@ -35,7 +33,6 @@ def create_validation_registry(
     task_validator: TaskValidator | None = None,
     project_manager: "LocalProjectManager | None" = None,
     get_project_repo_path: Any = None,
-    agent_runner: "AgentRunner | None" = None,
     max_retries: int = 3,
 ) -> InternalToolRegistry:
     """
@@ -46,7 +43,6 @@ def create_validation_registry(
         task_validator: TaskValidator instance (optional, enables LLM validation)
         project_manager: LocalProjectManager instance (optional)
         get_project_repo_path: Callable to get repo path from project ID (optional)
-        agent_runner: AgentRunner instance (optional, enables fix agent spawning)
 
     Returns:
         InternalToolRegistry with all validation tools registered
@@ -501,286 +497,6 @@ def create_validation_registry(
             "escalation_reason": updated_task.escalation_reason,
             "de_escalation_reason": reason,
             "validation_reset": reset_validation,
-        }
-
-    @registry.tool(
-        name="run_fix_attempt",
-        description="Spawn a fix agent to address validation issues. Returns when the fix attempt completes.",
-    )
-    async def run_fix_attempt(
-        task_id: str,
-        issues: list[str] | None = None,
-        timeout: float = 120.0,
-        max_turns: int = 10,
-    ) -> dict[str, Any]:
-        """
-        Spawn an agent to fix validation issues for a task.
-
-        The fix agent is given the original task context plus validation
-        failure details to guide its fixes.
-
-        Args:
-            task_id: Task reference: #N, N (seq_num), path (1.2.3), or UUID
-            issues: List of specific issues to fix (uses validation_feedback if not provided)
-            timeout: Max time for fix attempt in seconds (default: 120)
-            max_turns: Max agent turns (default: 10)
-
-        Returns:
-            Dict with success status and fix details
-        """
-        # Resolve task reference
-        try:
-            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
-        except (TaskNotFoundError, ValueError) as e:
-            return {"success": False, "error": f"Invalid task_id: {e}"}
-
-        if not agent_runner:
-            return {
-                "success": False,
-                "error": "Agent runner not configured - cannot spawn fix agent",
-            }
-
-        task = task_manager.get_task(resolved_task_id)
-        if not task:
-            return {"success": False, "error": f"Task not found: {task_id}"}
-
-        # Get issues from parameter or task validation feedback
-        issues_text = ""
-        if issues:
-            issues_text = "\n".join(f"- {issue}" for issue in issues)
-        elif task.validation_feedback:
-            issues_text = task.validation_feedback
-        else:
-            return {
-                "success": False,
-                "error": "No issues provided and no validation feedback on task",
-            }
-
-        # Get repo path for context
-        repo_path = None
-        if get_project_repo_path and task.project_id:
-            repo_path = get_project_repo_path(task.project_id)
-
-        # Build fix prompt
-        fix_prompt = f"""You are fixing validation failures for a task.
-
-## Original Task
-**Title:** {task.title}
-**Description:** {task.description or "No description provided."}
-
-## Validation Criteria
-{task.validation_criteria or "No specific criteria - use task description."}
-
-## Validation Failures
-{issues_text}
-
-## Instructions
-1. Read the relevant files to understand the current state
-2. Fix the issues listed above
-3. Ensure all validation criteria pass after your fixes
-4. Do NOT create new tasks - fix the issues directly
-
-Focus on fixing ONLY the listed issues. Do not make unrelated changes.
-"""
-
-        try:
-            from gobby.agents.runner_models import AgentConfig
-
-            config = AgentConfig(
-                prompt=fix_prompt,
-                parent_session_id=None,  # No parent session for fix agent
-                project_id=task.project_id,
-                machine_id=None,  # Will be inferred
-                source="claude",
-                workflow=None,  # No workflow - direct execution
-                task=None,  # Don't claim the task
-                mode="autonomous",
-                timeout=timeout,
-                max_turns=max_turns,
-                project_path=repo_path,
-            )
-
-            # Run the fix agent
-            result = await agent_runner.run(config)
-
-            # Record the fix attempt
-            iteration = (task.validation_fail_count or 0) + 1
-            validation_history_manager.record_iteration(
-                task_id=task.id,
-                iteration=iteration,
-                status="fix_attempted",
-                feedback=f"Fix agent completed with status: {result.status}",
-                issues=None,
-                context_type="fix_agent",
-                context_summary=f"Fix attempt {iteration}",
-                validator_type="fix_agent",
-            )
-
-            return {
-                "success": True,
-                "task_id": task_id,
-                "fix_status": result.status,
-                "agent_output": result.output,
-                "agent_turns": result.turns_used,
-            }
-
-        except Exception as e:
-            logger.exception(f"Fix attempt failed for task {task_id}")
-            return {
-                "success": False,
-                "error": f"Fix agent failed: {e!s}",
-            }
-
-    @registry.tool(
-        name="validate_and_fix",
-        description="Run validation loop with automatic fix attempts. Validates, spawns fix agent if needed, re-validates.",
-    )
-    async def validate_and_fix(
-        task_id: str,
-        max_retries: int = 3,
-        auto_fix: bool = True,
-        fix_timeout: float = 120.0,
-    ) -> dict[str, Any]:
-        """
-        Run validation loop with automatic fix attempts.
-
-        1. Validate task completion
-        2. If failed and auto_fix=True:
-           - Spawn fix agent to address issues
-           - Re-validate after fix
-           - Repeat up to max_retries
-        3. If still failing after retries:
-           - Create fix subtask with failure details
-           - Mark task status = 'failed'
-
-        Args:
-            task_id: Task reference: #N, N (seq_num), path (1.2.3), or UUID
-            max_retries: Maximum fix attempts before giving up (default: 3)
-            auto_fix: Whether to attempt automatic fixes (default: True)
-            fix_timeout: Timeout per fix attempt in seconds (default: 120)
-
-        Returns:
-            Validation result with loop history
-        """
-        # Resolve task reference
-        try:
-            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
-        except (TaskNotFoundError, ValueError) as e:
-            return {"success": False, "error": f"Invalid task_id: {e}"}
-
-        task = task_manager.get_task(resolved_task_id)
-        if not task:
-            return {"success": False, "error": f"Task not found: {task_id}"}
-
-        # Check if task has children (parent tasks use child completion validation)
-        children = task_manager.list_tasks(parent_task_id=task.id, limit=1)
-        if children:
-            # For parent tasks, just run regular validation (no fix loop)
-            result = await validate_task(task.id)
-            return {
-                "success": True,
-                "task_id": task.id,
-                "is_parent_task": True,
-                "validation_result": result,
-            }
-
-        loop_history: list[dict[str, Any]] = []
-        current_retry = 0
-
-        while current_retry < max_retries:
-            # Run validation
-            validation_result = await validate_task(task.id)
-            loop_history.append(
-                {
-                    "iteration": current_retry + 1,
-                    "action": "validate",
-                    "result": validation_result,
-                }
-            )
-
-            if validation_result.get("is_valid"):
-                # Success! Task is closed by validate_task
-                return {
-                    "success": True,
-                    "task_id": task.id,
-                    "is_valid": True,
-                    "iterations": current_retry + 1,
-                    "loop_history": loop_history,
-                    "message": "Task validated successfully",
-                }
-
-            # Validation failed - attempt fix if enabled and agent runner available
-            if not auto_fix:
-                break
-
-            if not agent_runner:
-                loop_history.append(
-                    {
-                        "iteration": current_retry + 1,
-                        "action": "fix_skipped",
-                        "reason": "Agent runner not configured",
-                    }
-                )
-                break
-
-            # Spawn fix agent
-            fix_result = await run_fix_attempt(
-                task_id=task.id,
-                timeout=fix_timeout,
-            )
-            loop_history.append(
-                {
-                    "iteration": current_retry + 1,
-                    "action": "fix_attempt",
-                    "result": fix_result,
-                }
-            )
-
-            if not fix_result.get("success"):
-                # Fix agent failed to run
-                logger.warning(f"Fix attempt {current_retry + 1} failed: {fix_result.get('error')}")
-
-            current_retry += 1
-
-        # All retries exhausted - mark as failed
-        final_feedback = f"QA loop exhausted after {current_retry} fix attempts."
-        if loop_history:
-            last_validation = next(
-                (h for h in reversed(loop_history) if h.get("action") == "validate"),
-                None,
-            )
-            if last_validation and last_validation.get("result", {}).get("feedback"):
-                final_feedback += (
-                    f"\n\nLast validation feedback:\n{last_validation['result']['feedback']}"
-                )
-
-        # Create fix subtask for manual intervention
-        fix_task = task_manager.create_task(
-            project_id=task.project_id,
-            title=f"[Manual Fix] {task.title}",
-            description=f"Automatic fix attempts failed.\n\n{final_feedback}",
-            parent_task_id=task.id,
-            priority=1,
-            task_type="bug",
-        )
-
-        # Escalate task for human intervention
-        task_manager.update_task(
-            task.id,
-            status="escalated",
-            escalated_at=datetime.now(UTC).isoformat(),
-            escalation_reason=f"exceeded_fix_attempts ({current_retry})",
-            validation_feedback=final_feedback,
-        )
-
-        return {
-            "success": True,
-            "task_id": task.id,
-            "is_valid": False,
-            "iterations": current_retry,
-            "loop_history": loop_history,
-            "fix_subtask_id": fix_task.id,
-            "message": f"Validation failed after {current_retry} fix attempts. Created fix subtask: {fix_task.id}",
         }
 
     return registry
