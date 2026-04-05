@@ -151,11 +151,6 @@ function MetaRow({ label, children }: { label: string; children: React.ReactNode
   )
 }
 
-const MODE_COLORS: Record<string, string> = {
-  interactive: '#f59e0b',
-  headless: '#6b7280',
-  embedded: '#06b6d4',
-}
 
 export function AgentEditForm({
   isOpen, readOnly, agentItem,
@@ -314,7 +309,6 @@ export function AgentEditForm({
                       <span className="agent-def-workflow-name">{wfName}</span>
                       {wf.type && <span className="agent-def-badge agent-def-badge--dim">{wf.type}</span>}
                       {wf.file && <span className="agent-def-badge agent-def-badge--dim">{wf.file}</span>}
-                      {wf.mode && <span className="agent-def-badge agent-def-badge--filled" style={{ background: MODE_COLORS[wf.mode] || '#666' }}>{wf.mode}</span>}
                       {wf.internal && <span className="agent-def-badge agent-def-badge--dim">internal</span>}
                       {wf.step_count != null && <span className="agent-def-badge agent-def-badge--dim">{wf.step_count} steps</span>}
                       {wf.description && <span className="agent-def-workflow-desc">{wf.description}</span>}
