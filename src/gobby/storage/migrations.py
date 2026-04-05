@@ -242,6 +242,7 @@ def _drop_agent_runs_mode(db: LocalDatabase) -> None:
     """
     db.execute("PRAGMA foreign_keys=OFF")
     db.connection.executescript("""
+        DROP TABLE IF EXISTS agent_runs_new;
         CREATE TABLE agent_runs_new (
             id TEXT PRIMARY KEY,
             parent_session_id TEXT NOT NULL REFERENCES sessions(id),
