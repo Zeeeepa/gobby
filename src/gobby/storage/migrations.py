@@ -35,7 +35,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 195
+BASELINE_VERSION = 196
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v171) have been removed.
@@ -626,6 +626,24 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         ALTER TABLE model_costs ADD COLUMN context_length INTEGER;
         ALTER TABLE model_costs ADD COLUMN max_completion_tokens INTEGER;
         UPDATE model_costs SET source = 'registry' WHERE source = 'litellm';
+        """,
+    ),
+    (
+        196,
+        "Migrate embedding config from local/llama-cpp to Ollama OpenAI-compatible defaults",
+        """
+        UPDATE config_store SET value = '"nomic-embed-text"'
+        WHERE key IN ('mcp_client_proxy.embedding_model', 'search.embedding_model')
+        AND value = '"local/nomic-embed-text-v1.5"';
+
+        INSERT OR IGNORE INTO config_store (key, value) VALUES
+        ('mcp_client_proxy.embedding_api_base', '"http://localhost:11434/v1"');
+        INSERT OR IGNORE INTO config_store (key, value) VALUES
+        ('search.embedding_api_base', '"http://localhost:11434/v1"');
+
+        UPDATE config_store SET value = '"openai-compatible"'
+        WHERE key = 'mcp_client_proxy.embedding_provider'
+        AND value = '"local"';
         """,
     ),
 ]

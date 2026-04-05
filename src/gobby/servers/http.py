@@ -191,13 +191,7 @@ class HTTPServer:
         semantic_search = None
         if services.mcp_db_manager:
             openai_api_key = None
-            if (
-                services.config
-                and services.config.llm_providers
-                and services.config.llm_providers.api_keys
-            ):
-                openai_api_key = services.config.llm_providers.api_keys.get("OPENAI_API_KEY")
-            if not openai_api_key and services.database:
+            if services.database:
                 try:
                     from gobby.storage.secrets import SecretStore
 
