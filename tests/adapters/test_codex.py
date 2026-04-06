@@ -11,10 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-import tempfile
-from collections import OrderedDict
 from datetime import UTC, datetime
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -1312,121 +1309,49 @@ class TestCodexAdapterSyncExistingSessions:
 # =============================================================================
 
 
-class TestCodexNotifyAdapterInit:
-    """Tests for CodexNotifyAdapter initialization."""
+class TestCodexHooksAdapterInit:
+    """Tests for CodexHooksAdapter initialization."""
 
     def test_default_init(self) -> None:
         """Default initialization."""
-        adapter = CodexNotifyAdapter()
+        from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
+
+        adapter = CodexHooksAdapter()
 
         assert adapter._hook_manager is None
-        assert adapter._machine_id is None
-        assert adapter._seen_threads == OrderedDict()
         assert adapter.source == SessionSource.CODEX
 
     def test_with_hook_manager(self) -> None:
         """Initialize with hook manager."""
+        from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
+
         mock_hook_manager = MagicMock()
-        adapter = CodexNotifyAdapter(hook_manager=mock_hook_manager)
+        adapter = CodexHooksAdapter(hook_manager=mock_hook_manager)
 
         assert adapter._hook_manager is mock_hook_manager
 
+    def test_backward_compat_alias(self) -> None:
+        """CodexNotifyAdapter is an alias for CodexHooksAdapter."""
+        from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
 
-class TestCodexNotifyAdapterFindJsonlPath:
-    """Tests for _find_jsonl_path method."""
-
-    def test_find_jsonl_path_not_exists(self) -> None:
-        """Returns None when sessions dir doesn't exist."""
-        adapter = CodexNotifyAdapter()
-
-        with patch.object(Path, "exists", return_value=False):
-            result = adapter._find_jsonl_path("thread-123")
-
-        assert result is None
-
-    def test_find_jsonl_path_found(self) -> None:
-        """Returns path when file found."""
-        adapter = CodexNotifyAdapter()
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Create a fake session file
-            session_file = Path(tmpdir) / "2024" / "01" / "01" / "rollout-123-thread-abc.jsonl"
-            session_file.parent.mkdir(parents=True, exist_ok=True)
-            session_file.touch()
-
-            with (
-                patch.object(Path, "exists", return_value=True),
-                patch("gobby.adapters.codex_impl.client.CODEX_SESSIONS_DIR", Path(tmpdir)),
-                patch(
-                    "gobby.adapters.codex_impl.adapter.glob_module.glob",
-                    return_value=[str(session_file)],
-                ),
-            ):
-                result = adapter._find_jsonl_path("thread-abc")
-
-            assert result == str(session_file)
+        assert CodexNotifyAdapter is CodexHooksAdapter
 
 
-class TestCodexNotifyAdapterGetFirstPrompt:
-    """Tests for _get_first_prompt method."""
-
-    def test_get_first_prompt_string(self) -> None:
-        """Extract first prompt from string list."""
-        adapter = CodexNotifyAdapter()
-
-        result = adapter._get_first_prompt(["Hello world", "Second message"])
-
-        assert result == "Hello world"
-
-    def test_get_first_prompt_dict_text(self) -> None:
-        """Extract first prompt from dict with text key."""
-        adapter = CodexNotifyAdapter()
-
-        result = adapter._get_first_prompt([{"text": "Help me code"}])
-
-        assert result == "Help me code"
-
-    def test_get_first_prompt_dict_content(self) -> None:
-        """Extract first prompt from dict with content key."""
-        adapter = CodexNotifyAdapter()
-
-        result = adapter._get_first_prompt([{"content": "Fix this bug"}])
-
-        assert result == "Fix this bug"
-
-    def test_get_first_prompt_empty(self) -> None:
-        """Returns None for empty list."""
-        adapter = CodexNotifyAdapter()
-
-        result = adapter._get_first_prompt([])
-
-        assert result is None
-
-    def test_get_first_prompt_none(self) -> None:
-        """Returns None for None input."""
-        adapter = CodexNotifyAdapter()
-
-        result = adapter._get_first_prompt(None)
-
-        assert result is None
-
-
-class TestCodexNotifyAdapterTranslateToHookEvent:
+class TestCodexHooksAdapterTranslateToHookEvent:
     """Tests for translate_to_hook_event method."""
 
-    def test_translate_agent_turn_complete(self) -> None:
-        """Translate agent-turn-complete to AFTER_AGENT."""
-        adapter = CodexNotifyAdapter()
+    def test_translate_session_start(self) -> None:
+        """Translate SessionStart to SESSION_START."""
+        from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
+
+        adapter = CodexHooksAdapter()
 
         native_event = {
-            "hook_type": "AgentTurnComplete",
+            "hook_type": "SessionStart",
             "input_data": {
-                "session_id": "thread-123",
-                "event_type": "agent-turn-complete",
-                "last_message": "I completed the task",
-                "input_messages": ["Help me refactor"],
+                "session_id": "codex-session-123",
                 "cwd": "/project/path",
-                "turn_id": "1",
+                "model": "o3",
             },
             "source": "codex",
         }
@@ -1434,23 +1359,104 @@ class TestCodexNotifyAdapterTranslateToHookEvent:
         hook_event = adapter.translate_to_hook_event(native_event)
 
         assert hook_event is not None
-        assert hook_event.event_type == HookEventType.AFTER_AGENT
-        assert hook_event.session_id == "thread-123"
+        assert hook_event.event_type == HookEventType.SESSION_START
+        assert hook_event.session_id == "codex-session-123"
         assert hook_event.source == SessionSource.CODEX
-        assert hook_event.data["cwd"] == "/project/path"
-        assert hook_event.data["last_message"] == "I completed the task"
-        assert hook_event.data["is_first_event"] is True
-        assert hook_event.data["prompt"] == "Help me refactor"
+        assert hook_event.cwd == "/project/path"
 
-    def test_translate_missing_thread_id(self) -> None:
-        """Returns None when thread_id is missing."""
-        adapter = CodexNotifyAdapter()
+    def test_translate_pre_tool_use(self) -> None:
+        """Translate PreToolUse to BEFORE_TOOL."""
+        from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
+
+        adapter = CodexHooksAdapter()
+
+        native_event = {
+            "hook_type": "PreToolUse",
+            "input_data": {
+                "session_id": "codex-session-123",
+                "cwd": "/project",
+                "tool_name": "Bash",
+                "tool_input": {"command": "echo hello"},
+            },
+            "source": "codex",
+        }
+
+        hook_event = adapter.translate_to_hook_event(native_event)
+
+        assert hook_event is not None
+        assert hook_event.event_type == HookEventType.BEFORE_TOOL
+        assert hook_event.session_id == "codex-session-123"
+
+    def test_translate_post_tool_use(self) -> None:
+        """Translate PostToolUse to AFTER_TOOL."""
+        from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
+
+        adapter = CodexHooksAdapter()
+
+        native_event = {
+            "hook_type": "PostToolUse",
+            "input_data": {
+                "session_id": "codex-session-123",
+                "cwd": "/project",
+                "tool_name": "Bash",
+            },
+            "source": "codex",
+        }
+
+        hook_event = adapter.translate_to_hook_event(native_event)
+
+        assert hook_event is not None
+        assert hook_event.event_type == HookEventType.AFTER_TOOL
+
+    def test_translate_user_prompt_submit(self) -> None:
+        """Translate UserPromptSubmit to BEFORE_AGENT."""
+        from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
+
+        adapter = CodexHooksAdapter()
+
+        native_event = {
+            "hook_type": "UserPromptSubmit",
+            "input_data": {
+                "session_id": "codex-session-123",
+                "cwd": "/project",
+            },
+            "source": "codex",
+        }
+
+        hook_event = adapter.translate_to_hook_event(native_event)
+
+        assert hook_event is not None
+        assert hook_event.event_type == HookEventType.BEFORE_AGENT
+
+    def test_translate_stop(self) -> None:
+        """Translate Stop to STOP."""
+        from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
+
+        adapter = CodexHooksAdapter()
+
+        native_event = {
+            "hook_type": "Stop",
+            "input_data": {
+                "session_id": "codex-session-123",
+                "cwd": "/project",
+            },
+            "source": "codex",
+        }
+
+        hook_event = adapter.translate_to_hook_event(native_event)
+
+        assert hook_event is not None
+        assert hook_event.event_type == HookEventType.STOP
+
+    def test_translate_unsupported_returns_none(self) -> None:
+        """Unsupported hook type returns None."""
+        from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
+
+        adapter = CodexHooksAdapter()
 
         native_event = {
             "hook_type": "AgentTurnComplete",
-            "input_data": {
-                "event_type": "agent-turn-complete",
-            },
+            "input_data": {"session_id": "thread-123"},
             "source": "codex",
         }
 
@@ -1458,105 +1464,130 @@ class TestCodexNotifyAdapterTranslateToHookEvent:
 
         assert hook_event is None
 
-    def test_translate_tracks_seen_threads(self) -> None:
-        """Adapter tracks seen threads for is_first_event."""
-        adapter = CodexNotifyAdapter()
+    def test_all_event_types_mapped(self) -> None:
+        """All 5 Codex hook types are in EVENT_MAP."""
+        from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
 
-        native_event = {
-            "hook_type": "AgentTurnComplete",
-            "input_data": {
-                "session_id": "thread-456",
-                "event_type": "agent-turn-complete",
-                "input_messages": ["First prompt"],
-            },
-            "source": "codex",
-        }
-
-        # First event
-        event1 = adapter.translate_to_hook_event(native_event)
-        assert event1.data["is_first_event"] is True
-        assert event1.data["prompt"] == "First prompt"
-
-        # Second event for same thread
-        event2 = adapter.translate_to_hook_event(native_event)
-        assert event2.data["is_first_event"] is False
-        assert event2.data["prompt"] is None
-
-    def test_translate_missing_cwd_is_none(self) -> None:
-        """Returns None for cwd when not provided (no daemon fallback)."""
-        adapter = CodexNotifyAdapter()
-
-        native_event = {
-            "hook_type": "AgentTurnComplete",
-            "input_data": {
-                "session_id": "thread-789",
-                "event_type": "agent-turn-complete",
-            },
-            "source": "codex",
-        }
-
-        hook_event = adapter.translate_to_hook_event(native_event)
-
-        assert hook_event.data["cwd"] is None
-
-    def test_translate_includes_turn_id(self) -> None:
-        """Turn ID is propagated from input_data."""
-        adapter = CodexNotifyAdapter()
-
-        native_event = {
-            "hook_type": "AgentTurnComplete",
-            "input_data": {
-                "session_id": "thread-789",
-                "event_type": "agent-turn-complete",
-                "cwd": "/project",
-                "turn_id": "turn_42",
-            },
-            "source": "codex",
-        }
-
-        hook_event = adapter.translate_to_hook_event(native_event)
-
-        assert hook_event.data["turn_id"] == "turn_42"
+        expected = {"SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"}
+        assert set(CodexHooksAdapter.EVENT_MAP.keys()) == expected
 
 
-class TestCodexNotifyAdapterTranslateFromHookResponse:
+class TestCodexHooksAdapterTranslateFromHookResponse:
     """Tests for translate_from_hook_response method."""
 
-    def test_translate_response(self) -> None:
-        """Translate response to simple status dict."""
-        adapter = CodexNotifyAdapter()
+    def test_allow_response_empty(self) -> None:
+        """Allow response with no context returns empty dict."""
+        from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
 
+        adapter = CodexHooksAdapter()
         response = HookResponse(decision="allow")
         result = adapter.translate_from_hook_response(response)
 
-        assert result["status"] == "processed"
-        assert result["decision"] == "allow"
+        assert "decision" not in result  # No explicit decision for allow
+        assert "continue" not in result  # No continue field (not Codex schema)
 
-    def test_translate_deny_response(self) -> None:
-        """Translate deny response."""
-        adapter = CodexNotifyAdapter()
+    def test_block_response(self) -> None:
+        """Block response includes decision and reason."""
+        from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
 
+        adapter = CodexHooksAdapter()
+        response = HookResponse(decision="block", reason="Blocked by rule")
+        result = adapter.translate_from_hook_response(response)
+
+        assert result["decision"] == "block"
+        assert result["reason"] == "Blocked by rule"
+        assert "hookSpecificOutput" not in result  # No context on block
+
+    def test_deny_response(self) -> None:
+        """Deny response maps to block."""
+        from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
+
+        adapter = CodexHooksAdapter()
         response = HookResponse(decision="deny", reason="Not allowed")
         result = adapter.translate_from_hook_response(response)
 
-        assert result["status"] == "processed"
-        assert result["decision"] == "deny"
+        assert result["decision"] == "block"
+        assert result["reason"] == "Not allowed"
+
+    def test_context_injection(self) -> None:
+        """Context is injected via hookSpecificOutput.additionalContext."""
+        from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
+
+        adapter = CodexHooksAdapter()
+        response = HookResponse(decision="allow", context="Rule injected context")
+        result = adapter.translate_from_hook_response(response)
+
+        assert "hookSpecificOutput" in result
+        assert "additionalContext" in result["hookSpecificOutput"]
+        assert "Rule injected context" in result["hookSpecificOutput"]["additionalContext"]
+
+    def test_system_message_in_context(self) -> None:
+        """System message appears in additionalContext."""
+        from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
+
+        adapter = CodexHooksAdapter()
+        response = HookResponse(decision="allow", system_message="System note")
+        result = adapter.translate_from_hook_response(response)
+
+        assert "System note" in result["hookSpecificOutput"]["additionalContext"]
+
+    def test_session_metadata_first_hook(self) -> None:
+        """First hook includes full session metadata."""
+        from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
+
+        adapter = CodexHooksAdapter()
+        response = HookResponse(
+            decision="allow",
+            metadata={
+                "session_id": "abc-123",
+                "session_ref": "#100",
+                "external_id": "codex-ext-id",
+                "_first_hook_for_session": True,
+                "project_id": "proj-1",
+            },
+        )
+        result = adapter.translate_from_hook_response(response)
+
+        ctx = result["hookSpecificOutput"]["additionalContext"]
+        assert "Gobby Session ID: #100 (abc-123)" in ctx
+        assert "codex-ext-id" in ctx
+        assert "proj-1" in ctx
+
+    def test_session_metadata_subsequent_hook(self) -> None:
+        """Subsequent hooks inject minimal session ref."""
+        from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
+
+        adapter = CodexHooksAdapter()
+        response = HookResponse(
+            decision="allow",
+            metadata={
+                "session_id": "abc-123",
+                "session_ref": "#100",
+                "_first_hook_for_session": False,
+            },
+        )
+        result = adapter.translate_from_hook_response(response)
+
+        ctx = result["hookSpecificOutput"]["additionalContext"]
+        assert ctx == "Gobby Session ID: #100"
 
 
-class TestCodexNotifyAdapterHandleNative:
+class TestCodexHooksAdapterHandleNative:
     """Tests for handle_native method."""
 
     def test_handle_native_success(self) -> None:
         """Handle native event through hook manager."""
-        adapter = CodexNotifyAdapter()
+        from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
+
+        adapter = CodexHooksAdapter()
         mock_hook_manager = MagicMock()
         mock_hook_manager.handle.return_value = HookResponse(decision="allow")
 
         native_event = {
-            "hook_type": "AgentTurnComplete",
+            "hook_type": "SessionStart",
             "input_data": {
-                "session_id": "thread-handle",
-                "event_type": "agent-turn-complete",
+                "session_id": "codex-session-handle",
+                "cwd": "/project",
             },
             "source": "codex",
         }
@@ -1564,12 +1595,13 @@ class TestCodexNotifyAdapterHandleNative:
         result = adapter.handle_native(native_event, mock_hook_manager)
 
         mock_hook_manager.handle.assert_called_once()
-        assert result["status"] == "processed"
-        assert result["decision"] == "allow"
+        assert "decision" not in result or result.get("decision") != "block"
 
     def test_handle_native_unsupported_event(self) -> None:
-        """Handle unsupported event returns skipped."""
-        adapter = CodexNotifyAdapter()
+        """Handle unsupported event returns empty dict."""
+        from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
+
+        adapter = CodexHooksAdapter()
         mock_hook_manager = MagicMock()
 
         native_event = {
@@ -1581,7 +1613,7 @@ class TestCodexNotifyAdapterHandleNative:
         result = adapter.handle_native(native_event, mock_hook_manager)
 
         mock_hook_manager.handle.assert_not_called()
-        assert result["status"] == "skipped"
+        assert result == {}
 
 
 # =============================================================================

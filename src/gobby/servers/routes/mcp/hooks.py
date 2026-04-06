@@ -113,7 +113,7 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
             # Select adapter based on source
             from gobby.adapters.base import BaseAdapter
             from gobby.adapters.claude_code import ClaudeCodeAdapter
-            from gobby.adapters.codex_impl.adapter import CodexNotifyAdapter
+            from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
             from gobby.adapters.copilot import CopilotAdapter
             from gobby.adapters.cursor import CursorAdapter
             from gobby.adapters.gemini import GeminiAdapter
@@ -144,7 +144,7 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
                 if codex_adapter is not None:
                     adapter = codex_adapter
                 else:
-                    adapter = CodexNotifyAdapter(hook_manager=hook_manager)
+                    adapter = CodexHooksAdapter(hook_manager=hook_manager)
             else:
                 raise HTTPException(
                     status_code=400,
