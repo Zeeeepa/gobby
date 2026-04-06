@@ -252,9 +252,12 @@ class ClaudeLLMProvider(LLMProvider):
             retry_delay: Base delay between retries in seconds.
         """
         # Suppress hooks for internal LLM calls — prevents session registration
-        # cascade and title synthesis loops
+        # cascade and title synthesis loops. SDK 0.1.56+ merges --settings with
+        # user/project settings, so we also disable those sources.
         if not options.settings:
             options.settings = str(_HEADLESS_SETTINGS)
+        if not options.setting_sources:
+            options.setting_sources = []
 
         stderr_lines: list[str] = []
         options.stderr = lambda line: stderr_lines.append(line)
@@ -421,6 +424,48 @@ class ClaudeLLMProvider(LLMProvider):
         if max_tokens and len(result) > max_tokens * 4:
             result = result[: max_tokens * 4]
         return result
+
+    async def generate_with_tools(
+        self,
+        prompt: str,
+        system_prompt: str,
+        allowed_tools: list[str],
+        max_turns: int = 3,
+        model: str | None = None,
+    ) -> str:
+        """Generate text using Claude with specific built-in tools enabled.
+
+        For multi-turn SDK calls that need tool use (e.g. WebFetch, WebSearch)
+        but should remain invisible to the session/hook system.
+        """
+        cli_path = await self._verify_cli_path()
+        if not cli_path:
+            raise RuntimeError("Generation unavailable (Claude CLI not found)")
+
+        options = ClaudeAgentOptions(
+            system_prompt=system_prompt,
+            max_turns=max_turns,
+            model=model or "opus",
+            allowed_tools=allowed_tools,
+            mcp_servers={},
+            permission_mode="default",
+            cli_path=cli_path,
+        )
+
+        async def _run_query() -> str:
+            result_text = ""
+            async for message in query(prompt=prompt, options=options):
+                if isinstance(message, AssistantMessage):
+                    for block in message.content:
+                        if isinstance(block, TextBlock):
+                            result_text += block.text
+                elif isinstance(message, ResultMessage) and message.result:
+                    result_text = message.result
+            return result_text
+
+        return await self._execute_sdk_query(
+            "generate_with_tools", _run_query, options, max_retries=1
+        )
 
     async def generate_json(
         self,

@@ -184,7 +184,11 @@ class HTTPServer:
         if services.config:
             from gobby.tools.summarizer import init_summarizer_config
 
-            init_summarizer_config(services.config.tool_summarizer, db=services.database)
+            init_summarizer_config(
+                services.config.tool_summarizer,
+                db=services.database,
+                llm_service=services.llm_service,
+            )
             logger.debug("Tool summarizer config initialized")
 
         # Create semantic search instance if db available

@@ -12,6 +12,7 @@ from gobby.storage.projects import LocalProjectManager
 from gobby.utils.json_helpers import extract_json_object
 
 if TYPE_CHECKING:
+    from gobby.llm.service import LLMService
     from gobby.mcp_proxy.manager import MCPClientManager
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ class MCPServerImporter:
         db: DatabaseProtocol,
         current_project_id: str,
         mcp_client_manager: "MCPClientManager | None" = None,
+        llm_service: "LLMService | None" = None,
     ):
         """
         Initialize the importer.
@@ -38,6 +40,7 @@ class MCPServerImporter:
             db: Database connection
             current_project_id: ID of the current project to import into
             mcp_client_manager: Optional MCP client manager for live connections
+            llm_service: LLM service for SDK calls (routes through provider for hook suppression)
         """
         self.config = config
         self.db = db
@@ -45,6 +48,7 @@ class MCPServerImporter:
         self.mcp_db_manager = LocalMCPManager(db)
         self.project_manager = LocalProjectManager(db)
         self.mcp_client_manager = mcp_client_manager
+        self.llm_service = llm_service
         self.import_config = config.get_import_mcp_server_config()
 
         # Initialize prompt loader
@@ -172,7 +176,14 @@ class MCPServerImporter:
             }
 
         try:
-            from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock, query
+            if not self.llm_service:
+                raise RuntimeError("LLM service not initialized")
+
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = self.llm_service.get_provider("claude")
+            if not isinstance(provider, ClaudeLLMProvider):
+                raise RuntimeError("Claude provider required for tool-based import")
 
             # Build prompt to fetch and extract config
             prompt_path = self.import_config.github_fetch_prompt_path or "import/github_fetch"
@@ -182,22 +193,13 @@ class MCPServerImporter:
             sys_prompt_path = self.import_config.prompt_path or "import/system"
             system_prompt = self._loader.render(sys_prompt_path, {})
 
-            options = ClaudeAgentOptions(
+            result_text = await provider.generate_with_tools(
+                prompt=prompt,
                 system_prompt=system_prompt,
+                allowed_tools=["WebFetch"],
                 max_turns=3,
                 model=self.import_config.model,
-                allowed_tools=["WebFetch"],
-                mcp_servers={},
-                permission_mode="default",
             )
-
-            # Run query
-            result_text = ""
-            async for message in query(prompt=prompt, options=options):
-                if isinstance(message, AssistantMessage):
-                    for block in message.content:
-                        if isinstance(block, TextBlock):
-                            result_text += block.text
 
             # Parse and add if no secrets needed
             return await self._parse_and_add_config(result_text)
@@ -229,7 +231,14 @@ class MCPServerImporter:
             }
 
         try:
-            from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock, query
+            if not self.llm_service:
+                raise RuntimeError("LLM service not initialized")
+
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = self.llm_service.get_provider("claude")
+            if not isinstance(provider, ClaudeLLMProvider):
+                raise RuntimeError("Claude provider required for tool-based import")
 
             # Build prompt to search and extract config
             prompt_path = self.import_config.search_fetch_prompt_path or "import/search_fetch"
@@ -239,22 +248,13 @@ class MCPServerImporter:
             sys_prompt_path = self.import_config.prompt_path or "import/system"
             system_prompt = self._loader.render(sys_prompt_path, {})
 
-            options = ClaudeAgentOptions(
+            result_text = await provider.generate_with_tools(
+                prompt=prompt,
                 system_prompt=system_prompt,
-                max_turns=5,  # More turns for search + fetch
-                model=self.import_config.model,
                 allowed_tools=["WebSearch", "WebFetch"],
-                mcp_servers={},
-                permission_mode="default",
+                max_turns=5,
+                model=self.import_config.model,
             )
-
-            # Run query
-            result_text = ""
-            async for message in query(prompt=prompt, options=options):
-                if isinstance(message, AssistantMessage):
-                    for block in message.content:
-                        if isinstance(block, TextBlock):
-                            result_text += block.text
 
             # Parse and add if no secrets needed
             return await self._parse_and_add_config(result_text)

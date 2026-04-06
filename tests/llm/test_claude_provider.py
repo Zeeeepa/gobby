@@ -41,6 +41,7 @@ class MockClaudeAgentOptions:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
         self.settings: str | None = None
+        self.setting_sources: list[str] | None = None
         self.stderr: object = None
 
 

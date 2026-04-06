@@ -54,7 +54,9 @@ class GobbyDaemonTools:
             internal_manager=internal_manager,
             fallback_resolver=fallback_resolver,
         )
-        self.server_mgmt = ServerManagementService(mcp_manager, config_manager, config)
+        self.server_mgmt = ServerManagementService(
+            mcp_manager, config_manager, config, llm_service=llm_service
+        )
         self.recommendation = RecommendationService(
             llm_service,
             mcp_manager,
