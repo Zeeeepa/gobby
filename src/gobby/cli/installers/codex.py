@@ -258,7 +258,7 @@ def install_codex(project_path: Path, *, mode: str = "global") -> dict[str, Any]
     return result
 
 
-def uninstall_codex(base_path: Path | None = None) -> dict[str, Any]:
+def uninstall_codex(project_path: Path | None = None) -> dict[str, Any]:
     """Uninstall Codex hooks and remove configuration.
 
     Returns:

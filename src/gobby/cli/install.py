@@ -5,6 +5,7 @@ Installation commands for hooks.
 import logging
 import os
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -393,7 +394,7 @@ def uninstall(
     results: dict[str, dict[str, Any]] = {}
 
     # Standard CLIs (claude, gemini, codex)
-    _standard_uninstallers = {
+    _standard_uninstallers: dict[str, Callable[..., dict[str, Any]]] = {
         "claude": uninstall_claude,
         "gemini": uninstall_gemini,
         "codex": uninstall_codex,
