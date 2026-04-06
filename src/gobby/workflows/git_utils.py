@@ -231,8 +231,23 @@ def get_dirty_files_categorized(project_path: str | None = None) -> DirtyFiles:
     # Normalize empty string to None — "" is falsy but subprocess.run(cwd="")
     # raises FileNotFoundError. Treat it the same as None (use daemon's cwd).
     if project_path is not None and not project_path.strip():
+        # Include session/project context for diagnosis if available.
+        diag = ""
+        try:
+            from gobby.utils.session_context import get_current_session_id
+
+            sid = get_current_session_id()
+            if sid:
+                diag += f" session={sid}"
+            from gobby.utils.project_context import _current_project_context
+
+            ctx = _current_project_context.get()
+            if ctx:
+                diag += f" project={ctx.get('id', '?')} name={ctx.get('name', '?')}"
+        except Exception:
+            pass
         logger.warning(
-            "get_dirty_files: called with empty string cwd — normalizing to None",
+            f"get_dirty_files: called with empty string cwd — normalizing to None.{diag}",
             stack_info=True,
         )
         project_path = None

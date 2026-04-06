@@ -184,11 +184,14 @@ class WorkflowHookHandler:
             from gobby.workflows.git_utils import get_dirty_files_categorized
             from gobby.workflows.safe_evaluator import LazyBool
 
-            project_path = event.cwd  # Live cwd from CLI adapter — correct for worktrees
+            # Normalize empty/whitespace cwd to None — event.cwd can be ""
+            # when the CLI adapter doesn't resolve a working directory.
+            project_path = event.cwd if event.cwd and event.cwd.strip() else None
             if not project_path:
-                project_path = (
+                raw_meta = (
                     event.metadata.get("project_path") if hasattr(event, "metadata") else None
                 )
+                project_path = raw_meta if raw_meta and raw_meta.strip() else None
                 if not project_path:
                     logger.warning(
                         f"_evaluate_rules: no project_path resolved for session={session_id} "
