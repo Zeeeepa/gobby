@@ -45,6 +45,8 @@ class _TestHandler(AgentEventHandlerMixin):
         self.logger = MagicMock()
         self._session_manager = MagicMock()
         self._session_storage = MagicMock()
+        # Prevent real DB calls in handle_subagent_start depth tracking
+        self._session_storage.db.fetchone.return_value = None
         self._session_coordinator = None
         self._message_processor = None
         self._task_manager = None

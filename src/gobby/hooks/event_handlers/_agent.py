@@ -392,7 +392,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
                 sv_mgr = SessionVariableManager(self._session_storage.db)
                 sv_mgr.set_variable(session_id, "is_subagent", True)
                 self.logger.debug(f"Set is_subagent=True for session {session_id}")
-            except (sqlite3.Error, KeyError, ValueError) as e:
+            except (sqlite3.Error, KeyError, TypeError, ValueError) as e:
                 self.logger.warning(f"Failed to set is_subagent on SUBAGENT_START: {e}")
 
         return HookResponse(decision="allow")
@@ -414,7 +414,7 @@ class AgentEventHandlerMixin(EventHandlersBase):
                 sv_mgr = SessionVariableManager(self._session_storage.db)
                 sv_mgr.set_variable(session_id, "is_subagent", False)
                 self.logger.debug(f"Set is_subagent=False for session {session_id}")
-            except (sqlite3.Error, KeyError, ValueError) as e:
+            except (sqlite3.Error, KeyError, TypeError, ValueError) as e:
                 self.logger.warning(f"Failed to clear is_subagent on SUBAGENT_STOP: {e}")
 
         return HookResponse(decision="allow")

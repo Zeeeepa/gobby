@@ -139,8 +139,8 @@ class TestSessionLifecycleTransitions:
         mock_session_storage = MagicMock()
         mock_session_storage.list.side_effect = lambda status, limit: {
             "active": [
-                MagicMock(id="session-1", transcript_path="/path/to/1.jsonl", source="claude"),
-                MagicMock(id="session-2", transcript_path="/path/to/2.jsonl", source="gemini"),
+                MagicMock(id="session-1", transcript_path="/path/to/1.jsonl", source="claude", transcript_processed=False),
+                MagicMock(id="session-2", transcript_path="/path/to/2.jsonl", source="gemini", transcript_processed=False),
             ],
             "paused": [],
         }[status]
@@ -162,10 +162,10 @@ class TestSessionLifecycleTransitions:
         mock_session_storage = MagicMock()
         mock_session_storage.list.side_effect = lambda status, limit: {
             "active": [
-                MagicMock(id="session-1", transcript_path="/path/to/1.jsonl", source="claude"),
+                MagicMock(id="session-1", transcript_path="/path/to/1.jsonl", source="claude", transcript_processed=False),
             ],
             "paused": [
-                MagicMock(id="session-2", transcript_path="/path/to/2.jsonl", source="claude"),
+                MagicMock(id="session-2", transcript_path="/path/to/2.jsonl", source="claude", transcript_processed=False),
             ],
         }[status]
 
@@ -208,8 +208,8 @@ class TestSessionLifecycleTransitions:
         mock_session_storage = MagicMock()
         mock_session_storage.list.side_effect = lambda status, limit: {
             "active": [
-                MagicMock(id="session-1", transcript_path="/path/1.jsonl", source="claude"),
-                MagicMock(id="session-2", transcript_path="/path/2.jsonl", source="claude"),
+                MagicMock(id="session-1", transcript_path="/path/1.jsonl", source="claude", transcript_processed=False),
+                MagicMock(id="session-2", transcript_path="/path/2.jsonl", source="claude", transcript_processed=False),
             ],
             "paused": [],
         }[status]

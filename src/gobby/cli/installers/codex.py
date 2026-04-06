@@ -190,6 +190,10 @@ def _is_gobby_hook(hook_entry: Any) -> bool:
                 for arg in val:
                     if isinstance(arg, str) and "hook_dispatcher.py" in arg:
                         return True
+        # Recurse into nested "hooks" key (Codex hooks.json nests commands there)
+        hooks_list = hook_entry.get("hooks", [])
+        if isinstance(hooks_list, list) and any(_is_gobby_hook(h) for h in hooks_list):
+            return True
     elif isinstance(hook_entry, list):
         return any(_is_gobby_hook(item) for item in hook_entry)
     return False

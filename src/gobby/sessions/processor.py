@@ -159,11 +159,12 @@ class SessionMessageProcessor:
             if session_id in self._parsers:
                 del self._parsers[session_id]
             self._last_mtime.pop(session_id, None)
-            self._render_states.pop(session_id, None)
             self._stats.pop(session_id, None)
             self._byte_offsets.pop(session_id, None)
             self._message_indices.pop(session_id, None)
             logger.debug(f"Unregistered session {session_id}")
+        # Always clean render state (may exist even if session wasn't fully registered)
+        self._render_states.pop(session_id, None)
 
     async def _loop(self) -> None:
         """Main processing loop."""

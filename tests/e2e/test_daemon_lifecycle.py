@@ -89,9 +89,10 @@ class TestDaemonStop:
         # Send SIGTERM
         os.kill(pid, signal.SIGTERM)
 
-        # Wait for process to stop (up to 10 seconds)
+        # Wait for process to stop — must exceed the daemon's graceful
+        # shutdown timeout (15 s) plus cleanup buffer
         start = time.time()
-        while time.time() - start < 10.0:
+        while time.time() - start < 25.0:
             if not daemon_instance.is_alive():
                 break
             time.sleep(0.2)
