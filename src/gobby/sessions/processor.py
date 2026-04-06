@@ -132,9 +132,11 @@ class SessionMessageProcessor:
             return
 
         if not os.path.exists(transcript_path):
-            logger.warning(f"Transcript file not found: {transcript_path}")
-            # We still register it, hoping it appears later (or we could fail)
-            # For now, let's assume it might be created shortly.
+            logger.debug(f"Transcript missing for session {session_id}, marking processed")
+            if self.session_manager:
+                self.session_manager.update(session_id, transcript_path="missing_transcript")
+                self.session_manager.mark_transcript_processed(session_id)
+            return
 
         self._active_sessions[session_id] = transcript_path
         self._parsers[session_id] = get_parser(source, session_id=session_id)
