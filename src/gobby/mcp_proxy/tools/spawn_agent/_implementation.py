@@ -92,7 +92,7 @@ async def spawn_agent_impl(
         clone_manager: Git manager for clone operations
         workflow: Workflow to use
         mode: Execution mode (interactive/autonomous)
-        provider: AI provider (claude/gemini/codex/cursor/windsurf/copilot)
+        provider: AI provider (claude/gemini/codex)
         model: Model to use
         timeout: Timeout in seconds
         max_turns: Maximum conversation turns

@@ -505,9 +505,7 @@ class TestSubagentEvents:
             data={"agent_id": "a1", "subagent_id": "sa1"},
         )
 
-        with patch(
-            "gobby.workflows.state_manager.SessionVariableManager"
-        ) as mock_svm_cls:
+        with patch("gobby.workflows.state_manager.SessionVariableManager") as mock_svm_cls:
             mock_svm = MagicMock()
             mock_svm_cls.return_value = mock_svm
 
@@ -535,9 +533,7 @@ class TestSubagentEvents:
             data={},
         )
 
-        with patch(
-            "gobby.workflows.state_manager.SessionVariableManager"
-        ) as mock_svm_cls:
+        with patch("gobby.workflows.state_manager.SessionVariableManager") as mock_svm_cls:
             result = handler.handle_subagent_start(event)
 
             assert result.decision == "allow"
@@ -560,9 +556,7 @@ class TestSubagentEvents:
             metadata={"_platform_session_id": "sess-1"},
         )
 
-        with patch(
-            "gobby.workflows.state_manager.SessionVariableManager"
-        ) as mock_svm_cls:
+        with patch("gobby.workflows.state_manager.SessionVariableManager") as mock_svm_cls:
             mock_svm = MagicMock()
             mock_svm_cls.return_value = mock_svm
 
@@ -588,9 +582,7 @@ class TestSubagentEvents:
             metadata={},
         )
 
-        with patch(
-            "gobby.workflows.state_manager.SessionVariableManager"
-        ) as mock_svm_cls:
+        with patch("gobby.workflows.state_manager.SessionVariableManager") as mock_svm_cls:
             result = handler.handle_subagent_stop(event)
 
             assert result.decision == "allow"

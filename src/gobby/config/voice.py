@@ -94,7 +94,7 @@ class VoiceConfig(BaseModel):
             "Claude",
             "Anthropic",
             "Gemini",
-            "Copilot",
+            "Codex",
             "npm",
             "pip",
             "pytest",

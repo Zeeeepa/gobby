@@ -1,7 +1,7 @@
 """
 Hook-based transcript assembler for CLIs without transcript files.
 
-Windsurf and Copilot don't write local transcript files. This module
+Some CLI integrations don't write local transcript files. This module
 converts HookEvent objects into ParsedMessage objects as they flow
 through HookManager.handle(), enabling transcript reconstruction
 from hook events alone.
@@ -77,7 +77,7 @@ class HookTranscriptAssembler:
         ]
 
     def _handle_after_agent(self, session_id: str, event: HookEvent) -> list[ParsedMessage]:
-        """AFTER_AGENT → assistant text message (Windsurf provides 'response')."""
+        """AFTER_AGENT → assistant text message."""
         content = event.data.get("response") or event.data.get("content") or ""
         if not content:
             return []
@@ -126,7 +126,7 @@ class HookTranscriptAssembler:
             or event.data.get("output")
             or {}
         )
-        # Copilot nests result under toolResult.textResultForLlm
+        # Some CLIs nest result under toolResult.textResultForLlm
         tool_result_obj = event.data.get("toolResult")
         if isinstance(tool_result_obj, dict):
             text_result = tool_result_obj.get("textResultForLlm")

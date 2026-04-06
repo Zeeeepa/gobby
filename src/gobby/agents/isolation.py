@@ -575,7 +575,7 @@ async def _copy_cli_hooks(
     Args:
         source_path: Path to the source repository
         target_path: Path to the isolated environment (worktree or clone)
-        provider: CLI provider (gemini, claude, codex, cursor, windsurf, copilot)
+        provider: CLI provider (gemini, claude, codex)
     """
     import shutil
 
@@ -583,9 +583,6 @@ async def _copy_cli_hooks(
         "gemini": ".gemini",
         "claude": ".claude",
         "codex": ".codex",
-        "cursor": ".claude",
-        "windsurf": ".claude",
-        "copilot": ".claude",
     }
 
     cli_dir = cli_dirs.get(provider)
@@ -658,7 +655,7 @@ async def _patch_mcp_config_for_isolation(
         return
 
     # For Claude provider, register the isolated path in ~/.claude.json
-    if provider in ("claude", "cursor", "windsurf", "copilot"):
+    if provider == "claude":
         claude_json_path = Path.home() / ".claude.json"
         try:
 

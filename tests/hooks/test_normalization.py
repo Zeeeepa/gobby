@@ -268,7 +268,7 @@ class TestFieldAliases:
         assert data["tool_name"] == "Write"
 
     def test_toolName_to_tool_name(self) -> None:
-        """Copilot sends toolName (camelCase)."""
+        """camelCase toolName is normalized to tool_name."""
         data = {"toolName": "Read"}
         normalize_tool_fields(data)
         assert data["tool_name"] == "Read"
@@ -279,7 +279,7 @@ class TestFieldAliases:
         assert data["tool_name"] == "CustomRead"
 
     def test_toolArgs_string_parsed_to_tool_input(self) -> None:
-        """Copilot sends toolArgs as a JSON string."""
+        """toolArgs as a JSON string is parsed to tool_input."""
         data = {"toolArgs": '{"path": "/foo.py"}'}
         normalize_tool_fields(data)
         assert data["tool_input"] == {"path": "/foo.py"}
@@ -376,8 +376,8 @@ class TestNormalizeToolFieldsAlias:
         assert returned is data
         assert data["tool_name"] == "Read"
 
-    def test_combined_copilot_style(self) -> None:
-        """Full Copilot-style event through normalize_tool_fields."""
+    def test_combined_camelcase_style(self) -> None:
+        """Full camelCase-style event through normalize_tool_fields."""
         data = {
             "toolName": "mcp__gobby__call_tool",
             "toolArgs": '{"server_name": "gobby-memory", "tool_name": "create_memory"}',
@@ -481,7 +481,7 @@ class TestToolErrorDetection:
         assert data["is_error"] is True
 
     def test_run_command_tool_name(self) -> None:
-        """'run_command' (Windsurf native) should also be detected."""
+        """'run_command' native tool name should also be detected."""
         data = {
             "tool_name": "run_command",
             "tool_result": "exit code: 1",
@@ -566,8 +566,8 @@ class TestEndToEndRuleMatch:
         assert data.get("mcp_tool") != "create_memory"
         assert data.get("mcp_server") != "gobby-memory"
 
-    def test_copilot_create_memory_rule_match(self) -> None:
-        """Same rule match, but with Copilot-style fields (camelCase + JSON string)."""
+    def test_camelcase_create_memory_rule_match(self) -> None:
+        """Same rule match, but with camelCase fields and JSON string args."""
         data = {
             "toolName": "mcp__gobby__call_tool",
             "toolArgs": '{"server_name": "gobby-memory", "tool_name": "create_memory"}',
@@ -660,7 +660,7 @@ class TestStringArgumentCoercion:
         assert "_input_coerced" not in data
 
     def test_coercion_through_normalize_tool_fields(self) -> None:
-        """Full pipeline: Copilot-style stringified args through normalize_tool_fields."""
+        """Full pipeline: camelCase-style stringified args through normalize_tool_fields."""
         data = {
             "toolName": "mcp__gobby__call_tool",
             "toolArgs": '{"server_name": "gobby-tasks", "tool_name": "create_task", "arguments": "{\\"title\\": \\"Test\\"}"}',

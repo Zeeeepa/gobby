@@ -159,7 +159,7 @@ def _install_hooks_json(codex_home: Path, hooks_dir: Path) -> list[str]:
     return hooks_installed
 
 
-def install_codex(project_path: Path) -> dict[str, Any]:
+def install_codex(project_path: Path, *, mode: str = "global") -> dict[str, Any]:
     """Install Codex hooks via hooks.json and configure MCP server.
 
     Args:
@@ -258,7 +258,7 @@ def install_codex(project_path: Path) -> dict[str, Any]:
     return result
 
 
-def uninstall_codex() -> dict[str, Any]:
+def uninstall_codex(base_path: Path | None = None) -> dict[str, Any]:
     """Uninstall Codex hooks and remove configuration.
 
     Returns:

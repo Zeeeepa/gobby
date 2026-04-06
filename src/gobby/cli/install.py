@@ -13,10 +13,7 @@ import click
 from ._detectors import (
     _is_claude_code_installed,
     _is_codex_cli_installed,
-    _is_copilot_cli_installed,
-    _is_cursor_installed,
     _is_gemini_cli_installed,
-    _is_windsurf_installed,
 )
 from ._install_prompts import (
     _API_KEY_PROMPTS,
@@ -26,10 +23,6 @@ from ._install_prompts import (
     _echo_uninstall_details,
     _echo_uninstall_summary,
     _prompt_api_keys,
-    _run_antigravity_install,
-    _run_codex_install,
-    _run_codex_uninstall,
-    _run_copilot_install,
     _run_embedding_install,
     _run_git_hooks_install,
     _run_neo4j_install,
@@ -40,24 +33,17 @@ from ._install_prompts import (
 )
 from .install_setup import ensure_daemon_config, run_daemon_setup
 from .installers import (
-    install_antigravity,
     install_claude,
     install_codex,
-    install_copilot,
-    install_cursor,
     install_embedding,
     install_gemini,
     install_git_hooks,
     install_neo4j,
     install_qdrant,
-    install_windsurf,
     uninstall_claude,
     uninstall_codex,
-    uninstall_copilot,
-    uninstall_cursor,
     uninstall_gemini,
     uninstall_neo4j,
-    uninstall_windsurf,
 )
 from .utils import get_install_dir
 
@@ -70,10 +56,7 @@ _ensure_daemon_config = ensure_daemon_config
 __all__ = [
     "_is_claude_code_installed",
     "_is_codex_cli_installed",
-    "_is_copilot_cli_installed",
-    "_is_cursor_installed",
     "_is_gemini_cli_installed",
-    "_is_windsurf_installed",
     "_echo_install_details",
     "_echo_uninstall_details",
     "_API_KEY_PROMPTS",
@@ -104,24 +87,6 @@ __all__ = [
     help="Configure Codex notify integration (interactive Codex)",
 )
 @click.option(
-    "--cursor",
-    "cursor_flag",
-    is_flag=True,
-    help="Install Cursor hooks",
-)
-@click.option(
-    "--windsurf",
-    "windsurf_flag",
-    is_flag=True,
-    help="Install Windsurf (Cascade) hooks",
-)
-@click.option(
-    "--copilot",
-    "copilot_flag",
-    is_flag=True,
-    help="Install GitHub Copilot CLI hooks",
-)
-@click.option(
     "--hooks",
     "--git-hooks",
     "hooks_flag",
@@ -134,12 +99,6 @@ __all__ = [
     is_flag=True,
     default=False,
     help="Install hooks for all detected CLIs (default behavior when no flags specified)",
-)
-@click.option(
-    "--antigravity",
-    "antigravity_flag",
-    is_flag=True,
-    help="Install Antigravity agent hooks (internal)",
 )
 @click.option(
     "--no-ext-services",
@@ -177,12 +136,8 @@ def install(
     claude_flag: bool,
     gemini_flag: bool,
     codex_flag: bool,
-    cursor_flag: bool,
-    windsurf_flag: bool,
-    copilot_flag: bool,
     hooks_flag: bool,
     all_flag: bool,
-    antigravity_flag: bool,
     no_ext_services_flag: bool,
     neo4j_password: str | None,
     project_flag: bool,
@@ -199,20 +154,8 @@ def install(
     project_path = working_dir.resolve() if working_dir else Path.cwd()
     mode = "project" if project_flag else "global"
 
-    if (
-        not claude_flag
-        and not gemini_flag
-        and not codex_flag
-        and not cursor_flag
-        and not windsurf_flag
-        and not copilot_flag
-        and not hooks_flag
-        and not all_flag
-        and not antigravity_flag
-    ):
+    if not claude_flag and not gemini_flag and not codex_flag and not hooks_flag and not all_flag:
         all_flag = True
-
-    codex_detected = _is_codex_cli_installed()
 
     # Build list of CLIs to install
     clis_to_install: list[str] = []
@@ -226,14 +169,8 @@ def install(
             clis_to_install.append("claude")
         if _is_gemini_cli_installed():
             clis_to_install.append("gemini")
-        if codex_detected:
+        if _is_codex_cli_installed():
             clis_to_install.append("codex")
-        if _is_cursor_installed():
-            clis_to_install.append("cursor")
-        if _is_windsurf_installed():
-            clis_to_install.append("windsurf")
-        if _is_copilot_cli_installed():
-            clis_to_install.append("copilot")
 
         # Check for git
         if (project_path / ".git").exists():
@@ -245,12 +182,8 @@ def install(
             click.echo("  - Claude Code: npm install -g @anthropic-ai/claude-code")
             click.echo("  - Gemini CLI:  npm install -g @google/gemini-cli")
             click.echo("  - Codex CLI:   npm install -g @openai/codex")
-            click.echo("  - Cursor:      https://cursor.com")
-            click.echo("  - Windsurf:    https://codeium.com/windsurf")
-            click.echo("  - Copilot CLI: gh extension install github/gh-copilot")
             click.echo(
-                "\nYou can still install manually with --claude, --gemini, --codex,"
-                " --cursor, --windsurf, or --copilot flags."
+                "\nYou can still install manually with --claude, --gemini, or --codex flags."
             )
             sys.exit(1)
     else:
@@ -260,14 +193,6 @@ def install(
             clis_to_install.append("gemini")
         if codex_flag:
             clis_to_install.append("codex")
-        if cursor_flag:
-            clis_to_install.append("cursor")
-        if windsurf_flag:
-            clis_to_install.append("windsurf")
-        if copilot_flag:
-            clis_to_install.append("copilot")
-        if antigravity_flag:
-            clis_to_install.append("antigravity")
 
     # Get install directory info
     install_dir = get_install_dir()
@@ -299,32 +224,19 @@ def install(
     # Track results
     results: dict[str, dict[str, Any]] = {}
 
-    # Standard CLIs (claude, gemini, cursor, windsurf)
+    # Standard CLIs (claude, gemini, codex)
     _standard_installers = {
         "claude": install_claude,
         "gemini": install_gemini,
-        "cursor": install_cursor,
-        "windsurf": install_windsurf,
+        "codex": install_codex,
     }
     for cli_name, installer_fn in _standard_installers.items():
         if cli_name in clis_to_install:
             _run_standard_cli_install(cli_name, installer_fn, project_path, mode, results)
 
-    # Codex (special: detection check + custom echo)
-    if "codex" in clis_to_install:
-        _run_codex_install(install_codex, project_path, codex_detected, results)
-
-    # Copilot (special: has 'skipped' case)
-    if "copilot" in clis_to_install:
-        _run_copilot_install(install_copilot, project_path, mode, results)
-
     # Git hooks
     if install_hooks:
         _run_git_hooks_install(install_git_hooks, project_path, results)
-
-    # Antigravity
-    if "antigravity" in clis_to_install:
-        _run_antigravity_install(install_antigravity, project_path, results)
 
     # Embedding provider setup (runs before Docker services so "none" can skip them)
     embedding_provider = _run_embedding_install(
@@ -370,24 +282,6 @@ def install(
     help="Uninstall Codex notify integration",
 )
 @click.option(
-    "--cursor",
-    "cursor_flag",
-    is_flag=True,
-    help="Uninstall Cursor hooks",
-)
-@click.option(
-    "--windsurf",
-    "windsurf_flag",
-    is_flag=True,
-    help="Uninstall Windsurf hooks",
-)
-@click.option(
-    "--copilot",
-    "copilot_flag",
-    is_flag=True,
-    help="Uninstall Copilot CLI hooks",
-)
-@click.option(
     "--all",
     "all_flag",
     is_flag=True,
@@ -425,9 +319,6 @@ def uninstall(
     claude_flag: bool,
     gemini_flag: bool,
     codex_flag: bool,
-    cursor_flag: bool,
-    windsurf_flag: bool,
-    copilot_flag: bool,
     all_flag: bool,
     neo4j_flag: bool,
     volumes_flag: bool,
@@ -438,22 +329,12 @@ def uninstall(
 
     By default (no flags), uninstalls global hooks from CLI settings and ~/.gobby/hooks/.
     Use --project to uninstall per-project hooks from the current directory.
-    Use --claude, --gemini, --codex, --cursor, --windsurf, or --copilot to uninstall
-    only from specific CLIs.
+    Use --claude, --gemini, or --codex to uninstall only from specific CLIs.
     """
     project_path = working_dir.resolve() if working_dir else Path.cwd()
 
     # Determine which CLIs to uninstall
-    if (
-        not claude_flag
-        and not gemini_flag
-        and not codex_flag
-        and not cursor_flag
-        and not windsurf_flag
-        and not copilot_flag
-        and not all_flag
-        and not neo4j_flag
-    ):
+    if not claude_flag and not gemini_flag and not codex_flag and not all_flag and not neo4j_flag:
         all_flag = True
 
     # Build list of CLIs to uninstall
@@ -463,47 +344,29 @@ def uninstall(
         if project_flag:
             claude_settings = project_path / ".claude" / "settings.json"
             gemini_settings = project_path / ".gemini" / "settings.json"
-            cursor_hooks = project_path / ".cursor" / "hooks.json"
-            windsurf_hooks = project_path / ".windsurf" / "hooks.json"
-            copilot_hooks = project_path / ".copilot" / "hooks.json"
+            codex_hooks = project_path / ".codex" / "hooks.json"
         else:
             claude_settings = Path.home() / ".claude" / "settings.json"
             gemini_settings = Path.home() / ".gemini" / "settings.json"
-            cursor_hooks = Path.home() / ".cursor" / "hooks.json"
-            windsurf_hooks = Path.home() / ".codeium" / "windsurf" / "hooks.json"
-            copilot_hooks = (
-                project_path / ".copilot" / "hooks.json"
-            )  # Copilot is always per-project
-
-        codex_notify = Path.home() / ".gobby" / "hooks" / "codex" / "hook_dispatcher.py"
+            codex_hooks = Path.home() / ".codex" / "hooks.json"
 
         if claude_settings.exists():
             clis_to_uninstall.append("claude")
         if gemini_settings.exists():
             clis_to_uninstall.append("gemini")
-        if codex_notify.exists():
+        if codex_hooks.exists():
             clis_to_uninstall.append("codex")
-        if cursor_hooks.exists():
-            clis_to_uninstall.append("cursor")
-        if windsurf_hooks.exists():
-            clis_to_uninstall.append("windsurf")
-        if copilot_hooks.exists():
-            clis_to_uninstall.append("copilot")
 
         if not clis_to_uninstall:
             click.echo("No Gobby hooks found to uninstall.")
             if project_flag:
                 click.echo(f"\nChecked: {project_path / '.claude'}")
                 click.echo(f"         {project_path / '.gemini'}")
-                click.echo(f"         {project_path / '.cursor'}")
-                click.echo(f"         {project_path / '.windsurf'}")
-                click.echo(f"         {project_path / '.copilot'}")
+                click.echo(f"         {project_path / '.codex'}")
             else:
                 click.echo(f"\nChecked: {Path.home() / '.claude'}")
                 click.echo(f"         {Path.home() / '.gemini'}")
-                click.echo(f"         {Path.home() / '.cursor'}")
-                click.echo(f"         {Path.home() / '.codeium' / 'windsurf'}")
-            click.echo(f"         {codex_notify}")
+                click.echo(f"         {Path.home() / '.codex'}")
             sys.exit(0)
     else:
         if claude_flag:
@@ -512,12 +375,6 @@ def uninstall(
             clis_to_uninstall.append("gemini")
         if codex_flag:
             clis_to_uninstall.append("codex")
-        if cursor_flag:
-            clis_to_uninstall.append("cursor")
-        if windsurf_flag:
-            clis_to_uninstall.append("windsurf")
-        if copilot_flag:
-            clis_to_uninstall.append("copilot")
 
     click.echo("=" * 60)
     click.echo("  Gobby Hooks Uninstallation")
@@ -535,30 +392,15 @@ def uninstall(
     # Track results
     results: dict[str, dict[str, Any]] = {}
 
-    # Standard CLIs (claude, gemini, cursor)
+    # Standard CLIs (claude, gemini, codex)
     _standard_uninstallers = {
         "claude": uninstall_claude,
         "gemini": uninstall_gemini,
-        "cursor": uninstall_cursor,
+        "codex": uninstall_codex,
     }
     for cli_name, uninstaller_fn in _standard_uninstallers.items():
         if cli_name in clis_to_uninstall:
             _run_standard_cli_uninstall(cli_name, uninstaller_fn, uninstall_base, results)
-
-    # Codex (special: no base path arg)
-    if "codex" in clis_to_uninstall:
-        _run_codex_uninstall(uninstall_codex, results)
-
-    # Windsurf (special: takes project_path + mode kwarg)
-    if "windsurf" in clis_to_uninstall:
-        uninstall_mode = "project" if project_flag else "global"
-        _run_standard_cli_uninstall(
-            "windsurf", uninstall_windsurf, project_path, results, mode=uninstall_mode
-        )
-
-    # Copilot (special: always uses project_path)
-    if "copilot" in clis_to_uninstall:
-        _run_standard_cli_uninstall("copilot", uninstall_copilot, project_path, results)
 
     # Remove global hooks directory for global uninstall
     if not project_flag and all_flag:

@@ -290,8 +290,7 @@ class TestInstallCodex:
         codex_dir.mkdir(parents=True)
         config_path = codex_dir / "config.toml"
         config_path.write_text(
-            '[features]\nfast_mode = true\n\n'
-            '[mcp_servers.gobby]\ncommand = "uv"\n'
+            '[features]\nfast_mode = true\n\n[mcp_servers.gobby]\ncommand = "uv"\n'
         )
 
         result = install_codex(mock_home)
@@ -323,9 +322,7 @@ class TestInstallCodex:
         codex_dir = mock_home / ".codex"
         codex_dir.mkdir(parents=True)
         config_path = codex_dir / "config.toml"
-        config_path.write_text(
-            '[features]\ncodex_hooks = false\nfast_mode = true\n'
-        )
+        config_path.write_text("[features]\ncodex_hooks = false\nfast_mode = true\n")
 
         result = install_codex(mock_home)
 

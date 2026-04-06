@@ -118,9 +118,7 @@ class TestRunEmbeddingInstallInteractive:
 
     @patch("gobby.cli._detectors._is_ollama_available", return_value=False)
     @patch("gobby.cli._detectors._is_lmstudio_available", return_value=True)
-    def test_interactive_choose_lmstudio(
-        self, mock_lms: MagicMock, mock_ollama: MagicMock
-    ) -> None:
+    def test_interactive_choose_lmstudio(self, mock_lms: MagicMock, mock_ollama: MagicMock) -> None:
         runner = CliRunner()
         installer = MagicMock(
             return_value={

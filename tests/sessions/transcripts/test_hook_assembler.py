@@ -85,11 +85,11 @@ class TestBeforeTool:
         assert msgs[0].tool_name == "read_file"
         assert msgs[0].tool_input == {"path": "/tmp/foo.py"}
 
-    def test_copilot_camel_case_fields(self, assembler: HookTranscriptAssembler) -> None:
+    def test_claude_extra_fields(self, assembler: HookTranscriptAssembler) -> None:
         event = _make_event(
             HookEventType.BEFORE_TOOL,
-            {"toolName": "editFile", "toolArgs": {"file": "main.py"}},
-            source=SessionSource.COPILOT,
+            {"tool_name": "editFile", "tool_input": {"file": "main.py"}},
+            source=SessionSource.CLAUDE,
         )
         msgs = assembler.process_event("sess-1", event)
 
@@ -113,15 +113,15 @@ class TestAfterTool:
         assert msgs[0].tool_result == {"text": "file contents"}
         assert msgs[0].content == "file contents"
 
-    def test_copilot_tool_result_nested(self, assembler: HookTranscriptAssembler) -> None:
-        """Copilot nests result under toolResult.textResultForLlm."""
+    def test_gemini_tool_result(self, assembler: HookTranscriptAssembler) -> None:
+        """Gemini provides tool result as plain string output."""
         event = _make_event(
             HookEventType.AFTER_TOOL,
             {
-                "toolName": "readFile",
-                "toolResult": {"textResultForLlm": "file contents here"},
+                "tool_name": "readFile",
+                "tool_output": "file contents here",
             },
-            source=SessionSource.COPILOT,
+            source=SessionSource.GEMINI,
         )
         msgs = assembler.process_event("sess-1", event)
 
@@ -168,9 +168,9 @@ class TestIndexTracking:
         assert msgs_a2[0].index == 1  # second message in sess-a
 
 
-class TestWindsurfToolInfo:
-    def test_windsurf_post_write_code(self, assembler: HookTranscriptAssembler) -> None:
-        """Windsurf post_write_code provides tool_name and tool_output."""
+class TestGeminiToolInfo:
+    def test_gemini_post_write(self, assembler: HookTranscriptAssembler) -> None:
+        """Gemini post-write provides tool_name and tool_output."""
         event = _make_event(
             HookEventType.AFTER_TOOL,
             {
@@ -178,7 +178,7 @@ class TestWindsurfToolInfo:
                 "tool_input": {"file": "app.py", "content": "print('hi')"},
                 "tool_output": {"text": "File written successfully"},
             },
-            source=SessionSource.WINDSURF,
+            source=SessionSource.GEMINI,
         )
         msgs = assembler.process_event("sess-1", event)
 

@@ -316,21 +316,6 @@ class TestIsPlanFile:
 
         assert is_plan_file("/home/user/.codex/plans/plan.md") is True
 
-    def test_cursor_plans_md(self) -> None:
-        from gobby.workflows.enforcement.blocking import is_plan_file
-
-        assert is_plan_file("/home/user/.cursor/plans/plan.md") is True
-
-    def test_windsurf_plans_md(self) -> None:
-        from gobby.workflows.enforcement.blocking import is_plan_file
-
-        assert is_plan_file("/home/user/.windsurf/plans/plan.md") is True
-
-    def test_copilot_plans_md(self) -> None:
-        from gobby.workflows.enforcement.blocking import is_plan_file
-
-        assert is_plan_file("/home/user/.copilot/plans/plan.md") is True
-
     def test_gemini_config_json_rejected(self) -> None:
         from gobby.workflows.enforcement.blocking import is_plan_file
 
@@ -340,11 +325,6 @@ class TestIsPlanFile:
         from gobby.workflows.enforcement.blocking import is_plan_file
 
         assert is_plan_file("/home/user/.codex/config.toml") is False
-
-    def test_cursor_hooks_json_rejected(self) -> None:
-        from gobby.workflows.enforcement.blocking import is_plan_file
-
-        assert is_plan_file("/home/user/.cursor/hooks.json") is False
 
 
 class TestRequireCleanTreeBeforeStatus:

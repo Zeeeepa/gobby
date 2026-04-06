@@ -128,7 +128,9 @@ class TestSetupLMStudio:
         # server status -> running, ps -> includes nomic
         mock_run.side_effect = [
             MagicMock(returncode=0, stderr="", stdout="The server is running on port 1234."),
-            MagicMock(returncode=0, stderr="", stdout="IDENTIFIER  MODEL\nnomic-embed  nomic  LOADED"),
+            MagicMock(
+                returncode=0, stderr="", stdout="IDENTIFIER  MODEL\nnomic-embed  nomic  LOADED"
+            ),
         ]
         result = _setup_lmstudio()
         assert result["success"] is True
@@ -153,9 +155,7 @@ class TestSetupLMStudio:
 
     @patch("gobby.cli.installers.embedding.subprocess.run")
     @patch("gobby.cli.installers.embedding.shutil.which", return_value="/usr/bin/lms")
-    def test_downloads_when_not_on_disk(
-        self, mock_which: MagicMock, mock_run: MagicMock
-    ) -> None:
+    def test_downloads_when_not_on_disk(self, mock_which: MagicMock, mock_run: MagicMock) -> None:
         # status -> running, ps -> empty, ls -> no nomic, get -> ok, load -> ok
         mock_run.side_effect = [
             MagicMock(returncode=0, stderr="", stdout="running"),
@@ -197,9 +197,7 @@ class TestSetupLMStudio:
 
     @patch("gobby.cli.installers.embedding.subprocess.run")
     @patch("gobby.cli.installers.embedding.shutil.which", return_value="/usr/bin/lms")
-    def test_get_timeout_returns_error(
-        self, mock_which: MagicMock, mock_run: MagicMock
-    ) -> None:
+    def test_get_timeout_returns_error(self, mock_which: MagicMock, mock_run: MagicMock) -> None:
         mock_run.side_effect = [
             MagicMock(returncode=0, stderr="", stdout="running"),
             MagicMock(returncode=0, stderr="", stdout="(empty)"),
@@ -223,9 +221,7 @@ class TestSetupOllama:
     @patch("gobby.cli.installers.embedding.subprocess.run")
     @patch("gobby.cli.installers.embedding.shutil.which", return_value="/usr/bin/ollama")
     def test_already_pulled(self, mock_which: MagicMock, mock_run: MagicMock) -> None:
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="NAME\nnomic-embed-text  274 MB\n"
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout="NAME\nnomic-embed-text  274 MB\n")
         result = _setup_ollama()
         assert result["success"] is True
         assert result["action"] == "already_pulled"

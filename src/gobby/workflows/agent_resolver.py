@@ -14,13 +14,6 @@ class AgentResolutionError(Exception):
     """Raised when an agent definition cannot be found or parsed."""
 
 
-def _normalize_provider(cli_source: str) -> str:
-    """Resolve 'inherit' to provider. Only claude_sdk variants and antigravity need mapping."""
-    if cli_source.startswith("claude_sdk") or cli_source == "antigravity":
-        return "claude"
-    return cli_source  # claude, gemini, codex, cursor, windsurf, copilot pass through
-
-
 def resolve_agent(
     name: str,
     db: DatabaseProtocol,
@@ -50,10 +43,10 @@ def resolve_agent(
         logger.debug(f"Failed to parse agent definition for {name}: {e}")
         return None
 
-    # Resolve 'inherit' provider
+    # Resolve 'inherit' provider — source IS the provider (bare: claude, gemini, codex)
     if body.provider == "inherit":
         if cli_source:
-            body.provider = _normalize_provider(cli_source)
+            body.provider = cli_source
         else:
             body.provider = "claude"
 

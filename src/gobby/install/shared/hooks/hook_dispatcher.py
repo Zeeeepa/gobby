@@ -9,7 +9,7 @@
 # ///
 """Unified Hook Dispatcher - Routes CLI hooks to Gobby daemon.
 
-Supports Claude Code, Gemini CLI, GitHub Copilot, Cursor, and Windsurf.
+Supports Claude Code, Gemini CLI, and Codex.
 CLI is identified via --cli flag (primary) or path-based detection (fallback).
 
 Usage:
@@ -84,33 +84,6 @@ CLI_CONFIGS: dict[str, CLIConfig] = {
         json_error_exit_code=1,
         logger_name="gobby.hooks.gemini.dispatcher",
         suppress_logs=False,
-        has_source_detection=False,
-    ),
-    "copilot": CLIConfig(
-        source="copilot",
-        critical_hooks=frozenset({"sessionStart", "sessionEnd"}),
-        session_start_hooks=frozenset({"sessionStart"}),
-        json_error_exit_code=2,
-        logger_name="gobby.hooks.dispatcher.copilot",
-        suppress_logs=True,
-        has_source_detection=False,
-    ),
-    "cursor": CLIConfig(
-        source="cursor",
-        critical_hooks=frozenset({"sessionStart", "sessionEnd", "preCompact"}),
-        session_start_hooks=frozenset({"sessionStart"}),
-        json_error_exit_code=2,
-        logger_name="gobby.hooks.dispatcher.cursor",
-        suppress_logs=True,
-        has_source_detection=False,
-    ),
-    "windsurf": CLIConfig(
-        source="windsurf",
-        critical_hooks=frozenset({"pre_user_prompt"}),
-        session_start_hooks=frozenset({"pre_user_prompt"}),
-        json_error_exit_code=2,
-        logger_name="gobby.hooks.dispatcher.windsurf",
-        suppress_logs=True,
         has_source_detection=False,
     ),
     "codex": CLIConfig(
@@ -277,9 +250,8 @@ def is_blocked(result: dict[str, Any]) -> bool:
     """Check if daemon response indicates a block/deny.
 
     Checks all block patterns used across CLIs:
-    - continue=False (Claude, Gemini, Copilot, Cursor)
-    - decision in ("deny", "block") (Claude, Gemini, Cursor, Windsurf)
-    - permissionDecision="deny" (Copilot)
+    - continue=False (Claude, Gemini)
+    - decision in ("deny", "block") (Claude, Gemini)
     """
     if result.get("continue") is False:
         return True
@@ -296,7 +268,6 @@ def extract_reason(result: dict[str, Any]) -> str:
 
     Checks all reason fields used across CLIs in priority order:
     - stopReason (Claude, Gemini)
-    - user_message (Cursor)
     - reason (all CLIs)
     """
     return (
@@ -430,7 +401,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--cli",
         default=None,
-        help="CLI name (claude, gemini, copilot, cursor, windsurf)",
+        help="CLI name (claude, gemini, codex)",
     )
     parser.add_argument(
         "--debug",

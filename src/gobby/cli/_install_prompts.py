@@ -185,13 +185,7 @@ _CLI_INSTALL_META: dict[str, tuple[str, str, str, str | None]] = {
         ".gemini/settings.json",
         "~/.gemini/settings.json",
     ),
-    "cursor": ("Cursor", "~/.cursor/hooks.json", ".cursor/hooks.json", None),
-    "windsurf": (
-        "Windsurf (Cascade)",
-        "~/.codeium/windsurf/hooks.json",
-        ".windsurf/hooks.json",
-        None,
-    ),
+    "codex": ("Codex", "~/.codex/hooks.json", ".codex/hooks.json", None),
 }
 
 
@@ -202,7 +196,7 @@ def _run_standard_cli_install(
     mode: str,
     results: dict[str, dict[str, Any]],
 ) -> None:
-    """Run install + echo for a standard CLI (claude, gemini, cursor, windsurf)."""
+    """Run install + echo for a standard CLI (claude, gemini, codex)."""
     display_name, global_config, project_subpath, mcp_path = _CLI_INSTALL_META[cli_name]
 
     click.echo("-" * 40)
@@ -217,83 +211,6 @@ def _run_standard_cli_install(
         _echo_install_details(result, mcp_config_path=mcp_path, config_path=config)
     else:
         click.echo(f"Failed: {result['error']}", err=True)
-    click.echo("")
-
-
-def _run_copilot_install(
-    installer: Callable[..., dict[str, Any]],
-    project_path: Path,
-    mode: str,
-    results: dict[str, dict[str, Any]],
-) -> None:
-    """Run install + echo for Copilot CLI (has 'skipped' special case)."""
-    click.echo("-" * 40)
-    click.echo("GitHub Copilot CLI")
-    click.echo("-" * 40)
-
-    result = installer(project_path, mode=mode)
-    results["copilot"] = result
-
-    if result.get("skipped"):
-        click.echo(f"Skipped: {result['skip_reason']}")
-    elif result["success"]:
-        _echo_install_details(result, config_path=str(project_path / ".copilot" / "hooks.json"))
-    else:
-        click.echo(f"Failed: {result['error']}", err=True)
-    click.echo("")
-
-
-def _run_codex_install(
-    installer: Callable[..., dict[str, Any]],
-    project_path: Path,
-    codex_detected: bool,
-    results: dict[str, dict[str, Any]],
-) -> None:
-    """Run install + echo for Codex notify integration."""
-    click.echo("-" * 40)
-    click.echo("Codex")
-    click.echo("-" * 40)
-
-    if not codex_detected:
-        click.echo("Codex CLI not detected in PATH (`codex`).", err=True)
-        click.echo("Install Codex first, then re-run:")
-        click.echo("  npm install -g @openai/codex\n")
-        results["codex"] = {"success": False, "error": "Codex CLI not detected"}
-    else:
-        result = installer(project_path)
-        results["codex"] = result
-
-        if result["success"]:
-            click.echo("Installed Codex notify integration")
-            for file_path in result["files_installed"]:
-                click.echo(f"  - {file_path}")
-            if result.get("config_updated"):
-                click.echo("Updated: ~/.codex/config.toml (set `notify = ...`)")
-            else:
-                click.echo("~/.codex/config.toml already configured")
-
-            for key, label in [
-                ("workflows_installed", "workflows"),
-                ("commands_installed", "commands"),
-            ]:
-                items = result.get(key)
-                if items:
-                    click.echo(f"Installed {len(items)} {label}")
-                    for item in items:
-                        click.echo(f"  - {item}")
-
-            if result.get("plugins_installed"):
-                click.echo(
-                    f"Installed {len(result['plugins_installed'])} plugins to .gobby/plugins/"
-                )
-                for plugin in result["plugins_installed"]:
-                    click.echo(f"  - {plugin}")
-            if result.get("mcp_configured"):
-                click.echo("Configured MCP server: ~/.codex/config.toml")
-            elif result.get("mcp_already_configured"):
-                click.echo("MCP server already configured: ~/.codex/config.toml")
-        else:
-            click.echo(f"Failed: {result['error']}", err=True)
     click.echo("")
 
 
@@ -321,30 +238,6 @@ def _run_git_hooks_install(
                 click.echo(f"  - {hook}")
         if not result.get("installed") and not result.get("skipped"):
             click.echo("No hooks to install")
-    else:
-        click.echo(f"Failed: {result['error']}", err=True)
-    click.echo("")
-
-
-def _run_antigravity_install(
-    installer: Callable[..., dict[str, Any]],
-    project_path: Path,
-    results: dict[str, dict[str, Any]],
-) -> None:
-    """Run install + echo for Antigravity agent."""
-    click.echo("-" * 40)
-    click.echo("Antigravity Agent")
-    click.echo("-" * 40)
-
-    result = installer(project_path)
-    results["antigravity"] = result
-
-    if result["success"]:
-        _echo_install_details(
-            result,
-            mcp_config_path="~/.gemini/antigravity/mcp_config.json",
-            config_path=str(project_path / ".antigravity" / "settings.json"),
-        )
     else:
         click.echo(f"Failed: {result['error']}", err=True)
     click.echo("")
@@ -557,15 +450,10 @@ def _echo_migration_notice(project_path: Path) -> None:
     for cli_name, cli_dir in [
         ("claude", ".claude"),
         ("gemini", ".gemini"),
-        ("cursor", ".cursor"),
-        ("windsurf", ".windsurf"),
-        ("copilot", ".copilot"),
+        ("codex", ".codex"),
     ]:
         hooks_dir = project_path / cli_dir / "hooks"
-        hooks_json = project_path / cli_dir / "hooks.json"
-        if (hooks_dir / "hook_dispatcher.py").exists() or (
-            cli_name in ("cursor", "windsurf", "copilot") and hooks_json.exists()
-        ):
+        if (hooks_dir / "hook_dispatcher.py").exists():
             per_project_hooks.append(cli_name)
 
     if per_project_hooks:
@@ -639,9 +527,7 @@ def _echo_uninstall_summary(results: dict[str, dict[str, Any]]) -> bool:
 _CLI_UNINSTALL_META: dict[str, tuple[str, str]] = {
     "claude": ("Claude Code", "hooks from settings"),
     "gemini": ("Gemini CLI", "hooks from settings"),
-    "cursor": ("Cursor", "hooks from hooks.json"),
-    "windsurf": ("Windsurf", "hooks from hooks.json"),
-    "copilot": ("Copilot CLI", "hooks from hooks.json"),
+    "codex": ("Codex", "hooks from settings"),
 }
 
 

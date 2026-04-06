@@ -177,7 +177,7 @@ def remove_project_mcp_server(project_path: Path, server_name: str = "gobby") ->
 
 
 def configure_mcp_server_json(settings_path: Path, server_name: str = "gobby") -> dict[str, Any]:
-    """Add Gobby MCP server to a JSON settings file (Claude, Gemini, Antigravity).
+    """Add Gobby MCP server to a JSON settings file (Claude, Gemini, Codex).
 
     Merges the gobby MCP server config into the existing mcpServers section,
     preserving all other servers. Creates a timestamped backup before modifying.

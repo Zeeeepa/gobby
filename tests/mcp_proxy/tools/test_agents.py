@@ -390,6 +390,7 @@ class TestListRunningAgents:
         assert result["count"] == 2
         runner.run_storage.list_by_parent.assert_called_once_with("parent-1")
 
+
 class TestGetRunningAgent:
     """Tests for get_running_agent MCP tool (DB-backed)."""
 
@@ -401,7 +402,6 @@ class TestGetRunningAgent:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-
             pid=12345,
             provider="claude",
             status="running",
@@ -534,7 +534,6 @@ class TestKillAgent:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-
         )
         runner.run_storage.get_by_session.return_value = mock_run
         runner.get_run.return_value = mock_run
@@ -575,7 +574,6 @@ class TestKillAgent:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-
         )
         runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True
@@ -600,7 +598,6 @@ class TestKillAgent:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-
         )
         runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True
@@ -629,7 +626,6 @@ class TestKillAgentSelfTerminationViaRunId:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-
         )
         runner.get_run.return_value = mock_run
         runner.complete_run.return_value = True
@@ -663,7 +659,6 @@ class TestKillAgentSelfTerminationViaRunId:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-
         )
         runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True
@@ -696,7 +691,6 @@ class TestKillAgentSelfTerminationViaRunId:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-
         )
         runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True
@@ -816,7 +810,6 @@ class TestFireSyntheticStop:
             run_id="run-123",
             session_id="sess-456",
             parent_session_id="sess-parent",
-
         )
         runner.get_run.return_value = mock_run
         runner.cancel_run.return_value = True

@@ -81,7 +81,7 @@ def _parse_json_session(
     """Parse a native JSON session file (e.g., Gemini format)."""
     from gobby.sessions.transcripts.gemini import GeminiTranscriptParser
 
-    if source in ("gemini", "antigravity"):
+    if source == "gemini":
         parser = GeminiTranscriptParser(session_id=session_id)
         return parser.parse_session_json(data)
     # Fallback: wrap as single-line JSONL

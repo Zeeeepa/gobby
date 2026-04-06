@@ -51,11 +51,11 @@ def normalize_tool_fields(data: dict[str, Any]) -> dict[str, Any]:
     if "function_name" in data and "tool_name" not in data:
         data["tool_name"] = data["function_name"]
 
-    # toolName → tool_name  (Copilot)
+    # toolName → tool_name  (alias normalization)
     if "toolName" in data and "tool_name" not in data:
         data["tool_name"] = data["toolName"]
 
-    # toolArgs → tool_input  (Copilot; may be a JSON string)
+    # toolArgs → tool_input  (may be a JSON string)
     if "toolArgs" in data and "tool_input" not in data:
         tool_args = data["toolArgs"]
         if isinstance(tool_args, str):
@@ -193,7 +193,7 @@ def normalize_mcp_fields(data: dict[str, Any]) -> dict[str, Any]:
 def _detect_tool_error(data: dict[str, Any]) -> None:
     """Infer ``is_error`` from tool output for shell tools (Phase 3).
 
-    Adapters like Windsurf and Copilot set ``is_error`` explicitly via
+    Some adapters set ``is_error`` explicitly via
     ``exit_code`` or ``resultType``.  Claude Code and Gemini do not — they
     only provide the tool output text.  For shell tools (Bash), we parse the
     output for non-zero exit code patterns and set ``is_error = True``.

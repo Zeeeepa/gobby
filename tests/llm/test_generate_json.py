@@ -1,6 +1,5 @@
 """Tests for generate_json() on LLM providers."""
 
-
 import pytest
 
 pytestmark = pytest.mark.unit

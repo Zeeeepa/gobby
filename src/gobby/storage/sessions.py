@@ -52,7 +52,7 @@ class LocalSessionManager:
         Args:
             external_id: External session identifier (e.g., Claude Code session ID)
             machine_id: Machine identifier
-            source: CLI source (claude, gemini, codex, cursor, windsurf, copilot)
+            source: CLI source (claude, gemini, codex)
             project_id: Project ID (None if project context unavailable)
             title: Optional session title
             transcript_path: Path to transcript file

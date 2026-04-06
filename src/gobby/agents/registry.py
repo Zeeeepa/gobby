@@ -559,14 +559,7 @@ class RunningAgentRegistry:
                                             cmdline = ps_stdout.strip()
                                             # Verify it's actually the agent process
                                             # (contains session-id and matches expected CLI)
-                                            # Check both provider name and "claude" (for cursor/windsurf/copilot)
                                             is_matched = agent.provider in cmdline.lower()
-                                            if not is_matched and agent.provider in (
-                                                "cursor",
-                                                "windsurf",
-                                                "copilot",
-                                            ):
-                                                is_matched = "claude" in cmdline.lower()
 
                                             if (
                                                 f"session-id {agent.session_id}" in cmdline

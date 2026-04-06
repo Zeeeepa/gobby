@@ -95,7 +95,7 @@ class SessionManager:
         Args:
             external_id: External session identifier (e.g., Claude Code session ID)
             machine_id: Machine identifier
-            source: CLI source identifier (e.g., "claude", "gemini", "codex", "cursor", "windsurf", "copilot") - REQUIRED
+            source: CLI source identifier (e.g., "claude", "gemini", "codex") - REQUIRED
             project_id: Project ID (None if project context unavailable)
             parent_session_id: Optional parent session ID for handoff
             transcript_path: Optional path to session transcript JSONL file
@@ -183,7 +183,7 @@ class SessionManager:
 
         Args:
             machine_id: Machine identifier
-            source: CLI source identifier (e.g., "claude", "gemini", "codex", "cursor", "windsurf", "copilot") - REQUIRED
+            source: CLI source identifier (e.g., "claude", "gemini", "codex") - REQUIRED
             project_id: Project ID (required for matching)
             max_attempts: Maximum polling attempts (1 per second)
 
@@ -278,7 +278,7 @@ class SessionManager:
 
         Args:
             external_id: External session identifier
-            source: CLI source identifier (e.g., "claude", "gemini", "codex", "cursor", "windsurf", "copilot")
+            source: CLI source identifier (e.g., "claude", "gemini", "codex")
             machine_id: Machine identifier
             project_id: Project identifier
 
@@ -317,7 +317,7 @@ class SessionManager:
 
         Args:
             external_id: External session identifier
-            source: CLI source identifier (e.g., "claude", "gemini", "codex", "cursor", "windsurf", "copilot")
+            source: CLI source identifier (e.g., "claude", "gemini", "codex")
 
         Returns:
             session_id or None if not cached
@@ -331,7 +331,7 @@ class SessionManager:
 
         Args:
             external_id: External session identifier
-            source: CLI source identifier (e.g., "claude", "gemini", "codex", "cursor", "windsurf", "copilot")
+            source: CLI source identifier (e.g., "claude", "gemini", "codex")
             session_id: Database session ID
         """
         with self._session_mapping_lock:

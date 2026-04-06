@@ -19,10 +19,7 @@ from gobby.adapters.base import BaseAdapter
 from gobby.adapters.claude_code import ClaudeCodeAdapter
 from gobby.adapters.codex_impl.adapter import CodexAdapter, CodexHooksAdapter, CodexNotifyAdapter
 from gobby.adapters.codex_impl.client import CodexAppServerClient
-from gobby.adapters.copilot import CopilotAdapter
-from gobby.adapters.cursor import CursorAdapter
 from gobby.adapters.gemini import GeminiAdapter
-from gobby.adapters.windsurf import WindsurfAdapter
 
 __all__ = [
     "BaseAdapter",
@@ -30,9 +27,6 @@ __all__ = [
     "CodexAdapter",
     "CodexAppServerClient",
     "CodexHooksAdapter",
-    "CodexNotifyAdapter",  # backward-compat alias
-    "CopilotAdapter",
-    "CursorAdapter",
+    "CodexNotifyAdapter",
     "GeminiAdapter",
-    "WindsurfAdapter",
 ]

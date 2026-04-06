@@ -5,7 +5,7 @@ Handles asynchronous, incremental processing of session transcripts.
 Tracks file offsets and updates the database with new messages.
 
 Supports two transcript formats:
-- JSONL: Incremental line-by-line processing with byte offset tracking (Claude, Codex, Cursor)
+- JSONL: Incremental line-by-line processing with byte offset tracking (Claude, Codex)
 - JSON: Full-file parsing with mtime-based change detection (Gemini native session files)
 """
 

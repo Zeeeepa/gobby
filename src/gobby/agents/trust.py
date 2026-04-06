@@ -6,8 +6,6 @@ directories so those prompts never appear.
 
 Each CLI has a different trust mechanism:
 - Claude Code: ~/.claude/projects/<encoded-path>/ (directory existence = trust)
-- Cursor/Windsurf: Also use ~/.claude/projects/ (they embed Claude Code)
-- Copilot CLI: ~/.copilot/config.json trusted_folders array
 - Gemini CLI: ~/.gemini/trustedFolders.json + ~/.gemini/projects.json
 - Codex CLI: sandboxed via --full-auto, no trust needed
 """
@@ -22,8 +20,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # CLIs that use Claude Code's ~/.claude/projects/ directory trust.
-# Cursor and Windsurf embed Claude Code, so they inherit its trust mechanism.
-_CLAUDE_COMPATIBLE_CLIS = frozenset({"claude", "cursor", "windsurf"})
+_CLAUDE_COMPATIBLE_CLIS = frozenset({"claude"})
 
 
 def _encode_claude_project_path(directory: str) -> str:
@@ -44,7 +41,7 @@ def pre_approve_directory(cli: str, directory: str) -> None:
     and resolved paths to cover all cases.
 
     Args:
-        cli: CLI name (claude, gemini, codex, cursor, windsurf, copilot)
+        cli: CLI name (claude, gemini, codex)
         directory: Absolute path to the workspace directory
     """
     # Resolve symlinks — on macOS /tmp -> /private/tmp, and CLIs resolve
@@ -55,9 +52,6 @@ def pre_approve_directory(cli: str, directory: str) -> None:
     if cli in _CLAUDE_COMPATIBLE_CLIS:
         for path in paths:
             _pre_approve_claude(path)
-    elif cli == "copilot":
-        for path in paths:
-            _pre_approve_copilot(path)
     elif cli == "gemini":
         for path in paths:
             _pre_approve_gemini(path)
@@ -65,7 +59,7 @@ def pre_approve_directory(cli: str, directory: str) -> None:
 
 
 def _pre_approve_claude(directory: str) -> None:
-    """Pre-approve a directory for Claude Code (and Cursor/Windsurf).
+    """Pre-approve a directory for Claude Code.
 
     Creates the project directory under ~/.claude/projects/ if it doesn't
     exist. Claude treats directory existence as implicit trust.
@@ -82,46 +76,6 @@ def _pre_approve_claude(directory: str) -> None:
         logger.info(f"Pre-approved Claude workspace trust for {directory}")
     except OSError as e:
         logger.warning(f"Failed to pre-approve Claude trust for {directory}: {e}", exc_info=True)
-
-
-def _pre_approve_copilot(directory: str) -> None:
-    """Pre-approve a directory for GitHub Copilot CLI.
-
-    Adds the directory to the trusted_folders array in
-    ~/.copilot/config.json (or $COPILOT_HOME/config.json).
-
-    See: https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/configure-copilot-cli
-    """
-    copilot_home = Path(os.environ.get("COPILOT_HOME", Path.home() / ".copilot"))
-    config_file = copilot_home / "config.json"
-
-    try:
-        if config_file.exists():
-            data = json.loads(config_file.read_text())
-            if not isinstance(data, dict):
-                logger.warning(f"Copilot config.json root is not a dict, resetting: {config_file}")
-                data = {}
-        else:
-            copilot_home.mkdir(parents=True, exist_ok=True)
-            data = {}
-
-        trusted: list[str] = data.get("trusted_folders", [])
-        if not isinstance(trusted, list):
-            logger.warning(
-                f"Copilot config.json trusted_folders is not a list, resetting: {config_file}"
-            )
-            trusted = []
-
-        if directory in trusted:
-            return
-
-        trusted.append(directory)
-        data["trusted_folders"] = trusted
-
-        config_file.write_text(json.dumps(data, indent=2) + "\n")
-        logger.info(f"Pre-approved Copilot CLI trust for {directory}")
-    except (OSError, json.JSONDecodeError) as e:
-        logger.warning(f"Failed to pre-approve Copilot trust for {directory}: {e}", exc_info=True)
 
 
 def _pre_approve_gemini(directory: str) -> None:
