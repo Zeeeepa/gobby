@@ -10,12 +10,13 @@ import asyncio
 import json
 import logging
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from claude_agent_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
     ResultMessage,
+    SettingSource,
     TextBlock,
     ToolUseBlock,
     query,
@@ -259,7 +260,7 @@ class ClaudeLLMProvider(LLMProvider):
         if not options.settings:
             options.settings = str(_HEADLESS_SETTINGS)
         if not options.setting_sources:
-            options.setting_sources = [""]
+            options.setting_sources = cast(list[SettingSource], [""])
 
         stderr_lines: list[str] = []
         options.stderr = lambda line: stderr_lines.append(line)
@@ -465,9 +466,10 @@ class ClaudeLLMProvider(LLMProvider):
                     result_text = message.result
             return result_text
 
-        return await self._execute_sdk_query(
+        result: str = await self._execute_sdk_query(
             "generate_with_tools", _run_query, options, max_retries=1
         )
+        return result
 
     async def generate_json(
         self,

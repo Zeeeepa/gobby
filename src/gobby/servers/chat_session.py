@@ -21,6 +21,7 @@ from claude_agent_sdk import (
     HookContext,
     HookMatcher,
     ResultMessage,
+    SettingSource,
     TextBlock,
     ThinkingBlock,
     ToolResultBlock,
@@ -223,7 +224,7 @@ class ChatSession(ChatSessionPermissionsMixin):
             # creating ghost claude_sdk sessions on every hook call.
             # Note: [""] not [] — empty list is falsy, SDK skips the flag.
             # [""] produces --setting-sources "" which CLI parses as no sources.
-            setting_sources=[""],
+            setting_sources=cast(list[SettingSource], [""]),
             env=env or {},
             # Enable partial messages so we receive StreamEvent objects with
             # per-API-call usage from message_start events. Without this, the
