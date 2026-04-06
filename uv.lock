@@ -492,18 +492,19 @@ wheels = [
 
 [[package]]
 name = "claude-agent-sdk"
-version = "0.1.45"
+version = "0.1.56"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "mcp" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/46/e2/c5d5c4743ece496492a930bb75b878c830a9a9878ae3327b2d292647a8fa/claude_agent_sdk-0.1.45.tar.gz", hash = "sha256:97c1e981431b5af1e08c34731906ab8d4a58fe0774a04df0ea9587dcabc85151", size = 62436, upload-time = "2026-03-03T17:21:08.595Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ee/c1/c7afb1a08cecef0644693ccd9975651e45cf23a50272b94b6eca2c1a7dc8/claude_agent_sdk-0.1.56.tar.gz", hash = "sha256:a95bc14e59f9d6c8e7fa2e6581008a3f24f10e1b57302719823f62cfb5beccdc", size = 121659, upload-time = "2026-04-04T00:56:30.512Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/20/29/a28b6dfac54dfceddaa47e16c2b9cb61cc2ace4b4a1de064ab6d76debcbd/claude_agent_sdk-0.1.45-py3-none-macosx_11_0_arm64.whl", hash = "sha256:26a5cc60c3a394f5b814f6b2f67650819cbcd38c405bbdc11582b3e097b3a770", size = 57761380, upload-time = "2026-03-03T17:20:55.066Z" },
-    { url = "https://files.pythonhosted.org/packages/aa/7c/a803cc6e40de8b13cc822c66fd96c96d88f994983c2622d80cb8b708bb30/claude_agent_sdk-0.1.45-py3-none-manylinux_2_17_aarch64.whl", hash = "sha256:decc741b53e0b2c10a64fd84c15acca1102077d9f99941c54905172cd95160c9", size = 73402101, upload-time = "2026-03-03T17:20:58.604Z" },
-    { url = "https://files.pythonhosted.org/packages/32/51/bdb9832728189673c60c605854c2153e17dce384a64a6dc88cdbb254ce86/claude_agent_sdk-0.1.45-py3-none-manylinux_2_17_x86_64.whl", hash = "sha256:7d48dcf4178c704e4ccbf3f1f4ebf20b3de3f03d0592086c1f3abd16b8ca441e", size = 74091498, upload-time = "2026-03-03T17:21:02.332Z" },
-    { url = "https://files.pythonhosted.org/packages/13/37/02e60d7f93aedc8f63f9404cbf2a48bf5d47c27ccb9c0a0f03c803882fa5/claude_agent_sdk-0.1.45-py3-none-win_amd64.whl", hash = "sha256:d1cf34995109c513d8daabcae7208edc260b553b53462a9ac06a7c40e240a288", size = 75784070, upload-time = "2026-03-03T17:21:05.573Z" },
+    { url = "https://files.pythonhosted.org/packages/b0/73/4e3d13c4d43614de35a113c87ec96b3db605baa23f9f5c4a38536837e18e/claude_agent_sdk-0.1.56-py3-none-macosx_11_0_arm64.whl", hash = "sha256:9f5a7c87617101e6bb0f23408104ac6f40f9b5adec91dcfe5b8de5f65a7df73a", size = 58585662, upload-time = "2026-04-04T00:56:34.935Z" },
+    { url = "https://files.pythonhosted.org/packages/1e/6d/78347c2efa1526f1f6e7edecabe636575f622bcaa7921965457f95dd12dc/claude_agent_sdk-0.1.56-py3-none-macosx_11_0_x86_64.whl", hash = "sha256:824f4a10340f46dd26fee8e74aeed4fc64fec95084e327ab1ebb6058b349e1c3", size = 60419564, upload-time = "2026-04-04T00:56:39.64Z" },
+    { url = "https://files.pythonhosted.org/packages/87/c1/708262318926c8393d494a5dcaafd9bc7d6ba547c0a5fad4eff5f9aa0ecd/claude_agent_sdk-0.1.56-py3-none-manylinux_2_17_aarch64.whl", hash = "sha256:ff60dedc06b62b52e5937a9a2c4b0ec4ad0dd6764c20be656d01aeb8b11fba1d", size = 71893844, upload-time = "2026-04-04T00:56:44.402Z" },
+    { url = "https://files.pythonhosted.org/packages/1b/4f/24918a596b0d61c3a691af2a9ee52b8c54f1769ce2c5fef1d64350056e53/claude_agent_sdk-0.1.56-py3-none-manylinux_2_17_x86_64.whl", hash = "sha256:fe866b2119f69e99d9637acc27b588670c610fed1c4a096287874db5744d029b", size = 72030943, upload-time = "2026-04-04T00:56:49.892Z" },
+    { url = "https://files.pythonhosted.org/packages/f3/d8/5ded242e55f0b5f295d4ee2cbe5ae3bca914eb0a2a291f81e38b68d3ef58/claude_agent_sdk-0.1.56-py3-none-win_amd64.whl", hash = "sha256:5934e082e1ccf975d65cd7412f2eaf2c5ffa6b9019a2ca2a9fb228310df7ddc8", size = 74141451, upload-time = "2026-04-04T00:56:57.683Z" },
 ]
 
 [[package]]
@@ -1172,7 +1173,7 @@ requires-dist = [
     { name = "aiosmtplib", marker = "extra == 'email'", specifier = ">=2.0" },
     { name = "anthropic", specifier = ">=0.75.0" },
     { name = "cisco-ai-skill-scanner", specifier = ">=0.1.1" },
-    { name = "claude-agent-sdk", specifier = ">=0.1.39,<=0.1.45" },
+    { name = "claude-agent-sdk", specifier = ">=0.1.39" },
     { name = "click", specifier = ">=8.1.0" },
     { name = "croniter", specifier = ">=6.0.0" },
     { name = "cryptography", specifier = ">=46.0.6" },
