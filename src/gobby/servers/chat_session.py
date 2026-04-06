@@ -221,7 +221,9 @@ class ChatSession(ChatSessionPermissionsMixin):
             # hooks above are sufficient. Without this, SDK 0.1.56+ merges
             # ~/.claude/settings.json hooks which fire hook_dispatcher.py,
             # creating ghost claude_sdk sessions on every hook call.
-            setting_sources=[],
+            # Note: [""] not [] — empty list is falsy, SDK skips the flag.
+            # [""] produces --setting-sources "" which CLI parses as no sources.
+            setting_sources=[""],
             env=env or {},
             # Enable partial messages so we receive StreamEvent objects with
             # per-API-call usage from message_start events. Without this, the

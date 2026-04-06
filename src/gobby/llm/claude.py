@@ -254,10 +254,12 @@ class ClaudeLLMProvider(LLMProvider):
         # Suppress hooks for internal LLM calls — prevents session registration
         # cascade and title synthesis loops. SDK 0.1.56+ merges --settings with
         # user/project settings, so we also disable those sources.
+        # Note: [""] not [] — empty list is falsy, SDK skips the flag entirely.
+        # [""] produces --setting-sources "" which CLI parses as no sources.
         if not options.settings:
             options.settings = str(_HEADLESS_SETTINGS)
         if not options.setting_sources:
-            options.setting_sources = []
+            options.setting_sources = [""]
 
         stderr_lines: list[str] = []
         options.stderr = lambda line: stderr_lines.append(line)
