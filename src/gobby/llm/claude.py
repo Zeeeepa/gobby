@@ -257,6 +257,7 @@ class ClaudeLLMProvider(LLMProvider):
         # user/project settings, so we also disable those sources.
         # Note: [""] not [] — empty list is falsy, SDK skips the flag entirely.
         # [""] produces --setting-sources "" which CLI parses as no sources.
+        # TODO: Remove this workaround when the SDK exposes a flag to disable setting sources.
         if not options.settings:
             options.settings = str(_HEADLESS_SETTINGS)
         if not options.setting_sources:
@@ -530,7 +531,7 @@ class ClaudeLLMProvider(LLMProvider):
             result: dict[str, Any] = json.loads(text)
             return result
         except json.JSONDecodeError as e:
-            raise ValueError(f"Failed to parse LLM response as JSON: {e}") from e
+            raise ValueError(f"Failed to parse Claude response as JSON: {e}") from e
 
     async def describe_image(
         self,

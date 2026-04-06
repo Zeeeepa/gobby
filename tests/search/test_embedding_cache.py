@@ -15,6 +15,8 @@ from gobby.search.embeddings import (
     generate_embeddings,
 )
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture(autouse=True)
 def _clean_cache():
@@ -24,7 +26,7 @@ def _clean_cache():
     clear_cache()
 
 
-def _make_mock_client(dim: int = 4):
+def _make_mock_client(dim: int = 4) -> AsyncMock:
     """Create a mock AsyncOpenAI client that returns deterministic embeddings.
 
     Each embedding is [hash(text) % 100 / 100, 0, 0, ...] so different texts

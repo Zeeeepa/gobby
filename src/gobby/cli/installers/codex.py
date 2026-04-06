@@ -111,11 +111,16 @@ def _migrate_from_notify(config_content: str, hooks_dir: Path) -> str:
     if old_notify.exists():
         old_notify.unlink()
     old_notify_dir = hooks_dir / "codex"
-    if old_notify_dir.exists() and not any(old_notify_dir.iterdir()):
+    if old_notify_dir.exists():
         try:
-            old_notify_dir.rmdir()
+            is_empty = not any(old_notify_dir.iterdir())
         except OSError:
-            pass
+            is_empty = False
+        if is_empty:
+            try:
+                old_notify_dir.rmdir()
+            except OSError:
+                pass
 
     return config_content
 

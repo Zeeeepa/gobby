@@ -100,9 +100,9 @@ class ModelCostStore:
 
     def get_context_window(self, model: str) -> int | None:
         """Look up context_length for a model (exact match, then prefix match)."""
-        # Strip provider prefix
-        if "/" in model:
-            model = model.split("/", 1)[1]
+        from gobby.llm.model_registry import strip_provider_prefix
+
+        model = strip_provider_prefix(model)
 
         row = self.db.fetchone("SELECT context_length FROM model_costs WHERE model = ?", (model,))
         if row and row["context_length"]:

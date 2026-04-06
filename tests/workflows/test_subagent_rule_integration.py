@@ -20,7 +20,7 @@ from gobby.storage.migrations import run_migrations
 from gobby.workflows.rule_engine import RuleEngine
 from gobby.workflows.sync import get_bundled_rules_path, sync_bundled_rules
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture

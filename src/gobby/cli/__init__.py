@@ -9,7 +9,6 @@ from gobby.config.app import load_config
 from .agents import agents
 from .auth import auth
 from .clones import clones
-from .code_index import code_index
 from .communications import comms
 from .cron import cron
 from .daemon import restart, start, status, stop
@@ -89,7 +88,7 @@ cli.add_command(secrets)
 cli.add_command(service)
 cli.add_command(export_cmd)
 cli.add_command(import_cmd)
-cli.add_command(code_index)
+
 cli.add_command(qdrant)
 cli.add_command(pack)
 cli.add_command(unpack)

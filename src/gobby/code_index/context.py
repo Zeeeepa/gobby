@@ -44,6 +44,10 @@ class CodeIndexContext:
         return self._storage
 
     @property
+    def vector_store(self) -> Any | None:
+        return self._vector_store
+
+    @property
     def graph(self) -> CodeGraph | None:
         return self._graph
 

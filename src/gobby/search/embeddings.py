@@ -55,7 +55,12 @@ _cache_lock: asyncio.Lock | None = None
 
 
 def _get_lock() -> asyncio.Lock:
-    """Lazy-init the asyncio lock (must be created inside a running loop)."""
+    """Lazy-init the asyncio lock.
+
+    Safe because asyncio is single-threaded: concurrent coroutines in the
+    same event loop cannot interleave during this synchronous function body,
+    so at most one Lock instance is ever created.
+    """
     global _cache_lock  # noqa: PLW0603
     if _cache_lock is None:
         _cache_lock = asyncio.Lock()

@@ -178,7 +178,8 @@ def validate(config: ValidationConfig) -> int:
                 return 1
             command = first_config["hooks"][0].get("command", "")
         else:
-            # Flat structure with "command" directly
+            # Flat structure with "command" directly — preserved for future
+            # CLIs (e.g., Codex) that may use non-nested hook configs.
             command = hook_configs[0].get("command", "")
 
         if "hook_dispatcher.py" not in command:

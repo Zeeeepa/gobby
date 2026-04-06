@@ -172,8 +172,8 @@ def set_project_context_from_session(
                 "name": project.name,
                 "project_path": repo_path,
             }
-            if project.repo_path:
-                project_file = Path(project.repo_path) / ".gobby" / "project.json"
+            if repo_path:
+                project_file = Path(repo_path) / ".gobby" / "project.json"
                 if project_file.exists():
                     try:
                         data = json.loads(project_file.read_text())

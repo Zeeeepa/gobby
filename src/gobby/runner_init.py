@@ -87,21 +87,20 @@ def resolve_embedding_api_key(secret_store: Any, model: str) -> str | None:
 
 _HEADLESS_SETTINGS = Path.home() / ".gobby" / "settings" / "headless.json"
 
-_HEADLESS_SETTINGS_CONTENT = """{
-  "hooks": {
-    "SessionStart": [],
-    "SessionEnd": [],
-    "UserPromptSubmit": [],
-    "PreToolUse": [],
-    "PostToolUse": [],
-    "PreCompact": [],
-    "Stop": [],
-    "SubagentStart": [],
-    "SubagentStop": [],
-    "PermissionRequest": []
-  }
+_HEADLESS_HOOKS: dict[str, dict[str, list[str]]] = {
+    "hooks": {
+        "SessionStart": [],
+        "SessionEnd": [],
+        "UserPromptSubmit": [],
+        "PreToolUse": [],
+        "PostToolUse": [],
+        "PreCompact": [],
+        "Stop": [],
+        "SubagentStart": [],
+        "SubagentStop": [],
+        "PermissionRequest": [],
+    }
 }
-"""
 
 
 def _ensure_headless_settings() -> None:
@@ -114,7 +113,9 @@ def _ensure_headless_settings() -> None:
         return
     try:
         _HEADLESS_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
-        _HEADLESS_SETTINGS.write_text(_HEADLESS_SETTINGS_CONTENT)
+        import json as _json
+
+        _HEADLESS_SETTINGS.write_text(_json.dumps(_HEADLESS_HOOKS, indent=2) + "\n")
         logger.info(f"Created headless settings: {_HEADLESS_SETTINGS}")
     except OSError as e:
         logger.error(f"Failed to create headless settings at {_HEADLESS_SETTINGS}: {e}")

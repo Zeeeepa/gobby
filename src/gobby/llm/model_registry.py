@@ -96,8 +96,20 @@ def fetch_models_sync(timeout: float = _FETCH_TIMEOUT) -> list[ModelInfo]:
         logger.warning(f"Failed to fetch models from OpenRouter: {e}")
         return []
 
+    if not isinstance(data, dict):
+        logger.warning("OpenRouter response is not a dict, skipping")
+        return []
+
+    entries = data.get("data", [])
+    if not isinstance(entries, list):
+        logger.warning("OpenRouter 'data' field is not a list, skipping")
+        return []
+
     models: list[ModelInfo] = []
-    for entry in data.get("data", []):
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+
         model_id = entry.get("id", "")
         provider = _provider_for_model(model_id)
         if provider is None:
@@ -110,6 +122,8 @@ def fetch_models_sync(timeout: float = _FETCH_TIMEOUT) -> list[ModelInfo]:
             continue
 
         top_provider = entry.get("top_provider") or {}
+        if not isinstance(top_provider, dict):
+            top_provider = {}
         context_length = entry.get("context_length") or 0
         max_completion = top_provider.get("max_completion_tokens")
 

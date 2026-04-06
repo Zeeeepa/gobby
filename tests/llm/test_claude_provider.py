@@ -1,6 +1,7 @@
 """Tests for ClaudeLLMProvider methods: generate_summary, synthesize_title."""
 
 from contextlib import contextmanager
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -38,11 +39,11 @@ class MockToolUseBlock:
 
 
 class MockClaudeAgentOptions:
-    def __init__(self, **kwargs):
-        self.kwargs = kwargs
+    def __init__(self, **kwargs: Any) -> None:
+        self.kwargs: dict[str, Any] = kwargs
         self.settings: str | None = None
         self.setting_sources: list[str] | None = None
-        self.stderr: object = None
+        self.stderr: Any = None
 
 
 # --- Fixtures ---
