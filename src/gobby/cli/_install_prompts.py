@@ -357,13 +357,12 @@ def _run_embedding_install(
             from gobby.storage.database import LocalDatabase
             from gobby.storage.secrets import SecretStore
 
-            db = LocalDatabase()
-            secrets = SecretStore(db)
-            if secrets.exists("openai_api_key"):
-                existing = secrets.get("openai_api_key")
-                openai_api_key = existing
-                click.echo("Using existing OpenAI API key from secrets")
-            db.close()
+            with LocalDatabase() as db:
+                secrets = SecretStore(db)
+                if secrets.exists("openai_api_key"):
+                    existing = secrets.get("openai_api_key")
+                    openai_api_key = existing
+                    click.echo("Using existing OpenAI API key from secrets")
         except Exception as e:
             logger.warning(f"Failed to read existing openai_api_key: {e}")
 

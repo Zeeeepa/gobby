@@ -112,9 +112,12 @@ def _ensure_headless_settings() -> None:
     """
     if _HEADLESS_SETTINGS.exists():
         return
-    _HEADLESS_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
-    _HEADLESS_SETTINGS.write_text(_HEADLESS_SETTINGS_CONTENT)
-    logger.info(f"Created headless settings: {_HEADLESS_SETTINGS}")
+    try:
+        _HEADLESS_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
+        _HEADLESS_SETTINGS.write_text(_HEADLESS_SETTINGS_CONTENT)
+        logger.info(f"Created headless settings: {_HEADLESS_SETTINGS}")
+    except OSError as e:
+        logger.error(f"Failed to create headless settings at {_HEADLESS_SETTINGS}: {e}")
 
 
 def init_hub_database(config: Any) -> Any:

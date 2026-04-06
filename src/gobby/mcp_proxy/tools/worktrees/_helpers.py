@@ -146,6 +146,10 @@ def install_provider_hooks(
 ) -> bool:
     """Install CLI hooks for the specified provider in the worktree.
 
+    Note: "codex" is accepted for type consistency but always returns False.
+    Codex uses the CODEX_NOTIFY_SCRIPT env var for hook integration rather
+    than project-level hooks. See ``_PROVIDER_INSTALLERS`` for supported providers.
+
     Args:
         provider: Provider name or None
         worktree_path: Path to worktree directory

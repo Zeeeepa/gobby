@@ -10,6 +10,7 @@ Verifies that:
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 
@@ -23,7 +24,7 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-def db(tmp_path) -> LocalDatabase:
+def db(tmp_path: Path) -> LocalDatabase:
     db_path = tmp_path / "test_subagent_rules.db"
     database = LocalDatabase(db_path)
     run_migrations(database)

@@ -108,16 +108,11 @@ class ModelCostStore:
         if row and row["context_length"]:
             return int(row["context_length"])
 
-        # Prefix match — find longest matching model key
-        rows = self.db.fetchall(
-            "SELECT model, context_length FROM model_costs WHERE context_length IS NOT NULL"
+        # Prefix match — find longest matching model key via SQL
+        row = self.db.fetchone(
+            "SELECT context_length FROM model_costs "
+            "WHERE ? LIKE model || '%' AND context_length IS NOT NULL "
+            "ORDER BY LENGTH(model) DESC LIMIT 1",
+            (model,),
         )
-        best_len = 0
-        best_val: int | None = None
-        for r in rows:
-            key = r["model"]
-            if model.startswith(key) and len(key) > best_len:
-                best_len = len(key)
-                best_val = r["context_length"]
-
-        return best_val
+        return int(row["context_length"]) if row else None

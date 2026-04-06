@@ -36,6 +36,9 @@ def tracker(db: LocalDatabase) -> SavingsTracker:
     return SavingsTracker(db=db)
 
 
+pytestmark = pytest.mark.unit
+
+
 class TestSavingsTracker:
     def test_record_chars(self, tracker: SavingsTracker) -> None:
         tracker.record(category="code_index", original_chars=10000, actual_chars=2000)

@@ -346,7 +346,8 @@ def _health_check_embedding(
 
     try:
         return asyncio.run(_check())
-    except RuntimeError:
-        # Already in event loop (shouldn't happen in install CLI, but be safe)
-        logger.warning("Cannot run health check: already in event loop")
-        return False
+    except RuntimeError as e:
+        if "cannot be called from a running event loop" in str(e):
+            logger.warning("Cannot run health check: already in event loop")
+            return False
+        raise

@@ -11,6 +11,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -166,6 +167,24 @@ async def is_embedding_healthy(
         return False
 
 
+def _is_lm_studio_endpoint(api_base: str) -> bool:
+    """Check if api_base points to a LM Studio endpoint (port 1234)."""
+    try:
+        parsed = urlparse(api_base)
+        return parsed.port == 1234
+    except (ValueError, AttributeError):
+        return False
+
+
+def _is_ollama_endpoint(api_base: str) -> bool:
+    """Check if api_base points to an Ollama endpoint (port 11434)."""
+    try:
+        parsed = urlparse(api_base)
+        return parsed.port == 11434
+    except (ValueError, AttributeError):
+        return False
+
+
 async def try_autoload_embedding_model(model: str, api_base: str | None) -> bool:
     """Attempt to auto-load the embedding model via lms or ollama CLI.
 
@@ -176,7 +195,7 @@ async def try_autoload_embedding_model(model: str, api_base: str | None) -> bool
         return False
 
     # LM Studio: try `lms load`
-    if ":1234" in api_base and shutil.which("lms"):
+    if _is_lm_studio_endpoint(api_base) and shutil.which("lms"):
         try:
             # Run lms load in a thread to avoid blocking the event loop
             result = await asyncio.to_thread(
@@ -194,7 +213,7 @@ async def try_autoload_embedding_model(model: str, api_base: str | None) -> bool
             logger.warning(f"lms load failed: {e}")
 
     # Ollama: model is auto-loaded on first request, but we can pull if missing
-    if ":11434" in api_base and shutil.which("ollama"):
+    if _is_ollama_endpoint(api_base) and shutil.which("ollama"):
         try:
             result = await asyncio.to_thread(
                 subprocess.run,

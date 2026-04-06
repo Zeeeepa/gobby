@@ -1,5 +1,6 @@
 """Config and model discovery endpoints for admin router."""
 
+import asyncio
 import logging
 import time
 from typing import TYPE_CHECKING, Any
@@ -77,7 +78,7 @@ def register_config_routes(router: APIRouter, server: "HTTPServer") -> None:
 
         # Discover models from OpenRouter registry
         try:
-            models_by_provider = _discover_models()
+            models_by_provider = await asyncio.to_thread(_discover_models)
         except Exception as e:
             logger.warning(f"Model discovery failed, falling back to config: {e}")
             models_by_provider = _fallback_models_from_config(server)

@@ -649,6 +649,9 @@ class CodexHooksAdapter(BaseAdapter):
         "Stop": HookEventType.STOP,
     }
 
+    # Hook events that only accept systemMessage (not additionalContext)
+    SYSTEM_MESSAGE_ONLY_EVENTS: set[str] = {"PreToolUse"}
+
     def __init__(self, hook_manager: HookManager | None = None):
         self._hook_manager = hook_manager
 
@@ -796,11 +799,10 @@ class CodexHooksAdapter(BaseAdapter):
         # Build hookSpecificOutput with required hookEventName
         # PreToolUse only accepts systemMessage — not additionalContext
         # (Stop returns early above before reaching this code)
-        _SYSTEM_MESSAGE_ONLY_EVENTS = {"PreToolUse"}
         hook_event_name = hook_type or "Unknown"
         if context_parts:
             combined_context = truncate_additional_context("\n\n".join(context_parts))
-            if hook_event_name in _SYSTEM_MESSAGE_ONLY_EVENTS:
+            if hook_event_name in self.SYSTEM_MESSAGE_ONLY_EVENTS:
                 result["systemMessage"] = combined_context
             else:
                 result["hookSpecificOutput"] = {
