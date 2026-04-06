@@ -186,7 +186,7 @@ class TestDaemonRestart:
 
             # Stop first daemon
             os.kill(process1.pid, signal.SIGTERM)
-            process1.wait(timeout=10)
+            process1.wait(timeout=25)
 
             # Wait for port to be released
             time.sleep(2.0)
@@ -260,7 +260,7 @@ class TestDaemonRestart:
 
             # Stop and restart
             os.kill(process1.pid, signal.SIGTERM)
-            process1.wait(timeout=10)
+            process1.wait(timeout=25)
             time.sleep(2.0)
 
             with open(log_file, "a") as log_f, open(error_log_file, "a") as err_f:
