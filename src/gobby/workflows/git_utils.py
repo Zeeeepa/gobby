@@ -228,6 +228,15 @@ def get_dirty_files_categorized(project_path: str | None = None) -> DirtyFiles:
     Returns:
         DirtyFiles with .tracked and .untracked sets
     """
+    # Normalize empty string to None — "" is falsy but subprocess.run(cwd="")
+    # raises FileNotFoundError. Treat it the same as None (use daemon's cwd).
+    if project_path is not None and not project_path.strip():
+        logger.warning(
+            "get_dirty_files: called with empty string cwd — normalizing to None",
+            stack_info=True,
+        )
+        project_path = None
+
     if project_path is None:
         logger.debug(
             "get_dirty_files: project_path is None, git status will use daemon's cwd "

@@ -189,6 +189,12 @@ class WorkflowHookHandler:
                 project_path = (
                     event.metadata.get("project_path") if hasattr(event, "metadata") else None
                 )
+                if not project_path:
+                    logger.warning(
+                        f"_evaluate_rules: no project_path resolved for session={session_id} "
+                        f"event={event.event_type} source={event.source} "
+                        f"cwd={event.cwd!r} metadata_path={event.metadata.get('project_path')!r}"
+                    )
 
             # Lazy-init baseline on first evaluation (rule template may not have fired)
             if "baseline_dirty_files" not in variables:
