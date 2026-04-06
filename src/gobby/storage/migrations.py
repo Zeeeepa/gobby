@@ -35,7 +35,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 194
+BASELINE_VERSION = 199
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v171) have been removed.
@@ -618,6 +618,83 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         194,
         "Drop mode column from agent_runs (all agents spawn via tmux)",
         _drop_agent_runs_mode,
+    ),
+    (
+        195,
+        "Add context_length/max_completion_tokens to model_costs, change source default to registry",
+        """
+        ALTER TABLE model_costs ADD COLUMN context_length INTEGER;
+        ALTER TABLE model_costs ADD COLUMN max_completion_tokens INTEGER;
+        UPDATE model_costs SET source = 'registry' WHERE source = 'litellm';
+        """,
+    ),
+    (
+        196,
+        "Migrate embedding config from local/llama-cpp to Ollama OpenAI-compatible defaults",
+        """
+        UPDATE config_store SET value = '"nomic-embed-text"'
+        WHERE key IN ('mcp_client_proxy.embedding_model', 'search.embedding_model')
+        AND value = '"local/nomic-embed-text-v1.5"';
+
+        INSERT OR IGNORE INTO config_store (key, value) VALUES
+        ('mcp_client_proxy.embedding_api_base', '"http://localhost:11434/v1"');
+        INSERT OR IGNORE INTO config_store (key, value) VALUES
+        ('search.embedding_api_base', '"http://localhost:11434/v1"');
+
+        UPDATE config_store SET value = '"openai-compatible"'
+        WHERE key = 'mcp_client_proxy.embedding_provider'
+        AND value = '"local"';
+        """,
+    ),
+    (
+        197,
+        "Rename search.tfidf_weight to search.keyword_weight and map mode tfidf->keyword",
+        """
+        UPDATE config_store SET key = 'search.keyword_weight'
+        WHERE key = 'search.tfidf_weight';
+
+        UPDATE config_store SET value = '"keyword"'
+        WHERE key = 'search.mode' AND value = '"tfidf"';
+        """,
+    ),
+    (
+        198,
+        "Consolidate embedding config to embeddings.* namespace",
+        """
+        INSERT OR IGNORE INTO config_store (key, value)
+            SELECT 'embeddings.model', value FROM config_store
+            WHERE key = 'search.embedding_model';
+        INSERT OR IGNORE INTO config_store (key, value)
+            SELECT 'embeddings.api_base', value FROM config_store
+            WHERE key = 'search.embedding_api_base';
+        INSERT OR IGNORE INTO config_store (key, value)
+            SELECT 'embeddings.api_key', value FROM config_store
+            WHERE key = 'search.embedding_api_key';
+
+        DELETE FROM config_store WHERE key IN (
+            'search.embedding_model',
+            'search.embedding_api_base',
+            'search.embedding_api_key',
+            'mcp_client_proxy.embedding_model',
+            'mcp_client_proxy.embedding_api_base',
+            'mcp_client_proxy.embedding_provider'
+        );
+        """,
+    ),
+    (
+        199,
+        "Drop dead table session_message_state and unused columns",
+        """
+        DROP TABLE IF EXISTS session_message_state;
+
+        ALTER TABLE workflow_states DROP COLUMN task_list;
+        ALTER TABLE workflow_states DROP COLUMN current_task_index;
+        ALTER TABLE workflow_states DROP COLUMN files_modified_this_task;
+
+        ALTER TABLE code_indexed_projects DROP COLUMN total_eligible_files;
+
+        ALTER TABLE completion_subscribers DROP COLUMN subscribed_at;
+        """,
     ),
 ]
 

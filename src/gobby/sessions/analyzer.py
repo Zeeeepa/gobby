@@ -239,10 +239,8 @@ class TranscriptAnalyzer:
 
         # -- File Modifications --
         elif tool_name in ("Edit", "Write", "Replace", "replace_file_content", "write_to_file"):
-            # Claude Code uses Edit/Write? Antigravity uses write_to_file/replace_file_content
-            # We should support both if possible or stick to what we expect Claude to use.
-            # Claude Code typically uses `grep_search`, `view_file`, `edit_file`?
-            # Let's assume standard names or generic ones.
+            # Claude Code uses Edit/Write; Codex uses write_to_file/replace_file_content
+            # Support both standard and generic names.
             path = (
                 tool_input.get("file_path")
                 or tool_input.get("TargetFile")

@@ -56,9 +56,6 @@ Gobby tracks which CLI created each session:
 | `claude` | Claude Code |
 | `gemini` | Gemini CLI |
 | `codex` | OpenAI Codex CLI |
-| `cursor` | Cursor IDE |
-| `windsurf` | Windsurf IDE |
-| `copilot` | GitHub Copilot CLI |
 | `api` | Direct API/webhook |
 
 ### Parent-Child Sessions
@@ -168,7 +165,7 @@ gobby sessions delete SESSION_ID
 ```python
 call_tool(server_name="gobby-sessions", tool_name="get_current_session", arguments={
     "external_id": "<your_external_session_id>",
-    "source": "claude"  # or "gemini", "codex", "cursor", "windsurf", "copilot"
+    "source": "claude"  # or "gemini", "codex"
 })
 ```
 

@@ -48,6 +48,9 @@ def create_skills_registry(
     project_id: str | None = None,
     hub_manager: HubManager | None = None,
     search_config: SearchConfig | None = None,
+    embedding_model: str = "nomic-embed-text",
+    embedding_api_base: str | None = None,
+    embedding_api_key: str | None = None,
 ) -> SkillsToolRegistry:
     """
     Create a skills management tool registry.
@@ -57,6 +60,9 @@ def create_skills_registry(
         project_id: Optional default project scope for skill operations
         hub_manager: Optional HubManager for hub operations (list_hubs, search_hub)
         search_config: Optional search configuration
+        embedding_model: Embedding model name (from EmbeddingsConfig)
+        embedding_api_base: API base URL for embedding endpoint
+        embedding_api_key: API key for embedding provider
 
     Returns:
         SkillsToolRegistry with skill management tools registered
@@ -75,7 +81,13 @@ def create_skills_registry(
         storage=storage,
         notifier=notifier,
         session_manager=LocalSessionManager(db),
-        search=SkillSearch(config=search_config, db=db),
+        search=SkillSearch(
+            config=search_config,
+            db=db,
+            embedding_model=embedding_model,
+            embedding_api_base=embedding_api_base,
+            embedding_api_key=embedding_api_key,
+        ),
         updater=SkillUpdater(storage),
         loader=SkillLoader(),
         project_id=project_id,

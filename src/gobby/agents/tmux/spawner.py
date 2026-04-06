@@ -12,7 +12,6 @@ import asyncio
 import logging
 import re
 import shlex
-import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -244,13 +243,6 @@ class TmuxSpawner(TerminalSpawnerBase):
         # Merge sandbox environment variables if present
         if sandbox_env:
             env.update(sandbox_env)
-
-        # For Cursor, set up NDJSON capture via tee
-        if cli == "cursor":
-            capture_path = f"{tempfile.gettempdir()}/gobby-cursor-{session_id}.ndjson"
-            env["GOBBY_CURSOR_CAPTURE_PATH"] = capture_path
-            cmd_str = shlex.join(command)
-            command = ["bash", "-c", f"{cmd_str} | tee {shlex.quote(capture_path)}"]
 
         # Set title (avoid colons/parentheses which some terminals misinterpret)
         title = f"gobby-{cli}-d{agent_depth}"

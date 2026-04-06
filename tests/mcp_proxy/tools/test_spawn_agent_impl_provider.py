@@ -53,7 +53,6 @@ class TestProviderResolution:
         agent_body = AgentDefinitionBody(
             name="gemini-worker",
             provider="gemini",
-
         )
         runner = _make_runner()
 
@@ -104,7 +103,6 @@ class TestProviderResolution:
         agent_body = AgentDefinitionBody(
             name="gemini-worker",
             provider="gemini",
-
         )
         runner = _make_runner()
 

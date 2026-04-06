@@ -1,5 +1,5 @@
 """
-Tool description summarization using Claude Agent SDK.
+Tool description summarization using Claude LLM provider.
 
 Intelligently summarizes long MCP tool descriptions to fit within
 the 200-character limit for config file storage.
@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from gobby.config.features import ToolSummarizerConfig
+    from gobby.llm.service import LLMService
 from gobby.prompts import PromptLoader
 from gobby.storage.database import DatabaseProtocol
 
@@ -23,17 +24,20 @@ MAX_DESCRIPTION_LENGTH = 200
 # Module-level config reference (set by init_summarizer_config)
 _config: ToolSummarizerConfig | None = None
 _loader: PromptLoader | None = None
+_llm_service: LLMService | None = None
 
 
 def init_summarizer_config(
     config: ToolSummarizerConfig,
     project_dir: str | None = None,
     db: DatabaseProtocol | None = None,
+    llm_service: LLMService | None = None,
 ) -> None:
     """Initialize the summarizer with configuration."""
-    global _config, _loader
+    global _config, _loader, _llm_service
     _config = config
     _loader = PromptLoader(db=db)
+    _llm_service = llm_service
 
 
 def _get_config() -> ToolSummarizerConfig:
@@ -48,7 +52,7 @@ def _get_config() -> ToolSummarizerConfig:
 
 async def _summarize_description_with_claude(description: str) -> str:
     """
-    Summarize a tool description using Claude Agent SDK.
+    Summarize a tool description using Claude LLM provider.
 
     Args:
         description: Long tool description to summarize
@@ -59,48 +63,29 @@ async def _summarize_description_with_claude(description: str) -> str:
     config = _get_config()
 
     try:
-        from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock, query
+        if not _llm_service:
+            raise RuntimeError("LLM service not initialized")
+
+        provider = _llm_service.get_provider("claude")
 
         # Get summary prompt
         prompt_path = config.prompt_path or "features/tool_summary"
-        try:
-            # We assume _loader is initialized by _get_config() logic or init
-            if _loader is None:
-                raise RuntimeError("Summarizer not initialized")
-            prompt = _loader.render(prompt_path, {"description": description})
-        except (OSError, KeyError, ValueError, RuntimeError) as e:
-            logger.debug(f"Failed to load prompt from {prompt_path}: {e}")
-            raise
+        if _loader is None:
+            raise RuntimeError("Summarizer not initialized")
+        prompt = _loader.render(prompt_path, {"description": description})
 
         # Get system prompt
         sys_prompt_path = config.system_prompt_path or "features/tool_summary_system"
         try:
-            if _loader is None:
-                raise RuntimeError("Summarizer not initialized")
             system_prompt = _loader.render(sys_prompt_path, {})
-        except (OSError, KeyError, ValueError, RuntimeError) as e:
-            logger.debug(f"Failed to load system prompt from {sys_prompt_path}: {e}")
+        except (OSError, KeyError, ValueError, RuntimeError):
             system_prompt = "You are a technical summarizer."
 
-        # Configure for single-turn completion
-        options = ClaudeAgentOptions(
+        return await provider.generate_text(
+            prompt=prompt,
             system_prompt=system_prompt,
-            max_turns=1,
             model=config.model,
-            tools=[],  # Passes --tools "" to CLI, disabling all built-in tools
-            allowed_tools=[],
-            mcp_servers={},
-            permission_mode="default",
         )
-
-        # Run async query
-        summary_text = ""
-        async for message in query(prompt=prompt, options=options):
-            if isinstance(message, AssistantMessage):
-                for block in message.content:
-                    if isinstance(block, TextBlock):
-                        summary_text = block.text
-        return summary_text.strip()
 
     except Exception as e:
         logger.warning(f"Failed to summarize description with Claude: {e}")
@@ -148,7 +133,7 @@ async def generate_server_description(
     """
     Generate a concise server description from tool summaries.
 
-    Uses Claude Haiku to synthesize a single-sentence description of what
+    Uses Claude to synthesize a single-sentence description of what
     the MCP server does based on all its available tools.
 
     Args:
@@ -161,7 +146,10 @@ async def generate_server_description(
     config = _get_config()
 
     try:
-        from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock, query
+        if not _llm_service:
+            raise RuntimeError("LLM service not initialized")
+
+        provider = _llm_service.get_provider("claude")
 
         # Build tools list for prompt
         tools_list = "\n".join([f"- {t['name']}: {t['description']}" for t in tool_summaries])
@@ -173,43 +161,23 @@ async def generate_server_description(
             "tools_list": tools_list,
         }
         if _loader is None:
-            _get_config()  # force init
-        if _loader is None:
-            # Still None after _get_config, use default
             raise RuntimeError("Summarizer not initialized")
-        else:
-            prompt = _loader.render(prompt_path, context)
+        prompt = _loader.render(prompt_path, context)
 
         # Get system prompt
         sys_prompt_path = (
             config.server_description_system_prompt_path or "features/server_description_system"
         )
-
-        if _loader is None:
-            system_prompt = "You write concise technical descriptions."
-        else:
+        try:
             system_prompt = _loader.render(sys_prompt_path, {})
+        except (OSError, KeyError, ValueError, RuntimeError):
+            system_prompt = "You write concise technical descriptions."
 
-        # Configure for single-turn completion
-        options = ClaudeAgentOptions(
+        return await provider.generate_text(
+            prompt=prompt,
             system_prompt=system_prompt,
-            max_turns=1,
             model=config.model,
-            tools=[],  # Passes --tools "" to CLI, disabling all built-in tools
-            allowed_tools=[],
-            mcp_servers={},
-            permission_mode="default",
         )
-
-        # Run async query
-        description = ""
-        async for message in query(prompt=prompt, options=options):
-            if isinstance(message, AssistantMessage):
-                for block in message.content:
-                    if isinstance(block, TextBlock):
-                        description = block.text
-
-        return description.strip()
 
     except Exception as e:
         logger.warning(f"Failed to generate server description for '{server_name}': {e}")

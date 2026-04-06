@@ -113,29 +113,18 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
             # Select adapter based on source
             from gobby.adapters.base import BaseAdapter
             from gobby.adapters.claude_code import ClaudeCodeAdapter
-            from gobby.adapters.codex_impl.adapter import CodexNotifyAdapter
-            from gobby.adapters.copilot import CopilotAdapter
-            from gobby.adapters.cursor import CursorAdapter
+            from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
             from gobby.adapters.gemini import GeminiAdapter
-            from gobby.adapters.windsurf import WindsurfAdapter
             from gobby.hooks.events import SessionSource
 
             if source == "claude":
                 adapter: BaseAdapter = ClaudeCodeAdapter(hook_manager=hook_manager)
-            elif source == "antigravity":
-                adapter = ClaudeCodeAdapter(hook_manager=hook_manager)  # Same format as Claude
             elif source == "claude_sdk":
                 adapter = ClaudeCodeAdapter(hook_manager=hook_manager)
                 adapter.source = SessionSource.CLAUDE_SDK
             elif source == "claude_sdk_web_chat":
                 adapter = ClaudeCodeAdapter(hook_manager=hook_manager)
                 adapter.source = SessionSource.CLAUDE_SDK_WEB_CHAT
-            elif source == "cursor":
-                adapter = CursorAdapter(hook_manager=hook_manager)
-            elif source == "windsurf":
-                adapter = WindsurfAdapter(hook_manager=hook_manager)
-            elif source == "copilot":
-                adapter = CopilotAdapter(hook_manager=hook_manager)
             elif source == "gemini":
                 adapter = GeminiAdapter(hook_manager=hook_manager)
             elif source == "codex":
@@ -144,11 +133,11 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
                 if codex_adapter is not None:
                     adapter = codex_adapter
                 else:
-                    adapter = CodexNotifyAdapter(hook_manager=hook_manager)
+                    adapter = CodexHooksAdapter(hook_manager=hook_manager)
             else:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Unsupported source: {source}. Supported: claude, antigravity, claude_sdk, claude_sdk_web_chat, gemini, codex, cursor, windsurf, copilot",
+                    detail=f"Unsupported source: {source}. Supported: claude, claude_sdk, claude_sdk_web_chat, gemini, codex",
                 )
 
             # Execute hook via adapter

@@ -2,7 +2,7 @@
 IDE configuration functions for Gobby installers.
 
 Extracted from shared.py as part of Strangler Fig decomposition (Wave 2).
-Handles configuring VS Code-family IDE settings (Cursor, Windsurf, Antigravity).
+Handles configuring VS Code-family IDE settings.
 """
 
 import json
@@ -40,8 +40,7 @@ def configure_ide_terminal_title(ide_name: str) -> dict[str, Any]:
     Skips silently if the IDE is not installed (config dir doesn't exist).
 
     Args:
-        ide_name: IDE name matching the Application Support / config dir
-                  (e.g. "Cursor", "Windsurf", "Antigravity").
+        ide_name: IDE name matching the Application Support / config dir.
 
     Returns:
         Dict with 'success', 'added', 'already_configured', 'skipped',

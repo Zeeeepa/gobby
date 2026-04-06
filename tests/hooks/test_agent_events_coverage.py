@@ -45,6 +45,8 @@ class _TestHandler(AgentEventHandlerMixin):
         self.logger = MagicMock()
         self._session_manager = MagicMock()
         self._session_storage = MagicMock()
+        # Prevent real DB calls in handle_subagent_start depth tracking
+        self._session_storage.db.fetchone.return_value = None
         self._session_coordinator = None
         self._message_processor = None
         self._task_manager = None
@@ -497,6 +499,23 @@ class TestSubagentEvents:
         result = handler.handle_subagent_start(event)
         assert result.decision == "allow"
 
+    def test_subagent_start_sets_is_subagent(self) -> None:
+        handler = _TestHandler()
+        event = _make_event(
+            event_type=HookEventType.SUBAGENT_START,
+            metadata={"_platform_session_id": "sess-1"},
+            data={"agent_id": "a1", "subagent_id": "sa1"},
+        )
+
+        with patch("gobby.workflows.state_manager.SessionVariableManager") as mock_svm_cls:
+            mock_svm = MagicMock()
+            mock_svm_cls.return_value = mock_svm
+
+            result = handler.handle_subagent_start(event)
+
+            assert result.decision == "allow"
+            mock_svm.set_variable.assert_called_once_with("sess-1", "is_subagent", True)
+
     def test_subagent_start_no_ids(self) -> None:
         handler = _TestHandler()
         event = _make_event(
@@ -508,6 +527,20 @@ class TestSubagentEvents:
         result = handler.handle_subagent_start(event)
         assert result.decision == "allow"
 
+    def test_subagent_start_no_session_skips_variable(self) -> None:
+        handler = _TestHandler()
+        event = _make_event(
+            event_type=HookEventType.SUBAGENT_START,
+            metadata={},
+            data={},
+        )
+
+        with patch("gobby.workflows.state_manager.SessionVariableManager") as mock_svm_cls:
+            result = handler.handle_subagent_start(event)
+
+            assert result.decision == "allow"
+            mock_svm_cls.assert_not_called()
+
     def test_subagent_stop(self) -> None:
         handler = _TestHandler()
         event = _make_event(
@@ -518,6 +551,22 @@ class TestSubagentEvents:
         result = handler.handle_subagent_stop(event)
         assert result.decision == "allow"
 
+    def test_subagent_stop_clears_is_subagent(self) -> None:
+        handler = _TestHandler()
+        event = _make_event(
+            event_type=HookEventType.SUBAGENT_STOP,
+            metadata={"_platform_session_id": "sess-1"},
+        )
+
+        with patch("gobby.workflows.state_manager.SessionVariableManager") as mock_svm_cls:
+            mock_svm = MagicMock()
+            mock_svm_cls.return_value = mock_svm
+
+            result = handler.handle_subagent_stop(event)
+
+            assert result.decision == "allow"
+            mock_svm.set_variable.assert_called_once_with("sess-1", "is_subagent", False)
+
     def test_subagent_stop_no_session(self) -> None:
         handler = _TestHandler()
         event = _make_event(
@@ -527,6 +576,19 @@ class TestSubagentEvents:
 
         result = handler.handle_subagent_stop(event)
         assert result.decision == "allow"
+
+    def test_subagent_stop_no_session_skips_variable(self) -> None:
+        handler = _TestHandler()
+        event = _make_event(
+            event_type=HookEventType.SUBAGENT_STOP,
+            metadata={},
+        )
+
+        with patch("gobby.workflows.state_manager.SessionVariableManager") as mock_svm_cls:
+            result = handler.handle_subagent_stop(event)
+
+            assert result.decision == "allow"
+            mock_svm_cls.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

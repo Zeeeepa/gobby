@@ -30,9 +30,6 @@ class TestSessionSource:
         """Test that source values exist."""
         assert SessionSource.CLAUDE == "claude"
         assert SessionSource.GEMINI == "gemini"
-        assert SessionSource.CURSOR == "cursor"
-        assert SessionSource.WINDSURF == "windsurf"
-        assert SessionSource.COPILOT == "copilot"
 
 
 class TestHookEvent:
@@ -129,6 +126,3 @@ class TestEventTypeMapping:
             assert "claude" in EVENT_TYPE_CLI_SUPPORT[event_type]
             assert "gemini" in EVENT_TYPE_CLI_SUPPORT[event_type]
             assert "codex" in EVENT_TYPE_CLI_SUPPORT[event_type]
-            assert "cursor" in EVENT_TYPE_CLI_SUPPORT[event_type]
-            assert "windsurf" in EVENT_TYPE_CLI_SUPPORT[event_type]
-            assert "copilot" in EVENT_TYPE_CLI_SUPPORT[event_type]

@@ -38,7 +38,7 @@ Task management MCP calls (gobby-tasks) are allowed during plan mode. Planning i
 
 ## Project Overview
 
-Gobby is a local-first daemon that unifies AI coding assistants (Claude Code, Gemini CLI, Cursor, Windsurf, Copilot) under one persistent, extensible platform. It provides:
+Gobby is a local-first daemon that unifies AI coding assistants (Claude Code, Gemini CLI, Codex CLI) under one persistent, extensible platform. It provides:
 
 - **Session management** that survives restarts and context compactions
 - **Task system** with dependency graphs, TDD expansion, and validation gates
@@ -130,9 +130,7 @@ src/gobby/
 ├── adapters/             # CLI-specific hook adapters
 │   ├── claude_code.py    # Claude Code adapter
 │   ├── gemini.py         # Gemini CLI adapter
-│   ├── cursor.py         # Cursor adapter
-│   ├── windsurf.py       # Windsurf adapter
-│   └── copilot.py        # Copilot adapter
+│   └── codex_impl/       # Codex adapter implementation
 │
 ├── agents/               # Agent spawning and lifecycle
 │   ├── spawn.py          # Agent spawner

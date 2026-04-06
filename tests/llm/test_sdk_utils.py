@@ -17,11 +17,6 @@ class TestSanitizeError:
     def test_passes_through_normal_errors(self) -> None:
         assert sanitize_error(RuntimeError("Connection failed")) == "Connection failed"
 
-    def test_hides_litellm_errors(self) -> None:
-        assert sanitize_error(RuntimeError("litellm.BadRequestError: foo")) == (
-            "An internal error occurred. Please try again."
-        )
-
     def test_hides_model_mapping_errors(self) -> None:
         assert sanitize_error(RuntimeError("model isn't mapped yet")) == (
             "An internal error occurred. Please try again."
@@ -60,7 +55,7 @@ class TestFormatExceptionGroup:
         assert format_exception_group(eg) == "e1; e2"
 
     def test_sanitizes_internal_errors(self) -> None:
-        eg = ExceptionGroup("errors", [RuntimeError("litellm.Error: bad")])
+        eg = ExceptionGroup("errors", [RuntimeError("model isn't mapped yet")])
         assert format_exception_group(eg) == "An internal error occurred. Please try again."
 
 

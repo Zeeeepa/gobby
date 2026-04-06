@@ -137,9 +137,6 @@ _CLI_DIR_SEGMENTS = (
     f"{os.sep}.claude{os.sep}",
     f"{os.sep}.gemini{os.sep}",
     f"{os.sep}.codex{os.sep}",
-    f"{os.sep}.cursor{os.sep}",
-    f"{os.sep}.windsurf{os.sep}",
-    f"{os.sep}.copilot{os.sep}",
 )
 
 
@@ -148,7 +145,7 @@ def is_plan_file(file_path: str, source: str | None = None) -> bool:
 
     Any ``.md`` file under a recognised CLI config directory is treated as
     a plan file.  Recognised directories: ``.gobby/``, ``.claude/``,
-    ``.gemini/``, ``.codex/``, ``.cursor/``, ``.windsurf/``, ``.copilot/``.
+    ``.gemini/``, ``.codex/``.
 
     Args:
         file_path: Absolute or relative path to the file being edited.

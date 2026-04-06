@@ -72,7 +72,7 @@ def search_tasks(
     min_score: float,
     json_format: bool,
 ) -> None:
-    """Search tasks using semantic TF-IDF search.
+    """Search tasks using FTS5 full-text search.
 
     QUERY is the natural language search query.
 

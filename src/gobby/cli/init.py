@@ -3,6 +3,7 @@ Project initialization commands.
 """
 
 import logging
+import subprocess
 import sys
 from pathlib import Path
 
@@ -50,35 +51,28 @@ def init(
         click.echo(f"  Project ID: {result.project_id}")
         click.echo(f"  Config: {cwd / '.gobby' / 'project.json'}")
 
-        # Trigger initial code indexing
+        # Trigger initial code indexing via gcode
         try:
-            import asyncio
-
-            from gobby.code_index.indexer import CodeIndexer
-            from gobby.code_index.parser import CodeParser
-            from gobby.code_index.storage import CodeIndexStorage
-            from gobby.config.code_index import CodeIndexConfig
-            from gobby.storage.database import LocalDatabase
-
-            ci_config = CodeIndexConfig()
-            db = LocalDatabase()
-            storage = CodeIndexStorage(db)
-            parser = CodeParser(ci_config)
-            indexer = CodeIndexer(storage=storage, parser=parser, config=ci_config)
-            click.echo("Indexing codebase...")
-            index_result = asyncio.run(
-                indexer.index_directory(
-                    root_path=str(result.project_path),
-                    project_id=result.project_id,
-                    incremental=True,
+            gcode_bin = Path.home() / ".gobby" / "bin" / "gcode"
+            if gcode_bin.exists():
+                click.echo("Indexing codebase...")
+                proc = subprocess.run(
+                    [str(gcode_bin), "index", "--project", str(result.project_path)],
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
                 )
-            )
-            click.echo(
-                f"Indexed {index_result.files_indexed} files, "
-                f"{index_result.symbols_found} symbols "
-                f"({index_result.duration_ms}ms)"
-            )
-        except Exception as e:
+                if proc.returncode == 0:
+                    if proc.stdout:
+                        click.echo(proc.stdout.rstrip())
+                else:
+                    detail = proc.stderr.strip() if proc.stderr else "(no details)"
+                    click.echo(f"Code indexing failed: {detail}", err=True)
+            else:
+                click.echo(
+                    "gcode not installed — skipping initial index. Run `gobby install`.", err=True
+                )
+        except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError) as e:
             click.echo(f"Code indexing skipped: {e}", err=True)
 
         # Check tmux availability
@@ -93,8 +87,6 @@ def init(
                 )
             else:
                 # WSL available — check if tmux is installed inside it
-                import subprocess
-
                 try:
                     tmux_check = subprocess.run(
                         ["wsl", "which", "tmux"],

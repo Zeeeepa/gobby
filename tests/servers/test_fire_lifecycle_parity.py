@@ -504,94 +504,12 @@ class TestFireLifecycleFullParity:
 
 
 # ---------------------------------------------------------------------------
-# Output Compression
+# Output Compression (code_index strategy only — Python OutputCompressor removed)
 # ---------------------------------------------------------------------------
 
 
 class TestFireLifecycleCompression:
-    """Output compression should be applied on AFTER_TOOL when metadata has compression config."""
-
-    @pytest.mark.asyncio
-    async def test_compression_applied_on_after_tool(self, host: ChatMixinHost) -> None:
-        """When compression metadata is present and event is AFTER_TOOL, modified_output is set."""
-        host._chat_sessions["conv-1"] = _make_session()
-        host.workflow_handler = _make_workflow_handler_with_response(
-            decision="allow",
-            metadata={"compression": {"max_lines": 50}},
-        )
-
-        large_output = "line\n" * 200
-        data = {"tool_name": "bash", "tool_output": large_output}
-
-        from unittest.mock import patch
-
-        mock_result = MagicMock()
-        mock_result.strategy_name = "tail"
-        mock_result.compressed = "...compressed..."
-        mock_result.savings_pct = 80.0
-        mock_result.original_chars = len(large_output)
-        mock_result.compressed_chars = 15
-
-        with patch("gobby.compression.OutputCompressor") as MockCompressor:
-            MockCompressor.return_value.compress.return_value = mock_result
-            result = await host._fire_lifecycle("conv-1", HookEventType.AFTER_TOOL, data)
-
-        assert result is not None
-        assert result["decision"] == "allow"
-        assert result["modified_output"] == "...compressed..."
-        MockCompressor.assert_called_once_with(max_lines=50)
-
-    @pytest.mark.asyncio
-    async def test_compression_skipped_on_before_tool(self, host: ChatMixinHost) -> None:
-        """Compression should not apply on BEFORE_TOOL even if metadata is present."""
-        host._chat_sessions["conv-1"] = _make_session()
-        host.workflow_handler = _make_workflow_handler_with_response(
-            decision="allow",
-            metadata={"compression": {"max_lines": 50}},
-        )
-
-        result = await host._fire_lifecycle(
-            "conv-1", HookEventType.BEFORE_TOOL, {"tool_name": "bash"}
-        )
-
-        assert result is not None
-        assert "modified_output" not in result
-
-    @pytest.mark.asyncio
-    async def test_compression_skipped_when_no_metadata(self, host: ChatMixinHost) -> None:
-        """Without compression metadata, no modified_output should appear."""
-        host._chat_sessions["conv-1"] = _make_session()
-        host.workflow_handler = _make_workflow_handler()
-
-        result = await host._fire_lifecycle(
-            "conv-1",
-            HookEventType.AFTER_TOOL,
-            {"tool_name": "bash", "tool_output": "some output"},
-        )
-
-        assert result is not None
-        assert "modified_output" not in result
-
-    @pytest.mark.asyncio
-    async def test_compression_error_fails_gracefully(self, host: ChatMixinHost) -> None:
-        """Compression errors should not crash lifecycle."""
-        host._chat_sessions["conv-1"] = _make_session()
-        host.workflow_handler = _make_workflow_handler_with_response(
-            decision="allow",
-            metadata={"compression": {"max_lines": 50}},
-        )
-
-        data = {"tool_name": "bash", "tool_output": "some output"}
-
-        from unittest.mock import patch
-
-        with patch("gobby.compression.OutputCompressor") as MockCompressor:
-            MockCompressor.return_value.compress.side_effect = RuntimeError("Compress boom")
-            result = await host._fire_lifecycle("conv-1", HookEventType.AFTER_TOOL, data)
-
-        assert result is not None
-        assert result["decision"] == "allow"
-        assert "modified_output" not in result
+    """Output compression via gcode outline (code_index strategy)."""
 
     @pytest.mark.asyncio
     async def test_code_index_strategy_calls_gcode_outline(self, host: ChatMixinHost) -> None:

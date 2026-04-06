@@ -1,7 +1,7 @@
 """Session registration tools for hookless clients.
 
 Provides MCP tools for clients that don't use Gobby's hook system
-(e.g., Agent SDK apps, Antigravity agents) to register their sessions.
+(e.g., Agent SDK apps) to register their sessions.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ def register_registration_tools(
 
     @registry.tool(
         name="register_session",
-        description="""Register a session with Gobby. For hookless clients (Agent SDK, Antigravity, etc.)
+        description="""Register a session with Gobby. For hookless clients (Agent SDK, etc.)
 that don't trigger SessionStart hooks.
 
 Idempotent: calling with the same external_id + source + machine_id + project_id
@@ -50,7 +50,7 @@ machine_id and project_id are auto-resolved from the local environment if omitte
 
         Args:
             external_id: Client's session ID (required)
-            source: CLI type - claude, gemini, codex, cursor, windsurf, copilot, agent-sdk, etc. (required)
+            source: CLI type - claude, gemini, codex, agent-sdk, etc. (required)
             machine_id: Machine identifier (auto-resolved if omitted)
             project_id: Project ID (auto-resolved from .gobby/project.json if omitted)
             title: Session title

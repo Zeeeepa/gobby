@@ -85,7 +85,7 @@ class TranscriptParser(Protocol):
     """
     Protocol for transcript parsers.
 
-    Each CLI tool (Claude Code, Codex, Gemini, Antigravity) has its own
+    Each CLI tool (Claude Code, Codex, Gemini) has its own
     transcript format. Implementations of this protocol handle parsing
     and extracting conversation data from each format.
     """

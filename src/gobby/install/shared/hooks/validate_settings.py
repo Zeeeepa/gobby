@@ -2,7 +2,7 @@
 """Unified settings validator for all CLI integrations.
 
 Validates hook configuration files across Claude Code, Gemini CLI,
-GitHub Copilot, Cursor, and Windsurf.
+and Codex.
 
 CLI is identified via --cli flag (primary) or path-based detection (fallback).
 
@@ -40,7 +40,7 @@ class ValidationConfig:
     required_hooks: tuple[str, ...]  # Required hook types
     nested: bool  # True = hooks have nested "hooks" array (Claude/Gemini)
     check_enable_hooks: bool = False  # Gemini requires general.enableHooks=true
-    check_version: int | None = None  # Cursor requires "version": 1
+    check_version: int | None = None  # Reserved for future use
 
 
 CLI_VALIDATION_CONFIGS: dict[str, ValidationConfig] = {
@@ -81,63 +81,6 @@ CLI_VALIDATION_CONFIGS: dict[str, ValidationConfig] = {
         ),
         nested=True,
         check_enable_hooks=True,
-    ),
-    "copilot": ValidationConfig(
-        cli_name="GitHub Copilot",
-        settings_dir=".copilot",
-        settings_file="hooks.json",
-        required_hooks=(
-            "sessionStart",
-            "sessionEnd",
-            "userPromptSubmitted",
-            "preToolUse",
-            "postToolUse",
-            "errorOccurred",
-        ),
-        nested=False,
-    ),
-    "cursor": ValidationConfig(
-        cli_name="Cursor",
-        settings_dir=".cursor",
-        settings_file="hooks.json",
-        required_hooks=(
-            "sessionStart",
-            "sessionEnd",
-            "beforeSubmitPrompt",
-            "preToolUse",
-            "postToolUse",
-            "beforeShellExecution",
-            "afterShellExecution",
-            "beforeMCPExecution",
-            "afterMCPExecution",
-            "beforeReadFile",
-            "afterFileEdit",
-            "preCompact",
-            "stop",
-            "subagentStart",
-            "subagentStop",
-        ),
-        nested=False,
-        check_version=1,
-    ),
-    "windsurf": ValidationConfig(
-        cli_name="Windsurf",
-        settings_dir=".windsurf",
-        settings_file="hooks.json",
-        required_hooks=(
-            "pre_user_prompt",
-            "post_cascade_response",
-            "pre_read_code",
-            "post_read_code",
-            "pre_write_code",
-            "post_write_code",
-            "pre_run_command",
-            "post_run_command",
-            "pre_mcp_tool_use",
-            "post_mcp_tool_use",
-            "post_setup_worktree",
-        ),
-        nested=False,
     ),
 }
 
@@ -235,7 +178,8 @@ def validate(config: ValidationConfig) -> int:
                 return 1
             command = first_config["hooks"][0].get("command", "")
         else:
-            # Copilot/Cursor/Windsurf: flat structure with "command" directly
+            # Flat structure with "command" directly — preserved for future
+            # CLIs (e.g., Codex) that may use non-nested hook configs.
             command = hook_configs[0].get("command", "")
 
         if "hook_dispatcher.py" not in command:
@@ -262,7 +206,7 @@ def main() -> int:
     """Main entry point."""
     config = detect_cli_config()
     if config is None:
-        print("Could not detect CLI. Use --cli=<name> (claude, gemini, copilot, cursor, windsurf)")
+        print("Could not detect CLI. Use --cli=<name> (claude, gemini, codex)")
         return 1
 
     return validate(config)

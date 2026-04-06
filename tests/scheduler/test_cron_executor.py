@@ -282,13 +282,14 @@ async def test_execute_agent_spawn_with_agent_definition(
     mock_body.provider = "gemini"
 
     mock_result = {"success": True, "run_id": "run-def456"}
-    with patch(
-        "gobby.workflows.agent_resolver.resolve_agent", return_value=mock_body
-    ), patch(
-        "gobby.mcp_proxy.tools.spawn_agent._implementation.spawn_agent_impl",
-        new_callable=AsyncMock,
-        return_value=mock_result,
-    ) as mock_spawn:
+    with (
+        patch("gobby.workflows.agent_resolver.resolve_agent", return_value=mock_body),
+        patch(
+            "gobby.mcp_proxy.tools.spawn_agent._implementation.spawn_agent_impl",
+            new_callable=AsyncMock,
+            return_value=mock_result,
+        ) as mock_spawn,
+    ):
         result = await executor.execute(job, run)
 
     assert result.status == "completed"
@@ -320,13 +321,14 @@ async def test_execute_agent_spawn_agent_definition_not_found(
     run = cron_storage.create_run(job.id)
 
     mock_result = {"success": True, "run_id": "run-ghi789"}
-    with patch(
-        "gobby.workflows.agent_resolver.resolve_agent", return_value=None
-    ), patch(
-        "gobby.mcp_proxy.tools.spawn_agent._implementation.spawn_agent_impl",
-        new_callable=AsyncMock,
-        return_value=mock_result,
-    ) as mock_spawn:
+    with (
+        patch("gobby.workflows.agent_resolver.resolve_agent", return_value=None),
+        patch(
+            "gobby.mcp_proxy.tools.spawn_agent._implementation.spawn_agent_impl",
+            new_callable=AsyncMock,
+            return_value=mock_result,
+        ) as mock_spawn,
+    ):
         result = await executor.execute(job, run)
 
     assert result.status == "completed"

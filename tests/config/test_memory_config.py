@@ -49,7 +49,7 @@ def test_removed_fields_no_longer_exist() -> None:
     removed_fields = [
         "search_backend",
         "embedding_weight",
-        "tfidf_weight",
+        "keyword_weight",
         "importance_threshold",
         "decay_enabled",
         "decay_rate",
@@ -89,7 +89,7 @@ def test_old_config_with_removed_fields_does_not_crash() -> None:
             "enabled": True,
             "search_backend": "auto",
             "embedding_weight": 0.6,
-            "tfidf_weight": 0.4,
+            "keyword_weight": 0.4,
             "importance_threshold": 0.7,
             "decay_enabled": True,
             "decay_rate": 0.05,
@@ -124,9 +124,9 @@ def test_neo4j_auth_defaults_to_none() -> None:
 
 
 def test_embedding_model_default() -> None:
-    """EmbeddingsConfig.model should default to local/nomic-embed-text-v1.5."""
+    """EmbeddingsConfig.model should default to nomic-embed-text."""
     config = EmbeddingsConfig()
-    assert config.model == "local/nomic-embed-text-v1.5"
+    assert config.model == "nomic-embed-text"
 
 
 def test_embedding_dim_default() -> None:

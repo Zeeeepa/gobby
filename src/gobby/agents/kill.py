@@ -250,12 +250,6 @@ async def kill_agent(
                                     if ps_rc == 0:
                                         cmdline = ps_stdout.strip()
                                         is_matched = run.provider in cmdline.lower()
-                                        if not is_matched and run.provider in (
-                                            "cursor",
-                                            "windsurf",
-                                            "copilot",
-                                        ):
-                                            is_matched = "claude" in cmdline.lower()
 
                                         if f"session-id {session_id}" in cmdline and is_matched:
                                             if matched_pid is not None:

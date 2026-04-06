@@ -26,10 +26,6 @@ class TestBuildCliCommand:
         cmd = build_cli_command("claude", model="claude-3-opus", prompt="hello")
         assert cmd == ["claude", "--model", "claude-3-opus", "hello"]
 
-    def test_cursor_basic(self):
-        cmd = build_cli_command("cursor", prompt="hello")
-        assert cmd == ["cursor", "hello"]
-
     def test_gemini_basic(self):
         cmd = build_cli_command("gemini", prompt="hello")
         assert cmd == ["gemini", "hello"]

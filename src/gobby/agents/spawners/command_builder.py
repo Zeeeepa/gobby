@@ -33,7 +33,7 @@ def build_cli_command(
     - codex --full-auto -C <dir> [PROMPT]
 
     Args:
-        cli: CLI name (claude, gemini, codex, cursor, windsurf, copilot)
+        cli: CLI name (claude, gemini, codex)
         prompt: Optional prompt to pass
         session_id: Optional session ID (used by Claude-compatible CLIs)
         auto_approve: If True, add flags to auto-approve actions/permissions
@@ -46,17 +46,8 @@ def build_cli_command(
     """
     command = [cli]
 
-    if cli == "cursor":
-        # Cursor CLI flags — similar to Claude
-        if session_id:
-            command.extend(["--session-id", session_id])
-        if model:
-            command.extend(["--model", model])
-        if auto_approve:
-            command.append("--dangerously-skip-permissions")
-
-    elif cli in ("claude", "windsurf", "copilot"):
-        # Claude-compatible CLI flags
+    if cli == "claude":
+        # Claude CLI flags
         if session_id:
             command.extend(["--session-id", session_id])
         if model:

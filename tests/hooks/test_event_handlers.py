@@ -2037,51 +2037,10 @@ class TestTranscriptPathDerivation:
         assert result is not None
         assert "xxxxxxxx" in result
 
-    def test_find_cursor_transcript_from_terminal_context(
-        self, event_handlers: EventHandlers
-    ) -> None:
-        """Should find Cursor capture path from terminal_context."""
-        result = event_handlers._find_cursor_transcript(
-            {"terminal_context": {"cursor_capture_path": "/tmp/gobby-cursor-abc.ndjson"}},
-            "ext-123",
-        )
-        assert result == "/tmp/gobby-cursor-abc.ndjson"
-
-    def test_find_cursor_transcript_from_standard_location(
-        self, event_handlers: EventHandlers, tmp_path
-    ) -> None:
-        """Should find Cursor capture file in temp dir by session_id."""
-        import tempfile
-        from unittest.mock import patch
-
-        capture_file = tmp_path / "gobby-cursor-test-session-id-xyz.ndjson"
-        capture_file.write_text("")
-
-        with patch.object(tempfile, "gettempdir", return_value=str(tmp_path)):
-            result = event_handlers._find_cursor_transcript(
-                {"session_id": "test-session-id-xyz"}, "ext-123"
-            )
-            assert result == str(capture_file)
-
-    def test_find_cursor_transcript_not_found(self, event_handlers: EventHandlers) -> None:
-        """Should return None when no capture file exists."""
-        result = event_handlers._find_cursor_transcript({}, "nonexistent-session-id-xyz")
-        assert result is None
-
     def test_derive_gemini_dispatches(self, event_handlers: EventHandlers) -> None:
         """_derive_transcript_path should dispatch to _find_gemini_transcript for gemini."""
         # Without cwd, gemini derivation returns None
         result = event_handlers._derive_transcript_path("gemini", {}, "ext-123")
-        assert result is None
-
-    def test_derive_antigravity_dispatches(self, event_handlers: EventHandlers) -> None:
-        """_derive_transcript_path should dispatch to _find_gemini_transcript for antigravity."""
-        result = event_handlers._derive_transcript_path("antigravity", {}, "ext-123")
-        assert result is None
-
-    def test_derive_cursor_dispatches(self, event_handlers: EventHandlers) -> None:
-        """_derive_transcript_path should dispatch to _find_cursor_transcript for cursor."""
-        result = event_handlers._derive_transcript_path("cursor", {}, "ext-123")
         assert result is None
 
     def test_session_start_derives_gemini_transcript(self, mock_dependencies: dict) -> None:

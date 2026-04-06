@@ -436,8 +436,6 @@ class SessionLifecycleManager:
             parser = GeminiTranscriptParser()
         elif session.source == "codex":
             parser = CodexTranscriptParser()
-        elif session.source == "antigravity":
-            parser = ClaudeTranscriptParser()
         # Default (claude or unknown) uses Claude transcript format
 
         # Gemini stores sessions as single JSON files, not JSONL.

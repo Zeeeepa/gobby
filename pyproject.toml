@@ -1,6 +1,6 @@
 [project]
 name = "gobby"
-version = "0.3.4"
+version = "0.3.5"
 description = "A local-first daemon to unify your AI coding tools. Session tracking and handoffs across Claude Code, Gemini CLI, and Codex. An MCP proxy that discovers tools without flooding context. Task management with dependencies, validation, and TDD expansion. Agent spawning and worktree orchestration. Persistent memory, extensible workflows, and hooks."
 readme = "README.md"
 license = "Apache-2.0"
@@ -25,7 +25,6 @@ dependencies = [
     # fastmcp <3.2.0 has CVE-2025-64340, CVE-2026-27124
     "fastmcp>=3.2.0",
     "httpx>=0.27.0",
-    "litellm>=1.83.0",
     "psutil>=6.1.0",
     "py-machineid>=0.6.0",
     "pydantic>=2.9.0",
@@ -34,7 +33,7 @@ dependencies = [
     "rich>=13.0.0",
     "pyyaml>=6.0.3",
     "jinja2>=3.1.0",
-    "claude-agent-sdk>=0.1.39,<=0.1.45", # >0.1.45 breaking query(), needs investigation
+    "claude-agent-sdk>=0.1.39",
     "wcwidth>=0.2.14",
     "tomli-w>=1.0.0",
     "msgspec>=0.20.0",
@@ -42,8 +41,6 @@ dependencies = [
     "gitingest>=0.3.1",
     # croniter for cron expression parsing (scheduler)
     "croniter>=6.0.0",
-    # scikit-learn for TF-IDF search (used by task search and skill search)
-    "scikit-learn>=1.0.0",
     "qdrant-client>=1.12.0",
     # python-multipart 0.0.21 has CVE-2026-24486 - pin to fixed version
     "python-multipart>=0.0.22",
@@ -78,8 +75,6 @@ dependencies = [
     "opentelemetry-instrumentation-openai>=0.34.0",
     "opentelemetry-instrumentation-google-genai>=0.1b0",
     "requests>=2.33.0",
-    # llama-cpp-python for local embeddings (nomic-embed-text-v1.5 GGUF)
-    "llama-cpp-python>=0.3.0",
 ]
 
 [project.optional-dependencies]
@@ -106,10 +101,6 @@ gobby = [
     "install/claude/**/*",
     "install/gemini/**/*",
     "install/codex/**/*",
-    "install/antigravity/**/*",
-    "install/copilot/**/*",
-    "install/cursor/**/*",
-    "install/windsurf/**/*",
     "install/shared/**/*",
     "storage/*.sql",
     "data/*",
@@ -151,9 +142,7 @@ filterwarnings = [
     "ignore:unclosed database:ResourceWarning",
     # Ignore fork() deprecation warning from embedded spawner tests (expected on macOS)
     "ignore:This process.*is multi-threaded.*use of fork:DeprecationWarning",
-    # Ignore third-party deprecation warnings (litellm, google-genai, oletools)
-    "ignore::DeprecationWarning:litellm",
-    "ignore::DeprecationWarning:litellm.*",
+    # Ignore third-party deprecation warnings (google-genai, oletools)
     "ignore::DeprecationWarning:google.genai",
     "ignore::DeprecationWarning:google.genai.*",
     "ignore::DeprecationWarning:oletools",
@@ -165,7 +154,7 @@ filterwarnings = [
 [tool.ruff]
 line-length = 100
 target-version = "py313"
-exclude = [".archive", ".gobby", "*.yaml", "*.yml", "*.json", "*.md", "*.sh", "*.mjs", "*.txt", "*.j2"]
+exclude = [".archive", ".gobby", "*.yaml", "*.yml", "*.json", "*.md", "*.sh", "*.mjs", "*.txt", "*.j2", "*.sql"]
 force-exclude = true
 
 [tool.ruff.lint]

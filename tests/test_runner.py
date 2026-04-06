@@ -276,7 +276,8 @@ class TestGobbyRunnerRun:
         """Test run with WebSocket server enabled.
 
         Subsystem init (including WebSocket start) runs as a background task.
-        We delay shutdown briefly to let it execute.
+        We delay shutdown briefly to let it execute, and skip health checks
+        so it completes quickly.
         """
         mock_mcp_manager = AsyncMock()
         mock_mcp_manager.connect_all = AsyncMock()
@@ -284,6 +285,12 @@ class TestGobbyRunnerRun:
 
         mock_ws_server = AsyncMock()
         mock_ws_server.start = AsyncMock()
+
+        # Skip health checks so _init_subsystems completes quickly
+        mock_config_with_websocket.databases.qdrant.url = ""
+        mock_config_with_websocket.databases.neo4j.url = ""
+        mock_config_with_websocket.embeddings.api_base = ""
+        mock_config_with_websocket.ui.enabled = False
 
         patches = create_base_patches(
             mock_config=mock_config_with_websocket,
@@ -298,7 +305,7 @@ class TestGobbyRunnerRun:
 
             # Schedule shutdown after a brief delay to let subsystem init run
             async def _delayed_shutdown() -> None:
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.3)
                 runner._shutdown_requested = True
 
             with patch("uvicorn.Config"), patch("uvicorn.Server") as mock_server_cls:
@@ -1004,6 +1011,11 @@ class TestGobbyRunnerShutdown:
         mock_config.message_tracking = MagicMock()
         mock_config.message_tracking.enabled = True
         mock_config.message_tracking.poll_interval = 5.0
+        # Skip health checks so _init_subsystems completes quickly
+        mock_config.databases.qdrant.url = ""
+        mock_config.databases.neo4j.url = ""
+        mock_config.embeddings.api_base = ""
+        mock_config.ui.enabled = False
 
         mock_mcp_manager = AsyncMock()
         mock_mcp_manager.connect_all = AsyncMock()
@@ -1026,7 +1038,10 @@ class TestGobbyRunnerShutdown:
             [stack.enter_context(p) for p in patches]
 
             runner = GobbyRunner()
-            runner._shutdown_requested = True
+
+            async def _delayed_shutdown() -> None:
+                await asyncio.sleep(0.3)
+                runner._shutdown_requested = True
 
             with patch("uvicorn.Config"), patch("uvicorn.Server") as mock_server_cls:
                 mock_server = AsyncMock()
@@ -1034,6 +1049,7 @@ class TestGobbyRunnerShutdown:
                 mock_server_cls.return_value = mock_server
 
                 with patch("gobby.runner_maintenance.setup_signal_handlers"):
+                    asyncio.create_task(_delayed_shutdown())
                     await runner.run()
 
             mock_message_processor.start.assert_called_once()
@@ -1041,6 +1057,12 @@ class TestGobbyRunnerShutdown:
     @pytest.mark.asyncio
     async def test_run_runs_startup_metrics_cleanup(self, mock_config):
         """Test that run performs startup metrics cleanup."""
+        # Skip health checks so _init_subsystems completes quickly
+        mock_config.databases.qdrant.url = ""
+        mock_config.databases.neo4j.url = ""
+        mock_config.embeddings.api_base = ""
+        mock_config.ui.enabled = False
+
         mock_mcp_manager = AsyncMock()
         mock_mcp_manager.connect_all = AsyncMock()
         mock_mcp_manager.disconnect_all = AsyncMock()
@@ -1055,7 +1077,10 @@ class TestGobbyRunnerShutdown:
 
             runner = GobbyRunner()
             runner.metrics_manager.cleanup_old_metrics = MagicMock(return_value=10)
-            runner._shutdown_requested = True
+
+            async def _delayed_shutdown() -> None:
+                await asyncio.sleep(0.3)
+                runner._shutdown_requested = True
 
             with patch("uvicorn.Config"), patch("uvicorn.Server") as mock_server_cls:
                 mock_server = AsyncMock()
@@ -1063,6 +1088,7 @@ class TestGobbyRunnerShutdown:
                 mock_server_cls.return_value = mock_server
 
                 with patch("gobby.runner_maintenance.setup_signal_handlers"):
+                    asyncio.create_task(_delayed_shutdown())
                     await runner.run()
 
             runner.metrics_manager.cleanup_old_metrics.assert_called()

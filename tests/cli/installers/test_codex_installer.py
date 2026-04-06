@@ -9,9 +9,12 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
+# The hooks template events that install_codex should write
+EXPECTED_HOOK_EVENTS = {"SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"}
 
-class TestInstallCodexNotify:
-    """Tests for install_codex_notify function."""
+
+class TestInstallCodex:
+    """Tests for install_codex function."""
 
     @pytest.fixture
     def mock_home(self, temp_dir: Path):
@@ -25,14 +28,69 @@ class TestInstallCodexNotify:
 
     @pytest.fixture
     def mock_install_dir(self, temp_dir: Path):
-        """Create a mock install directory with source files."""
+        """Create a mock install directory with hooks-template.json."""
         install_dir = temp_dir / "install"
-        codex_hooks = install_dir / "codex" / "hooks"
-        codex_hooks.mkdir(parents=True)
+        codex_dir = install_dir / "codex"
+        codex_dir.mkdir(parents=True)
 
-        # Create the source hook_dispatcher.py
-        hook_dispatcher = codex_hooks / "hook_dispatcher.py"
-        hook_dispatcher.write_text("#!/usr/bin/env python3\n# Hook dispatcher\n")
+        # Create the hooks-template.json
+        hooks_template = {
+            "hooks": {
+                "SessionStart": [
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": 'uv run "$HOOKS_DIR/hook_dispatcher.py" --cli=codex --type=SessionStart',
+                            }
+                        ]
+                    }
+                ],
+                "UserPromptSubmit": [
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": 'uv run "$HOOKS_DIR/hook_dispatcher.py" --cli=codex --type=UserPromptSubmit',
+                            }
+                        ]
+                    }
+                ],
+                "PreToolUse": [
+                    {
+                        "matcher": ".*",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": 'uv run "$HOOKS_DIR/hook_dispatcher.py" --cli=codex --type=PreToolUse',
+                            }
+                        ],
+                    }
+                ],
+                "PostToolUse": [
+                    {
+                        "matcher": ".*",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": 'uv run "$HOOKS_DIR/hook_dispatcher.py" --cli=codex --type=PostToolUse',
+                            }
+                        ],
+                    }
+                ],
+                "Stop": [
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": 'uv run "$HOOKS_DIR/hook_dispatcher.py" --cli=codex --type=Stop',
+                            }
+                        ]
+                    }
+                ],
+            }
+        }
+        (codex_dir / "hooks-template.json").write_text(json.dumps(hooks_template, indent=2))
 
         with patch("gobby.cli.installers.codex.get_install_dir", return_value=install_dir):
             yield install_dir
@@ -43,16 +101,18 @@ class TestInstallCodexNotify:
         with (
             patch("gobby.cli.installers.codex.install_shared_content") as mock_shared,
             patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
+            patch("gobby.cli.installers.codex.install_global_hooks") as mock_global,
+            patch("gobby.cli.installers.codex.clean_project_hooks") as mock_clean,
         ):
             mock_shared.return_value = {
-                "workflows": ["workflow1.yaml"],
                 "plugins": ["plugin1.py"],
             }
             mock_cli.return_value = {
-                "workflows": ["codex-workflow.yaml"],
                 "commands": ["cmd1"],
             }
-            yield mock_shared, mock_cli
+            mock_global.return_value = ["hook_dispatcher.py", "validate_settings.py"]
+            mock_clean.return_value = []
+            yield mock_shared, mock_cli, mock_global
 
     @pytest.fixture
     def mock_mcp_configure(self):
@@ -69,120 +129,262 @@ class TestInstallCodexNotify:
         mock_mcp_configure,
     ) -> None:
         """Test successful installation with a new config file."""
-        from gobby.cli.installers.codex import install_codex_notify
+        from gobby.cli.installers.codex import install_codex
 
-        result = install_codex_notify(mock_home)
+        result = install_codex(mock_home)
 
         assert result["success"] is True
         assert result["error"] is None
-        assert len(result["files_installed"]) == 1
-        assert "hook_dispatcher.py" in result["files_installed"][0]
-        assert result["config_updated"] is True
         assert result["mcp_configured"] is True
 
-        # Verify hook file was installed
-        hook_path = mock_home / ".gobby" / "hooks" / "codex" / "hook_dispatcher.py"
-        assert hook_path.exists()
+        # Verify hooks.json was created
+        hooks_path = mock_home / ".codex" / "hooks.json"
+        assert hooks_path.exists()
+        hooks_config = json.loads(hooks_path.read_text())
+        assert set(hooks_config["hooks"].keys()) == EXPECTED_HOOK_EVENTS
 
-        # Verify config was created
+        # Verify $HOOKS_DIR was substituted
+        hooks_str = hooks_path.read_text()
+        assert "$HOOKS_DIR" not in hooks_str
+        assert "hook_dispatcher.py" in hooks_str
+
+        # Verify config.toml has feature flag
         config_path = mock_home / ".codex" / "config.toml"
         assert config_path.exists()
         config_content = config_path.read_text()
-        assert "notify" in config_content
+        assert "features.codex_hooks = true" in config_content
 
-    def test_install_success_existing_config_no_notify(
+    def test_install_hooks_installed_list(
         self,
         mock_home: Path,
         mock_install_dir: Path,
         mock_shared_content,
         mock_mcp_configure,
     ) -> None:
-        """Test installation when config exists but has no notify line."""
-        from gobby.cli.installers.codex import install_codex_notify
+        """Test that hooks_installed lists all 5 event types."""
+        from gobby.cli.installers.codex import install_codex
 
-        # Create existing config without notify
+        result = install_codex(mock_home)
+
+        assert result["success"] is True
+        assert set(result["hooks_installed"]) == EXPECTED_HOOK_EVENTS
+
+    def test_install_migrates_from_notify(
+        self,
+        mock_home: Path,
+        mock_install_dir: Path,
+        mock_shared_content,
+        mock_mcp_configure,
+    ) -> None:
+        """Test that legacy notify line is removed during install."""
+        from gobby.cli.installers.codex import install_codex
+
+        # Create existing config with notify
         codex_dir = mock_home / ".codex"
         codex_dir.mkdir(parents=True)
         config_path = codex_dir / "config.toml"
-        config_path.write_text('model = "gpt-4"\n')
+        config_path.write_text('model = "gpt-4"\nnotify = ["python3", "/old/path"]\n')
 
-        result = install_codex_notify(mock_home)
+        result = install_codex(mock_home)
 
         assert result["success"] is True
         assert result["config_updated"] is True
 
-        # Verify notify was added
+        # Verify notify removed, feature flag added, model preserved
         config_content = config_path.read_text()
-        assert "notify" in config_content
+        assert "notify" not in config_content
+        assert "features.codex_hooks = true" in config_content
         assert 'model = "gpt-4"' in config_content
 
-        # Verify backup was created
+        # Verify backup created
         backup_path = config_path.with_suffix(".toml.bak")
         assert backup_path.exists()
 
-    def test_install_success_existing_config_with_notify(
+    def test_install_cleans_old_notify_script(
         self,
         mock_home: Path,
         mock_install_dir: Path,
         mock_shared_content,
         mock_mcp_configure,
     ) -> None:
-        """Test installation when config already has a notify line."""
-        from gobby.cli.installers.codex import install_codex_notify
+        """Test that old notify script at ~/.gobby/hooks/codex/ is cleaned up."""
+        from gobby.cli.installers.codex import install_codex
 
-        # Create existing config with old notify
+        # Create legacy notify script
+        old_dir = mock_home / ".gobby" / "hooks" / "codex"
+        old_dir.mkdir(parents=True)
+        old_script = old_dir / "hook_dispatcher.py"
+        old_script.write_text("# old notify script")
+
+        result = install_codex(mock_home)
+
+        assert result["success"] is True
+        assert not old_script.exists()
+        assert not old_dir.exists()  # Empty dir removed
+
+    def test_install_existing_config_with_feature_flag(
+        self,
+        mock_home: Path,
+        mock_install_dir: Path,
+        mock_shared_content,
+        mock_mcp_configure,
+    ) -> None:
+        """Test installation when feature flag already exists."""
+        from gobby.cli.installers.codex import install_codex
+
         codex_dir = mock_home / ".codex"
         codex_dir.mkdir(parents=True)
         config_path = codex_dir / "config.toml"
-        config_path.write_text('notify = ["old", "command"]\n')
+        config_path.write_text("features.codex_hooks = false\n")
 
-        result = install_codex_notify(mock_home)
+        result = install_codex(mock_home)
 
         assert result["success"] is True
-        assert result["config_updated"] is True
-
-        # Verify notify was updated (not duplicated)
         config_content = config_path.read_text()
-        assert config_content.count("notify") == 1
-        assert "hook_dispatcher.py" in config_content
+        assert "features.codex_hooks = true" in config_content
+        # Should not have duplicate lines
+        assert config_content.count("features.codex_hooks") == 1
 
-    def test_install_replaces_existing_hook(
+    def test_install_feature_flag_before_table_headers(
         self,
         mock_home: Path,
         mock_install_dir: Path,
         mock_shared_content,
         mock_mcp_configure,
     ) -> None:
-        """Test that existing hook file is replaced."""
-        from gobby.cli.installers.codex import install_codex_notify
+        """Test that feature flag is placed before [table] headers, not inside them."""
+        from gobby.cli.installers.codex import install_codex
 
-        # Create existing hook file
-        hook_dir = mock_home / ".gobby" / "hooks" / "codex"
-        hook_dir.mkdir(parents=True)
-        existing_hook = hook_dir / "hook_dispatcher.py"
-        existing_hook.write_text("# Old hook content")
+        codex_dir = mock_home / ".codex"
+        codex_dir.mkdir(parents=True)
+        config_path = codex_dir / "config.toml"
+        config_path.write_text(
+            '[mcp_servers.gobby]\ncommand = "uv"\n\n'
+            '[projects."/some/path"]\ntrust_level = "trusted"\n'
+        )
 
-        result = install_codex_notify(mock_home)
+        result = install_codex(mock_home)
 
         assert result["success"] is True
+        config_content = config_path.read_text()
+        assert "features.codex_hooks = true" in config_content
 
-        # Verify hook was replaced
-        new_content = existing_hook.read_text()
-        assert "# Hook dispatcher" in new_content
+        # Feature flag must appear BEFORE the first [table] header
+        flag_pos = config_content.index("features.codex_hooks")
+        table_pos = config_content.index("[mcp_servers")
+        assert flag_pos < table_pos, (
+            f"Feature flag at {flag_pos} should be before [table] at {table_pos}"
+        )
 
-    def test_install_missing_source_file(self, mock_home: Path, temp_dir: Path) -> None:
-        """Test installation fails when source file is missing."""
-        from gobby.cli.installers.codex import install_codex_notify
+    def test_install_feature_flag_into_existing_features_section(
+        self,
+        mock_home: Path,
+        mock_install_dir: Path,
+        mock_shared_content,
+        mock_mcp_configure,
+    ) -> None:
+        """Test that feature flag is placed inside existing [features] section."""
+        from gobby.cli.installers.codex import install_codex
 
-        # Create empty install directory without hook_dispatcher.py
+        codex_dir = mock_home / ".codex"
+        codex_dir.mkdir(parents=True)
+        config_path = codex_dir / "config.toml"
+        config_path.write_text(
+            '[features]\nfast_mode = true\n\n[mcp_servers.gobby]\ncommand = "uv"\n'
+        )
+
+        result = install_codex(mock_home)
+
+        assert result["success"] is True
+        config_content = config_path.read_text()
+        # Should be placed as bare key inside [features], not as dotted key
+        assert "codex_hooks = true" in config_content
+        # [features] section should still exist
+        assert "[features]" in config_content
+        # fast_mode preserved
+        assert "fast_mode = true" in config_content
+        # codex_hooks must be between [features] and [mcp_servers]
+        features_pos = config_content.index("[features]")
+        codex_hooks_pos = config_content.index("codex_hooks = true")
+        mcp_pos = config_content.index("[mcp_servers")
+        assert features_pos < codex_hooks_pos < mcp_pos
+
+    def test_install_replaces_flag_in_existing_features_section(
+        self,
+        mock_home: Path,
+        mock_install_dir: Path,
+        mock_shared_content,
+        mock_mcp_configure,
+    ) -> None:
+        """Test that existing codex_hooks in [features] section is updated."""
+        from gobby.cli.installers.codex import install_codex
+
+        codex_dir = mock_home / ".codex"
+        codex_dir.mkdir(parents=True)
+        config_path = codex_dir / "config.toml"
+        config_path.write_text("[features]\ncodex_hooks = false\nfast_mode = true\n")
+
+        result = install_codex(mock_home)
+
+        assert result["success"] is True
+        config_content = config_path.read_text()
+        assert "codex_hooks = true" in config_content
+        assert "codex_hooks = false" not in config_content
+        assert config_content.count("codex_hooks") == 1
+
+    def test_install_merges_into_existing_hooks_json(
+        self,
+        mock_home: Path,
+        mock_install_dir: Path,
+        mock_shared_content,
+        mock_mcp_configure,
+    ) -> None:
+        """Test that existing hooks.json entries are preserved during merge."""
+        from gobby.cli.installers.codex import install_codex
+
+        codex_dir = mock_home / ".codex"
+        codex_dir.mkdir(parents=True)
+        hooks_path = codex_dir / "hooks.json"
+        existing_hooks = {
+            "hooks": {
+                "CustomEvent": [{"hooks": [{"type": "command", "command": "echo custom"}]}],
+            }
+        }
+        hooks_path.write_text(json.dumps(existing_hooks))
+
+        result = install_codex(mock_home)
+
+        assert result["success"] is True
+        merged = json.loads(hooks_path.read_text())
+        # Custom event preserved
+        assert "CustomEvent" in merged["hooks"]
+        # Gobby events added
+        assert set(merged["hooks"].keys()) >= EXPECTED_HOOK_EVENTS
+
+    def test_install_missing_template(self, mock_home: Path, temp_dir: Path) -> None:
+        """Test installation fails when hooks-template.json is missing."""
+        from gobby.cli.installers.codex import install_codex
+
         install_dir = temp_dir / "empty_install"
         install_dir.mkdir(parents=True)
 
-        with patch("gobby.cli.installers.codex.get_install_dir", return_value=install_dir):
-            result = install_codex_notify(mock_home)
+        with (
+            patch("gobby.cli.installers.codex.get_install_dir", return_value=install_dir),
+            patch("gobby.cli.installers.codex.install_global_hooks") as mock_global,
+            patch("gobby.cli.installers.codex.clean_project_hooks"),
+            patch("gobby.cli.installers.codex.install_shared_content") as mock_shared,
+            patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
+            patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
+        ):
+            mock_global.return_value = ["hook_dispatcher.py"]
+            mock_shared.return_value = {"plugins": []}
+            mock_cli.return_value = {"commands": []}
+            mock_mcp.return_value = {"success": True, "added": True}
+
+            result = install_codex(mock_home)
 
         assert result["success"] is False
-        assert "Missing source file" in result["error"]
+        assert "hooks.json" in result["error"]
 
     def test_install_mcp_config_failure_non_fatal(
         self,
@@ -191,12 +393,12 @@ class TestInstallCodexNotify:
         mock_shared_content,
     ) -> None:
         """Test that MCP config failure is non-fatal."""
-        from gobby.cli.installers.codex import install_codex_notify
+        from gobby.cli.installers.codex import install_codex
 
         with patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp:
             mock_mcp.return_value = {"success": False, "error": "MCP config error"}
 
-            result = install_codex_notify(mock_home)
+            result = install_codex(mock_home)
 
         assert result["success"] is True
         assert result["mcp_configured"] is False
@@ -208,7 +410,7 @@ class TestInstallCodexNotify:
         mock_shared_content,
     ) -> None:
         """Test detection of already configured MCP server."""
-        from gobby.cli.installers.codex import install_codex_notify
+        from gobby.cli.installers.codex import install_codex
 
         with patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp:
             mock_mcp.return_value = {
@@ -217,7 +419,7 @@ class TestInstallCodexNotify:
                 "already_configured": True,
             }
 
-            result = install_codex_notify(mock_home)
+            result = install_codex(mock_home)
 
         assert result["success"] is True
         assert result["mcp_configured"] is False
@@ -230,21 +432,19 @@ class TestInstallCodexNotify:
         mock_mcp_configure,
     ) -> None:
         """Test that workflows are DB-managed (not merged from file installs)."""
-        from gobby.cli.installers.codex import install_codex_notify
+        from gobby.cli.installers.codex import install_codex
 
         with (
             patch("gobby.cli.installers.codex.install_shared_content") as mock_shared,
             patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
+            patch("gobby.cli.installers.codex.install_global_hooks") as mock_global,
+            patch("gobby.cli.installers.codex.clean_project_hooks"),
         ):
-            mock_shared.return_value = {
-                "plugins": ["plugin.py"],
-                "docs": [],
-            }
-            mock_cli.return_value = {
-                "commands": ["command1"],
-            }
+            mock_shared.return_value = {"plugins": ["plugin.py"]}
+            mock_cli.return_value = {"commands": ["command1"]}
+            mock_global.return_value = ["hook_dispatcher.py"]
 
-            result = install_codex_notify(mock_home)
+            result = install_codex(mock_home)
 
         assert result["success"] is True
         assert result["workflows_installed"] == []  # DB-managed
@@ -259,44 +459,41 @@ class TestInstallCodexNotify:
         mock_mcp_configure,
     ) -> None:
         """Test handling of config write exception."""
-        from gobby.cli.installers.codex import install_codex_notify
+        from gobby.cli.installers.codex import install_codex
 
-        # Create config directory first
+        # Create config directory first, then make config.toml a directory
         codex_dir = mock_home / ".codex"
         codex_dir.mkdir(parents=True)
-
-        # Make the config path a directory to cause a write error
         config_path = codex_dir / "config.toml"
         config_path.mkdir()
 
-        result = install_codex_notify(mock_home)
+        result = install_codex(mock_home)
 
         assert result["success"] is False
         assert "Failed to update Codex config" in result["error"]
 
-    def test_install_hook_file_permissions(
-        self,
-        mock_home: Path,
-        mock_install_dir: Path,
-        mock_shared_content,
-        mock_mcp_configure,
-    ) -> None:
-        """Test that installed hook file has executable permissions."""
-        import stat
+    def test_install_global_hooks_failure(self, mock_home: Path, mock_install_dir: Path) -> None:
+        """Test that global hooks installation failure stops install."""
+        from gobby.cli.installers.codex import install_codex
 
-        from gobby.cli.installers.codex import install_codex_notify
+        with (
+            patch("gobby.cli.installers.codex.install_global_hooks", side_effect=OSError("fail")),
+            patch("gobby.cli.installers.codex.clean_project_hooks"),
+        ):
+            result = install_codex(mock_home)
 
-        result = install_codex_notify(mock_home)
+        assert result["success"] is False
+        assert "global hooks" in result["error"]
 
-        assert result["success"] is True
+    def test_backward_compat_alias(self) -> None:
+        """Test that install_codex_notify is an alias for install_codex."""
+        from gobby.cli.installers.codex import install_codex, install_codex_notify
 
-        hook_path = mock_home / ".gobby" / "hooks" / "codex" / "hook_dispatcher.py"
-        mode = hook_path.stat().st_mode
-        assert mode & stat.S_IXUSR  # Owner execute permission
+        assert install_codex_notify is install_codex
 
 
-class TestUninstallCodexNotify:
-    """Tests for uninstall_codex_notify function."""
+class TestUninstallCodex:
+    """Tests for uninstall_codex function."""
 
     @pytest.fixture
     def mock_home(self, temp_dir: Path):
@@ -317,218 +514,182 @@ class TestUninstallCodexNotify:
 
     def test_uninstall_success_full(self, mock_home: Path, mock_mcp_remove) -> None:
         """Test successful uninstallation with all components present."""
-        from gobby.cli.installers.codex import uninstall_codex_notify
+        from gobby.cli.installers.codex import uninstall_codex
 
-        # Set up installed files
-        hook_dir = mock_home / ".gobby" / "hooks" / "codex"
-        hook_dir.mkdir(parents=True)
-        hook_file = hook_dir / "hook_dispatcher.py"
-        hook_file.write_text("# Hook content")
+        # Set up hooks.json with gobby hooks
+        codex_dir = mock_home / ".codex"
+        codex_dir.mkdir(parents=True)
+        hooks_path = codex_dir / "hooks.json"
+        hooks_config = {
+            "hooks": {
+                "SessionStart": [
+                    {
+                        "hooks": [
+                            {"type": "command", "command": "uv run hook_dispatcher.py --cli=codex"}
+                        ]
+                    }
+                ],
+                "PreToolUse": [
+                    {
+                        "matcher": ".*",
+                        "hooks": [
+                            {"type": "command", "command": "uv run hook_dispatcher.py --cli=codex"}
+                        ],
+                    }
+                ],
+            }
+        }
+        hooks_path.write_text(json.dumps(hooks_config))
 
-        config_dir = mock_home / ".codex"
-        config_dir.mkdir(parents=True)
-        config_path = config_dir / "config.toml"
-        config_path.write_text('notify = ["python3", "/path/to/hook"]\nmodel = "gpt-4"\n')
+        # Set up config.toml with feature flag
+        config_path = codex_dir / "config.toml"
+        config_path.write_text('model = "gpt-4"\nfeatures.codex_hooks = true\n')
 
-        result = uninstall_codex_notify()
+        result = uninstall_codex()
 
         assert result["success"] is True
         assert result["error"] is None
-        assert len(result["files_removed"]) == 1
-        assert "hook_dispatcher.py" in result["files_removed"][0]
+        assert set(result["hooks_removed"]) == {"SessionStart", "PreToolUse"}
         assert result["config_updated"] is True
         assert result["mcp_removed"] is True
 
-        # Verify hook file was removed
-        assert not hook_file.exists()
+        # Verify hooks.json cleaned (empty, so deleted)
+        assert not hooks_path.exists()
 
-        # Verify notify line was removed but other config preserved
+        # Verify feature flag removed, model preserved
         config_content = config_path.read_text()
-        assert "notify" not in config_content
+        assert "features.codex_hooks" not in config_content
         assert 'model = "gpt-4"' in config_content
 
-    def test_uninstall_no_hook_file(self, mock_home: Path, mock_mcp_remove) -> None:
-        """Test uninstallation when hook file doesn't exist."""
-        from gobby.cli.installers.codex import uninstall_codex_notify
+    def test_uninstall_preserves_non_gobby_hooks(self, mock_home: Path, mock_mcp_remove) -> None:
+        """Test that non-gobby hooks are preserved in hooks.json."""
+        from gobby.cli.installers.codex import uninstall_codex
 
-        # Only set up config, no hook file
-        config_dir = mock_home / ".codex"
-        config_dir.mkdir(parents=True)
-        config_path = config_dir / "config.toml"
-        config_path.write_text('notify = ["python3", "/path/to/hook"]\n')
+        codex_dir = mock_home / ".codex"
+        codex_dir.mkdir(parents=True)
+        hooks_path = codex_dir / "hooks.json"
+        hooks_config = {
+            "hooks": {
+                "SessionStart": [
+                    {"hooks": [{"type": "command", "command": "hook_dispatcher.py --cli=codex"}]}
+                ],
+                "CustomEvent": [{"hooks": [{"type": "command", "command": "echo custom"}]}],
+            }
+        }
+        hooks_path.write_text(json.dumps(hooks_config))
 
-        result = uninstall_codex_notify()
+        result = uninstall_codex()
 
         assert result["success"] is True
-        assert len(result["files_removed"]) == 0
-        assert result["config_updated"] is True
+        assert "SessionStart" in result["hooks_removed"]
+        assert "CustomEvent" not in result["hooks_removed"]
+
+        # hooks.json still exists with custom event
+        remaining = json.loads(hooks_path.read_text())
+        assert "CustomEvent" in remaining["hooks"]
+        assert "SessionStart" not in remaining["hooks"]
+
+    def test_uninstall_cleans_legacy_notify_script(self, mock_home: Path, mock_mcp_remove) -> None:
+        """Test that legacy notify script is cleaned up during uninstall."""
+        from gobby.cli.installers.codex import uninstall_codex
+
+        # Set up legacy notify script
+        old_dir = mock_home / ".gobby" / "hooks" / "codex"
+        old_dir.mkdir(parents=True)
+        old_script = old_dir / "hook_dispatcher.py"
+        old_script.write_text("# old notify")
+
+        result = uninstall_codex()
+
+        assert result["success"] is True
+        assert not old_script.exists()
+        assert str(old_script) in result["files_removed"]
+
+    def test_uninstall_removes_legacy_notify_from_config(
+        self, mock_home: Path, mock_mcp_remove
+    ) -> None:
+        """Test that legacy notify line is also removed from config.toml."""
+        from gobby.cli.installers.codex import uninstall_codex
+
+        codex_dir = mock_home / ".codex"
+        codex_dir.mkdir(parents=True)
+        config_path = codex_dir / "config.toml"
+        config_path.write_text('notify = ["python3", "/path"]\nfeatures.codex_hooks = true\n')
+
+        result = uninstall_codex()
+
+        assert result["success"] is True
+        config_content = config_path.read_text()
+        assert "notify" not in config_content
+        assert "features.codex_hooks" not in config_content
+
+    def test_uninstall_no_hooks_json(self, mock_home: Path, mock_mcp_remove) -> None:
+        """Test uninstallation when hooks.json doesn't exist."""
+        from gobby.cli.installers.codex import uninstall_codex
+
+        result = uninstall_codex()
+
+        assert result["success"] is True
+        assert len(result["hooks_removed"]) == 0
 
     def test_uninstall_no_config_file(self, mock_home: Path, mock_mcp_remove) -> None:
         """Test uninstallation when config file doesn't exist."""
-        from gobby.cli.installers.codex import uninstall_codex_notify
+        from gobby.cli.installers.codex import uninstall_codex
 
-        # Only set up hook file, no config
-        hook_dir = mock_home / ".gobby" / "hooks" / "codex"
-        hook_dir.mkdir(parents=True)
-        hook_file = hook_dir / "hook_dispatcher.py"
-        hook_file.write_text("# Hook content")
-
-        result = uninstall_codex_notify()
-
-        assert result["success"] is True
-        assert len(result["files_removed"]) == 1
-        assert result["config_updated"] is False
-
-    def test_uninstall_config_without_notify(self, mock_home: Path, mock_mcp_remove) -> None:
-        """Test uninstallation when config exists but has no notify line."""
-        from gobby.cli.installers.codex import uninstall_codex_notify
-
-        config_dir = mock_home / ".codex"
-        config_dir.mkdir(parents=True)
-        config_path = config_dir / "config.toml"
-        config_path.write_text('model = "gpt-4"\n')
-
-        result = uninstall_codex_notify()
+        result = uninstall_codex()
 
         assert result["success"] is True
         assert result["config_updated"] is False
-
-        # Verify config was not modified
-        config_content = config_path.read_text()
-        assert config_content == 'model = "gpt-4"\n'
-
-    def test_uninstall_removes_empty_parent_dir(self, mock_home: Path, mock_mcp_remove) -> None:
-        """Test that empty parent directories are removed after uninstall."""
-        from gobby.cli.installers.codex import uninstall_codex_notify
-
-        # Set up hook file as only item in directory
-        hook_dir = mock_home / ".gobby" / "hooks" / "codex"
-        hook_dir.mkdir(parents=True)
-        hook_file = hook_dir / "hook_dispatcher.py"
-        hook_file.write_text("# Hook content")
-
-        result = uninstall_codex_notify()
-
-        assert result["success"] is True
-
-        # Verify hook directory was removed since it's now empty
-        assert not hook_dir.exists()
-
-    def test_uninstall_rmdir_exception_ignored(self, mock_home: Path, mock_mcp_remove) -> None:
-        """Test that rmdir exceptions are silently ignored."""
-        from gobby.cli.installers.codex import uninstall_codex_notify
-
-        # Set up hook file
-        hook_dir = mock_home / ".gobby" / "hooks" / "codex"
-        hook_dir.mkdir(parents=True)
-        hook_file = hook_dir / "hook_dispatcher.py"
-        hook_file.write_text("# Hook content")
-
-        # Create a file in the directory that would prevent rmdir
-        # We simulate the exception by mocking rmdir to raise
-        with patch("pathlib.Path.rmdir", side_effect=OSError("Cannot remove")):
-            result = uninstall_codex_notify()
-
-        # Should still succeed despite rmdir failure
-        assert result["success"] is True
-        assert len(result["files_removed"]) == 1
-
-    def test_uninstall_keeps_non_empty_parent_dir(self, mock_home: Path, mock_mcp_remove) -> None:
-        """Test that non-empty parent directories are preserved."""
-        from gobby.cli.installers.codex import uninstall_codex_notify
-
-        # Set up hook file with other files in directory
-        hook_dir = mock_home / ".gobby" / "hooks" / "codex"
-        hook_dir.mkdir(parents=True)
-        hook_file = hook_dir / "hook_dispatcher.py"
-        hook_file.write_text("# Hook content")
-        other_file = hook_dir / "other_file.py"
-        other_file.write_text("# Other content")
-
-        result = uninstall_codex_notify()
-
-        assert result["success"] is True
-
-        # Verify hook directory still exists
-        assert hook_dir.exists()
-        assert other_file.exists()
 
     def test_uninstall_creates_backup(self, mock_home: Path, mock_mcp_remove) -> None:
         """Test that config backup is created before modification."""
-        from gobby.cli.installers.codex import uninstall_codex_notify
+        from gobby.cli.installers.codex import uninstall_codex
 
-        config_dir = mock_home / ".codex"
-        config_dir.mkdir(parents=True)
-        config_path = config_dir / "config.toml"
-        original_content = 'notify = ["python3", "/path/to/hook"]\nmodel = "gpt-4"\n'
-        config_path.write_text(original_content)
+        codex_dir = mock_home / ".codex"
+        codex_dir.mkdir(parents=True)
+        config_path = codex_dir / "config.toml"
+        original = 'features.codex_hooks = true\nmodel = "gpt-4"\n'
+        config_path.write_text(original)
 
-        result = uninstall_codex_notify()
+        result = uninstall_codex()
 
         assert result["success"] is True
-
-        # Verify backup was created
         backup_path = config_path.with_suffix(".toml.bak")
         assert backup_path.exists()
-        assert backup_path.read_text() == original_content
-
-    def test_uninstall_cleans_multiple_blank_lines(self, mock_home: Path, mock_mcp_remove) -> None:
-        """Test that multiple blank lines are cleaned up after removal."""
-        from gobby.cli.installers.codex import uninstall_codex_notify
-
-        config_dir = mock_home / ".codex"
-        config_dir.mkdir(parents=True)
-        config_path = config_dir / "config.toml"
-        config_path.write_text('model = "gpt-4"\n\n\nnotify = ["cmd"]\n\n\nother = "value"\n')
-
-        result = uninstall_codex_notify()
-
-        assert result["success"] is True
-
-        # Verify multiple blank lines were reduced
-        config_content = config_path.read_text()
-        assert "\n\n\n" not in config_content
-
-    def test_uninstall_config_read_exception(self, mock_home: Path, mock_mcp_remove) -> None:
-        """Test handling of config read exception."""
-        from gobby.cli.installers.codex import uninstall_codex_notify
-
-        config_dir = mock_home / ".codex"
-        config_dir.mkdir(parents=True)
-        config_path = config_dir / "config.toml"
-        # Create a directory instead of file to cause read error
-        config_path.mkdir()
-
-        result = uninstall_codex_notify()
-
-        assert result["success"] is False
-        assert "Failed to update Codex config" in result["error"]
+        assert backup_path.read_text() == original
 
     def test_uninstall_nothing_installed(self, mock_home: Path, mock_mcp_remove) -> None:
         """Test uninstallation when nothing is installed."""
-        from gobby.cli.installers.codex import uninstall_codex_notify
+        from gobby.cli.installers.codex import uninstall_codex
 
-        result = uninstall_codex_notify()
+        result = uninstall_codex()
 
         assert result["success"] is True
+        assert len(result["hooks_removed"]) == 0
         assert len(result["files_removed"]) == 0
         assert result["config_updated"] is False
 
     def test_uninstall_mcp_removal_failure_non_fatal(self, mock_home: Path) -> None:
         """Test that MCP removal failure is non-fatal."""
-        from gobby.cli.installers.codex import uninstall_codex_notify
+        from gobby.cli.installers.codex import uninstall_codex
 
         with patch("gobby.cli.installers.codex.remove_mcp_server_toml") as mock_mcp:
             mock_mcp.return_value = {"success": False, "error": "MCP removal error"}
 
-            result = uninstall_codex_notify()
+            result = uninstall_codex()
 
         assert result["success"] is True
         assert result["mcp_removed"] is False
 
+    def test_backward_compat_alias(self) -> None:
+        """Test that uninstall_codex_notify is an alias for uninstall_codex."""
+        from gobby.cli.installers.codex import uninstall_codex, uninstall_codex_notify
 
-class TestNotifyLineFormat:
-    """Tests for the notify line format in config.toml."""
+        assert uninstall_codex_notify is uninstall_codex
+
+
+class TestHooksTemplateFormat:
+    """Tests for hooks.json format and content."""
 
     @pytest.fixture
     def mock_home(self, temp_dir: Path):
@@ -542,13 +703,68 @@ class TestNotifyLineFormat:
 
     @pytest.fixture
     def mock_install_dir(self, temp_dir: Path):
-        """Create a mock install directory with source files."""
+        """Create a mock install directory with hooks-template.json."""
         install_dir = temp_dir / "install"
-        codex_hooks = install_dir / "codex" / "hooks"
-        codex_hooks.mkdir(parents=True)
+        codex_dir = install_dir / "codex"
+        codex_dir.mkdir(parents=True)
 
-        hook_dispatcher = codex_hooks / "hook_dispatcher.py"
-        hook_dispatcher.write_text("# Hook")
+        hooks_template = {
+            "hooks": {
+                "SessionStart": [
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": 'uv run "$HOOKS_DIR/hook_dispatcher.py" --cli=codex --type=SessionStart',
+                            }
+                        ]
+                    }
+                ],
+                "PreToolUse": [
+                    {
+                        "matcher": ".*",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": 'uv run "$HOOKS_DIR/hook_dispatcher.py" --cli=codex --type=PreToolUse',
+                            }
+                        ],
+                    }
+                ],
+                "PostToolUse": [
+                    {
+                        "matcher": ".*",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": 'uv run "$HOOKS_DIR/hook_dispatcher.py" --cli=codex --type=PostToolUse',
+                            }
+                        ],
+                    }
+                ],
+                "UserPromptSubmit": [
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": 'uv run "$HOOKS_DIR/hook_dispatcher.py" --cli=codex --type=UserPromptSubmit',
+                            }
+                        ]
+                    }
+                ],
+                "Stop": [
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": 'uv run "$HOOKS_DIR/hook_dispatcher.py" --cli=codex --type=Stop',
+                            }
+                        ]
+                    }
+                ],
+            }
+        }
+        (codex_dir / "hooks-template.json").write_text(json.dumps(hooks_template, indent=2))
 
         with patch("gobby.cli.installers.codex.get_install_dir", return_value=install_dir):
             yield install_dir
@@ -560,60 +776,71 @@ class TestNotifyLineFormat:
             patch("gobby.cli.installers.codex.install_shared_content") as mock_shared,
             patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
             patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
+            patch("gobby.cli.installers.codex.install_global_hooks") as mock_global,
+            patch("gobby.cli.installers.codex.clean_project_hooks"),
         ):
-            mock_shared.return_value = {"workflows": [], "plugins": []}
-            mock_cli.return_value = {"workflows": [], "commands": []}
+            mock_shared.return_value = {"plugins": []}
+            mock_cli.return_value = {"commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
+            mock_global.return_value = ["hook_dispatcher.py"]
             yield
 
-    def test_notify_line_is_valid_json(
+    def test_hooks_use_regex_matcher(
         self,
         mock_home: Path,
         mock_install_dir: Path,
         mock_deps,
     ) -> None:
-        """Test that the notify line contains valid JSON array."""
-        from gobby.cli.installers.codex import install_codex_notify
+        """Test that PreToolUse/PostToolUse use regex matchers (not glob)."""
+        from gobby.cli.installers.codex import install_codex
 
-        result = install_codex_notify(mock_home)
-
+        result = install_codex(mock_home)
         assert result["success"] is True
 
-        config_path = mock_home / ".codex" / "config.toml"
-        config_content = config_path.read_text()
+        hooks_path = mock_home / ".codex" / "hooks.json"
+        hooks_config = json.loads(hooks_path.read_text())
 
-        # Extract the notify value
-        for line in config_content.split("\n"):
-            if line.startswith("notify"):
-                _, value = line.split(" = ", 1)
-                parsed = json.loads(value)
-                assert isinstance(parsed, list)
-                assert len(parsed) == 2
-                assert parsed[0] == "python3"
-                assert "hook_dispatcher.py" in parsed[1]
-                break
+        # PreToolUse and PostToolUse should use ".*" regex matcher
+        for event in ["PreToolUse", "PostToolUse"]:
+            assert hooks_config["hooks"][event][0]["matcher"] == ".*"
 
-    def test_notify_line_contains_absolute_path(
+    def test_hooks_dir_substituted_with_absolute_path(
         self,
         mock_home: Path,
         mock_install_dir: Path,
         mock_deps,
     ) -> None:
-        """Test that the notify line contains an absolute path to the hook."""
-        from gobby.cli.installers.codex import install_codex_notify
+        """Test that $HOOKS_DIR is replaced with absolute path."""
+        from gobby.cli.installers.codex import install_codex
 
-        result = install_codex_notify(mock_home)
-
+        result = install_codex(mock_home)
         assert result["success"] is True
 
-        config_path = mock_home / ".codex" / "config.toml"
-        config_content = config_path.read_text()
+        hooks_path = mock_home / ".codex" / "hooks.json"
+        hooks_content = hooks_path.read_text()
 
-        # Verify the path in notify is absolute
-        for line in config_content.split("\n"):
-            if line.startswith("notify"):
-                assert str(mock_home) in line
-                break
+        assert "$HOOKS_DIR" not in hooks_content
+        assert str(mock_home) in hooks_content
+
+    def test_hooks_use_codex_cli_flag(
+        self,
+        mock_home: Path,
+        mock_install_dir: Path,
+        mock_deps,
+    ) -> None:
+        """Test that all hooks use --cli=codex flag."""
+        from gobby.cli.installers.codex import install_codex
+
+        result = install_codex(mock_home)
+        assert result["success"] is True
+
+        hooks_path = mock_home / ".codex" / "hooks.json"
+        hooks_config = json.loads(hooks_path.read_text())
+
+        for event_name, entries in hooks_config["hooks"].items():
+            for entry in entries:
+                for hook in entry["hooks"]:
+                    assert "--cli=codex" in hook["command"], f"{event_name} missing --cli=codex"
 
 
 class TestEdgeCases:
@@ -629,40 +856,43 @@ class TestEdgeCases:
         ):
             yield temp_dir
 
-    def test_install_with_unicode_in_path(self, mock_home: Path, temp_dir: Path) -> None:
-        """Test installation with unicode characters in paths."""
-        from gobby.cli.installers.codex import install_codex_notify
-
-        # Create install dir with unicode
+    def _make_install_dir(self, temp_dir: Path) -> Path:
+        """Create a mock install directory with hooks-template.json."""
         install_dir = temp_dir / "install"
-        codex_hooks = install_dir / "codex" / "hooks"
-        codex_hooks.mkdir(parents=True)
-        hook_dispatcher = codex_hooks / "hook_dispatcher.py"
-        hook_dispatcher.write_text("# Hook with unicode comment")
-
-        with (
-            patch("gobby.cli.installers.codex.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.codex.install_shared_content") as mock_shared,
-            patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
-            patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
-        ):
-            mock_shared.return_value = {"workflows": [], "plugins": []}
-            mock_cli.return_value = {"workflows": [], "commands": []}
-            mock_mcp.return_value = {"success": True, "added": True}
-
-            result = install_codex_notify(mock_home)
-
-        assert result["success"] is True
+        codex_dir = install_dir / "codex"
+        codex_dir.mkdir(parents=True)
+        hooks_template = {
+            "hooks": {
+                "SessionStart": [
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": 'uv run "$HOOKS_DIR/hook_dispatcher.py" --cli=codex --type=SessionStart',
+                            }
+                        ]
+                    }
+                ],
+                "Stop": [
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": 'uv run "$HOOKS_DIR/hook_dispatcher.py" --cli=codex --type=Stop',
+                            }
+                        ]
+                    }
+                ],
+            }
+        }
+        (codex_dir / "hooks-template.json").write_text(json.dumps(hooks_template))
+        return install_dir
 
     def test_install_with_empty_existing_config(self, mock_home: Path, temp_dir: Path) -> None:
         """Test installation with an empty existing config file."""
-        from gobby.cli.installers.codex import install_codex_notify
+        from gobby.cli.installers.codex import install_codex
 
-        install_dir = temp_dir / "install"
-        codex_hooks = install_dir / "codex" / "hooks"
-        codex_hooks.mkdir(parents=True)
-        hook_dispatcher = codex_hooks / "hook_dispatcher.py"
-        hook_dispatcher.write_text("# Hook")
+        install_dir = self._make_install_dir(temp_dir)
 
         # Create empty config
         codex_dir = mock_home / ".codex"
@@ -675,114 +905,27 @@ class TestEdgeCases:
             patch("gobby.cli.installers.codex.install_shared_content") as mock_shared,
             patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
             patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
+            patch("gobby.cli.installers.codex.install_global_hooks") as mock_global,
+            patch("gobby.cli.installers.codex.clean_project_hooks"),
         ):
-            mock_shared.return_value = {"workflows": [], "plugins": []}
-            mock_cli.return_value = {"workflows": [], "commands": []}
+            mock_shared.return_value = {"plugins": []}
+            mock_cli.return_value = {"commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
+            mock_global.return_value = ["hook_dispatcher.py"]
 
-            result = install_codex_notify(mock_home)
+            result = install_codex(mock_home)
 
         assert result["success"] is True
         assert result["config_updated"] is True
-
-        # Verify config has notify line
         config_content = config_path.read_text()
-        assert "notify" in config_content
+        assert "features.codex_hooks = true" in config_content
 
-    def test_install_with_whitespace_only_config(self, mock_home: Path, temp_dir: Path) -> None:
-        """Test installation with a config file containing only whitespace."""
-        from gobby.cli.installers.codex import install_codex_notify
+    def test_install_preserves_other_config_content(self, mock_home: Path, temp_dir: Path) -> None:
+        """Test that updating config preserves other content."""
+        from gobby.cli.installers.codex import install_codex
 
-        install_dir = temp_dir / "install"
-        codex_hooks = install_dir / "codex" / "hooks"
-        codex_hooks.mkdir(parents=True)
-        hook_dispatcher = codex_hooks / "hook_dispatcher.py"
-        hook_dispatcher.write_text("# Hook")
+        install_dir = self._make_install_dir(temp_dir)
 
-        # Create whitespace-only config
-        codex_dir = mock_home / ".codex"
-        codex_dir.mkdir(parents=True)
-        config_path = codex_dir / "config.toml"
-        config_path.write_text("   \n\n  \n")
-
-        with (
-            patch("gobby.cli.installers.codex.get_install_dir", return_value=install_dir),
-            patch("gobby.cli.installers.codex.install_shared_content") as mock_shared,
-            patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
-            patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
-        ):
-            mock_shared.return_value = {"workflows": [], "plugins": []}
-            mock_cli.return_value = {"workflows": [], "commands": []}
-            mock_mcp.return_value = {"success": True, "added": True}
-
-            result = install_codex_notify(mock_home)
-
-        assert result["success"] is True
-        config_content = config_path.read_text()
-        # Should have just the notify line
-        assert "notify" in config_content
-
-    def test_uninstall_with_notify_at_different_positions(self, mock_home: Path) -> None:
-        """Test uninstallation with notify line at different positions in config."""
-        from gobby.cli.installers.codex import uninstall_codex_notify
-
-        config_dir = mock_home / ".codex"
-        config_dir.mkdir(parents=True)
-        config_path = config_dir / "config.toml"
-
-        with patch("gobby.cli.installers.codex.remove_mcp_server_toml") as mock_mcp:
-            mock_mcp.return_value = {"success": True, "removed": True}
-
-            # Test notify at beginning
-            config_path.write_text('notify = ["cmd"]\nmodel = "gpt-4"\n')
-            result = uninstall_codex_notify()
-            assert result["success"] is True
-            assert "notify" not in config_path.read_text()
-
-            # Test notify at end
-            config_path.write_text('model = "gpt-4"\nnotify = ["cmd"]\n')
-            result = uninstall_codex_notify()
-            assert result["success"] is True
-            assert "notify" not in config_path.read_text()
-
-            # Test notify in middle
-            config_path.write_text('model = "gpt-4"\nnotify = ["cmd"]\nother = "value"\n')
-            result = uninstall_codex_notify()
-            assert result["success"] is True
-            assert "notify" not in config_path.read_text()
-
-    def test_uninstall_with_indented_notify_line(self, mock_home: Path) -> None:
-        """Test uninstallation with an indented notify line."""
-        from gobby.cli.installers.codex import uninstall_codex_notify
-
-        config_dir = mock_home / ".codex"
-        config_dir.mkdir(parents=True)
-        config_path = config_dir / "config.toml"
-        config_path.write_text('model = "gpt-4"\n  notify = ["cmd"]\n')
-
-        with patch("gobby.cli.installers.codex.remove_mcp_server_toml") as mock_mcp:
-            mock_mcp.return_value = {"success": True, "removed": True}
-
-            result = uninstall_codex_notify()
-
-        assert result["success"] is True
-        assert result["config_updated"] is True
-        # Indented notify line should be removed
-        assert "notify" not in config_path.read_text()
-
-    def test_install_updates_existing_notify_preserving_other_content(
-        self, mock_home: Path, temp_dir: Path
-    ) -> None:
-        """Test that updating notify preserves other config content."""
-        from gobby.cli.installers.codex import install_codex_notify
-
-        install_dir = temp_dir / "install"
-        codex_hooks = install_dir / "codex" / "hooks"
-        codex_hooks.mkdir(parents=True)
-        hook_dispatcher = codex_hooks / "hook_dispatcher.py"
-        hook_dispatcher.write_text("# Hook")
-
-        # Create config with various settings
         codex_dir = mock_home / ".codex"
         codex_dir.mkdir(parents=True)
         config_path = codex_dir / "config.toml"
@@ -801,147 +944,58 @@ debug = true
             patch("gobby.cli.installers.codex.install_shared_content") as mock_shared,
             patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
             patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
+            patch("gobby.cli.installers.codex.install_global_hooks") as mock_global,
+            patch("gobby.cli.installers.codex.clean_project_hooks"),
         ):
-            mock_shared.return_value = {"workflows": [], "plugins": []}
-            mock_cli.return_value = {"workflows": [], "commands": []}
+            mock_shared.return_value = {"plugins": []}
+            mock_cli.return_value = {"commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
+            mock_global.return_value = ["hook_dispatcher.py"]
 
-            result = install_codex_notify(mock_home)
+            result = install_codex(mock_home)
 
         assert result["success"] is True
-
         new_config = config_path.read_text()
-        # Verify other content is preserved
         assert "# Comment at top" in new_config
         assert 'model = "gpt-4"' in new_config
         assert "temperature = 0.7" in new_config
         assert "[advanced]" in new_config
         assert "debug = true" in new_config
-        # Verify notify was updated
-        assert "hook_dispatcher.py" in new_config
-        # Verify old notify is gone
-        assert '["old", "command"]' not in new_config
+        assert "notify" not in new_config  # Removed
+        assert "features.codex_hooks = true" in new_config  # Added
 
-    def test_install_config_unchanged_when_notify_already_correct(
+    def test_install_corrupt_hooks_json_is_overwritten(
         self, mock_home: Path, temp_dir: Path
     ) -> None:
-        """Test that config_updated is False when notify line is already correct."""
-        from gobby.cli.installers.codex import install_codex_notify
+        """Test that corrupt hooks.json is handled gracefully."""
+        from gobby.cli.installers.codex import install_codex
 
-        install_dir = temp_dir / "install"
-        codex_hooks = install_dir / "codex" / "hooks"
-        codex_hooks.mkdir(parents=True)
-        hook_dispatcher = codex_hooks / "hook_dispatcher.py"
-        hook_dispatcher.write_text("# Hook")
+        install_dir = self._make_install_dir(temp_dir)
 
-        # Create config with the exact notify line that would be written
         codex_dir = mock_home / ".codex"
         codex_dir.mkdir(parents=True)
-        config_path = codex_dir / "config.toml"
-        target_notify = mock_home / ".gobby" / "hooks" / "codex" / "hook_dispatcher.py"
-        # Create the hook directory first so we know the exact path
-        hook_dir = mock_home / ".gobby" / "hooks" / "codex"
-        hook_dir.mkdir(parents=True)
-
-        # Create config with existing notify that matches what would be written
-        import json
-
-        notify_command = ["python3", str(target_notify)]
-        notify_line = f"notify = {json.dumps(notify_command)}\n"
-        config_path.write_text(notify_line)
+        hooks_path = codex_dir / "hooks.json"
+        hooks_path.write_text("{invalid json")
 
         with (
             patch("gobby.cli.installers.codex.get_install_dir", return_value=install_dir),
             patch("gobby.cli.installers.codex.install_shared_content") as mock_shared,
             patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
             patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
+            patch("gobby.cli.installers.codex.install_global_hooks") as mock_global,
+            patch("gobby.cli.installers.codex.clean_project_hooks"),
         ):
-            mock_shared.return_value = {"workflows": [], "plugins": []}
-            mock_cli.return_value = {"workflows": [], "commands": []}
+            mock_shared.return_value = {"plugins": []}
+            mock_cli.return_value = {"commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
+            mock_global.return_value = ["hook_dispatcher.py"]
 
-            result = install_codex_notify(mock_home)
-
-        assert result["success"] is True
-        # Config was not updated since notify line was already correct
-        assert result["config_updated"] is False
-
-    def test_uninstall_config_unchanged_when_removing_results_in_same_content(
-        self, mock_home: Path
-    ) -> None:
-        """Test that config_updated is False when removal results in same content."""
-        from gobby.cli.installers.codex import uninstall_codex_notify
-
-        # This is an edge case where the regex matches but sub results in same string
-        # which is practically impossible but we test the branch anyway
-        config_dir = mock_home / ".codex"
-        config_dir.mkdir(parents=True)
-        config_path = config_dir / "config.toml"
-
-        # Set up hook so uninstall has something to remove
-        hook_dir = mock_home / ".gobby" / "hooks" / "codex"
-        hook_dir.mkdir(parents=True)
-        hook_file = hook_dir / "hook_dispatcher.py"
-        hook_file.write_text("# Hook")
-
-        # Config with only whitespace and newlines - after removing nothing meaningful
-        # the content might effectively be the same
-        config_path.write_text('model = "gpt-4"\n')  # No notify line
-
-        with patch("gobby.cli.installers.codex.remove_mcp_server_toml") as mock_mcp:
-            mock_mcp.return_value = {"success": True, "removed": True}
-
-            result = uninstall_codex_notify()
+            result = install_codex(mock_home)
 
         assert result["success"] is True
-        # Config not updated since there was no notify line to remove
-        assert result["config_updated"] is False
-
-    def test_uninstall_notify_removal_produces_identical_content(self, mock_home: Path) -> None:
-        """Test edge case where regex matches but substitution produces same content.
-
-        This tests the branch at line 166 where updated == existing after substitution.
-        While this is nearly impossible in practice (regex match + no change),
-        we can test it by mocking the regex pattern to achieve this.
-        """
-        import re
-
-        from gobby.cli.installers.codex import uninstall_codex_notify
-
-        config_dir = mock_home / ".codex"
-        config_dir.mkdir(parents=True)
-        config_path = config_dir / "config.toml"
-
-        # Set up a config with a notify line
-        original_content = 'notify = ["cmd"]\nmodel = "gpt-4"\n'
-        config_path.write_text(original_content)
-
-        # Mock re.compile to return a pattern that matches but sub returns original
-        original_compile = re.compile
-
-        class MockPattern:
-            def search(self, text):
-                return True  # Pretend to match
-
-            def sub(self, replacement, text):
-                return text  # But return same text
-
-        def mock_compile(pattern, *args, **kwargs):
-            if "notify" in pattern:
-                return MockPattern()
-            return original_compile(pattern, *args, **kwargs)
-
-        with (
-            patch("gobby.cli.installers.codex.remove_mcp_server_toml") as mock_mcp,
-            patch("gobby.cli.installers.codex.re.compile", side_effect=mock_compile),
-        ):
-            mock_mcp.return_value = {"success": True, "removed": True}
-
-            result = uninstall_codex_notify()
-
-        assert result["success"] is True
-        # Config should NOT be updated since sub() returned same content
-        assert result["config_updated"] is False
+        # Should have overwritten corrupt file
+        hooks_config = json.loads(hooks_path.read_text())
+        assert "hooks" in hooks_config
 
 
 class TestResultStructure:
@@ -959,37 +1013,44 @@ class TestResultStructure:
 
     @pytest.fixture
     def mock_install_dir(self, temp_dir: Path):
-        """Create a mock install directory with source files."""
+        """Create a mock install directory with hooks-template.json."""
         install_dir = temp_dir / "install"
-        codex_hooks = install_dir / "codex" / "hooks"
-        codex_hooks.mkdir(parents=True)
-        hook_dispatcher = codex_hooks / "hook_dispatcher.py"
-        hook_dispatcher.write_text("# Hook")
+        codex_dir = install_dir / "codex"
+        codex_dir.mkdir(parents=True)
+        hooks_template = {
+            "hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "echo test"}]}]}
+        }
+        (codex_dir / "hooks-template.json").write_text(json.dumps(hooks_template))
 
         with patch("gobby.cli.installers.codex.get_install_dir", return_value=install_dir):
             yield install_dir
 
     def test_install_result_has_all_keys(self, mock_home: Path, mock_install_dir: Path) -> None:
         """Test that install result contains all expected keys."""
-        from gobby.cli.installers.codex import install_codex_notify
+        from gobby.cli.installers.codex import install_codex
 
         with (
             patch("gobby.cli.installers.codex.install_shared_content") as mock_shared,
             patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
             patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
+            patch("gobby.cli.installers.codex.install_global_hooks") as mock_global,
+            patch("gobby.cli.installers.codex.clean_project_hooks"),
         ):
-            mock_shared.return_value = {"workflows": [], "plugins": []}
-            mock_cli.return_value = {"workflows": [], "commands": []}
+            mock_shared.return_value = {"plugins": []}
+            mock_cli.return_value = {"commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
+            mock_global.return_value = ["hook_dispatcher.py"]
 
-            result = install_codex_notify(mock_home)
+            result = install_codex(mock_home)
 
         expected_keys = {
             "success",
+            "hooks_installed",
             "files_installed",
             "workflows_installed",
             "commands_installed",
             "plugins_installed",
+            "agents_installed",
             "config_updated",
             "mcp_configured",
             "mcp_already_configured",
@@ -999,15 +1060,16 @@ class TestResultStructure:
 
     def test_uninstall_result_has_all_keys(self, mock_home: Path) -> None:
         """Test that uninstall result contains all expected keys."""
-        from gobby.cli.installers.codex import uninstall_codex_notify
+        from gobby.cli.installers.codex import uninstall_codex
 
         with patch("gobby.cli.installers.codex.remove_mcp_server_toml") as mock_mcp:
             mock_mcp.return_value = {"success": True, "removed": True}
 
-            result = uninstall_codex_notify()
+            result = uninstall_codex()
 
         expected_keys = {
             "success",
+            "hooks_removed",
             "files_removed",
             "config_updated",
             "mcp_removed",

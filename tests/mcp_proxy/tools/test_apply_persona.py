@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -134,9 +134,8 @@ class TestBuildPersonaChanges:
         assert changes["_skill_format"] == "compact"
 
     def test_step_workflow_creates_instance(self, db: LocalDatabase) -> None:
-        from gobby.workflows.definitions import WorkflowStep
-
         from gobby.mcp_proxy.tools.apply_persona import build_persona_changes
+        from gobby.workflows.definitions import WorkflowStep
 
         # Create a project + session so FK constraints are satisfied
         db.execute(

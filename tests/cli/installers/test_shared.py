@@ -997,14 +997,14 @@ class TestGetIdeConfigDir:
     def test_macos_path(self) -> None:
         with patch("gobby.cli.installers.ide_config.sys") as mock_sys:
             mock_sys.platform = "darwin"
-            path = _get_ide_config_dir("Cursor")
-        assert path == Path.home() / "Library" / "Application Support" / "Cursor"
+            path = _get_ide_config_dir("TestIDE")
+        assert path == Path.home() / "Library" / "Application Support" / "TestIDE"
 
     def test_linux_path(self) -> None:
         with patch("gobby.cli.installers.ide_config.sys") as mock_sys:
             mock_sys.platform = "linux"
-            path = _get_ide_config_dir("Cursor")
-        assert path == Path.home() / ".config" / "Cursor"
+            path = _get_ide_config_dir("TestIDE")
+        assert path == Path.home() / ".config" / "TestIDE"
 
     def test_windows_path(self) -> None:
         with (
@@ -1012,8 +1012,8 @@ class TestGetIdeConfigDir:
             patch.dict(os.environ, {"APPDATA": "C:\\Users\\test\\AppData\\Roaming"}),
         ):
             mock_sys.platform = "win32"
-            path = _get_ide_config_dir("Cursor")
-        assert path == Path("C:\\Users\\test\\AppData\\Roaming") / "Cursor"
+            path = _get_ide_config_dir("TestIDE")
+        assert path == Path("C:\\Users\\test\\AppData\\Roaming") / "TestIDE"
 
 
 class TestConfigureIdeTerminalTitle:
@@ -1031,12 +1031,12 @@ class TestConfigureIdeTerminalTitle:
 
     def test_create_settings_from_scratch(self, temp_dir: Path) -> None:
         """Config dir exists but no settings.json — creates it."""
-        config_dir = temp_dir / "Cursor"
+        config_dir = temp_dir / "TestIDE"
         config_dir.mkdir()
 
         with patch("gobby.cli.installers.ide_config._get_ide_config_dir") as mock_dir:
             mock_dir.return_value = config_dir
-            result = configure_ide_terminal_title("Cursor")
+            result = configure_ide_terminal_title("TestIDE")
 
         assert result["success"] is True
         assert result["added"] is True
@@ -1049,7 +1049,7 @@ class TestConfigureIdeTerminalTitle:
 
     def test_add_to_existing_settings(self, temp_dir: Path) -> None:
         """Existing settings.json without the setting — adds it with backup."""
-        config_dir = temp_dir / "Windsurf"
+        config_dir = temp_dir / "TestIDE2"
         user_dir = config_dir / "User"
         user_dir.mkdir(parents=True)
         settings_path = user_dir / "settings.json"
@@ -1057,7 +1057,7 @@ class TestConfigureIdeTerminalTitle:
 
         with patch("gobby.cli.installers.ide_config._get_ide_config_dir") as mock_dir:
             mock_dir.return_value = config_dir
-            result = configure_ide_terminal_title("Windsurf")
+            result = configure_ide_terminal_title("TestIDE2")
 
         assert result["success"] is True
         assert result["added"] is True
@@ -1073,7 +1073,7 @@ class TestConfigureIdeTerminalTitle:
 
     def test_noop_when_already_configured(self, temp_dir: Path) -> None:
         """Setting already present — no-op, no backup."""
-        config_dir = temp_dir / "Antigravity"
+        config_dir = temp_dir / "TestIDE3"
         user_dir = config_dir / "User"
         user_dir.mkdir(parents=True)
         settings_path = user_dir / "settings.json"
@@ -1083,7 +1083,7 @@ class TestConfigureIdeTerminalTitle:
 
         with patch("gobby.cli.installers.ide_config._get_ide_config_dir") as mock_dir:
             mock_dir.return_value = config_dir
-            result = configure_ide_terminal_title("Antigravity")
+            result = configure_ide_terminal_title("TestIDE3")
 
         assert result["success"] is True
         assert result["already_configured"] is True
@@ -1092,14 +1092,14 @@ class TestConfigureIdeTerminalTitle:
 
     def test_invalid_json_in_settings(self, temp_dir: Path) -> None:
         """Existing settings.json with invalid JSON — returns error."""
-        config_dir = temp_dir / "Cursor"
+        config_dir = temp_dir / "TestIDE4"
         user_dir = config_dir / "User"
         user_dir.mkdir(parents=True)
         (user_dir / "settings.json").write_text("{ broken json }")
 
         with patch("gobby.cli.installers.ide_config._get_ide_config_dir") as mock_dir:
             mock_dir.return_value = config_dir
-            result = configure_ide_terminal_title("Cursor")
+            result = configure_ide_terminal_title("TestIDE4")
 
         assert result["success"] is False
         assert result["error"] is not None
@@ -1107,7 +1107,7 @@ class TestConfigureIdeTerminalTitle:
 
     def test_backup_failure(self, temp_dir: Path) -> None:
         """Backup creation fails — returns error without modifying file."""
-        config_dir = temp_dir / "Cursor"
+        config_dir = temp_dir / "TestIDE5"
         user_dir = config_dir / "User"
         user_dir.mkdir(parents=True)
         (user_dir / "settings.json").write_text("{}")
@@ -1118,7 +1118,7 @@ class TestConfigureIdeTerminalTitle:
         ):
             mock_dir.return_value = config_dir
             mock_copy.side_effect = OSError("Disk full")
-            result = configure_ide_terminal_title("Cursor")
+            result = configure_ide_terminal_title("TestIDE5")
 
         assert result["success"] is False
         assert "Failed to create backup" in result["error"]

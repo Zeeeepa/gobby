@@ -3,25 +3,21 @@ Codex adapter implementations.
 
 Contains the main adapter classes for Codex CLI integration:
 - CodexAdapter: Main adapter for app-server mode (programmatic control)
-- CodexNotifyAdapter: Notification adapter for hook events
+- CodexHooksAdapter: Adapter for hooks.json lifecycle events (SessionStart, PreToolUse, etc.)
 
 Extracted from codex.py as part of Phase 3 Strangler Fig decomposition.
 """
 
 from __future__ import annotations
 
-import glob as glob_module
 import logging
-import os
 import platform
 import uuid
-from collections import OrderedDict
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from gobby.adapters.base import BaseAdapter
 from gobby.adapters.codex_impl.client import (
-    CODEX_SESSIONS_DIR,
     CodexAppServerClient,
 )
 from gobby.adapters.codex_impl.types import (
@@ -531,10 +527,6 @@ class CodexAdapter(BaseAdapter):
                             friendly_name = key.replace("terminal_", "").replace("_", " ")
                             context_lines.append(f"{friendly_name}: {response.metadata[key]}")
                     context_parts.append("\n".join(context_lines))
-                else:
-                    # Subsequent hooks: inject minimal session ref only
-                    if session_ref:
-                        context_parts.append(f"Gobby Session ID: {session_ref}")
 
         # Add context to result if we have any
         if context_parts:
@@ -632,232 +624,213 @@ class CodexAdapter(BaseAdapter):
 # =============================================================================
 
 
-class CodexNotifyAdapter(BaseAdapter):
-    """Adapter for Codex CLI notify events.
+class CodexHooksAdapter(BaseAdapter):
+    """Adapter for Codex CLI hooks.json lifecycle events.
 
-    Translates notify payloads to unified HookEvent format.
-    The notify hook only fires on `agent-turn-complete`, so we:
-    - Treat first event for a thread as session start + prompt submit
-    - Track thread IDs to avoid duplicate session registration
+    Translates Codex hooks.json payloads (SessionStart, UserPromptSubmit,
+    PreToolUse, PostToolUse, Stop) to unified HookEvent format and converts
+    HookResponse back to the JSON schema Codex expects on hook stdout.
 
-    This adapter handles events from the hook_dispatcher.py script installed
-    by `gobby install --codex`.
+    Codex hooks.json uses the same input format as Claude Code (same event
+    names, same stdin JSON structure) but expects a different output schema:
+    - No ``continue`` field
+    - ``decision``: ``"approve"`` or ``"block"``
+    - ``hookSpecificOutput.additionalContext`` for context injection
     """
 
     source = SessionSource.CODEX
 
-    # Default max size for seen threads cache
-    DEFAULT_MAX_SEEN_THREADS = 1000
+    # Event type mapping: Codex PascalCase hook names -> unified HookEventType
+    EVENT_MAP: dict[str, HookEventType] = {
+        "SessionStart": HookEventType.SESSION_START,
+        "UserPromptSubmit": HookEventType.BEFORE_AGENT,
+        "PreToolUse": HookEventType.BEFORE_TOOL,
+        "PostToolUse": HookEventType.AFTER_TOOL,
+        "Stop": HookEventType.STOP,
+    }
 
-    def __init__(
-        self,
-        hook_manager: HookManager | None = None,
-        max_seen_threads: int | None = None,
-    ):
-        """Initialize the adapter.
+    # Hook events that only accept systemMessage (not additionalContext)
+    SYSTEM_MESSAGE_ONLY_EVENTS: set[str] = {"PreToolUse"}
 
-        Args:
-            hook_manager: Optional HookManager reference.
-            max_seen_threads: Max threads to track (default 1000). Oldest evicted when full.
-        """
+    def __init__(self, hook_manager: HookManager | None = None):
         self._hook_manager = hook_manager
-        # Track threads we've seen using LRU cache to avoid unbounded growth
-        self._max_seen_threads = max_seen_threads or self.DEFAULT_MAX_SEEN_THREADS
-        self._seen_threads: OrderedDict[str, bool] = OrderedDict()
-        self._machine_id: str | None = None
-
-    def _get_machine_id(self) -> str | None:
-        """Get machine ID with caching and daemon fallback."""
-        if self._machine_id:
-            return self._machine_id
-
-        # Try daemon first
-        self._machine_id = _get_daemon_machine_id()
-
-        # Fallback to generated if daemon not available
-        if not self._machine_id:
-            self._machine_id = _get_machine_id()
-
-        return self._machine_id
-
-    def _mark_thread_seen(self, thread_id: str) -> None:
-        """Mark a thread as seen, evicting oldest if cache is full.
-
-        Args:
-            thread_id: The thread ID to mark as seen.
-        """
-        # If already present, move to end (most recent)
-        if thread_id in self._seen_threads:
-            self._seen_threads.move_to_end(thread_id)
-            return
-
-        # Evict oldest entries if at capacity
-        while len(self._seen_threads) >= self._max_seen_threads:
-            self._seen_threads.popitem(last=False)
-
-        self._seen_threads[thread_id] = True
-
-    def clear_seen_threads(self) -> int:
-        """Clear the seen threads cache.
-
-        Returns:
-            Number of entries cleared.
-        """
-        count = len(self._seen_threads)
-        self._seen_threads.clear()
-        return count
-
-    def _find_jsonl_path(self, thread_id: str) -> str | None:
-        """Find the Codex session JSONL file for a thread.
-
-        Codex stores sessions at: ~/.codex/sessions/YYYY/MM/DD/rollout-{timestamp}-{thread-id}.jsonl
-
-        Args:
-            thread_id: The Codex thread ID
-
-        Returns:
-            Path to the JSONL file, or None if not found
-        """
-        if not CODEX_SESSIONS_DIR.exists():
-            return None
-
-        # Search for file ending with thread-id.jsonl
-        # Escape special glob characters in thread_id
-        safe_thread_id = glob_module.escape(thread_id)
-        pattern = str(CODEX_SESSIONS_DIR / "**" / f"*{safe_thread_id}.jsonl")
-        matches = glob_module.glob(pattern, recursive=True)
-
-        if matches:
-            # Return the most recent match (in case of duplicates)
-            return max(matches, key=os.path.getmtime)
-        return None
-
-    def _get_first_prompt(self, input_messages: list[Any]) -> str | None:
-        """Extract the first user prompt from input_messages.
-
-        Args:
-            input_messages: List of user messages from Codex
-
-        Returns:
-            First prompt string, or None
-        """
-        if input_messages and isinstance(input_messages, list) and len(input_messages) > 0:
-            first = input_messages[0]
-            if isinstance(first, str):
-                return first
-            elif isinstance(first, dict):
-                return first.get("text") or first.get("content")
-        return None
 
     def translate_to_hook_event(self, native_event: dict[str, Any]) -> HookEvent | None:
-        """Convert Codex notify payload to HookEvent.
+        """Convert Codex hooks.json payload to HookEvent.
 
-        The native_event structure from /hooks/execute:
+        The payload structure matches Claude Code's dispatcher format:
         {
-            "hook_type": "AgentTurnComplete",
+            "hook_type": "SessionStart",
             "input_data": {
-                "session_id": "thread-id",
-                "event_type": "agent-turn-complete",
-                "last_message": "...",
-                "input_messages": [...],
+                "session_id": "...",
                 "cwd": "/path/to/project",
-                "turn_id": "1"
+                "model": "...",
+                ...
             },
             "source": "codex"
         }
-
-        Args:
-            native_event: The payload from the HTTP endpoint.
-
-        Returns:
-            HookEvent for processing, or None if unsupported.
         """
-        input_data = native_event.get("input_data", {})
-        thread_id = input_data.get("session_id", "")
-        event_type = input_data.get("event_type", "unknown")
-        input_messages = input_data.get("input_messages", [])
-        cwd = input_data.get("cwd")
-        if not cwd:
-            logger.warning(
-                f"Codex notify event missing cwd - project resolution may fail (thread_id={thread_id}, event_type={event_type})",
-            )
+        hook_type = native_event.get("hook_type", "")
+        input_data = native_event.get("input_data") or {}
 
-        if not thread_id:
-            logger.warning(f"Codex notify event missing thread_id (event_type={event_type})")
+        event_type = self.EVENT_MAP.get(hook_type)
+        if event_type is None:
+            logger.warning(f"Codex hooks: unsupported hook type '{hook_type}'")
             return None
 
-        # Find the JSONL transcript file
-        jsonl_path = self._find_jsonl_path(thread_id)
+        session_id = input_data.get("session_id", "")
 
-        # Track if this is the first event for this thread (for title synthesis)
-        is_first_event = thread_id not in self._seen_threads
-        if is_first_event:
-            self._mark_thread_seen(thread_id)
+        # Normalize event data (same as Claude — reuse shared normalization)
+        from gobby.hooks.normalization import normalize_tool_fields
 
-        # Get first prompt for title synthesis (only on first event)
-        first_prompt = self._get_first_prompt(input_messages) if is_first_event else None
+        normalized_data = normalize_tool_fields(dict(input_data))
 
-        # All Codex notify events are AFTER_AGENT (turn complete)
-        # The HookManager will auto-register the session if it doesn't exist
+        # Check for failure on PostToolUse
+        is_failure = normalized_data.get("is_error", False)
+        metadata = {"is_failure": is_failure} if is_failure else {}
+
         return HookEvent(
-            event_type=HookEventType.AFTER_AGENT,
-            session_id=thread_id,
+            event_type=event_type,
+            session_id=session_id,
             source=self.source,
             timestamp=datetime.now(UTC),
-            machine_id=self._get_machine_id(),
-            data={
-                "cwd": cwd,
-                "event_type": event_type,
-                "last_message": input_data.get("last_message", ""),
-                "input_messages": input_messages,
-                "turn_id": input_data.get("turn_id", ""),
-                "transcript_path": jsonl_path,
-                "is_first_event": is_first_event,
-                "prompt": first_prompt,  # For title synthesis on first event
-            },
+            machine_id=input_data.get("machine_id"),
+            cwd=input_data.get("cwd"),
+            data=normalized_data,
+            metadata=metadata,
         )
 
     def translate_from_hook_response(
         self, response: HookResponse, hook_type: str | None = None
     ) -> dict[str, Any]:
-        """Convert HookResponse to Codex-expected format.
+        """Convert HookResponse to Codex hooks.json expected format.
 
-        Codex notify doesn't expect a response - it's fire-and-forget.
-        This just returns a simple status dict for logging.
-
-        Args:
-            response: The HookResponse from HookManager.
-            hook_type: Ignored (notify doesn't need response routing).
-
-        Returns:
-            Simple status dict.
+        Codex uses the same hook output schema as Claude Code:
+        - ``continue``: bool (whether to continue execution)
+        - ``decision``: ``"block"`` with ``reason`` to block
+        - ``hookSpecificOutput``: ``{hookEventName, additionalContext}``
+        - ``systemMessage``: system-level message injection
         """
-        return {
-            "status": "processed",
-            "decision": response.decision,
+        from gobby.llm.sdk_utils import truncate_additional_context
+
+        should_continue = response.decision not in ("deny", "block")
+
+        result: dict[str, Any] = {
+            "continue": should_continue,
         }
+
+        if not should_continue:
+            result["decision"] = "block"
+            if response.reason:
+                result["reason"] = response.reason
+            return result
+
+        # Stop: no context injection needed — session ID already known
+        hook_event_name = hook_type or "Unknown"
+        if hook_event_name == "Stop":
+            return result
+
+        # System message
+        if response.system_message:
+            result["systemMessage"] = response.system_message
+
+        # Build additionalContext from all context sources
+        context_parts: list[str] = []
+
+        # Workflow-injected context (inject_context action)
+        if response.context:
+            context_parts.append(response.context)
+
+        # Session metadata (Gobby session ID, terminal context, etc.)
+        if response.metadata:
+            gobby_session_id = response.metadata.get("session_id")
+            session_ref = response.metadata.get("session_ref")
+            external_id = response.metadata.get("external_id")
+            is_first_hook = response.metadata.get("_first_hook_for_session", False)
+
+            if gobby_session_id:
+                if is_first_hook:
+                    context_lines = []
+                    if session_ref:
+                        context_lines.append(
+                            f"Gobby Session ID: {session_ref} ({gobby_session_id})"
+                        )
+                    else:
+                        context_lines.append(f"Gobby Session ID: {gobby_session_id}")
+                    if external_id:
+                        context_lines.append(
+                            f"CLI-Specific Session ID (external_id): {external_id}"
+                        )
+                    if response.metadata.get("parent_session_id"):
+                        context_lines.append(
+                            f"parent_session_id: {response.metadata['parent_session_id']}"
+                        )
+                    if response.metadata.get("machine_id"):
+                        context_lines.append(f"machine_id: {response.metadata['machine_id']}")
+                    if response.metadata.get("project_id"):
+                        context_lines.append(f"project_id: {response.metadata['project_id']}")
+                    task_id = response.metadata.get("task_id")
+                    if task_id:
+                        context_lines.append(
+                            f"Assigned Task: {task_id}"
+                            " (use this for task operations, NOT the session ID above)"
+                        )
+                    if response.metadata.get("terminal_term_program"):
+                        context_lines.append(
+                            f"terminal: {response.metadata['terminal_term_program']}"
+                        )
+                    if response.metadata.get("terminal_parent_pid"):
+                        context_lines.append(
+                            f"parent_pid: {response.metadata['terminal_parent_pid']}"
+                        )
+                    for key in [
+                        "terminal_iterm_session_id",
+                        "terminal_term_session_id",
+                        "terminal_kitty_window_id",
+                        "terminal_tmux_pane",
+                        "terminal_vscode_terminal_id",
+                        "terminal_alacritty_socket",
+                    ]:
+                        if response.metadata.get(key):
+                            friendly_name = key.replace("terminal_", "").replace("_", " ")
+                            context_lines.append(f"{friendly_name}: {response.metadata[key]}")
+                    context_parts.append("\n".join(context_lines))
+
+        # Build hookSpecificOutput with required hookEventName
+        # PreToolUse only accepts systemMessage — not additionalContext
+        # (Stop returns early above before reaching this code)
+        hook_event_name = hook_type or "Unknown"
+        if context_parts:
+            combined_context = truncate_additional_context("\n\n".join(context_parts))
+            if hook_event_name in self.SYSTEM_MESSAGE_ONLY_EVENTS:
+                result["systemMessage"] = combined_context
+            else:
+                result["hookSpecificOutput"] = {
+                    "hookEventName": hook_event_name,
+                    "additionalContext": combined_context,
+                }
+
+        return result
 
     def handle_native(
         self, native_event: dict[str, Any], hook_manager: HookManager
     ) -> dict[str, Any]:
-        """Process native Codex notify event.
-
-        Args:
-            native_event: The payload from HTTP endpoint.
-            hook_manager: HookManager instance for processing.
-
-        Returns:
-            Response dict.
-        """
+        """Process Codex hooks.json event."""
         hook_event = self.translate_to_hook_event(native_event)
-        if not hook_event:
-            return {"status": "skipped", "message": "Unsupported event"}
+        if hook_event is None:
+            return {}
 
+        hook_type = native_event.get("hook_type", "")
         hook_response = hook_manager.handle(hook_event)
-        return self.translate_from_hook_response(hook_response)
+        return self.translate_from_hook_response(hook_response, hook_type=hook_type)
+
+
+# Backward-compatible alias for old notify adapter references
+CodexNotifyAdapter = CodexHooksAdapter
 
 
 __all__ = [
     "CodexAdapter",
+    "CodexHooksAdapter",
     "CodexNotifyAdapter",
 ]

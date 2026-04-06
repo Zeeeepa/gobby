@@ -15,8 +15,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from gobby.utils.session_context import session_context_for_test
-
 from gobby.mcp_proxy.tools.tasks import (
     SKIP_REASONS,
     create_task_registry,
@@ -24,6 +22,7 @@ from gobby.mcp_proxy.tools.tasks import (
 from gobby.storage.projects import PERSONAL_PROJECT_ID
 from gobby.storage.tasks import LocalTaskManager, Task, TaskNotFoundError
 from gobby.sync.tasks import TaskSyncManager
+from gobby.utils.session_context import session_context_for_test
 
 pytestmark = pytest.mark.unit
 

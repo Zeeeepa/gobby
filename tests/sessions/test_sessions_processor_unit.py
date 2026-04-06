@@ -99,17 +99,25 @@ class TestSessionRegistration:
         processor.register_session("session-1", str(transcript))
         assert processor._parsers["session-1"] is original_parser  # Not replaced
 
-    def test_register_session_transcript_not_found(self, processor, tmp_path, caplog) -> None:
-        """Register should log warning but still register if transcript doesn't exist."""
+    def test_register_session_transcript_not_found(self, mock_db, tmp_path, caplog) -> None:
+        """Register should mark processed and skip if transcript file doesn't exist."""
+        mock_session_manager = MagicMock()
+        processor = SessionMessageProcessor(
+            mock_db, poll_interval=0.1, session_manager=mock_session_manager
+        )
         nonexistent = tmp_path / "nonexistent.jsonl"
 
-        with caplog.at_level("WARNING"):
+        with caplog.at_level("DEBUG"):
             processor.register_session("session-1", str(nonexistent))
 
-        # Should still be registered (might appear later)
-        assert "session-1" in processor._active_sessions
-        assert "session-1" in processor._parsers
-        assert "Transcript file not found" in caplog.text
+        # Should NOT be registered
+        assert "session-1" not in processor._active_sessions
+        assert "session-1" not in processor._parsers
+        # Should mark as missing and processed
+        mock_session_manager.update.assert_called_once_with(
+            "session-1", transcript_path="missing_transcript"
+        )
+        mock_session_manager.mark_transcript_processed.assert_called_once_with("session-1")
 
     def test_register_session_with_different_sources(self, processor, tmp_path) -> None:
         """Register should use appropriate parser for each source."""

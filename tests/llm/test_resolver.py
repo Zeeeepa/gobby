@@ -23,8 +23,7 @@ class TestValidateProviderName:
     def test_valid_provider_names(self) -> None:
         """Test that valid provider names pass validation."""
         assert validate_provider_name("claude") == "claude"
-        assert validate_provider_name("gemini") == "gemini"
-        assert validate_provider_name("litellm") == "litellm"
+        assert validate_provider_name("codex") == "codex"
         assert validate_provider_name("openai") == "openai"
         assert validate_provider_name("claude-3") == "claude-3"
         assert validate_provider_name("my_provider") == "my_provider"
@@ -93,21 +92,21 @@ class TestResolveProvider:
 
     def test_explicit_provider_highest_priority(self) -> None:
         """Test that explicit provider has highest priority."""
-        result = resolve_provider(explicit_provider="gemini")
+        result = resolve_provider(explicit_provider="codex")
 
         assert isinstance(result, ResolvedProvider)
-        assert result.provider == "gemini"
+        assert result.provider == "codex"
         assert result.source == "explicit"
 
     def test_workflow_provider_second_priority(self) -> None:
         """Test that workflow provider has second priority."""
         # Create mock workflow
         mock_workflow = MagicMock()
-        mock_workflow.variables = {"provider": "litellm", "model": "gpt-4o"}
+        mock_workflow.variables = {"provider": "codex", "model": "gpt-4o"}
 
         result = resolve_provider(workflow=mock_workflow)
 
-        assert result.provider == "litellm"
+        assert result.provider == "codex"
         assert result.source == "workflow"
         assert result.model == "gpt-4o"
 
@@ -115,21 +114,21 @@ class TestResolveProvider:
         """Test that config provider has third priority."""
         # Create mock config
         mock_config = MagicMock()
-        mock_config.llm_providers.get_enabled_providers.return_value = ["gemini", "litellm"]
+        mock_config.llm_providers.get_enabled_providers.return_value = ["codex", "gemini"]
 
         result = resolve_provider(config=mock_config)
 
-        # Should prefer claude if available, otherwise first
-        assert result.provider == "gemini"
+        # Should prefer claude if available, otherwise first enabled
+        assert result.provider == "codex"
         assert result.source == "config"
 
     def test_config_prefers_claude(self) -> None:
         """Test that config prefers claude when available."""
         mock_config = MagicMock()
         mock_config.llm_providers.get_enabled_providers.return_value = [
-            "gemini",
+            "codex",
             "claude",
-            "litellm",
+            "codex",
         ]
 
         result = resolve_provider(config=mock_config)
@@ -147,7 +146,7 @@ class TestResolveProvider:
     def test_explicit_overrides_workflow(self) -> None:
         """Test that explicit provider overrides workflow."""
         mock_workflow = MagicMock()
-        mock_workflow.variables = {"provider": "litellm"}
+        mock_workflow.variables = {"provider": "codex"}
 
         result = resolve_provider(explicit_provider="claude", workflow=mock_workflow)
 
@@ -157,14 +156,14 @@ class TestResolveProvider:
     def test_workflow_overrides_config(self) -> None:
         """Test that workflow overrides config."""
         mock_workflow = MagicMock()
-        mock_workflow.variables = {"provider": "litellm"}
+        mock_workflow.variables = {"provider": "codex"}
 
         mock_config = MagicMock()
-        mock_config.llm_providers.get_enabled_providers.return_value = ["claude", "litellm"]
+        mock_config.llm_providers.get_enabled_providers.return_value = ["claude", "codex"]
 
         result = resolve_provider(workflow=mock_workflow, config=mock_config)
 
-        assert result.provider == "litellm"
+        assert result.provider == "codex"
         assert result.source == "workflow"
 
     def test_validates_explicit_provider(self) -> None:
@@ -179,12 +178,12 @@ class TestResolveProvider:
 
         with pytest.raises(ProviderNotConfiguredError) as exc_info:
             resolve_provider(
-                explicit_provider="gemini",
+                explicit_provider="codex",
                 config=mock_config,
                 allow_unconfigured=False,
             )
 
-        assert exc_info.value.provider == "gemini"
+        assert exc_info.value.provider == "codex"
         assert "claude" in exc_info.value.available
 
     def test_allow_unconfigured_skips_validation(self) -> None:
@@ -194,12 +193,12 @@ class TestResolveProvider:
 
         # Should not raise
         result = resolve_provider(
-            explicit_provider="gemini",
+            explicit_provider="codex",
             config=mock_config,
             allow_unconfigured=True,
         )
 
-        assert result.provider == "gemini"
+        assert result.provider == "codex"
 
 
 class TestExceptionTypes:
@@ -225,9 +224,9 @@ class TestExceptionTypes:
 
     def test_provider_not_configured_error_fields(self) -> None:
         """Test ProviderNotConfiguredError has correct fields."""
-        error = ProviderNotConfiguredError("gemini", ["claude", "litellm"])
+        error = ProviderNotConfiguredError("codex", ["claude", "gemini"])
 
-        assert error.provider == "gemini"
-        assert error.available == ["claude", "litellm"]
-        assert "gemini" in str(error)
+        assert error.provider == "codex"
+        assert error.available == ["claude", "gemini"]
+        assert "codex" in str(error)
         assert "claude" in str(error)

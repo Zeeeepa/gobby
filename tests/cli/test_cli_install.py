@@ -29,7 +29,6 @@ def _mock_ext_services_and_prompts():
     with (
         patch("gobby.cli.install._run_qdrant_install"),
         patch("gobby.cli.install._run_neo4j_install"),
-        patch("gobby.cli.install._run_local_embeddings_install"),
         patch(
             "gobby.cli._install_prompts._prompt_api_keys",
             return_value={"stored": 0, "already_configured": 0, "env_found": 0},
@@ -166,21 +165,14 @@ class TestInstallCommand:
         assert "--codex" in result.output
         assert "--hooks" in result.output
         assert "--all" in result.output
-        assert "--antigravity" in result.output
 
     @patch("gobby.cli.install._is_claude_code_installed")
     @patch("gobby.cli.install._is_gemini_cli_installed")
     @patch("gobby.cli.install._is_codex_cli_installed")
-    @patch("gobby.cli.install._is_cursor_installed")
-    @patch("gobby.cli.install._is_windsurf_installed")
-    @patch("gobby.cli.install._is_copilot_cli_installed")
     @patch("gobby.cli.load_config")
     def test_install_no_clis_detected_no_git(
         self,
         mock_load_config: MagicMock,
-        mock_copilot: MagicMock,
-        mock_windsurf: MagicMock,
-        mock_cursor: MagicMock,
         mock_codex: MagicMock,
         mock_gemini: MagicMock,
         mock_claude: MagicMock,
@@ -192,9 +184,6 @@ class TestInstallCommand:
         mock_claude.return_value = False
         mock_gemini.return_value = False
         mock_codex.return_value = False
-        mock_cursor.return_value = False
-        mock_windsurf.return_value = False
-        mock_copilot.return_value = False
 
         with runner.isolated_filesystem(temp_dir=str(temp_dir)):
             result = runner.invoke(cli, ["install"])
@@ -288,7 +277,7 @@ class TestInstallCommand:
         mock_install_gemini.assert_called_once()
 
     @patch("gobby.cli.install._ensure_daemon_config")
-    @patch("gobby.cli.install.install_codex_notify")
+    @patch("gobby.cli.install.install_codex")
     @patch("gobby.cli.install._is_claude_code_installed")
     @patch("gobby.cli.install._is_gemini_cli_installed")
     @patch("gobby.cli.install._is_codex_cli_installed")
@@ -310,6 +299,7 @@ class TestInstallCommand:
         mock_ensure_config.return_value = {"created": False, "path": "/test/config.yaml"}
         mock_install_codex.return_value = {
             "success": True,
+            "hooks_installed": [],
             "files_installed": ["/home/user/.gobby/hooks/codex/hook_dispatcher.py"],
             "workflows_installed": [],
             "commands_installed": [],
@@ -323,11 +313,11 @@ class TestInstallCommand:
 
         assert result.exit_code == 0
         assert "Codex" in result.output
-        assert "Installed Codex notify integration" in result.output
-        assert "Updated: ~/.codex/config.toml" in result.output
+        assert "Installed" in result.output
         mock_install_codex.assert_called_once()
 
     @patch("gobby.cli.install._ensure_daemon_config")
+    @patch("gobby.cli.install.install_codex")
     @patch("gobby.cli.install._is_claude_code_installed")
     @patch("gobby.cli.install._is_gemini_cli_installed")
     @patch("gobby.cli.install._is_codex_cli_installed")
@@ -338,21 +328,32 @@ class TestInstallCommand:
         mock_codex_detected: MagicMock,
         mock_gemini: MagicMock,
         mock_claude: MagicMock,
+        mock_install_codex: MagicMock,
         mock_ensure_config: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
     ) -> None:
-        """Test install with --codex flag when Codex is not detected."""
+        """Test install with --codex flag proceeds even when Codex is not in PATH."""
         mock_load_config.return_value = MagicMock()
         mock_codex_detected.return_value = False
         mock_ensure_config.return_value = {"created": False, "path": "/test/config.yaml"}
+        mock_install_codex.return_value = {
+            "success": True,
+            "hooks_installed": [],
+            "files_installed": [],
+            "workflows_installed": [],
+            "commands_installed": [],
+            "plugins_installed": [],
+            "config_updated": True,
+            "mcp_configured": True,
+        }
 
         with runner.isolated_filesystem(temp_dir=str(temp_dir)):
             result = runner.invoke(cli, ["install", "--codex"])
 
-        assert result.exit_code == 1
-        assert "Codex CLI not detected" in result.output
-        assert "npm install -g @openai/codex" in result.output
+        assert result.exit_code == 0
+        assert "Codex" in result.output
+        mock_install_codex.assert_called_once()
 
     @patch("gobby.cli.install._ensure_daemon_config")
     @patch("gobby.cli.install.install_git_hooks")
@@ -458,46 +459,6 @@ class TestInstallCommand:
         assert result.exit_code == 1
         assert "Not a git repository" in result.output
         assert "Some installations failed" in result.output
-
-    @patch("gobby.cli.install._ensure_daemon_config")
-    @patch("gobby.cli.install.install_antigravity")
-    @patch("gobby.cli.install._is_claude_code_installed")
-    @patch("gobby.cli.install._is_gemini_cli_installed")
-    @patch("gobby.cli.install._is_codex_cli_installed")
-    @patch("gobby.cli.load_config")
-    def test_install_antigravity_flag(
-        self,
-        mock_load_config: MagicMock,
-        mock_codex: MagicMock,
-        mock_gemini: MagicMock,
-        mock_claude: MagicMock,
-        mock_install_antigravity: MagicMock,
-        mock_ensure_config: MagicMock,
-        runner: CliRunner,
-        temp_dir: Path,
-    ) -> None:
-        """Test install with --antigravity flag."""
-        mock_load_config.return_value = MagicMock()
-        mock_codex.return_value = False
-        mock_ensure_config.return_value = {"created": False, "path": "/test/config.yaml"}
-        mock_install_antigravity.return_value = {
-            "success": True,
-            "hooks_installed": [],
-            "workflows_installed": ["workflow1"],
-            "commands_installed": ["cmd1"],
-            "plugins_installed": ["plugin1"],
-            "mcp_configured": True,
-        }
-
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            result = runner.invoke(cli, ["install", "--antigravity"])
-
-        assert result.exit_code == 0
-        assert "Antigravity Agent" in result.output
-        assert "Installed 0 hooks" in result.output
-
-        assert "Installed 1 workflows" in result.output
-        mock_install_antigravity.assert_called_once()
 
     @patch("gobby.cli.install._ensure_daemon_config")
     @patch("gobby.cli.install.install_claude")
@@ -704,7 +665,7 @@ class TestInstallCommand:
         assert "Created daemon config" in result.output
 
     @patch("gobby.cli.install._ensure_daemon_config")
-    @patch("gobby.cli.install.install_codex_notify")
+    @patch("gobby.cli.install.install_codex")
     @patch("gobby.cli.install._is_claude_code_installed")
     @patch("gobby.cli.install._is_gemini_cli_installed")
     @patch("gobby.cli.install._is_codex_cli_installed")
@@ -726,6 +687,7 @@ class TestInstallCommand:
         mock_ensure_config.return_value = {"created": False, "path": "/test/config.yaml"}
         mock_install_codex.return_value = {
             "success": True,
+            "hooks_installed": [],
             "files_installed": ["/home/user/.gobby/hooks/codex/hook_dispatcher.py"],
             "workflows_installed": [],
             "commands_installed": [],
@@ -739,8 +701,8 @@ class TestInstallCommand:
             result = runner.invoke(cli, ["install", "--codex"])
 
         assert result.exit_code == 0
-        assert "~/.codex/config.toml already configured" in result.output
-        assert "MCP server already configured" in result.output
+        assert "Codex" in result.output
+        assert "Configuration:" in result.output
 
 
 class TestUninstallCommand:
@@ -843,7 +805,7 @@ class TestUninstallCommand:
         assert "Removed 1 hooks" in result.output
         mock_uninstall_gemini.assert_called_once()
 
-    @patch("gobby.cli.install.uninstall_codex_notify")
+    @patch("gobby.cli.install.uninstall_codex")
     @patch("gobby.cli.load_config")
     def test_uninstall_codex_only_flag(
         self,
@@ -856,6 +818,7 @@ class TestUninstallCommand:
         mock_load_config.return_value = MagicMock()
         mock_uninstall_codex.return_value = {
             "success": True,
+            "hooks_removed": [],
             "files_removed": ["/home/user/.gobby/hooks/codex/hook_dispatcher.py"],
             "config_updated": True,
         }
@@ -866,7 +829,6 @@ class TestUninstallCommand:
         assert result.exit_code == 0
         assert "Codex" in result.output
         assert "Removed 1 files" in result.output
-        assert "Updated: ~/.codex/config.toml" in result.output
         mock_uninstall_codex.assert_called_once()
 
     @patch("gobby.cli.install.uninstall_claude")
@@ -919,7 +881,7 @@ class TestUninstallCommand:
         assert result.exit_code == 0
         assert "(no hooks found to remove)" in result.output
 
-    @patch("gobby.cli.install.uninstall_codex_notify")
+    @patch("gobby.cli.install.uninstall_codex")
     @patch("gobby.cli.load_config")
     def test_uninstall_codex_no_integration_found(
         self,
@@ -932,6 +894,7 @@ class TestUninstallCommand:
         mock_load_config.return_value = MagicMock()
         mock_uninstall_codex.return_value = {
             "success": True,
+            "hooks_removed": [],
             "files_removed": [],
             "config_updated": False,
         }
@@ -940,12 +903,9 @@ class TestUninstallCommand:
             result = runner.invoke(cli, ["uninstall", "--codex", "--yes"])
 
         assert result.exit_code == 0
-        assert "(no codex integration found to remove)" in result.output
+        assert "(no hooks found to remove)" in result.output
 
-    @patch("gobby.cli.install.uninstall_windsurf")
-    @patch("gobby.cli.install.uninstall_cursor")
-    @patch("gobby.cli.install.uninstall_copilot")
-    @patch("gobby.cli.install.uninstall_codex_notify")
+    @patch("gobby.cli.install.uninstall_codex")
     @patch("gobby.cli.install.uninstall_claude")
     @patch("gobby.cli.install.uninstall_gemini")
     @patch("gobby.cli.load_config")
@@ -955,9 +915,6 @@ class TestUninstallCommand:
         mock_uninstall_gemini: MagicMock,
         mock_uninstall_claude: MagicMock,
         _mock_uninstall_codex: MagicMock,
-        _mock_uninstall_copilot: MagicMock,
-        _mock_uninstall_cursor: MagicMock,
-        _mock_uninstall_windsurf: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -979,21 +936,6 @@ class TestUninstallCommand:
             "success": True,
             "files_removed": [],
             "config_updated": False,
-        }
-        _mock_uninstall_copilot.return_value = {
-            "success": True,
-            "hooks_removed": [],
-            "files_removed": [],
-        }
-        _mock_uninstall_cursor.return_value = {
-            "success": True,
-            "hooks_removed": [],
-            "files_removed": [],
-        }
-        _mock_uninstall_windsurf.return_value = {
-            "success": True,
-            "hooks_removed": [],
-            "files_removed": [],
         }
 
         fake_home = temp_dir / "home"
@@ -1063,10 +1005,7 @@ class TestUninstallCommand:
         assert result.exit_code == 0
         mock_uninstall_claude.assert_called_once()
 
-    @patch("gobby.cli.install.uninstall_windsurf")
-    @patch("gobby.cli.install.uninstall_cursor")
-    @patch("gobby.cli.install.uninstall_copilot")
-    @patch("gobby.cli.install.uninstall_codex_notify")
+    @patch("gobby.cli.install.uninstall_codex")
     @patch("gobby.cli.install.uninstall_claude")
     @patch("gobby.cli.install.uninstall_gemini")
     @patch("gobby.cli.load_config")
@@ -1076,9 +1015,6 @@ class TestUninstallCommand:
         mock_uninstall_gemini: MagicMock,
         mock_uninstall_claude: MagicMock,
         _mock_uninstall_codex: MagicMock,
-        _mock_uninstall_copilot: MagicMock,
-        _mock_uninstall_cursor: MagicMock,
-        _mock_uninstall_windsurf: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -1098,23 +1034,9 @@ class TestUninstallCommand:
         }
         _mock_uninstall_codex.return_value = {
             "success": True,
+            "hooks_removed": [],
             "files_removed": [],
             "config_updated": False,
-        }
-        _mock_uninstall_copilot.return_value = {
-            "success": True,
-            "hooks_removed": [],
-            "files_removed": [],
-        }
-        _mock_uninstall_cursor.return_value = {
-            "success": True,
-            "hooks_removed": [],
-            "files_removed": [],
-        }
-        _mock_uninstall_windsurf.return_value = {
-            "success": True,
-            "hooks_removed": [],
-            "files_removed": [],
         }
 
         fake_home = temp_dir / "home"
@@ -1343,7 +1265,7 @@ class TestUninstallEdgeCases:
         """Create a CLI test runner."""
         return CliRunner()
 
-    @patch("gobby.cli.install.uninstall_codex_notify")
+    @patch("gobby.cli.install.uninstall_codex")
     @patch("gobby.cli.load_config")
     def test_uninstall_codex_checks_home_path(
         self,
@@ -1357,16 +1279,17 @@ class TestUninstallEdgeCases:
         mock_load_config.return_value = MagicMock()
         mock_uninstall_codex.return_value = {
             "success": True,
+            "hooks_removed": [],
             "files_removed": [str(temp_dir / ".gobby/hooks/codex/hook_dispatcher.py")],
             "config_updated": True,
         }
 
-        # Create the codex hook file in a temp home directory
+        # Create the codex hooks.json in the fake home directory
         fake_home = temp_dir / "home"
         fake_home.mkdir()
-        codex_hook_dir = fake_home / ".gobby" / "hooks" / "codex"
-        codex_hook_dir.mkdir(parents=True)
-        (codex_hook_dir / "hook_dispatcher.py").write_text("# hook")
+        codex_dir = fake_home / ".codex"
+        codex_dir.mkdir(parents=True)
+        (codex_dir / "hooks.json").write_text("{}")
 
         # Monkeypatch Path.home() to return our fake home
         monkeypatch.setattr(Path, "home", lambda: fake_home)
@@ -1402,7 +1325,7 @@ class TestUninstallEdgeCases:
         assert result.exit_code == 1
         assert "Failed: Permission denied" in result.output
 
-    @patch("gobby.cli.install.uninstall_codex_notify")
+    @patch("gobby.cli.install.uninstall_codex")
     @patch("gobby.cli.load_config")
     def test_uninstall_codex_failure(
         self,
@@ -1558,7 +1481,7 @@ class TestInstallFullOutput:
         assert "Some installations failed" in result.output
 
     @patch("gobby.cli.install._ensure_daemon_config")
-    @patch("gobby.cli.install.install_codex_notify")
+    @patch("gobby.cli.install.install_codex")
     @patch("gobby.cli.install._is_claude_code_installed")
     @patch("gobby.cli.install._is_gemini_cli_installed")
     @patch("gobby.cli.install._is_codex_cli_installed")
@@ -1580,6 +1503,7 @@ class TestInstallFullOutput:
         mock_ensure_config.return_value = {"created": False, "path": "/test/config.yaml"}
         mock_install_codex.return_value = {
             "success": True,
+            "hooks_installed": [],
             "files_installed": ["/home/user/.gobby/hooks/codex/hook_dispatcher.py"],
             "workflows_installed": ["codex-workflow"],
             "commands_installed": ["codex-cmd"],
@@ -1593,15 +1517,14 @@ class TestInstallFullOutput:
 
         assert result.exit_code == 0
         assert "Codex" in result.output
-        assert "Installed Codex notify integration" in result.output
+        assert "Installed 0 hooks" in result.output
 
         assert "Installed 1 workflows" in result.output
-        assert "Installed 1 commands" in result.output
+        assert "Installed 1 skills/commands" in result.output
         assert "Installed 1 plugins" in result.output
-        assert "Configured MCP server" in result.output
 
     @patch("gobby.cli.install._ensure_daemon_config")
-    @patch("gobby.cli.install.install_codex_notify")
+    @patch("gobby.cli.install.install_codex")
     @patch("gobby.cli.install._is_claude_code_installed")
     @patch("gobby.cli.install._is_gemini_cli_installed")
     @patch("gobby.cli.install._is_codex_cli_installed")
@@ -1633,83 +1556,6 @@ class TestInstallFullOutput:
         assert result.exit_code == 1
         assert "Codex" in result.output
         assert "Failed: Missing source file" in result.output
-        assert "Some installations failed" in result.output
-
-    @patch("gobby.cli.install._ensure_daemon_config")
-    @patch("gobby.cli.install.install_antigravity")
-    @patch("gobby.cli.install._is_claude_code_installed")
-    @patch("gobby.cli.install._is_gemini_cli_installed")
-    @patch("gobby.cli.install._is_codex_cli_installed")
-    @patch("gobby.cli.load_config")
-    def test_install_antigravity_with_all_content_types(
-        self,
-        mock_load_config: MagicMock,
-        mock_codex: MagicMock,
-        mock_gemini: MagicMock,
-        mock_claude: MagicMock,
-        mock_install_antigravity: MagicMock,
-        mock_ensure_config: MagicMock,
-        runner: CliRunner,
-        temp_dir: Path,
-    ) -> None:
-        """Test install Antigravity with skills, workflows, commands, and plugins."""
-        mock_load_config.return_value = MagicMock()
-        mock_codex.return_value = False
-        mock_ensure_config.return_value = {"created": False, "path": "/test/config.yaml"}
-        mock_install_antigravity.return_value = {
-            "success": True,
-            "hooks_installed": [],
-            "workflows_installed": ["antigravity-workflow"],
-            "commands_installed": ["antigravity-cmd"],
-            "plugins_installed": ["antigravity-plugin"],
-            "mcp_configured": True,
-        }
-
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            result = runner.invoke(cli, ["install", "--antigravity"])
-
-        assert result.exit_code == 0
-        assert "Antigravity Agent" in result.output
-        assert "Installed 0 hooks" in result.output
-
-        assert "Installed 1 workflows" in result.output
-        assert "Installed 1 skills/commands" in result.output
-        assert "Installed 1 plugins" in result.output
-        assert "Configured MCP server" in result.output
-
-    @patch("gobby.cli.install._ensure_daemon_config")
-    @patch("gobby.cli.install.install_antigravity")
-    @patch("gobby.cli.install._is_claude_code_installed")
-    @patch("gobby.cli.install._is_gemini_cli_installed")
-    @patch("gobby.cli.install._is_codex_cli_installed")
-    @patch("gobby.cli.load_config")
-    def test_install_antigravity_failure(
-        self,
-        mock_load_config: MagicMock,
-        mock_codex: MagicMock,
-        mock_gemini: MagicMock,
-        mock_claude: MagicMock,
-        mock_install_antigravity: MagicMock,
-        mock_ensure_config: MagicMock,
-        runner: CliRunner,
-        temp_dir: Path,
-    ) -> None:
-        """Test install when Antigravity installation fails."""
-        mock_load_config.return_value = MagicMock()
-        mock_codex.return_value = False
-        mock_ensure_config.return_value = {"created": False, "path": "/test/config.yaml"}
-        mock_install_antigravity.return_value = {
-            "success": False,
-            "error": "Missing hook dispatcher",
-            "hooks_installed": [],
-        }
-
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            result = runner.invoke(cli, ["install", "--antigravity"])
-
-        assert result.exit_code == 1
-        assert "Antigravity Agent" in result.output
-        assert "Failed: Missing hook dispatcher" in result.output
         assert "Some installations failed" in result.output
 
 
@@ -1787,7 +1633,7 @@ class TestInstallWithCodexAllDetected:
         return CliRunner()
 
     @patch("gobby.cli.install._ensure_daemon_config")
-    @patch("gobby.cli.install.install_codex_notify")
+    @patch("gobby.cli.install.install_codex")
     @patch("gobby.cli.install.install_git_hooks")
     @patch("gobby.cli.install._is_claude_code_installed")
     @patch("gobby.cli.install._is_gemini_cli_installed")
@@ -1813,6 +1659,7 @@ class TestInstallWithCodexAllDetected:
         mock_ensure_config.return_value = {"created": False, "path": "/test/config.yaml"}
         mock_install_codex.return_value = {
             "success": True,
+            "hooks_installed": [],
             "files_installed": ["/home/user/.gobby/hooks/codex/hook_dispatcher.py"],
             "skills_installed": [],
             "workflows_installed": [],

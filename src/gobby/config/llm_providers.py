@@ -3,7 +3,7 @@ LLM providers configuration module.
 
 Contains LLM-related Pydantic config models:
 - LLMProviderConfig: Single provider config (models, auth_mode)
-- LLMProvidersConfig: Multi-provider config (claude, codex, gemini, litellm)
+- LLMProvidersConfig: Multi-provider config (claude, codex)
 
 Extracted from app.py using Strangler Fig pattern for code decomposition.
 """
@@ -44,15 +44,6 @@ class LLMProvidersConfig(BaseModel):
       codex:
         models: gpt-4o-mini,gpt-5-mini,gpt-5
         auth_mode: subscription
-      gemini:
-        models: gemini-2.0-flash,gemini-2.5-pro
-        auth_mode: adc
-      litellm:
-        models: gpt-4o-mini,mistral-large
-        auth_mode: api_key
-      api_keys:
-        OPENAI_API_KEY: sk-...
-        MISTRAL_API_KEY: ...
     ```
     """
 
@@ -78,18 +69,6 @@ class LLMProvidersConfig(BaseModel):
         default=None,
         description="Codex (OpenAI) provider configuration",
     )
-    gemini: LLMProviderConfig | None = Field(
-        default=None,
-        description="Gemini provider configuration",
-    )
-    litellm: LLMProviderConfig | None = Field(
-        default=None,
-        description="LiteLLM provider configuration",
-    )
-    api_keys: dict[str, str] = Field(
-        default_factory=dict,
-        description="API keys for BYOK providers (key name -> key value)",
-    )
 
     def get_enabled_providers(self) -> list[str]:
         """Return list of enabled provider names."""
@@ -98,8 +77,4 @@ class LLMProvidersConfig(BaseModel):
             providers.append("claude")
         if self.codex:
             providers.append("codex")
-        if self.gemini:
-            providers.append("gemini")
-        if self.litellm:
-            providers.append("litellm")
         return providers

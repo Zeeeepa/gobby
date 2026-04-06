@@ -225,15 +225,6 @@ CREATE UNIQUE INDEX idx_sessions_unique ON sessions(external_id, machine_id, sou
 INSERT INTO sessions (id, external_id, machine_id, source, project_id, title, status, agent_depth, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000000001', 'system', 'system', 'system', '00000000-0000-0000-0000-000000060887', '_system', 'active', 0, datetime('now'), datetime('now'));
 
-CREATE TABLE session_message_state (
-    session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
-    last_byte_offset INTEGER DEFAULT 0,
-    last_message_index INTEGER DEFAULT 0,
-    last_processed_at TEXT,
-    processing_errors INTEGER DEFAULT 0,
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
 CREATE TABLE session_stop_signals (
     session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
     source TEXT NOT NULL,
@@ -361,9 +352,6 @@ CREATE TABLE workflow_states (
     total_action_count INTEGER DEFAULT 0,
     context_injected INTEGER DEFAULT 0,
     variables TEXT,
-    task_list TEXT,
-    current_task_index INTEGER DEFAULT 0,
-    files_modified_this_task INTEGER DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
@@ -807,7 +795,9 @@ CREATE TABLE model_costs (
     output_cost_per_token REAL NOT NULL,
     cache_read_cost_per_token REAL,
     cache_creation_cost_per_token REAL,
-    source TEXT NOT NULL DEFAULT 'litellm',
+    context_length INTEGER,
+    max_completion_tokens INTEGER,
+    source TEXT NOT NULL DEFAULT 'registry',
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -841,7 +831,6 @@ CREATE INDEX idx_taf_file_path ON task_affected_files(file_path);
 CREATE TABLE completion_subscribers (
     completion_id TEXT NOT NULL,
     session_id TEXT NOT NULL,
-    subscribed_at TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (completion_id, session_id)
 );
 CREATE INDEX idx_completion_subscribers_completion ON completion_subscribers(completion_id);
@@ -870,7 +859,6 @@ CREATE TABLE code_indexed_projects (
     total_symbols INTEGER NOT NULL DEFAULT 0,
     last_indexed_at TEXT,
     index_duration_ms INTEGER,
-    total_eligible_files INTEGER,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

@@ -134,6 +134,16 @@ class MemoryManager:
             except Exception as e:
                 logger.warning(f"Failed to initialize KnowledgeGraphService: {e}")
 
+    async def close(self) -> None:
+        """Close underlying clients (Neo4j httpx.AsyncClient, etc.)."""
+        if self._neo4j_client:
+            try:
+                await self._neo4j_client.close()
+            except Exception as e:
+                logger.warning(f"Failed to close Neo4j client: {e}")
+            self._neo4j_client = None
+            self._kg_service = None
+
     def clear_graph_clients(self) -> None:
         """Disable graph features by clearing Neo4j client and KG service."""
         self._neo4j_client = None

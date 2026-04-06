@@ -9,7 +9,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -47,6 +47,9 @@ class MockToolUseBlock:
 class MockClaudeAgentOptions:
     def __init__(self, **kwargs: object) -> None:
         self.kwargs = kwargs
+        self.settings: str | None = None
+        self.setting_sources: list[str] | None = None
+        self.stderr: object = None
 
 
 @pytest.fixture
@@ -92,22 +95,6 @@ def mock_claude_sdk(mock_query_func: Any) -> Generator[None]:
 class TestAuthModeSelection:
     """Tests for auth_mode determination."""
 
-    def test_auth_mode_from_constructor(self, claude_config: DaemonConfig) -> None:
-        """Constructor param overrides config."""
-        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-            from gobby.llm.claude import ClaudeLLMProvider
-
-            provider = ClaudeLLMProvider(claude_config, auth_mode="api_key")
-            assert provider.auth_mode == "api_key"
-
-    def test_auth_mode_from_config(self, api_key_config: DaemonConfig) -> None:
-        """Config value used when constructor param is None."""
-        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-            from gobby.llm.claude import ClaudeLLMProvider
-
-            provider = ClaudeLLMProvider(api_key_config)
-            assert provider.auth_mode == "api_key"
-
     def test_auth_mode_default_subscription(self) -> None:
         """Default auth_mode is subscription."""
         config = DaemonConfig()
@@ -116,31 +103,6 @@ class TestAuthModeSelection:
 
             provider = ClaudeLLMProvider(config)
             assert provider.auth_mode == "subscription"
-
-    def test_api_key_mode_sets_up_litellm(self, api_key_config: DaemonConfig) -> None:
-        """api_key mode calls _setup_litellm."""
-        with (
-            patch("gobby.llm.claude_cli.shutil.which", return_value=None),
-            patch("gobby.llm.claude.ClaudeLLMProvider._setup_litellm") as mock_setup,
-        ):
-            from gobby.llm.claude import ClaudeLLMProvider
-
-            ClaudeLLMProvider(api_key_config)
-            mock_setup.assert_called_once()
-
-    def test_setup_litellm_import_error(self, api_key_config: DaemonConfig) -> None:
-        """_setup_litellm handles ImportError gracefully."""
-
-        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-            from gobby.llm.claude import ClaudeLLMProvider
-
-            provider = ClaudeLLMProvider(api_key_config, auth_mode="api_key")
-            # Reset litellm and simulate import error in _setup_litellm
-            provider._litellm = None
-            with patch.dict("sys.modules", {"litellm": None}):
-                provider._setup_litellm()
-            # After import failure, _litellm should remain None
-            assert provider._litellm is None
 
 
 # ─── _is_transient_error tests ──────────────────────────────────────────
@@ -374,113 +336,6 @@ class TestPrepareImageData:
                 assert "Failed to read" in result
 
 
-# ─── generate_summary litellm path ──────────────────────────────────────
-
-
-class TestGenerateSummaryLitellm:
-    """Tests for generate_summary via LiteLLM path."""
-
-    @pytest.mark.asyncio
-    async def test_litellm_summary_success(self, claude_config: DaemonConfig) -> None:
-        """LiteLLM summary generation works."""
-        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-            from gobby.llm.claude import ClaudeLLMProvider
-
-            provider = ClaudeLLMProvider(claude_config)
-            provider._litellm = MagicMock()
-
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            mock_response.choices[0].message.content = "Summary text"
-            provider._litellm.acompletion = AsyncMock(return_value=mock_response)
-
-            result = await provider._generate_summary_litellm(
-                context={"transcript_summary": "test"},
-                prompt_template="Summarize: {{ transcript_summary }}",
-            )
-            assert result == "Summary text"
-
-    @pytest.mark.asyncio
-    async def test_litellm_summary_not_initialized(self, claude_config: DaemonConfig) -> None:
-        """Returns unavailable message when litellm not initialized."""
-        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-            from gobby.llm.claude import ClaudeLLMProvider
-
-            provider = ClaudeLLMProvider(claude_config)
-            provider._litellm = None
-
-            result = await provider._generate_summary_litellm(
-                context={},
-                prompt_template="test",
-            )
-            assert "unavailable" in result.lower()
-
-    @pytest.mark.asyncio
-    async def test_litellm_summary_error(self, claude_config: DaemonConfig) -> None:
-        """Returns error message on exception."""
-        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-            from gobby.llm.claude import ClaudeLLMProvider
-
-            provider = ClaudeLLMProvider(claude_config)
-            provider._litellm = MagicMock()
-            provider._litellm.acompletion = AsyncMock(side_effect=Exception("API error"))
-
-            result = await provider._generate_summary_litellm(
-                context={},
-                prompt_template="Summarize: {{ transcript_summary }}",
-            )
-            assert "failed" in result.lower()
-
-
-# ─── generate_text litellm path ─────────────────────────────────────────
-
-
-class TestGenerateTextLitellm:
-    """Tests for generate_text via LiteLLM path."""
-
-    @pytest.mark.asyncio
-    async def test_litellm_text_success(self, claude_config: DaemonConfig) -> None:
-        """LiteLLM text generation returns content."""
-        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-            from gobby.llm.claude import ClaudeLLMProvider
-
-            provider = ClaudeLLMProvider(claude_config)
-            provider._litellm = MagicMock()
-
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            mock_response.choices[0].message.content = "Generated text"
-            provider._litellm.acompletion = AsyncMock(return_value=mock_response)
-
-            result = await provider._generate_text_litellm("Hello")
-            assert result == "Generated text"
-
-    @pytest.mark.asyncio
-    async def test_litellm_text_not_initialized(self, claude_config: DaemonConfig) -> None:
-        """Raises RuntimeError when litellm not initialized."""
-        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-            from gobby.llm.claude import ClaudeLLMProvider
-
-            provider = ClaudeLLMProvider(claude_config)
-            provider._litellm = None
-
-            with pytest.raises(RuntimeError, match="unavailable"):
-                await provider._generate_text_litellm("Hello")
-
-    @pytest.mark.asyncio
-    async def test_litellm_text_error(self, claude_config: DaemonConfig) -> None:
-        """Raises RuntimeError on LiteLLM API error."""
-        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-            from gobby.llm.claude import ClaudeLLMProvider
-
-            provider = ClaudeLLMProvider(claude_config)
-            provider._litellm = MagicMock()
-            provider._litellm.acompletion = AsyncMock(side_effect=Exception("API error"))
-
-            with pytest.raises(RuntimeError, match="API error"):
-                await provider._generate_text_litellm("Hello")
-
-
 # ─── generate_json tests ────────────────────────────────────────────────
 
 
@@ -489,22 +344,21 @@ class TestGenerateJson:
 
     @pytest.mark.asyncio
     async def test_generate_json_no_backend(self, claude_config: DaemonConfig) -> None:
-        """Raises RuntimeError when no backend available."""
+        """Raises RuntimeError when CLI not available."""
         with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
             from gobby.llm.claude import ClaudeLLMProvider
 
             provider = ClaudeLLMProvider(claude_config)
-            provider._litellm = None
 
             with pytest.raises(RuntimeError, match="unavailable"):
                 await provider.generate_json("Generate JSON")
 
     @pytest.mark.asyncio
-    async def test_generate_json_sdk_strips_markdown(self, claude_config: DaemonConfig) -> None:
-        """SDK path strips markdown code fences from response."""
+    async def test_generate_json_sdk_parses_json(self, claude_config: DaemonConfig) -> None:
+        """SDK path parses JSON response using output_format constraint."""
 
         async def mock_query(prompt: str, options: object) -> object:
-            yield MockAssistantMessage([MockTextBlock('```json\n{"key": "value"}\n```')])
+            yield MockAssistantMessage([MockTextBlock('{"key": "value"}')])
 
         with mock_claude_sdk(mock_query):
             from gobby.llm.claude import ClaudeLLMProvider
@@ -529,55 +383,6 @@ class TestGenerateJson:
             with pytest.raises(ValueError, match="Failed to parse"):
                 await provider._generate_json_sdk("Generate JSON")
 
-    @pytest.mark.asyncio
-    async def test_generate_json_litellm_success(self, claude_config: DaemonConfig) -> None:
-        """LiteLLM path returns parsed JSON."""
-        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-            from gobby.llm.claude import ClaudeLLMProvider
-
-            provider = ClaudeLLMProvider(claude_config)
-            provider._litellm = MagicMock()
-
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            mock_response.choices[0].message.content = '{"result": true}'
-            provider._litellm.acompletion = AsyncMock(return_value=mock_response)
-
-            result = await provider._generate_json_litellm("Generate JSON")
-            assert result == {"result": True}
-
-    @pytest.mark.asyncio
-    async def test_generate_json_litellm_empty_response(self, claude_config: DaemonConfig) -> None:
-        """LiteLLM path raises ValueError on empty response."""
-        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-            from gobby.llm.claude import ClaudeLLMProvider
-
-            provider = ClaudeLLMProvider(claude_config)
-            provider._litellm = MagicMock()
-
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            mock_response.choices[0].message.content = ""
-            provider._litellm.acompletion = AsyncMock(return_value=mock_response)
-
-            with pytest.raises(ValueError, match="Empty response"):
-                await provider._generate_json_litellm("Generate JSON")
-
-    @pytest.mark.asyncio
-    async def test_generate_json_litellm_not_initialized(self, claude_config: DaemonConfig) -> None:
-        """LiteLLM path raises RuntimeError when not initialized."""
-        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-            from gobby.llm.claude import ClaudeLLMProvider
-
-            provider = ClaudeLLMProvider(claude_config)
-            provider._litellm = None
-
-            with pytest.raises(RuntimeError, match="unavailable"):
-                await provider._generate_json_litellm("Generate JSON")
-
-
-# ─── stream_with_mcp_tools tests ────────────────────────────────────────
-
 
 # ─── describe_image tests ───────────────────────────────────────────────
 
@@ -595,78 +400,6 @@ class TestDescribeImage:
             result = await provider._describe_image_sdk("/path/to/image.png")
             assert "unavailable" in result.lower()
 
-    @pytest.mark.asyncio
-    async def test_describe_image_litellm_not_initialized(
-        self, claude_config: DaemonConfig
-    ) -> None:
-        """Returns unavailable when LiteLLM not initialized."""
-        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-            from gobby.llm.claude import ClaudeLLMProvider
-
-            provider = ClaudeLLMProvider(claude_config)
-            provider._litellm = None
-            result = await provider._describe_image_litellm("/path/to/image.png")
-            assert "unavailable" in result.lower()
-
-    @pytest.mark.asyncio
-    async def test_describe_image_litellm_error(
-        self, claude_config: DaemonConfig, tmp_path: Path
-    ) -> None:
-        """Returns error message on LiteLLM exception."""
-        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-            from gobby.llm.claude import ClaudeLLMProvider
-
-            provider = ClaudeLLMProvider(claude_config)
-            provider._litellm = MagicMock()
-            provider._litellm.acompletion = AsyncMock(side_effect=Exception("API error"))
-
-            img_path = tmp_path / "test.png"
-            img_path.write_bytes(b"\x89PNG\r\n")
-
-            result = await provider._describe_image_litellm(str(img_path))
-            assert "failed" in result.lower()
-
-    @pytest.mark.asyncio
-    async def test_describe_image_litellm_no_response(
-        self, claude_config: DaemonConfig, tmp_path: Path
-    ) -> None:
-        """Returns default message when response has no choices."""
-        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-            from gobby.llm.claude import ClaudeLLMProvider
-
-            provider = ClaudeLLMProvider(claude_config)
-            provider._litellm = MagicMock()
-            mock_response = MagicMock()
-            mock_response.choices = None
-            provider._litellm.acompletion = AsyncMock(return_value=mock_response)
-
-            img_path = tmp_path / "test.png"
-            img_path.write_bytes(b"\x89PNG\r\n")
-
-            result = await provider._describe_image_litellm(str(img_path))
-            assert result == "No description generated"
-
-
-# ─── generate_with_mcp_tools api_key mode ────────────────────────────────
-
-
-class TestGenerateWithMcpToolsApiKeyMode:
-    """Tests for generate_with_mcp_tools in api_key mode."""
-
-    @pytest.mark.asyncio
-    async def test_api_key_mode_returns_error(self, api_key_config: DaemonConfig) -> None:
-        """api_key mode returns MCPToolResult with error text."""
-        with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
-            from gobby.llm.claude import ClaudeLLMProvider
-
-            provider = ClaudeLLMProvider(api_key_config)
-            result = await provider.generate_with_mcp_tools(
-                prompt="test",
-                allowed_tools=[],
-            )
-            assert "subscription" in result.text.lower()
-            assert result.tool_calls == []
-
 
 # ─── generate_text no backend ────────────────────────────────────────────
 
@@ -675,13 +408,12 @@ class TestGenerateTextNoBackend:
     """Tests for generate_text when no backend is available."""
 
     @pytest.mark.asyncio
-    async def test_no_cli_no_litellm(self, claude_config: DaemonConfig) -> None:
-        """Raises RuntimeError when no backend at all."""
+    async def test_no_cli_raises(self, claude_config: DaemonConfig) -> None:
+        """Raises RuntimeError when CLI is not available."""
         with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
             from gobby.llm.claude import ClaudeLLMProvider
 
             provider = ClaudeLLMProvider(claude_config)
-            provider._litellm = None
 
             with pytest.raises(RuntimeError, match="unavailable"):
                 await provider.generate_text("Hello")
@@ -694,13 +426,12 @@ class TestGenerateSummaryRouting:
     """Tests for generate_summary routing logic."""
 
     @pytest.mark.asyncio
-    async def test_no_backend_returns_unavailable(self, claude_config: DaemonConfig) -> None:
-        """Returns unavailable message when neither CLI nor LiteLLM is available."""
+    async def test_no_cli_returns_unavailable(self, claude_config: DaemonConfig) -> None:
+        """Returns unavailable message when CLI is not available."""
         with patch("gobby.llm.claude_cli.shutil.which", return_value=None):
             from gobby.llm.claude import ClaudeLLMProvider
 
             provider = ClaudeLLMProvider(claude_config)
-            provider._litellm = None
 
             result = await provider.generate_summary(
                 context={},

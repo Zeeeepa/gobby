@@ -8,6 +8,7 @@ from gobby.mcp_proxy.models import MCPServerConfig
 
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
+    from gobby.llm.service import LLMService
 
 logger = logging.getLogger("gobby.mcp.server")
 
@@ -20,16 +21,19 @@ class ServerManagementService:
         mcp_manager: MCPClientManager,
         config_manager: Any,
         config: "DaemonConfig | None" = None,
+        llm_service: "LLMService | None" = None,
     ):
         """
         Args:
             mcp_manager: MCP client manager
             config_manager: Config manager (for saving changes)
             config: Daemon configuration (for import operations)
+            llm_service: LLM service for SDK calls in import operations
         """
         self._mcp_manager = mcp_manager
         self._config_manager = config_manager
         self._config = config
+        self._llm_service = llm_service
 
     async def add_server(
         self,
@@ -194,6 +198,7 @@ class ServerManagementService:
                 db=db,
                 current_project_id=current_project_id,
                 mcp_client_manager=self._mcp_manager,
+                llm_service=self._llm_service,
             )
 
             # Execute import based on source

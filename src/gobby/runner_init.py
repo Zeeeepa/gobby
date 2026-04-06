@@ -85,6 +85,42 @@ def resolve_embedding_api_key(secret_store: Any, model: str) -> str | None:
     return default_key
 
 
+_HEADLESS_SETTINGS = Path.home() / ".gobby" / "settings" / "headless.json"
+
+_HEADLESS_HOOKS: dict[str, dict[str, list[str]]] = {
+    "hooks": {
+        "SessionStart": [],
+        "SessionEnd": [],
+        "UserPromptSubmit": [],
+        "PreToolUse": [],
+        "PostToolUse": [],
+        "PreCompact": [],
+        "Stop": [],
+        "SubagentStart": [],
+        "SubagentStop": [],
+        "PermissionRequest": [],
+    }
+}
+
+
+def _ensure_headless_settings() -> None:
+    """Create headless settings file if it doesn't exist.
+
+    This file is used by internal SDK calls (title synthesis, digest, summary)
+    to suppress hooks and prevent session registration cascades.
+    """
+    if _HEADLESS_SETTINGS.exists():
+        return
+    try:
+        _HEADLESS_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
+        import json as _json
+
+        _HEADLESS_SETTINGS.write_text(_json.dumps(_HEADLESS_HOOKS, indent=2) + "\n")
+        logger.info(f"Created headless settings: {_HEADLESS_SETTINGS}")
+    except OSError as e:
+        logger.error(f"Failed to create headless settings at {_HEADLESS_SETTINGS}: {e}")
+
+
 def init_hub_database(config: Any) -> Any:
     """Initialize hub database."""
     hub_db_path = Path(config.database_path).expanduser()
@@ -137,6 +173,9 @@ def init_storage_and_config(runner: GobbyRunner, config_path: Path | None, verbo
             "tmux is not installed. Agent spawning in terminal mode will not work. "
             "Install: brew install tmux (macOS), apt install tmux (Linux)"
         )
+    # Ensure headless settings file exists for internal SDK calls
+    _ensure_headless_settings()
+
     runner._shutdown_requested = False
     runner._metrics_cleanup_task = None
     runner._vector_rebuild_task = None
@@ -163,21 +202,21 @@ def init_storage_and_config(runner: GobbyRunner, config_path: Path | None, verbo
         config_store=runner.config_store,
     )
 
-    # Auto-populate search.embedding_api_key from secrets if not already set
-    if hasattr(runner.config, "search") and not runner.config.search.embedding_api_key:
+    # Auto-populate embeddings.api_key from secrets if not already set
+    if hasattr(runner.config, "embeddings") and not runner.config.embeddings.api_key:
         resolved_key = resolve_embedding_api_key(
-            runner.secret_store, runner.config.search.embedding_model
+            runner.secret_store, runner.config.embeddings.model
         )
         if resolved_key:
-            runner.config.search.embedding_api_key = resolved_key
+            runner.config.embeddings.api_key = resolved_key
 
-    # Populate model costs from LiteLLM into DB and load into memory
+    # Populate model costs from OpenRouter into DB and load into memory
     from gobby.llm.cost_table import init as init_cost_table
     from gobby.storage.model_costs import ModelCostStore
 
     try:
         cost_store = ModelCostStore(runner.database)
-        cost_store.populate_from_litellm()
+        cost_store.populate()
         init_cost_table(runner.database)
     except Exception as e:
         logger.warning(f"Failed to populate model costs: {e}")
@@ -325,51 +364,27 @@ def init_services(runner: GobbyRunner) -> None:
         except Exception as e:
             logger.error(f"Failed to initialize MemoryManager: {e}")
 
-    # Code Index (native AST-based symbol indexing)
+    # Code Index (daemon-side context — gcode handles actual indexing)
     runner.code_indexer = None
     if hasattr(runner.config, "code_index") and runner.config.code_index.enabled:
         try:
+            from gobby.code_index.context import CodeIndexContext
             from gobby.code_index.graph import CodeGraph
-            from gobby.code_index.indexer import CodeIndexer
-            from gobby.code_index.parser import CodeParser
             from gobby.code_index.storage import CodeIndexStorage
 
             ci_config = runner.config.code_index
             ci_storage = CodeIndexStorage(runner.database)
-            ci_parser = CodeParser(ci_config)
             # Share Neo4j client from memory_manager if available
             ci_neo4j = None
             if runner.memory_manager and getattr(runner.memory_manager, "_neo4j_client", None):
                 ci_neo4j = runner.memory_manager._neo4j_client
             ci_graph = CodeGraph(neo4j_client=ci_neo4j)
 
-            # Reuse memory embed_fn if available
-            ci_embed_fn: Callable[..., Any] | None = None
-            if runner.llm_service and ci_config.embedding_enabled:
-                from functools import partial
-
-                _ci_emb = runner.config.embeddings
-                _ci_api_key = _ci_emb.api_key or resolve_embedding_api_key(
-                    runner.secret_store, _ci_emb.model
-                )
-                _ci_embed_kwargs: dict[str, Any] = {
-                    "model": _ci_emb.model,
-                    "api_key": _ci_api_key,
-                }
-                if _ci_emb.api_base:
-                    _ci_embed_kwargs["api_base"] = _ci_emb.api_base
-                ci_embed_fn = partial(
-                    generate_embedding,
-                    **_ci_embed_kwargs,
-                )
-
             ci_vector_store = runner.vector_store if ci_config.embedding_enabled else None
 
-            runner.code_indexer = CodeIndexer(
+            runner.code_indexer = CodeIndexContext(
                 storage=ci_storage,
-                parser=ci_parser,
                 vector_store=ci_vector_store,
-                embed_fn=ci_embed_fn,
                 graph=ci_graph if ci_config.graph_enabled else None,
                 config=ci_config,
             )

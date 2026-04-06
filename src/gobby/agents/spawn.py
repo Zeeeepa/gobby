@@ -115,7 +115,7 @@ def prepare_terminal_spawn(
         parent_session_id: Parent session ID
         project_id: Project ID
         machine_id: Machine ID
-        source: CLI source (claude, gemini, codex, cursor, windsurf, copilot)
+        source: CLI source (claude, gemini, codex)
         agent_id: Optional agent ID
         workflow_name: Optional workflow to activate
         title: Optional session title

@@ -563,23 +563,6 @@ class TestProcessSessionTranscriptParsers:
             MockParser.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_antigravity_uses_claude_parser(self, tmp_path, manager):
-        """Antigravity source uses ClaudeTranscriptParser (default path)."""
-        transcript_path = tmp_path / "transcript.jsonl"
-        transcript_path.write_text('{"type": "message"}\n')
-
-        session = MagicMock()
-        session.source = "antigravity"
-        manager.session_manager.get.return_value = session
-
-        with patch("gobby.sessions.lifecycle.ClaudeTranscriptParser") as MockParser:
-            MockParser.return_value.parse_lines.return_value = []
-            await manager._process_session_transcript("s1", str(transcript_path))
-            # ClaudeTranscriptParser is constructed for both the default path
-            # and the antigravity branch (2 total)
-            assert MockParser.call_count >= 2
-
-    @pytest.mark.asyncio
     async def test_session_not_found_returns_early(self, tmp_path, manager):
         """Returns early when session not found in DB."""
         transcript_path = tmp_path / "transcript.jsonl"

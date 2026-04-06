@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import tempfile
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
@@ -102,18 +101,6 @@ class TestDeriveTranscriptPath:
             result = handler._derive_transcript_path("gemini", {}, "ext-1")
         assert result == "/tmp/g.json"
 
-    def test_antigravity_source(self) -> None:
-        handler = _TestHandler()
-        with patch.object(handler, "_find_gemini_transcript", return_value="/tmp/a.json"):
-            result = handler._derive_transcript_path("antigravity", {}, "ext-1")
-        assert result == "/tmp/a.json"
-
-    def test_cursor_source(self) -> None:
-        handler = _TestHandler()
-        with patch.object(handler, "_find_cursor_transcript", return_value="/tmp/c.ndjson"):
-            result = handler._derive_transcript_path("cursor", {}, "ext-1")
-        assert result == "/tmp/c.ndjson"
-
     def test_unknown_source(self) -> None:
         handler = _TestHandler()
         result = handler._derive_transcript_path("codex", {}, "ext-1")
@@ -189,52 +176,6 @@ class TestFindGeminiTranscript:
 # ---------------------------------------------------------------------------
 # _find_cursor_transcript tests
 # ---------------------------------------------------------------------------
-
-
-class TestFindCursorTranscript:
-    """Tests for _find_cursor_transcript."""
-
-    def test_from_terminal_context(self) -> None:
-        handler = _TestHandler()
-        result = handler._find_cursor_transcript(
-            {"terminal_context": {"cursor_capture_path": "/tmp/capture.ndjson"}},
-            "ext-1",
-        )
-        assert result == "/tmp/capture.ndjson"
-
-    def test_standard_location_exists(self, tmp_path) -> None:
-        handler = _TestHandler()
-        session_id = "test-session-123"
-        std_path = f"{tempfile.gettempdir()}/gobby-cursor-{session_id}.ndjson"
-
-        with patch("gobby.hooks.event_handlers._session_start.Path") as MockPath:
-            mock_path = MagicMock()
-            mock_path.exists.return_value = True
-            MockPath.return_value = mock_path
-
-            result = handler._find_cursor_transcript({"session_id": session_id}, "ext-1")
-        assert result == std_path
-
-    def test_standard_location_not_exists(self) -> None:
-        handler = _TestHandler()
-
-        with patch("gobby.hooks.event_handlers._session_start.Path") as MockPath:
-            mock_path = MagicMock()
-            mock_path.exists.return_value = False
-            MockPath.return_value = mock_path
-
-            result = handler._find_cursor_transcript({"session_id": "test-session"}, "ext-1")
-        assert result is None
-
-    def test_no_session_id(self) -> None:
-        handler = _TestHandler()
-        result = handler._find_cursor_transcript({}, "")
-        assert result is None
-
-    def test_invalid_session_id_chars(self) -> None:
-        handler = _TestHandler()
-        result = handler._find_cursor_transcript({"session_id": "../../etc/passwd"}, "ext-1")
-        assert result is None
 
 
 # ---------------------------------------------------------------------------
