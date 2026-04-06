@@ -1534,6 +1534,18 @@ class TestCodexHooksAdapterTranslateFromHookResponse:
         assert "hookSpecificOutput" not in result
         assert "Rule injected context" in result["systemMessage"]
 
+    def test_context_injection_stop_uses_system_message(self) -> None:
+        """Stop puts context in systemMessage, not additionalContext."""
+        from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
+
+        adapter = CodexHooksAdapter()
+        response = HookResponse(decision="allow", context="Stop context")
+        result = adapter.translate_from_hook_response(response, hook_type="Stop")
+
+        assert result["continue"] is True
+        assert "hookSpecificOutput" not in result
+        assert "Stop context" in result["systemMessage"]
+
     def test_system_message_in_result(self) -> None:
         """System message appears as systemMessage field."""
         from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
