@@ -34,6 +34,11 @@ def _get_hooks_dir() -> Path:
 def _set_toml_value(content: str, key: str, value: str) -> str:
     """Set a top-level dotted key in TOML content (e.g., 'features.codex_hooks').
 
+    Note: This uses regex-based editing designed for the controlled Codex
+    config.toml shape only. It will not handle quoted keys, inline tables,
+    or multiline strings correctly. A proper TOML parser (e.g., tomli/tomllib)
+    would be required for full TOML compliance.
+
     Replaces existing line if found. For dotted keys like ``features.codex_hooks``,
     also checks for the bare key inside an existing ``[features]`` section.
     When appending, inserts into the matching section if it exists, otherwise
@@ -86,7 +91,11 @@ def _set_toml_value(content: str, key: str, value: str) -> str:
 
 
 def _remove_toml_key(content: str, key: str) -> str:
-    """Remove a top-level key from TOML content."""
+    """Remove a top-level key from TOML content.
+
+    Same limitations as _set_toml_value — regex-based, for the controlled
+    Codex config.toml shape only.
+    """
     pattern = re.compile(rf"(?m)^\s*{re.escape(key)}\s*=.*$\n?")
     result = pattern.sub("", content)
     return re.sub(r"\n{3,}", "\n\n", result)
@@ -157,6 +166,28 @@ def _install_hooks_json(codex_home: Path, hooks_dir: Path) -> list[str]:
         raise
 
     return hooks_installed
+
+
+def _is_gobby_hook(hook_entry: Any) -> bool:
+    """Check if a hooks.json entry was installed by Gobby.
+
+    Inspects the entry's command/args for the hook_dispatcher.py path
+    rather than doing a broad string search on the JSON serialization.
+    """
+    if isinstance(hook_entry, dict):
+        for field in ("command", "cmd", "script"):
+            val = hook_entry.get(field, "")
+            if isinstance(val, str) and "hook_dispatcher.py" in val:
+                return True
+        for field in ("args", "arguments"):
+            val = hook_entry.get(field, [])
+            if isinstance(val, list):
+                for arg in val:
+                    if isinstance(arg, str) and "hook_dispatcher.py" in arg:
+                        return True
+    elif isinstance(hook_entry, list):
+        return any(_is_gobby_hook(item) for item in hook_entry)
+    return False
 
 
 def install_codex(project_path: Path, *, mode: str = "global") -> dict[str, Any]:
@@ -283,8 +314,7 @@ def uninstall_codex(project_path: Path | None = None) -> dict[str, Any]:
             hooks_config = json.loads(hooks_file.read_text(encoding="utf-8"))
             if "hooks" in hooks_config:
                 for hook_type in list(hooks_config["hooks"].keys()):
-                    entry_str = json.dumps(hooks_config["hooks"][hook_type])
-                    if "hook_dispatcher.py" in entry_str:
+                    if _is_gobby_hook(hooks_config["hooks"][hook_type]):
                         del hooks_config["hooks"][hook_type]
                         result["hooks_removed"].append(hook_type)
 

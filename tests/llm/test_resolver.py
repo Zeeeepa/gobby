@@ -114,11 +114,11 @@ class TestResolveProvider:
         """Test that config provider has third priority."""
         # Create mock config
         mock_config = MagicMock()
-        mock_config.llm_providers.get_enabled_providers.return_value = ["codex", "codex"]
+        mock_config.llm_providers.get_enabled_providers.return_value = ["codex", "gemini"]
 
         result = resolve_provider(config=mock_config)
 
-        # Should prefer claude if available, otherwise first
+        # Should prefer claude if available, otherwise first enabled
         assert result.provider == "codex"
         assert result.source == "config"
 
@@ -224,9 +224,9 @@ class TestExceptionTypes:
 
     def test_provider_not_configured_error_fields(self) -> None:
         """Test ProviderNotConfiguredError has correct fields."""
-        error = ProviderNotConfiguredError("codex", ["claude", "codex"])
+        error = ProviderNotConfiguredError("codex", ["claude", "gemini"])
 
         assert error.provider == "codex"
-        assert error.available == ["claude", "codex"]
+        assert error.available == ["claude", "gemini"]
         assert "codex" in str(error)
         assert "claude" in str(error)

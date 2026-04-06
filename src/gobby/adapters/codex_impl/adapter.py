@@ -734,10 +734,6 @@ class CodexHooksAdapter(BaseAdapter):
         # Build additionalContext from all context sources
         context_parts: list[str] = []
 
-        # System message (rule engine messages, skill injections)
-        if response.system_message:
-            context_parts.append(response.system_message)
-
         # Workflow-injected context (inject_context action)
         if response.context:
             context_parts.append(response.context)

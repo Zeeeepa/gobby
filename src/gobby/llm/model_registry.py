@@ -140,11 +140,17 @@ def group_by_provider(models: list[ModelInfo]) -> dict[str, list[ModelInfo]]:
 
 
 def strip_provider_prefix(model_id: str) -> str:
-    """Strip the OpenRouter provider prefix from a model ID.
+    """Strip a known OpenRouter provider prefix from a model ID.
+
+    Only strips prefixes that match keys in PROVIDER_MAP (e.g. 'anthropic/',
+    'openai/', 'google/'). Unknown prefixes are left intact.
 
     'anthropic/claude-opus-4-6' -> 'claude-opus-4-6'
     'claude-opus-4-6' -> 'claude-opus-4-6'  (no-op if no prefix)
+    'custom/my-model' -> 'custom/my-model'  (unknown prefix, kept)
     """
     if "/" in model_id:
-        return model_id.split("/", 1)[1]
+        prefix = model_id.split("/", 1)[0] + "/"
+        if prefix in PROVIDER_MAP:
+            return model_id.split("/", 1)[1]
     return model_id

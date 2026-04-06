@@ -19,6 +19,7 @@ class ModelCost(NamedTuple):
     output: float
     cache_read: float | None = None
     cache_creation: float | None = None
+    context_length: int | None = None
 
 
 class ModelCostStore:
@@ -45,13 +46,12 @@ class ModelCostStore:
             logger.warning("No models available — keeping existing cached costs")
             return 0
 
+        from gobby.llm.model_registry import strip_provider_prefix
+
         rows: list[
             tuple[str, str, float, float, float | None, float | None, int, int | None, str]
         ] = []
         for m in models:
-            # Strip provider prefix for the model key (e.g. "anthropic/claude-opus-4-6" -> "claude-opus-4-6")
-            from gobby.llm.model_registry import strip_provider_prefix
-
             model_key = strip_provider_prefix(m.id)
             rows.append(
                 (
@@ -84,7 +84,8 @@ class ModelCostStore:
         """Return all cached costs as {model: ModelCost}."""
         rows = self.db.fetchall(
             "SELECT model, input_cost_per_token, output_cost_per_token, "
-            "cache_read_cost_per_token, cache_creation_cost_per_token FROM model_costs"
+            "cache_read_cost_per_token, cache_creation_cost_per_token, "
+            "context_length FROM model_costs"
         )
         return {
             row["model"]: ModelCost(
@@ -92,6 +93,7 @@ class ModelCostStore:
                 output=row["output_cost_per_token"],
                 cache_read=row["cache_read_cost_per_token"],
                 cache_creation=row["cache_creation_cost_per_token"],
+                context_length=row["context_length"],
             )
             for row in rows
         }

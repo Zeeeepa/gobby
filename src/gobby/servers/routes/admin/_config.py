@@ -43,7 +43,7 @@ def _fallback_models_from_config(server: "HTTPServer") -> dict[str, list[dict[st
     result: dict[str, list[dict[str, str]]] = {}
     if server.services.config and server.services.config.llm_providers:
         llm_config = server.services.config.llm_providers
-        for provider_name in ("claude", "codex"):
+        for provider_name in ("claude", "codex", "gemini"):
             provider_config = getattr(llm_config, provider_name, None)
             if provider_config:
                 models = provider_config.get_models_list()

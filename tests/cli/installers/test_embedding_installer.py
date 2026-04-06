@@ -273,6 +273,8 @@ class TestPersistEmbeddingConfig:
 
         mock_db = MagicMock()
         mock_db_class.return_value = mock_db
+        mock_db.__enter__ = MagicMock(return_value=mock_db)
+        mock_db.__exit__ = MagicMock(return_value=False)
         mock_store = MagicMock()
         mock_store_class.return_value = mock_store
 
@@ -294,7 +296,7 @@ class TestPersistEmbeddingConfig:
         # No duplicate namespaces
         assert not any(k.startswith("search.") for k in entries)
         assert not any(k.startswith("mcp_client_proxy.") for k in entries)
-        mock_db.close.assert_called_once()
+        mock_db.__exit__.assert_called_once()
 
     @patch("gobby.storage.secrets.SecretStore")
     @patch("gobby.storage.config_store.ConfigStore")
@@ -313,6 +315,9 @@ class TestPersistEmbeddingConfig:
         mock_config = MagicMock()
         mock_config.database_path = str(tmp_path / "test.db")
         mock_load_config.return_value = mock_config
+        mock_db = mock_db_class.return_value
+        mock_db.__enter__ = MagicMock(return_value=mock_db)
+        mock_db.__exit__ = MagicMock(return_value=False)
         mock_store = MagicMock()
         mock_store_class.return_value = mock_store
 
@@ -324,6 +329,7 @@ class TestPersistEmbeddingConfig:
             "embeddings.api_base": None,
             "embeddings.dim": 0,
         }
+        mock_db.__exit__.assert_called_once()
 
     @patch("gobby.storage.secrets.SecretStore")
     @patch("gobby.storage.config_store.ConfigStore")
@@ -342,6 +348,9 @@ class TestPersistEmbeddingConfig:
         mock_config = MagicMock()
         mock_config.database_path = str(tmp_path / "test.db")
         mock_load_config.return_value = mock_config
+        mock_db = mock_db_class.return_value
+        mock_db.__enter__ = MagicMock(return_value=mock_db)
+        mock_db.__exit__ = MagicMock(return_value=False)
         mock_secret = MagicMock()
         mock_secret_class.return_value = mock_secret
 
@@ -358,6 +367,7 @@ class TestPersistEmbeddingConfig:
         assert call_kwargs["name"] == "openai_api_key"
         assert call_kwargs["plaintext_value"] == "sk-xxx"
         assert call_kwargs["category"] == "llm"
+        mock_db.__exit__.assert_called_once()
 
     @patch("gobby.storage.secrets.SecretStore")
     @patch("gobby.storage.config_store.ConfigStore")
@@ -376,6 +386,9 @@ class TestPersistEmbeddingConfig:
         mock_config = MagicMock()
         mock_config.database_path = str(tmp_path / "test.db")
         mock_load_config.return_value = mock_config
+        mock_db = mock_db_class.return_value
+        mock_db.__enter__ = MagicMock(return_value=mock_db)
+        mock_db.__exit__ = MagicMock(return_value=False)
         mock_store = MagicMock()
         mock_store_class.return_value = mock_store
 
@@ -393,6 +406,7 @@ class TestPersistEmbeddingConfig:
             "embeddings.api_base": None,
             "embeddings.dim": 1536,
         }
+        mock_db.__exit__.assert_called_once()
 
 
 class TestHealthCheck:

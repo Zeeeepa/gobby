@@ -313,7 +313,6 @@ class TestInstallCommand:
 
         assert result.exit_code == 0
         assert "Codex" in result.output
-        assert "Codex" in result.output
         assert "Installed" in result.output
         mock_install_codex.assert_called_once()
 
@@ -1558,6 +1557,7 @@ class TestInstallFullOutput:
         assert "Codex" in result.output
         assert "Failed: Missing source file" in result.output
         assert "Some installations failed" in result.output
+
 
 class TestUninstallFullOutput:
     """Tests for uninstall command full output paths."""

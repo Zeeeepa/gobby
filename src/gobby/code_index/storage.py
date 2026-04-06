@@ -662,6 +662,13 @@ class CodeIndexStorage:
             (project_id,),
         )
 
+    def invalidate_project(self, project_id: str) -> None:
+        """Atomically delete all index data (symbols, files, chunks) for a project."""
+        with self.db.transaction() as conn:
+            conn.execute("DELETE FROM code_symbols WHERE project_id = ?", (project_id,))
+            conn.execute("DELETE FROM code_files WHERE project_id = ?", (project_id,))
+            conn.execute("DELETE FROM code_content_chunks WHERE project_id = ?", (project_id,))
+
     # ── Graph visualization fallbacks ────────────────────────────────
 
     def get_file_symbol_tree(self, project_id: str, limit: int = 200) -> dict[str, Any]:

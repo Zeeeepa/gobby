@@ -292,8 +292,7 @@ def _persist_embedding_config(
 
     config = load_config()
     db_path = Path(config.database_path).expanduser()
-    db = LocalDatabase(db_path)
-    try:
+    with LocalDatabase(db_path) as db:
         store = ConfigStore(db)
 
         entries: dict[str, Any]
@@ -321,8 +320,6 @@ def _persist_embedding_config(
                 category="llm",
                 description="OpenAI API key for embeddings (set by gobby install)",
             )
-    finally:
-        db.close()
 
 
 def _health_check_embedding(

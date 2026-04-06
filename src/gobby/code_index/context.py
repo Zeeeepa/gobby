@@ -7,6 +7,7 @@ indexing is handled by gcode (Rust CLI).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -52,9 +53,9 @@ class CodeIndexContext:
 
     async def invalidate(self, project_id: str) -> None:
         """Clear all index data for a project."""
-        self._storage.delete_symbols_for_project(project_id)
-        self._storage.delete_files_for_project(project_id)
-        self._storage.delete_content_chunks_for_project(project_id)
+        await asyncio.to_thread(self._storage.delete_symbols_for_project, project_id)
+        await asyncio.to_thread(self._storage.delete_files_for_project, project_id)
+        await asyncio.to_thread(self._storage.delete_content_chunks_for_project, project_id)
 
         if self._graph is not None:
             await self._graph.clear_project(project_id)
@@ -64,6 +65,6 @@ class CodeIndexContext:
             try:
                 await self._vector_store.delete_collection(collection)
             except Exception as e:
-                logger.debug(f"Vector collection delete failed: {e}")
+                logger.warning(f"Vector collection delete failed for {collection}: {e}")
 
         logger.info(f"Invalidated code index for project {project_id}")

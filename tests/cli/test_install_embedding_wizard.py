@@ -5,6 +5,7 @@ from __future__ import annotations
 import subprocess
 from unittest.mock import MagicMock, patch
 
+import click
 import pytest
 from click.testing import CliRunner
 
@@ -130,7 +131,6 @@ class TestRunEmbeddingInstallInteractive:
                 "health_check": True,
             }
         )
-        import click
 
         @click.command()
         def cmd() -> None:
@@ -150,7 +150,6 @@ class TestRunEmbeddingInstallInteractive:
     ) -> None:
         runner = CliRunner()
         installer = MagicMock(return_value={"success": True, "provider": "none", "skipped": True})
-        import click
 
         @click.command()
         def cmd() -> None:
@@ -171,7 +170,6 @@ class TestRunEmbeddingInstallInteractive:
     ) -> None:
         runner = CliRunner()
         installer = MagicMock()
-        import click
 
         @click.command()
         def cmd() -> None:

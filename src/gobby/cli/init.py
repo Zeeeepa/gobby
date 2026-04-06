@@ -3,6 +3,7 @@ Project initialization commands.
 """
 
 import logging
+import subprocess
 import sys
 from pathlib import Path
 
@@ -52,8 +53,6 @@ def init(
 
         # Trigger initial code indexing via gcode
         try:
-            import subprocess
-
             gcode_bin = Path.home() / ".gobby" / "bin" / "gcode"
             if gcode_bin.exists():
                 click.echo("Indexing codebase...")
@@ -73,7 +72,7 @@ def init(
                 click.echo(
                     "gcode not installed — skipping initial index. Run `gobby install`.", err=True
                 )
-        except Exception as e:
+        except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError) as e:
             click.echo(f"Code indexing skipped: {e}", err=True)
 
         # Check tmux availability
@@ -88,8 +87,6 @@ def init(
                 )
             else:
                 # WSL available — check if tmux is installed inside it
-                import subprocess
-
                 try:
                     tmux_check = subprocess.run(
                         ["wsl", "which", "tmux"],

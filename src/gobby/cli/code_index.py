@@ -198,7 +198,5 @@ def invalidate_cmd(project_id: str) -> None:
     """
     pid = project_id or _auto_project_id()
     storage = _get_storage()
-    storage.delete_symbols_for_project(pid)
-    storage.delete_files_for_project(pid)
-    storage.delete_content_chunks_for_project(pid)
+    storage.invalidate_project(pid)
     click.echo(f"Index invalidated for project: {pid}")

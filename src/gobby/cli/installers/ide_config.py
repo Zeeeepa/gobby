@@ -40,8 +40,7 @@ def configure_ide_terminal_title(ide_name: str) -> dict[str, Any]:
     Skips silently if the IDE is not installed (config dir doesn't exist).
 
     Args:
-        ide_name: IDE name matching the Application Support / config dir
-                  (e.g. the IDE name matching its Application Support / config dir).
+        ide_name: IDE name matching the Application Support / config dir.
 
     Returns:
         Dict with 'success', 'added', 'already_configured', 'skipped',

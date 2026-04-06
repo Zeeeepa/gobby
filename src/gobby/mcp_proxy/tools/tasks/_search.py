@@ -38,7 +38,7 @@ def create_search_registry(ctx: RegistryContext) -> InternalToolRegistry:
     ) -> dict[str, Any]:
         """Search tasks using FTS5 full-text search.
 
-        Performs semantic search on task title, description, labels, and type.
+        Performs keyword-based full-text search (FTS5) on task title, description, labels, and type.
         Results are ranked by relevance and can be filtered by status, type, etc.
 
         Args:

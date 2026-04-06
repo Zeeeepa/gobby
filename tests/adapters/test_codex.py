@@ -1620,7 +1620,7 @@ class TestCodexHooksAdapterHandleNative:
         result = adapter.handle_native(native_event, mock_hook_manager)
 
         mock_hook_manager.handle.assert_called_once()
-        assert "decision" not in result or result.get("decision") != "block"
+        assert result.get("continue") is True
 
     def test_handle_native_unsupported_event(self) -> None:
         """Handle unsupported event returns empty dict."""

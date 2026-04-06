@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from gobby.llm.model_registry import (
     ModelInfo,
     _parse_pricing,
@@ -12,6 +14,8 @@ from gobby.llm.model_registry import (
     group_by_provider,
     strip_provider_prefix,
 )
+
+pytestmark = pytest.mark.unit
 
 # -- Fixtures ----------------------------------------------------------------
 
