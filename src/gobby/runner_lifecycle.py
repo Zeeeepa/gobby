@@ -607,6 +607,23 @@ async def run_daemon(runner: GobbyRunner) -> None:
 
             stop_ui_server(quiet=True)
 
+        # Close HookManager (webhook dispatcher httpx client, health monitor)
+        hook_manager = getattr(runner.http_server, "_hook_manager", None)
+        if hook_manager:
+            try:
+                hook_manager.shutdown()
+            except Exception as e:
+                logger.warning(f"HookManager shutdown failed: {e}")
+
+        # Close MemoryManager (Neo4j httpx client)
+        if runner.memory_manager:
+            try:
+                await asyncio.wait_for(runner.memory_manager.close(), timeout=5.0)
+            except TimeoutError:
+                logger.warning("MemoryManager close timed out")
+            except Exception as e:
+                logger.warning(f"MemoryManager close failed: {e}")
+
         # Close VectorStore connection
         if runner.vector_store:
             try:
