@@ -443,9 +443,17 @@ CREATE TABLE pending_approvals (
     kind TEXT NOT NULL,  -- 'tool' | 'plan' | 'ask_user_question'
     payload_json TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    FOREIGN KEY (session_id) REFERENCES sessions(id)
+    FOREIGN KEY (session_id) REFERENCES sessions(id),
+    UNIQUE (session_id, kind, request_id)
 );
 ```
+
+**`request_id` semantics:**
+- `request_id` is daemon-generated (UUID) when persisting to `pending_approvals`. If the CLI's hook payload includes a provider-native approval/invocation ID, the daemon normalizes it into `request_id`; otherwise the daemon generates one.
+- WebSocket approval responses MUST include `request_id` — daemon matches response to the correct pending row.
+- Dedup: `(session_id, kind, request_id)` is unique (enforced by constraint above). If a CLI retries the same hook (e.g., network hiccup), the daemon returns the existing decision rather than creating a duplicate pending row.
+- Supersession: if the CLI fires a new hook for the same tool (retry after timeout), the old pending row is marked `expired` and the new one becomes active. Only the latest non-expired pending row per `(session_id, kind)` is rebroadcast on reconnect.
+- WebSocket broadcast includes `request_id` so the frontend can match UI state to the correct approval request.
 
 **Reconnect resilience:** On WebSocket reconnect, daemon rebroadcasts all pending rows for session. Replaces existing `find_pending_plans()` (which hardcoded `source IN ('claude_sdk_web_chat', 'codex_web_chat')`) with source-agnostic query filtering by `session_type = 'web_chat'`.
 
@@ -567,9 +575,9 @@ All three CLIs use this single function:
 
 Gemini already runs without preflight (`spawn_executor.py:245` creates session with `external_id=None`). Codex adopts the same pattern:
 
-1. Create Gobby session with `external_id=None`
+1. Pre-create Gobby child session with placeholder `external_id` (e.g., `agent-{uuid}`) — matches `session.py:160-166`
 2. Launch CLI into tmux via `build_cli_command()`
-3. SessionStart hook fires synchronously → sets `external_id` to CLI's native session ID (`_session_start.py:240-244`)
+3. SessionStart hook fires synchronously → backfills `external_id` to CLI's native session ID (`_session_start.py:240-244`)
 4. Session cached for subsequent tool calls (`_session_start.py:246-250`)
 
 **Safe because:** SessionStart fires before agent can make tool calls. Proven pattern — Gemini already uses it.
@@ -613,7 +621,7 @@ Update all imports/references in `src/gobby/adapters/codex_impl/`.
 
 The DB already has the right shape — sessions table uses composite key `(external_id, machine_id, project_id, source)`. No schema redesign for namespacing.
 
-1. **Live session registry:** Add `is_live` + `live_connection_id` to sessions table. `LiveSessionRegistry` wraps existing `_chat_sessions` dict with multi-provider awareness.
+1. **Live session registry:** Add `is_live` to sessions table. `LiveSessionRegistry` wraps existing `_chat_sessions` dict with multi-provider awareness. Controller tracking is in-memory only (not DB) — a `Dict[session_id, Set[connection_id]]` mapping where one connection is the active controller (read-write) and others are observers (read-only). No `live_connection_id` column — multiplexing is a WebSocket-layer concern, not a persistence concern.
 2. **WebSocket multiplexing:** Client subscribes to multiple streams. One active (read-write), others observed (read-only).
 3. **Switch command:** `{"type": "switch_session", "session_id": "..."}` WebSocket message.
 4. **All sessions produce `ChatEvent` stream** — guaranteed compatible via `ChatSessionProtocol`.
@@ -740,7 +748,7 @@ Phase 0 (provider purge — Cursor/Windsurf/Copilot/Antigravity)
 | `src/gobby/adapters/codex_impl/adapter.py` | **Modify** — rename CodexAdapter → CodexAppServerAdapter, CodexHooksAdapter → CodexAdapter, delete CodexNotifyAdapter | 5 |
 | `src/gobby/adapters/codex_impl/client.py` | **Modify** — wire context_prefix to start_turn() | 5 |
 | `src/gobby/servers/http.py` | **Modify** — wire codex_client at startup | 5 |
-| `src/gobby/storage/sessions.py` | **Modify** — add is_live, live_connection_id | 6 |
+| `src/gobby/storage/sessions.py` | **Modify** — add is_live | 6 |
 | `src/gobby/config/llm_providers.py` | **Modify** — local LLM endpoint config | 6 |
 | `src/gobby/servers/routes/providers.py` | **Create** — /api/providers endpoint | 6 |
 | `pyproject.toml` | **Modify** — remove `claude-agent-sdk`, remove purged install patterns | 0+7 |
