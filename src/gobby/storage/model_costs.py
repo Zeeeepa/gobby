@@ -104,7 +104,7 @@ class ModelCostStore:
 
         row = self.db.fetchone("SELECT context_length FROM model_costs WHERE model = ?", (model,))
         if row and row["context_length"]:
-            return row["context_length"]
+            return int(row["context_length"])
 
         # Prefix match — find longest matching model key
         rows = self.db.fetchall(

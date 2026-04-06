@@ -46,7 +46,9 @@ class ModelInfo:
     cache_creation_cost_per_token: float | None = None
 
 
-def _parse_pricing(pricing: dict | None) -> tuple[float, float, float | None, float | None]:
+def _parse_pricing(
+    pricing: dict[str, str | None] | None,
+) -> tuple[float, float, float | None, float | None]:
     """Parse OpenRouter pricing dict (string values) to floats.
 
     Returns (input, output, cache_read, cache_write). Pricing strings
