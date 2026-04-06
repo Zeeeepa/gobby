@@ -23,9 +23,12 @@ Example usage:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import os
 import random
+import time
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +36,60 @@ logger = logging.getLogger(__name__)
 _DEFAULT_MAX_RETRIES = 5
 _DEFAULT_BASE_DELAY = 1.0  # seconds
 _DEFAULT_MAX_DELAY = 60.0  # seconds
+
+# ---------------------------------------------------------------------------
+# TTL cache for embedding results
+# ---------------------------------------------------------------------------
+_CACHE_TTL = 60.0  # seconds
+_CACHE_MAX_SIZE = 2048
+
+
+@dataclass(slots=True)
+class _CacheEntry:
+    embedding: list[float]
+    expires_at: float
+
+
+_cache: dict[str, _CacheEntry] = {}
+_cache_lock: asyncio.Lock | None = None
+
+
+def _get_lock() -> asyncio.Lock:
+    """Lazy-init the asyncio lock (must be created inside a running loop)."""
+    global _cache_lock  # noqa: PLW0603
+    if _cache_lock is None:
+        _cache_lock = asyncio.Lock()
+    return _cache_lock
+
+
+def _cache_key(text: str, model: str, api_base: str | None) -> str:
+    """Stable cache key from text content + model + endpoint."""
+    h = hashlib.sha256(text.encode()).hexdigest()[:16]
+    return f"{h}:{model}:{api_base or 'default'}"
+
+
+def _evict_expired() -> None:
+    """Remove expired entries. Called while holding the lock."""
+    now = time.monotonic()
+    expired = [k for k, v in _cache.items() if v.expires_at <= now]
+    for k in expired:
+        del _cache[k]
+
+
+def _enforce_max_size() -> None:
+    """Evict oldest entries if cache exceeds max size."""
+    if len(_cache) <= _CACHE_MAX_SIZE:
+        return
+    # Sort by expiry (oldest first) and remove excess
+    by_expiry = sorted(_cache.items(), key=lambda kv: kv[1].expires_at)
+    to_remove = len(_cache) - _CACHE_MAX_SIZE
+    for key, _ in by_expiry[:to_remove]:
+        del _cache[key]
+
+
+def clear_cache() -> None:
+    """Clear the embedding cache. Useful for testing."""
+    _cache.clear()
 
 
 async def generate_embeddings(
@@ -49,6 +106,9 @@ async def generate_embeddings(
     Works with any OpenAI-compatible endpoint (OpenAI cloud, Ollama, LM Studio).
     Rate limit errors are retried with exponential backoff; non-retryable errors
     (auth, model not found) fail immediately.
+
+    Results are cached per (text, model, api_base) with a 60-second TTL to
+    deduplicate concurrent identical requests.
 
     Args:
         texts: List of texts to embed
@@ -69,6 +129,74 @@ async def generate_embeddings(
     if not texts:
         return []
 
+    lock = _get_lock()
+
+    # --- Phase 1: Check cache for each text ---
+    async with lock:
+        _evict_expired()
+        results: list[list[float] | None] = []
+        miss_indices: list[int] = []
+        miss_texts: list[str] = []
+        seen_in_batch: dict[str, int] = {}  # key -> first index in results
+
+        for i, text in enumerate(texts):
+            key = _cache_key(text, model, api_base)
+            entry = _cache.get(key)
+            if entry is not None:
+                results.append(entry.embedding)
+            elif key in seen_in_batch:
+                # Duplicate within this batch — will be filled from first occurrence
+                results.append(None)
+                miss_indices.append(i)
+            else:
+                results.append(None)
+                miss_indices.append(i)
+                miss_texts.append(text)
+                seen_in_batch[key] = i
+
+    # --- Phase 2: Fetch uncached embeddings ---
+    if miss_texts:
+        fresh = await _fetch_embeddings(
+            texts=miss_texts,
+            model=model,
+            api_base=api_base,
+            api_key=api_key,
+            max_retries=max_retries,
+            base_delay=base_delay,
+        )
+
+        # --- Phase 3: Store results in cache ---
+        async with lock:
+            now = time.monotonic()
+            expires_at = now + _CACHE_TTL
+
+            # Map miss_texts back to their embeddings
+            text_to_embedding: dict[str, list[float]] = {}
+            for text, emb in zip(miss_texts, fresh, strict=True):
+                key = _cache_key(text, model, api_base)
+                _cache[key] = _CacheEntry(embedding=emb, expires_at=expires_at)
+                text_to_embedding[text] = emb
+
+            _enforce_max_size()
+
+        # Fill in the None slots
+        for i in miss_indices:
+            text = texts[i]
+            results[i] = text_to_embedding.get(text)
+
+    # All slots should be filled now
+    return results  # type: ignore[return-value]
+
+
+async def _fetch_embeddings(
+    texts: list[str],
+    model: str,
+    api_base: str | None,
+    api_key: str | None,
+    max_retries: int,
+    base_delay: float,
+) -> list[list[float]]:
+    """Raw API call to generate embeddings (no caching)."""
     from openai import AsyncOpenAI, AuthenticationError, NotFoundError, RateLimitError
 
     # Use "unused" as default key for local endpoints (Ollama doesn't need a key)

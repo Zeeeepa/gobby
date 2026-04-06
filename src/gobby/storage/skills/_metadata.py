@@ -543,7 +543,19 @@ class SkillMetadataMixin:
         params.extend([limit, offset])
 
         rows = self.db.fetchall(query, tuple(params))
-        return [Skill.from_row(row) for row in rows]
+        skills = [Skill.from_row(row) for row in rows]
+
+        # Deduplicate when include_global is True: a skill may exist both
+        # globally (project_id IS NULL) and per-project.  Prefer the
+        # project-scoped version when both are present.
+        if project_id and include_global:
+            seen: dict[str, Skill] = {}
+            for skill in skills:
+                if skill.name not in seen or skill.project_id is not None:
+                    seen[skill.name] = skill
+            skills = list(seen.values())
+
+        return skills
 
     def search_skills(
         self,
