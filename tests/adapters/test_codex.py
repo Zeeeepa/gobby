@@ -1476,7 +1476,7 @@ class TestCodexHooksAdapterTranslateFromHookResponse:
     """Tests for translate_from_hook_response method."""
 
     def test_allow_response_minimal(self) -> None:
-        """Allow response with no context includes continue: true."""
+        """Allow response includes continue: true and suppressOutput."""
         from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
 
         adapter = CodexHooksAdapter()
@@ -1484,10 +1484,11 @@ class TestCodexHooksAdapterTranslateFromHookResponse:
         result = adapter.translate_from_hook_response(response)
 
         assert result["continue"] is True
+        assert result["suppressOutput"] is True
         assert "decision" not in result
 
     def test_block_response(self) -> None:
-        """Block response includes continue: false, decision and reason."""
+        """Block response has no suppressOutput so block reason is visible."""
         from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
 
         adapter = CodexHooksAdapter()
@@ -1497,6 +1498,7 @@ class TestCodexHooksAdapterTranslateFromHookResponse:
         assert result["continue"] is False
         assert result["decision"] == "block"
         assert result["reason"] == "Blocked by rule"
+        assert "suppressOutput" not in result
 
     def test_deny_response(self) -> None:
         """Deny response maps to block with continue: false."""
@@ -1542,7 +1544,7 @@ class TestCodexHooksAdapterTranslateFromHookResponse:
         response = HookResponse(decision="allow", context="Stop context")
         result = adapter.translate_from_hook_response(response, hook_type="Stop")
 
-        assert result == {"continue": True}
+        assert result == {"continue": True, "suppressOutput": True}
 
     def test_system_message_in_result(self) -> None:
         """System message appears as systemMessage field."""

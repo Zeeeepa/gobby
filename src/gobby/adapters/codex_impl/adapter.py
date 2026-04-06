@@ -720,12 +720,15 @@ class CodexHooksAdapter(BaseAdapter):
             "continue": should_continue,
         }
 
-        # Block/deny
+        # Block/deny — no suppressOutput so block reason is visible
         if not should_continue:
             result["decision"] = "block"
             if response.reason:
                 result["reason"] = response.reason
             return result
+
+        # Suppress hook output from Codex chat UI (context still injected into model)
+        result["suppressOutput"] = True
 
         # Stop: no context injection needed — session ID already known
         hook_event_name = hook_type or "Unknown"
