@@ -8,6 +8,61 @@ All notable changes to Gobby are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.5]
+
+### Features
+
+- **Model registry** — OpenRouter-backed model/cost data replaces LiteLLM for context windows, cost tables, and admin model discovery (#11315–#11318)
+- **Codex hooks adapter** — full hooks.json lifecycle event support for Codex CLI (#11336, #11333)
+- **Embedding setup wizard** — interactive embedding configuration during `gobby install` (#11324)
+- **Embedding cache** — deduplicate identical embedding queries (#11360)
+- **is_subagent variable** — rule guards that toggle native task tool access during subagent execution (#11311, #11309)
+
+### Refactors
+
+#### Remove LiteLLM
+
+LiteLLM and llama-cpp-python have been fully removed. Embeddings now use the OpenAI SDK directly against any compatible endpoint (LM Studio, Ollama, etc). Model costs and context windows use the OpenRouter registry.
+
+- Delete dead LiteLLM/Gemini provider code and all litellm fallbacks (#11319)
+- Replace litellm embeddings with OpenAI SDK, delete local_embeddings (#11320)
+- Remove litellm and llama-cpp-python from dependencies (#11321)
+- Consolidate embedding config to single `embeddings.*` namespace (#11331)
+
+#### Remove Dead Code
+
+- Remove dead Python compression + code_index parsing code (#11325, #11326)
+- Remove gobby index CLI — gcode fully replaces it (#11376)
+- Rename tfidf to keyword search and remove scikit-learn (#11330)
+- Drop dead table `session_message_state` and unused columns (#11365)
+
+#### Provider Purge
+
+- Remove all Cursor, Windsurf, Copilot, and Antigravity provider references from source, tests, and docs (#11351, #11352)
+
+### Fixes
+
+- Codex hook output: correct systemMessage/additionalContext fields, suppressOutput handling, session ref injection (#11337–#11341, #11345, #11348)
+- Normalize empty repo_path and project_path resolution in MCP dispatcher (#11371, #11372)
+- Suppress hooks for internal SDK calls to prevent session registration cascades
+- Close httpx AsyncClient instances during daemon shutdown (#11343)
+- Mark missing transcripts as processed to prevent re-registration spam
+- Fix `_is_gobby_hook` to handle nested Codex hooks.json format (#11377)
+- Fix `unregister_session` to clean render state unconditionally (#11377)
+- Catch TypeError in subagent start/stop SessionVariableManager calls (#11377)
+- Increase e2e process.wait timeout to match graceful shutdown (#11378)
+- Resolve mypy type errors across model_registry, model_costs, setting_sources (#11342, #11373)
+- Two code review batches — 41 fixes across 34 files (#11364, #11370)
+- Apply CodeRabbit review fixes — remove dead CLI, fix bugs, improve consistency (#11376)
+- Resolve 16 test failures across 8 root causes (#11377)
+
+### Chores
+
+- Remove claude-agent-sdk upper version pin (#11366)
+- Remove hardcoded Ollama defaults from embedding function signatures (#11334)
+- Migrate `search.tfidf_weight` config to `search.keyword_weight` (#11332)
+- Config migration for embedding config rename (#11323)
+
 ## [0.3.4]
 
 ### Features
