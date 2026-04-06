@@ -9,6 +9,7 @@ Supports two authentication modes:
 import asyncio
 import json
 import logging
+from pathlib import Path
 from typing import Any, Literal
 
 from claude_agent_sdk import (
@@ -16,23 +17,19 @@ from claude_agent_sdk import (
     ClaudeAgentOptions,
     ResultMessage,
     TextBlock,
-    ToolResultBlock,
     ToolUseBlock,
-    UserMessage,
-    create_sdk_mcp_server,
     query,
 )
 
 from gobby.config.app import DaemonConfig
 from gobby.llm.base import LLMProvider
-from gobby.llm.claude_models import (
-    MCPToolResult,
-    ToolCall,
-)
 
 # Type alias for auth mode
 AuthMode = Literal["subscription", "api_key"]
 
+# Headless settings file — zeroes out all hooks so internal LLM calls
+# don't trigger session registration or title synthesis cascades.
+_HEADLESS_SETTINGS = Path.home() / ".gobby" / "settings" / "headless.json"
 
 logger = logging.getLogger(__name__)
 
@@ -254,6 +251,11 @@ class ClaudeLLMProvider(LLMProvider):
             max_retries: Number of attempts (1 = no retry).
             retry_delay: Base delay between retries in seconds.
         """
+        # Suppress hooks for internal LLM calls — prevents session registration
+        # cascade and title synthesis loops
+        if not options.settings:
+            options.settings = str(_HEADLESS_SETTINGS)
+
         stderr_lines: list[str] = []
         options.stderr = lambda line: stderr_lines.append(line)
 
@@ -444,190 +446,42 @@ class ClaudeLLMProvider(LLMProvider):
         system_prompt: str | None = None,
         model: str | None = None,
     ) -> dict[str, Any]:
-        """Generate JSON using Claude Agent SDK (subscription mode)."""
-        # SDK doesn't support response_format, so we rely on prompt instructions
-        json_system = (system_prompt or "You are a helpful assistant.") + (
-            "\n\nIMPORTANT: You MUST respond with valid JSON only. No other text."
-        )
-        text = await self._generate_text_sdk(prompt, json_system, model)
-
-        # Try to extract JSON from the response
-        try:
-            # Strip markdown code fences if present
-            content = text.strip()
-            if content.startswith("```"):
-                first_newline = content.find("\n")
-                last_fence = content.rfind("```")
-                if first_newline != -1 and last_fence > first_newline:
-                    content = content[first_newline + 1 : last_fence].strip()
-                else:
-                    lines = content.split("\n")
-                    content = "\n".join(lines[1:-1]).strip()
-            result: dict[str, Any] = json.loads(content)
-            return result
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Failed to parse LLM response as JSON: {e}") from e
-
-    async def generate_with_mcp_tools(
-        self,
-        prompt: str,
-        allowed_tools: list[str],
-        system_prompt: str | None = None,
-        model: str | None = None,
-        max_turns: int = 10,
-        tool_functions: dict[str, list[Any]] | None = None,
-    ) -> MCPToolResult:
-        """
-        Generate text with access to MCP tools.
-
-        This method enables the agent to call MCP tools during generation,
-        tracking all tool calls made and returning them alongside the final text.
-
-        Note: This method requires subscription mode (Claude Agent SDK).
-        In api_key mode, returns an error message.
-
-        Args:
-            prompt: User prompt to process.
-            allowed_tools: List of allowed MCP tool patterns.
-                Tools should be in format "mcp__{server}__{tool}" or patterns
-                like "mcp__gobby-tasks__*" for all tools from a server.
-            system_prompt: Optional system prompt.
-            model: Optional model override (default: claude-sonnet-4-6).
-            max_turns: Maximum number of agentic turns (default: 10).
-            tool_functions: Optional dict mapping server names to lists of tool
-                functions for in-process MCP servers. Example:
-                {"gobby-tasks": [create_task_func, update_task_func]}
-
-        Returns:
-            MCPToolResult containing final text and list of tool calls made.
-
-        Example:
-            >>> result = await provider.generate_with_mcp_tools(
-            ...     prompt="Create a task called 'Fix bug'",
-            ...     allowed_tools=["mcp__gobby-tasks__create_task"],
-            ...     system_prompt="You are a task manager.",
-            ...     tool_functions={"gobby-tasks": [create_task]}
-            ... )
-            >>> print(result.text)
-            >>> for call in result.tool_calls:
-            ...     print(f"Called {call.tool_name} with {call.arguments}")
-        """
-        # MCP tools require subscription mode (Claude Agent SDK)
-        if self._auth_mode == "api_key":
-            return MCPToolResult(
-                text="MCP tools require subscription mode. "
-                "Set auth_mode: subscription in llm_providers.claude config.",
-                tool_calls=[],
-            )
-
+        """Generate JSON using Claude Agent SDK with output_format constraint."""
         cli_path = await self._verify_cli_path()
         if not cli_path:
-            return MCPToolResult(
-                text="Generation unavailable (Claude CLI not found)",
-                tool_calls=[],
-            )
+            raise RuntimeError("Generation unavailable (Claude CLI not found)")
 
-        # Build mcp_servers config
-        from gobby.servers.chat_session_helpers import _build_gobby_mcp_entry
-
-        mcp_servers_config: dict[str, Any] = {"gobby": _build_gobby_mcp_entry()}
-
-        # Add in-process tool functions if provided
-        if tool_functions:
-            for server_name, tools in tool_functions.items():
-                mcp_servers_config[server_name] = create_sdk_mcp_server(
-                    name=server_name,
-                    tools=tools,
-                )
-
-        # Configure Claude Agent SDK with MCP tools
         options = ClaudeAgentOptions(
-            system_prompt=system_prompt or "You are a helpful assistant with access to MCP tools.",
-            max_turns=max_turns,
+            system_prompt=system_prompt or "You are a helpful assistant.",
+            max_turns=1,
             model=model or "opus",
-            allowed_tools=allowed_tools,
-            permission_mode="bypassPermissions",
+            tools=[],
+            allowed_tools=[],
+            mcp_servers={},
+            permission_mode="default",
             cli_path=cli_path,
-            mcp_servers=mcp_servers_config,
+            output_format={"type": "json_object"},
         )
 
-        # Track tool calls and results
-        tool_calls: list[ToolCall] = []
-        pending_tool_calls: dict[str, ToolCall] = {}  # Map tool_use_id -> ToolCall
-
-        from gobby.llm.sdk_utils import parse_server_name as _parse_server_name
-
-        # Run async query
         async def _run_query() -> str:
             result_text = ""
             async for message in query(prompt=prompt, options=options):
-                if isinstance(message, ResultMessage):
-                    # Final result from the agent
-                    if message.result:
-                        result_text = message.result
-                    self.logger.debug(f"ResultMessage: result={message.result}")
-
-                elif isinstance(message, AssistantMessage):
+                if isinstance(message, AssistantMessage):
                     for block in message.content:
                         if isinstance(block, TextBlock):
-                            # Ensure spacing between text from different
-                            # AssistantMessages (tool calls in between may
-                            # not yield ToolResultBlocks if denied).
-                            text = block.text
-                            if result_text and text:
-                                if not result_text[-1].isspace() and not text[0].isspace():
-                                    result_text += "\n\n"
-                            result_text += text
-                        elif isinstance(block, ToolUseBlock):
-                            # Track tool use
-                            tool_call = ToolCall(
-                                tool_name=block.name,
-                                server_name=_parse_server_name(block.name),
-                                arguments=block.input if isinstance(block.input, dict) else {},
-                            )
-                            tool_calls.append(tool_call)
-                            pending_tool_calls[block.id] = tool_call
-                            self.logger.debug(
-                                f"ToolUseBlock: tool={block.name}, input={block.input}"
-                            )
-
-                elif isinstance(message, UserMessage):
-                    # UserMessage may contain tool results
-                    # UserMessage.content can be str | list[...], check first
-                    if isinstance(message.content, list):
-                        for block in message.content:
-                            if isinstance(block, ToolResultBlock):
-                                # Match result to pending tool call
-                                if block.tool_use_id in pending_tool_calls:
-                                    pending_tool_calls[block.tool_use_id].result = str(
-                                        block.content
-                                    )
-                                self.logger.debug(
-                                    f"ToolResultBlock: id={block.tool_use_id}, content={block.content}"
-                                )
-
+                            result_text += block.text
             return result_text
 
+        text = await self._execute_sdk_query("generate_json", _run_query, options)
+        text = str(text).strip()
+        if not text:
+            raise ValueError("Claude SDK returned empty response for JSON generation")
+
         try:
-            final_text = await self._execute_sdk_query(
-                "generate_with_mcp_tools", _run_query, options
-            )
-            return MCPToolResult(text=final_text, tool_calls=tool_calls)
-        except ExceptionGroup as eg:
-            # Handle Python 3.11+ ExceptionGroup from TaskGroup
-            errors: list[str] = []
-            for exc in eg.exceptions:
-                errors.append(f"{type(exc).__name__}: {exc}")
-                self.logger.error(f"TaskGroup sub-exception: {type(exc).__name__}: {exc}")
-            return MCPToolResult(
-                text=f"Generation failed: {'; '.join(errors)}",
-                tool_calls=tool_calls,
-            )
-        except RuntimeError as e:
-            return MCPToolResult(
-                text=f"Generation failed: {e}",
-                tool_calls=tool_calls,
-            )
+            result: dict[str, Any] = json.loads(text)
+            return result
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed to parse LLM response as JSON: {e}") from e
 
     async def describe_image(
         self,

@@ -47,6 +47,8 @@ class MockToolUseBlock:
 class MockClaudeAgentOptions:
     def __init__(self, **kwargs: object) -> None:
         self.kwargs = kwargs
+        self.settings: str | None = None
+        self.stderr: object = None
 
 
 @pytest.fixture
@@ -351,11 +353,11 @@ class TestGenerateJson:
                 await provider.generate_json("Generate JSON")
 
     @pytest.mark.asyncio
-    async def test_generate_json_sdk_strips_markdown(self, claude_config: DaemonConfig) -> None:
-        """SDK path strips markdown code fences from response."""
+    async def test_generate_json_sdk_parses_json(self, claude_config: DaemonConfig) -> None:
+        """SDK path parses JSON response using output_format constraint."""
 
         async def mock_query(prompt: str, options: object) -> object:
-            yield MockAssistantMessage([MockTextBlock('```json\n{"key": "value"}\n```')])
+            yield MockAssistantMessage([MockTextBlock('{"key": "value"}')])
 
         with mock_claude_sdk(mock_query):
             from gobby.llm.claude import ClaudeLLMProvider

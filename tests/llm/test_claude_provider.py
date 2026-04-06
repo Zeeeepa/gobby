@@ -20,11 +20,6 @@ class MockAssistantMessage:
         self.content = content
 
 
-class MockUserMessage:
-    def __init__(self, content):
-        self.content = content
-
-
 class MockResultMessage:
     def __init__(self, result=None):
         self.result = result
@@ -42,15 +37,11 @@ class MockToolUseBlock:
         self.input = input
 
 
-class MockToolResultBlock:
-    def __init__(self, tool_use_id, content):
-        self.tool_use_id = tool_use_id
-        self.content = content
-
-
 class MockClaudeAgentOptions:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
+        self.settings: str | None = None
+        self.stderr: object = None
 
 
 # --- Fixtures ---
@@ -77,8 +68,6 @@ def mock_claude_sdk(mock_query_func):
         patch("gobby.llm.claude.ResultMessage", MockResultMessage),
         patch("gobby.llm.claude.TextBlock", MockTextBlock),
         patch("gobby.llm.claude.ToolUseBlock", MockToolUseBlock),
-        patch("gobby.llm.claude.ToolResultBlock", MockToolResultBlock),
-        patch("gobby.llm.claude.UserMessage", MockUserMessage),
         patch("gobby.llm.claude.ClaudeAgentOptions", MockClaudeAgentOptions),
     ):
         yield

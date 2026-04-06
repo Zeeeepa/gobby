@@ -8,7 +8,7 @@ decomposition.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -59,34 +59,6 @@ def resolve_context_window(
         return CLAUDE_DEFAULT_CONTEXT_WINDOW
 
     return None
-
-
-@dataclass
-class ToolCall:
-    """Represents a tool call made during generation."""
-
-    tool_name: str
-    """Full tool name (e.g., mcp__gobby-tasks__create_task)."""
-
-    server_name: str
-    """Extracted server name from the tool (e.g., gobby-tasks)."""
-
-    arguments: dict[str, Any]
-    """Arguments passed to the tool."""
-
-    result: str | None = None
-    """Result returned by the tool, if available."""
-
-
-@dataclass
-class MCPToolResult:
-    """Result of generate_with_mcp_tools."""
-
-    text: str
-    """Final text output from the generation."""
-
-    tool_calls: list[ToolCall] = field(default_factory=list)
-    """List of tool calls made during generation."""
 
 
 @dataclass

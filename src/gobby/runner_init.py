@@ -85,6 +85,38 @@ def resolve_embedding_api_key(secret_store: Any, model: str) -> str | None:
     return default_key
 
 
+_HEADLESS_SETTINGS = Path.home() / ".gobby" / "settings" / "headless.json"
+
+_HEADLESS_SETTINGS_CONTENT = """{
+  "hooks": {
+    "SessionStart": [],
+    "SessionEnd": [],
+    "UserPromptSubmit": [],
+    "PreToolUse": [],
+    "PostToolUse": [],
+    "PreCompact": [],
+    "Stop": [],
+    "SubagentStart": [],
+    "SubagentStop": [],
+    "PermissionRequest": []
+  }
+}
+"""
+
+
+def _ensure_headless_settings() -> None:
+    """Create headless settings file if it doesn't exist.
+
+    This file is used by internal SDK calls (title synthesis, digest, summary)
+    to suppress hooks and prevent session registration cascades.
+    """
+    if _HEADLESS_SETTINGS.exists():
+        return
+    _HEADLESS_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
+    _HEADLESS_SETTINGS.write_text(_HEADLESS_SETTINGS_CONTENT)
+    logger.info(f"Created headless settings: {_HEADLESS_SETTINGS}")
+
+
 def init_hub_database(config: Any) -> Any:
     """Initialize hub database."""
     hub_db_path = Path(config.database_path).expanduser()
@@ -137,6 +169,9 @@ def init_storage_and_config(runner: GobbyRunner, config_path: Path | None, verbo
             "tmux is not installed. Agent spawning in terminal mode will not work. "
             "Install: brew install tmux (macOS), apt install tmux (Linux)"
         )
+    # Ensure headless settings file exists for internal SDK calls
+    _ensure_headless_settings()
+
     runner._shutdown_requested = False
     runner._metrics_cleanup_task = None
     runner._vector_rebuild_task = None
