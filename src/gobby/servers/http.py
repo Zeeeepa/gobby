@@ -202,7 +202,9 @@ class HTTPServer:
             _emb_cfg = services.config.embeddings if services.config else None
             semantic_search = SemanticToolSearch(
                 db=services.mcp_db_manager.db,
-                openai_api_key=_emb_cfg.api_key if _emb_cfg else openai_api_key,
+                openai_api_key=(
+                    _emb_cfg.api_key if _emb_cfg and _emb_cfg.api_key else openai_api_key
+                ),
                 embedding_model=_emb_cfg.model if _emb_cfg else DEFAULT_EMBEDDING_MODEL,
                 api_base=_emb_cfg.api_base if _emb_cfg else None,
                 vector_store=getattr(services, "vector_store", None),

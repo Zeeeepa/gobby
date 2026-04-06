@@ -160,7 +160,9 @@ async def is_embedding_healthy(
         )
         return len(result) > 0
     except Exception as e:
-        logger.warning(f"Embedding health check failed (model={model}, api_base={api_base}): {e}")
+        logger.warning(
+            f"Embedding health check failed (model={model}, api_base={api_base}): {type(e).__name__}: {e}"
+        )
         return False
 
 
@@ -179,7 +181,7 @@ async def try_autoload_embedding_model(model: str, api_base: str | None) -> bool
             # Run lms load in a thread to avoid blocking the event loop
             result = await asyncio.to_thread(
                 subprocess.run,
-                ["lms", "load", "nomic-embed-text-v1.5", "-y"],
+                ["lms", "load", model, "-y"],
                 capture_output=True,
                 text=True,
                 timeout=120,

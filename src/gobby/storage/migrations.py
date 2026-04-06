@@ -35,7 +35,7 @@ MigrationAction = str | Callable[[LocalDatabase], None]
 # Baseline version - the schema state that is applied for new databases directly.
 # Must be bumped when BASELINE_SCHEMA is updated with columns from new migrations,
 # so that fresh databases don't re-run migrations already baked into the baseline.
-BASELINE_VERSION = 197
+BASELINE_VERSION = 199
 
 # Minimum migration version - databases older than this cannot be upgraded
 # because legacy migrations (pre-v171) have been removed.
@@ -679,6 +679,21 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
             'mcp_client_proxy.embedding_api_base',
             'mcp_client_proxy.embedding_provider'
         );
+        """,
+    ),
+    (
+        199,
+        "Drop dead table session_message_state and unused columns",
+        """
+        DROP TABLE IF EXISTS session_message_state;
+
+        ALTER TABLE workflow_states DROP COLUMN task_list;
+        ALTER TABLE workflow_states DROP COLUMN current_task_index;
+        ALTER TABLE workflow_states DROP COLUMN files_modified_this_task;
+
+        ALTER TABLE code_indexed_projects DROP COLUMN total_eligible_files;
+
+        ALTER TABLE completion_subscribers DROP COLUMN subscribed_at;
         """,
     ),
 ]

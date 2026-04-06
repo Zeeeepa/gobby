@@ -45,33 +45,19 @@ def init(db: DatabaseProtocol) -> None:
     store = ModelCostStore(db)
     raw = store.get_all()
 
-    # Also load context windows
-    context_rows = db.fetchall(
-        "SELECT model, context_length FROM model_costs WHERE context_length IS NOT NULL"
-    )
-    context_map = {r["model"]: r["context_length"] for r in context_rows}
-
     _costs.clear()
     _costs.update(
-        {model: ModelCost(mc.input, mc.output, context_map.get(model)) for model, mc in raw.items()}
+        {model: ModelCost(mc.input, mc.output, mc.context_length) for model, mc in raw.items()}
     )
     logger.info(f"Loaded {len(_costs)} model costs into memory")
 
 
-def lookup_cost(model: str) -> ModelCost:
+def _resolve_model(model: str) -> ModelCost | None:
+    """Resolve a model name to its ModelCost entry using longest prefix match.
+
+    Strips any provider prefix, then tries exact match, then longest prefix.
+    Returns None if no match is found.
     """
-    Look up per-token costs for a model using longest prefix match.
-
-    Strips any provider prefix (e.g., "anthropic/claude-opus-4-6" -> "claude-opus-4-6")
-    then finds the longest matching prefix in the cost table.
-
-    Args:
-        model: Model name, optionally with provider prefix.
-
-    Returns:
-        ModelCost with per-token costs. Returns zero costs for unknown models.
-    """
-    # Strip provider prefix (e.g., "anthropic/claude-opus-4-6" -> "claude-opus-4-6")
     if "/" in model:
         model = model.split("/", 1)[1]
 
@@ -89,6 +75,26 @@ def lookup_cost(model: str) -> ModelCost:
 
     if best_match is not None:
         return _costs[best_match]
+
+    return None
+
+
+def lookup_cost(model: str) -> ModelCost:
+    """
+    Look up per-token costs for a model using longest prefix match.
+
+    Strips any provider prefix (e.g., "anthropic/claude-opus-4-6" -> "claude-opus-4-6")
+    then finds the longest matching prefix in the cost table.
+
+    Args:
+        model: Model name, optionally with provider prefix.
+
+    Returns:
+        ModelCost with per-token costs. Returns zero costs for unknown models.
+    """
+    result = _resolve_model(model)
+    if result is not None:
+        return result
 
     logger.debug(f"No cost data for model {model!r} - returning zero cost")
     return _ZERO_COST
@@ -123,26 +129,7 @@ def lookup_context_window(model: str) -> int | None:
 
     Returns None if the model is unknown or has no context_length data.
     """
-    if "/" in model:
-        model = model.split("/", 1)[1]
-
-    # Exact match
-    if model in _costs and _costs[model].context_length is not None:
-        return _costs[model].context_length
-
-    # Longest prefix match
-    best_match: str | None = None
-    best_len = 0
-    for prefix in _costs:
-        if (
-            model.startswith(prefix)
-            and len(prefix) > best_len
-            and _costs[prefix].context_length is not None
-        ):
-            best_match = prefix
-            best_len = len(prefix)
-
-    if best_match is not None:
-        return _costs[best_match].context_length
-
+    result = _resolve_model(model)
+    if result is not None:
+        return result.context_length
     return None
