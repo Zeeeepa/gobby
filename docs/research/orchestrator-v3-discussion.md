@@ -20,7 +20,6 @@ Every tool uses worktree-per-agent. Nobody has solved shared-worktree parallel d
 | **Claude Code** | Worktree per agent/subagent (`--worktree` flag). Auto-cleaned on completion. | Per-agent branch merge |
 | **Gastown** (Yegge) | Worktree per Polecat (worker). Mayor orchestrates assignment. | Refinery role handles merges |
 | **Maestro** (Amini) | Worktree per session (up to 6 parallel). Physically separate directories. | Per-session merge |
-| **GitHub Copilot** | VS Code spins up worktree per background agent. Mission Control dashboard. | Per-agent merge |
 | **Gemini CLI** | **Known limitation**: can't access worktree paths (issue #12050). Tools restricted to workspace root. | N/A — clones are the workaround |
 
 Gobby's `gobby-clones` was built specifically as the Gemini workaround. Clones are heavier (duplicate full repo) but give Gemini a workspace it can access.

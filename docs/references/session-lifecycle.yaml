@@ -2,7 +2,7 @@ name: session-lifecycle
 description: "Unified session lifecycle and behavior enforcement"
 enabled: true
 priority: 10 # Run first - critical for handoff before other LLM calls
-sources: [claude, gemini, codex, antigravity, cursor, windsurf, copilot, claude_sdk_web_chat]
+sources: [claude, gemini, codex, claude_sdk_web_chat]
 
 # Workflow-scoped variables (behavior settings)
 variables:
