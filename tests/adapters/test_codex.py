@@ -1580,7 +1580,7 @@ class TestCodexHooksAdapterTranslateFromHookResponse:
         assert "proj-1" in ctx
 
     def test_session_metadata_subsequent_hook(self) -> None:
-        """Subsequent hooks inject minimal session ref."""
+        """Subsequent hooks do not inject session ref."""
         from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
 
         adapter = CodexHooksAdapter()
@@ -1594,9 +1594,7 @@ class TestCodexHooksAdapterTranslateFromHookResponse:
         )
         result = adapter.translate_from_hook_response(response, hook_type="PostToolUse")
 
-        hso = result["hookSpecificOutput"]
-        assert hso["hookEventName"] == "PostToolUse"
-        assert hso["additionalContext"] == "Gobby Session ID: #100"
+        assert "hookSpecificOutput" not in result
 
 
 class TestCodexHooksAdapterHandleNative:
@@ -2343,8 +2341,8 @@ class TestCodexAdapterContextStringBuilding:
         assert "Gobby Session ID:" in context
         assert "#42" in context
 
-    def test_translate_response_minimal_metadata_subsequent_hooks(self) -> None:
-        """Subsequent hooks only inject minimal session ref."""
+    def test_translate_response_no_metadata_on_subsequent_hooks(self) -> None:
+        """Subsequent hooks do not inject session ref."""
         adapter = CodexAdapter()
 
         response = HookResponse(
@@ -2357,11 +2355,7 @@ class TestCodexAdapterContextStringBuilding:
         )
         result = adapter.translate_from_hook_response(response)
 
-        assert "context" in result
-        context = result["context"]
-        assert "Gobby Session ID: #42" in context
-        # Should NOT contain full metadata
-        assert "external_id" not in context.lower()
+        assert "context" not in result
 
     def test_translate_response_no_context_when_no_metadata(self) -> None:
         """No context field when no metadata or context."""
@@ -2460,11 +2454,10 @@ class TestCodexAdapterContextOneTimeInjection:
         first_context = first_result.get("context", "")
         subsequent_context = subsequent_result.get("context", "")
 
-        assert len(first_context) > len(subsequent_context)
-        # First has external_id
+        # First has full metadata
         assert "thr-ext-1" in first_context
-        # Subsequent does not
-        assert "thr-ext-1" not in subsequent_context
+        # Subsequent has no context at all
+        assert subsequent_context == ""
 
     def test_no_session_id_means_no_context_injection(self) -> None:
         """Without session_id in metadata, no context is injected."""

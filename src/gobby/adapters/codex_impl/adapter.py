@@ -527,10 +527,6 @@ class CodexAdapter(BaseAdapter):
                             friendly_name = key.replace("terminal_", "").replace("_", " ")
                             context_lines.append(f"{friendly_name}: {response.metadata[key]}")
                     context_parts.append("\n".join(context_lines))
-                else:
-                    # Subsequent hooks: inject minimal session ref only
-                    if session_ref:
-                        context_parts.append(f"Gobby Session ID: {session_ref}")
 
         # Add context to result if we have any
         if context_parts:
@@ -800,9 +796,6 @@ class CodexHooksAdapter(BaseAdapter):
                             friendly_name = key.replace("terminal_", "").replace("_", " ")
                             context_lines.append(f"{friendly_name}: {response.metadata[key]}")
                     context_parts.append("\n".join(context_lines))
-                else:
-                    if session_ref:
-                        context_parts.append(f"Gobby Session ID: {session_ref}")
 
         # Build hookSpecificOutput with required hookEventName
         # PreToolUse only accepts systemMessage — not additionalContext
