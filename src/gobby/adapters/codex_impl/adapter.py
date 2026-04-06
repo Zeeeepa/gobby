@@ -801,12 +801,17 @@ class CodexHooksAdapter(BaseAdapter):
                         context_parts.append(f"Gobby Session ID: {session_ref}")
 
         # Build hookSpecificOutput with required hookEventName
+        # PreToolUse only accepts systemMessage — not additionalContext
         hook_event_name = hook_type or "Unknown"
         if context_parts:
-            result["hookSpecificOutput"] = {
-                "hookEventName": hook_event_name,
-                "additionalContext": truncate_additional_context("\n\n".join(context_parts)),
-            }
+            combined_context = truncate_additional_context("\n\n".join(context_parts))
+            if hook_event_name == "PreToolUse":
+                result["systemMessage"] = combined_context
+            else:
+                result["hookSpecificOutput"] = {
+                    "hookEventName": hook_event_name,
+                    "additionalContext": combined_context,
+                }
 
         return result
 

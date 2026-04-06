@@ -1510,8 +1510,20 @@ class TestCodexHooksAdapterTranslateFromHookResponse:
         assert result["decision"] == "block"
         assert result["reason"] == "Not allowed"
 
-    def test_context_injection_with_hook_event_name(self) -> None:
-        """Context includes hookEventName and additionalContext."""
+    def test_context_injection_session_start(self) -> None:
+        """SessionStart uses hookSpecificOutput.additionalContext."""
+        from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
+
+        adapter = CodexHooksAdapter()
+        response = HookResponse(decision="allow", context="Rule injected context")
+        result = adapter.translate_from_hook_response(response, hook_type="SessionStart")
+
+        assert result["continue"] is True
+        assert result["hookSpecificOutput"]["hookEventName"] == "SessionStart"
+        assert "Rule injected context" in result["hookSpecificOutput"]["additionalContext"]
+
+    def test_context_injection_pre_tool_use_uses_system_message(self) -> None:
+        """PreToolUse puts context in systemMessage, not additionalContext."""
         from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
 
         adapter = CodexHooksAdapter()
@@ -1519,8 +1531,8 @@ class TestCodexHooksAdapterTranslateFromHookResponse:
         result = adapter.translate_from_hook_response(response, hook_type="PreToolUse")
 
         assert result["continue"] is True
-        assert result["hookSpecificOutput"]["hookEventName"] == "PreToolUse"
-        assert "Rule injected context" in result["hookSpecificOutput"]["additionalContext"]
+        assert "hookSpecificOutput" not in result
+        assert "Rule injected context" in result["systemMessage"]
 
     def test_system_message_in_result(self) -> None:
         """System message appears as systemMessage field."""
@@ -1569,10 +1581,10 @@ class TestCodexHooksAdapterTranslateFromHookResponse:
                 "_first_hook_for_session": False,
             },
         )
-        result = adapter.translate_from_hook_response(response, hook_type="PreToolUse")
+        result = adapter.translate_from_hook_response(response, hook_type="PostToolUse")
 
         hso = result["hookSpecificOutput"]
-        assert hso["hookEventName"] == "PreToolUse"
+        assert hso["hookEventName"] == "PostToolUse"
         assert hso["additionalContext"] == "Gobby Session ID: #100"
 
 
