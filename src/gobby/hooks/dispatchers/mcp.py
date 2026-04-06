@@ -219,7 +219,7 @@ def dispatch_mcp_calls(
         if "prompt_text" not in arguments:
             arguments["prompt_text"] = event.data.get("prompt") if event.data else None
         if "project_path" not in arguments:
-            arguments["project_path"] = event.metadata.get("project_path", "")
+            arguments["project_path"] = event.metadata.get("project_path") or None
         # Map prompt_text to query for tools that expect it (e.g., search_memories)
         if "query" not in arguments and arguments.get("prompt_text"):
             arguments["query"] = arguments["prompt_text"]
@@ -267,6 +267,18 @@ def dispatch_mcp_calls(
                         logger.debug(
                             f"dispatch_mcp_calls: failed to set project context: {ctx_err}"
                         )
+
+                # Backfill project_path from ContextVar if not already set.
+                # The arg injection at call-site defaults to None when event
+                # metadata lacks project_path (which is always). Now that
+                # set_project_context_from_session has populated the ContextVar,
+                # we can resolve the real path.
+                if not args.get("project_path"):
+                    from gobby.utils.project_context import _current_project_context
+
+                    ctx = _current_project_context.get()
+                    if ctx and ctx.get("project_path"):
+                        args["project_path"] = ctx["project_path"]
 
                 proxy = _get_proxy()
                 if not proxy:
