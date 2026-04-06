@@ -706,21 +706,30 @@ class CodexHooksAdapter(BaseAdapter):
     ) -> dict[str, Any]:
         """Convert HookResponse to Codex hooks.json expected format.
 
-        Codex validates hook stdout against a strict schema:
-        - Allow: ``{}`` or omit decision
-        - Block: ``{"decision": "block", "reason": "..."}``
-        - Context: ``{"hookSpecificOutput": {"additionalContext": "..."}}``
+        Codex uses the same hook output schema as Claude Code:
+        - ``continue``: bool (whether to continue execution)
+        - ``decision``: ``"block"`` with ``reason`` to block
+        - ``hookSpecificOutput``: ``{hookEventName, additionalContext}``
+        - ``systemMessage``: system-level message injection
         """
         from gobby.llm.sdk_utils import truncate_additional_context
 
-        result: dict[str, Any] = {}
+        should_continue = response.decision not in ("deny", "block")
 
-        # Block/deny → Codex "block" decision
-        if response.decision in ("deny", "block"):
+        result: dict[str, Any] = {
+            "continue": should_continue,
+        }
+
+        # Block/deny
+        if not should_continue:
             result["decision"] = "block"
             if response.reason:
                 result["reason"] = response.reason
             return result
+
+        # System message
+        if response.system_message:
+            result["systemMessage"] = response.system_message
 
         # Build additionalContext from all context sources
         context_parts: list[str] = []
@@ -791,8 +800,11 @@ class CodexHooksAdapter(BaseAdapter):
                     if session_ref:
                         context_parts.append(f"Gobby Session ID: {session_ref}")
 
+        # Build hookSpecificOutput with required hookEventName
+        hook_event_name = hook_type or "Unknown"
         if context_parts:
             result["hookSpecificOutput"] = {
+                "hookEventName": hook_event_name,
                 "additionalContext": truncate_additional_context("\n\n".join(context_parts)),
             }
 

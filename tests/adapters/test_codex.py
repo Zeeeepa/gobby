@@ -1475,64 +1475,65 @@ class TestCodexHooksAdapterTranslateToHookEvent:
 class TestCodexHooksAdapterTranslateFromHookResponse:
     """Tests for translate_from_hook_response method."""
 
-    def test_allow_response_empty(self) -> None:
-        """Allow response with no context returns empty dict."""
+    def test_allow_response_minimal(self) -> None:
+        """Allow response with no context includes continue: true."""
         from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
 
         adapter = CodexHooksAdapter()
         response = HookResponse(decision="allow")
         result = adapter.translate_from_hook_response(response)
 
-        assert "decision" not in result  # No explicit decision for allow
-        assert "continue" not in result  # No continue field (not Codex schema)
+        assert result["continue"] is True
+        assert "decision" not in result
 
     def test_block_response(self) -> None:
-        """Block response includes decision and reason."""
+        """Block response includes continue: false, decision and reason."""
         from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
 
         adapter = CodexHooksAdapter()
         response = HookResponse(decision="block", reason="Blocked by rule")
         result = adapter.translate_from_hook_response(response)
 
+        assert result["continue"] is False
         assert result["decision"] == "block"
         assert result["reason"] == "Blocked by rule"
-        assert "hookSpecificOutput" not in result  # No context on block
 
     def test_deny_response(self) -> None:
-        """Deny response maps to block."""
+        """Deny response maps to block with continue: false."""
         from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
 
         adapter = CodexHooksAdapter()
         response = HookResponse(decision="deny", reason="Not allowed")
         result = adapter.translate_from_hook_response(response)
 
+        assert result["continue"] is False
         assert result["decision"] == "block"
         assert result["reason"] == "Not allowed"
 
-    def test_context_injection(self) -> None:
-        """Context is injected via hookSpecificOutput.additionalContext."""
+    def test_context_injection_with_hook_event_name(self) -> None:
+        """Context includes hookEventName and additionalContext."""
         from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
 
         adapter = CodexHooksAdapter()
         response = HookResponse(decision="allow", context="Rule injected context")
-        result = adapter.translate_from_hook_response(response)
+        result = adapter.translate_from_hook_response(response, hook_type="PreToolUse")
 
-        assert "hookSpecificOutput" in result
-        assert "additionalContext" in result["hookSpecificOutput"]
+        assert result["continue"] is True
+        assert result["hookSpecificOutput"]["hookEventName"] == "PreToolUse"
         assert "Rule injected context" in result["hookSpecificOutput"]["additionalContext"]
 
-    def test_system_message_in_context(self) -> None:
-        """System message appears in additionalContext."""
+    def test_system_message_in_result(self) -> None:
+        """System message appears as systemMessage field."""
         from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
 
         adapter = CodexHooksAdapter()
         response = HookResponse(decision="allow", system_message="System note")
         result = adapter.translate_from_hook_response(response)
 
-        assert "System note" in result["hookSpecificOutput"]["additionalContext"]
+        assert result["systemMessage"] == "System note"
 
     def test_session_metadata_first_hook(self) -> None:
-        """First hook includes full session metadata."""
+        """First hook includes full session metadata in additionalContext."""
         from gobby.adapters.codex_impl.adapter import CodexHooksAdapter
 
         adapter = CodexHooksAdapter()
@@ -1546,9 +1547,11 @@ class TestCodexHooksAdapterTranslateFromHookResponse:
                 "project_id": "proj-1",
             },
         )
-        result = adapter.translate_from_hook_response(response)
+        result = adapter.translate_from_hook_response(response, hook_type="SessionStart")
 
-        ctx = result["hookSpecificOutput"]["additionalContext"]
+        hso = result["hookSpecificOutput"]
+        assert hso["hookEventName"] == "SessionStart"
+        ctx = hso["additionalContext"]
         assert "Gobby Session ID: #100 (abc-123)" in ctx
         assert "codex-ext-id" in ctx
         assert "proj-1" in ctx
@@ -1566,10 +1569,11 @@ class TestCodexHooksAdapterTranslateFromHookResponse:
                 "_first_hook_for_session": False,
             },
         )
-        result = adapter.translate_from_hook_response(response)
+        result = adapter.translate_from_hook_response(response, hook_type="PreToolUse")
 
-        ctx = result["hookSpecificOutput"]["additionalContext"]
-        assert ctx == "Gobby Session ID: #100"
+        hso = result["hookSpecificOutput"]
+        assert hso["hookEventName"] == "PreToolUse"
+        assert hso["additionalContext"] == "Gobby Session ID: #100"
 
 
 class TestCodexHooksAdapterHandleNative:
