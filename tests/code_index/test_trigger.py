@@ -13,11 +13,6 @@ from gobby.code_index.trigger import CodeIndexTrigger
 pytestmark = pytest.mark.unit
 
 
-@pytest.fixture
-def mock_indexer() -> AsyncMock:
-    return AsyncMock()
-
-
 def _make_mock_proc(returncode: int = 0) -> AsyncMock:
     """Create a mock subprocess that returns immediately."""
     proc = AsyncMock()
@@ -27,10 +22,9 @@ def _make_mock_proc(returncode: int = 0) -> AsyncMock:
 
 
 @pytest.fixture
-async def trigger(mock_indexer: AsyncMock) -> CodeIndexTrigger:
+async def trigger() -> CodeIndexTrigger:
     loop = asyncio.get_running_loop()
     t = CodeIndexTrigger(
-        indexer=mock_indexer,
         loop=loop,
         debounce_seconds=0.05,  # Fast debounce for tests
     )
@@ -63,9 +57,6 @@ async def test_single_file_triggers_gcode(trigger: CodeIndexTrigger, tmp_path: P
         args = call_args[0]
         assert "index" in args
         assert "--files" in args
-
-        # Legacy in-process indexer must NOT be invoked
-        trigger._indexer.index_changed_files.assert_not_awaited()
         assert "/src/foo.py" in args
 
 

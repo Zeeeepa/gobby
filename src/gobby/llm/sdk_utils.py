@@ -10,7 +10,7 @@ from __future__ import annotations
 def sanitize_error(e: Exception) -> str:
     """Return a user-facing error message, hiding internal library details."""
     msg = str(e)
-    if "litellm" in msg.lower() or "model isn't mapped" in msg or "custom_llm_provider" in msg:
+    if "model isn't mapped" in msg or "custom_llm_provider" in msg:
         return "An internal error occurred. Please try again."
     return msg
 

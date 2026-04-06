@@ -84,7 +84,7 @@ class ServiceContainer:
     hub_manager: Any | None = None  # HubManager
 
     # Code Index
-    code_indexer: Any | None = None  # CodeIndexer
+    code_indexer: Any | None = None  # CodeIndexContext
 
     # Config
     config_store: Any | None = None  # ConfigStore

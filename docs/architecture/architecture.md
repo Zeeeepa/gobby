@@ -4,7 +4,7 @@
 
 ## Overview
 
-Gobby is a **local-first daemon** that unifies AI coding assistants (Claude Code, Gemini CLI, Cursor, Windsurf, Copilot) through a hook interface for session tracking. It provides a rule engine for declarative behavior enforcement, an MCP proxy with progressive tool discovery, agent spawning with P2P messaging, and persistent memory.
+Gobby is a **local-first daemon** that unifies AI coding assistants (Claude Code, Gemini CLI, Codex) through a hook interface for session tracking. It provides a rule engine for declarative behavior enforcement, an MCP proxy with progressive tool discovery, agent spawning with P2P messaging, and persistent memory.
 
 ### Key Characteristics
 
@@ -57,7 +57,7 @@ Gobby is a **local-first daemon** that unifies AI coding assistants (Claude Code
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐        │
 │  │    Adapters     │  │  LLMService     │  │ MCPClientManager│        │
 │  │ Claude/Gemini/  │  │  (multi-prov)   │  │ (conn pooling)  │        │
-│  │ Cursor/Windsurf │  │                 │  │                 │        │
+│  │ Codex Adapters  │  │                 │  │                 │        │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘        │
 └────────────────────────────────┬───────────────────────────────────────┘
                                  │
@@ -110,9 +110,7 @@ Gobby is a **local-first daemon** that unifies AI coding assistants (Claude Code
 |---------|------|-----|
 | **ClaudeCodeAdapter** | `adapters/claude_code.py` | Claude Code |
 | **GeminiAdapter** | `adapters/gemini.py` | Gemini CLI |
-| **CursorAdapter** | `adapters/cursor.py` | Cursor |
-| **WindsurfAdapter** | `adapters/windsurf.py` | Windsurf |
-| **CopilotAdapter** | `adapters/copilot.py` | Copilot |
+| **CodexAdapter** | `adapters/codex.py` | Codex CLI |
 
 ### Data Layer
 
@@ -179,9 +177,7 @@ Hook event fired (e.g., before_tool)
 |-------------|----------|-----------|
 | **Claude Code** | HTTP hooks | Inbound |
 | **Gemini CLI** | HTTP hooks | Inbound |
-| **Cursor** | HTTP hooks | Inbound |
-| **Windsurf** | HTTP hooks | Inbound |
-| **Copilot** | HTTP hooks | Inbound |
+| **Codex CLI** | WebSocket events | Inbound |
 | **Claude API** | HTTP | Outbound |
 | **OpenAI API** | HTTP | Outbound |
 | **Gemini API** | HTTP | Outbound |

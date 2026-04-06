@@ -12,8 +12,6 @@ Contains MCP proxy and tool feature Pydantic config models:
 Extracted from app.py using Strangler Fig pattern for code decomposition.
 """
 
-import re
-
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 __all__ = [
@@ -25,7 +23,6 @@ __all__ = [
     "ImportMCPServerConfig",
     "MergeResolutionConfig",
     "MetricsConfig",
-    "OutputCompressionConfig",
     "ProjectVerificationConfig",
     "HookStageConfig",
     "HooksConfig",
@@ -322,40 +319,6 @@ class ProjectVerificationConfig(BaseModel):
                 result[field] = cmd
         result.update(self.custom)
         return result
-
-
-class OutputCompressionConfig(BaseModel):
-    """Output compression configuration for token optimization."""
-
-    enabled: bool = Field(
-        default=False,
-        description="Enable output compression (opt-in). When enabled, verbose tool "
-        "output is compressed before reaching the LLM context window.",
-    )
-    min_output_length: int = Field(
-        default=1000,
-        ge=0,
-        description="Minimum output length (chars) before compression triggers",
-    )
-    max_compressed_lines: int = Field(
-        default=100,
-        ge=0,
-        description="Target maximum lines after compression",
-    )
-    excluded_commands: list[str] = Field(
-        default_factory=list,
-        description="Regex patterns for commands that should never be compressed",
-    )
-
-    @field_validator("excluded_commands")
-    @classmethod
-    def _validate_excluded_commands(cls, v: list[str]) -> list[str]:
-        for pattern in v:
-            try:
-                re.compile(pattern)
-            except re.error as e:
-                raise ValueError(f"Invalid regex pattern {pattern!r}: {e}") from e
-        return v
 
     track_savings: bool = Field(
         default=True,

@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from gobby.code_index.graph import CodeGraph
     from gobby.code_index.storage import CodeIndexStorage
     from gobby.config.code_index import CodeIndexConfig
+    from gobby.config.persistence import EmbeddingsConfig
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ async def sync_worker_loop(
     vector_store: Any | None,
     graph: CodeGraph | None,
     config: CodeIndexConfig,
+    embeddings_config: EmbeddingsConfig,
     shutdown_flag: asyncio.Event,
 ) -> None:
     """Continuous worker that syncs pending files to Qdrant and Neo4j.
@@ -40,14 +42,25 @@ async def sync_worker_loop(
 
     logger.info(f"Code index sync worker started (interval={interval}s, batch={batch_size})")
 
-    # Lazy-load embedding model on first use
+    # Set up embedding adapter for vector sync
     if config.embedding_enabled and vector_store is not None:
         try:
-            from gobby.search.local_embeddings import LocalEmbeddingModel
+            from gobby.search.embeddings import generate_embeddings
 
-            embed_model = await LocalEmbeddingModel.get_instance()
+            class _EmbedAdapter:
+                """Adapter wrapping generate_embeddings() to match embed_model.embed() interface."""
+
+                async def embed(self, texts: list[str]) -> list[list[float]]:
+                    return await generate_embeddings(
+                        texts,
+                        model=embeddings_config.model,
+                        api_base=embeddings_config.api_base,
+                        api_key=embeddings_config.api_key,
+                    )
+
+            embed_model = _EmbedAdapter()
         except Exception as e:
-            logger.warning(f"Sync worker: embedding model unavailable: {e}")
+            logger.warning(f"Sync worker: embedding unavailable: {e}")
 
     while not shutdown_flag.is_set():
         try:

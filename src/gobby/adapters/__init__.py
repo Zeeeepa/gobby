@@ -12,26 +12,21 @@ Adapters:
 - ClaudeCodeAdapter: For Claude Code CLI hooks (HTTP-based)
 - GeminiAdapter: For Gemini CLI hooks (HTTP-based) [Phase 3]
 - CodexAdapter: For Codex CLI via app-server (JSON-RPC-based) [Phase 4]
-- CodexNotifyAdapter: For Codex CLI notify events (simple HTTP-based)
+- CodexHooksAdapter: For Codex CLI hooks.json lifecycle events
 """
 
 from gobby.adapters.base import BaseAdapter
 from gobby.adapters.claude_code import ClaudeCodeAdapter
-from gobby.adapters.codex_impl.adapter import CodexAdapter, CodexNotifyAdapter
+from gobby.adapters.codex_impl.adapter import CodexAdapter, CodexHooksAdapter, CodexNotifyAdapter
 from gobby.adapters.codex_impl.client import CodexAppServerClient
-from gobby.adapters.copilot import CopilotAdapter
-from gobby.adapters.cursor import CursorAdapter
 from gobby.adapters.gemini import GeminiAdapter
-from gobby.adapters.windsurf import WindsurfAdapter
 
 __all__ = [
     "BaseAdapter",
     "ClaudeCodeAdapter",
     "CodexAdapter",
     "CodexAppServerClient",
+    "CodexHooksAdapter",
     "CodexNotifyAdapter",
-    "CopilotAdapter",
-    "CursorAdapter",
     "GeminiAdapter",
-    "WindsurfAdapter",
 ]

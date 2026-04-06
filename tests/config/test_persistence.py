@@ -233,7 +233,7 @@ class TestEmbeddingsConfigFields:
         from gobby.config.persistence import EmbeddingsConfig
 
         config = EmbeddingsConfig()
-        assert config.model == "local/nomic-embed-text-v1.5"
+        assert config.model == "nomic-embed-text"
 
     def test_embedding_model_custom(self) -> None:
         """Test setting a custom embedding model."""

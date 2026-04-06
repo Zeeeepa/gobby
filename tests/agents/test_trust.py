@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -60,35 +59,6 @@ class TestPreApproveClaude:
 
         expected = tmp_path / ".claude" / "projects" / "-private-tmp-gobby-clones-test-task"
         assert expected.is_dir()
-
-    def test_cursor_uses_claude_trust(self, tmp_path: Path) -> None:
-        clone_dir = "/private/tmp/gobby-clones/test-task"
-
-        with patch("gobby.agents.trust.Path.home", return_value=tmp_path):
-            pre_approve_directory("cursor", clone_dir)
-
-        expected = tmp_path / ".claude" / "projects" / "-private-tmp-gobby-clones-test-task"
-        assert expected.is_dir()
-
-    def test_windsurf_uses_claude_trust(self, tmp_path: Path) -> None:
-        clone_dir = "/private/tmp/gobby-clones/windsurf-test"
-
-        with patch("gobby.agents.trust.Path.home", return_value=tmp_path):
-            pre_approve_directory("windsurf", clone_dir)
-
-        expected = tmp_path / ".claude" / "projects" / "-private-tmp-gobby-clones-windsurf-test"
-        assert expected.is_dir()
-
-    def test_copilot_does_not_use_claude_trust(self, tmp_path: Path) -> None:
-        """Copilot CLI has its own trust mechanism, not ~/.claude/projects/."""
-        clone_dir = "/private/tmp/gobby-clones/copilot-test"
-
-        with patch("gobby.agents.trust.Path.home", return_value=tmp_path):
-            pre_approve_directory("copilot", clone_dir)
-
-        # Should NOT create a Claude projects directory
-        claude_dir = tmp_path / ".claude" / "projects" / "-private-tmp-gobby-clones-copilot-test"
-        assert not claude_dir.exists()
 
     def test_resolves_symlinks(self, tmp_path: Path) -> None:
         """On macOS /tmp -> /private/tmp; both paths should get trust entries."""
@@ -165,60 +135,6 @@ class TestPreApproveGemini:
         trust_file = tmp_path / ".gemini" / "trustedFolders.json"
         trusted = json.loads(trust_file.read_text())
         assert trusted[clone_dir] == "TRUST_PARENT"
-
-
-class TestPreApproveCopilot:
-    def test_creates_config_json(self, tmp_path: Path) -> None:
-        clone_dir = "/Users/josh/.gobby/clones/test-task"
-
-        with patch("gobby.agents.trust.Path.home", return_value=tmp_path):
-            pre_approve_directory("copilot", clone_dir)
-
-        config_file = tmp_path / ".copilot" / "config.json"
-        assert config_file.exists()
-        data = json.loads(config_file.read_text())
-        assert clone_dir in data["trusted_folders"]
-
-    def test_preserves_existing_entries(self, tmp_path: Path) -> None:
-        copilot_dir = tmp_path / ".copilot"
-        copilot_dir.mkdir()
-        config_file = copilot_dir / "config.json"
-        config_file.write_text(
-            json.dumps({"trusted_folders": ["/existing/path"], "other": "value"})
-        )
-
-        clone_dir = "/Users/josh/.gobby/clones/test-task"
-
-        with patch("gobby.agents.trust.Path.home", return_value=tmp_path):
-            pre_approve_directory("copilot", clone_dir)
-
-        data = json.loads(config_file.read_text())
-        assert "/existing/path" in data["trusted_folders"]
-        assert clone_dir in data["trusted_folders"]
-        assert data["other"] == "value"
-
-    def test_idempotent(self, tmp_path: Path) -> None:
-        clone_dir = "/Users/josh/.gobby/clones/test-task"
-
-        with patch("gobby.agents.trust.Path.home", return_value=tmp_path):
-            pre_approve_directory("copilot", clone_dir)
-            pre_approve_directory("copilot", clone_dir)
-
-        config_file = tmp_path / ".copilot" / "config.json"
-        data = json.loads(config_file.read_text())
-        assert data["trusted_folders"].count(clone_dir) == 1
-
-    def test_respects_copilot_home_env(self, tmp_path: Path) -> None:
-        custom_home = tmp_path / "custom-copilot"
-        clone_dir = "/Users/josh/.gobby/clones/test-task"
-
-        with patch.dict(os.environ, {"COPILOT_HOME": str(custom_home)}):
-            pre_approve_directory("copilot", clone_dir)
-
-        config_file = custom_home / "config.json"
-        assert config_file.exists()
-        data = json.loads(config_file.read_text())
-        assert clone_dir in data["trusted_folders"]
 
 
 class TestCodexNoop:

@@ -115,10 +115,7 @@ gobby install [OPTIONS]
 |--------|-------------|
 | `--claude` | Install Claude Code hooks only |
 | `--gemini` | Install Gemini CLI hooks only |
-| `--codex` | Configure Codex notify integration |
-| `--cursor` | Install Cursor hooks only |
-| `--windsurf` | Install Windsurf hooks only |
-| `--copilot` | Install GitHub Copilot hooks only |
+| `--codex` | Install Codex hooks only |
 | `--all` | Install to all detected CLIs (default) |
 | `-C`, `--path` | Target directory (default: current directory) |
 
@@ -130,10 +127,7 @@ Auto-detects installed CLIs and installs appropriate hooks. Also installs Git ho
 |-----|--------------|-------------|
 | Claude Code | `.claude/hooks/` | `.claude/settings.json` |
 | Gemini CLI | `.gemini/hooks/` | `.gemini/settings.json` |
-| Codex | - | `~/.codex/config.toml` |
-| Cursor | `.cursor/hooks/` | `.cursor/hooks.json` |
-| Windsurf | `.windsurf/hooks/` | `.windsurf/hooks.json` |
-| Copilot | `.copilot/hooks/` | `.copilot/hooks.json` |
+| Codex | `.codex/hooks/` | `.codex/hooks.json` |
 
 ### `gobby uninstall`
 
@@ -147,10 +141,7 @@ gobby uninstall [OPTIONS]
 |--------|-------------|
 | `--claude` | Remove Claude Code hooks only |
 | `--gemini` | Remove Gemini CLI hooks only |
-| `--codex` | Remove Codex integration |
-| `--cursor` | Remove Cursor hooks only |
-| `--windsurf` | Remove Windsurf hooks only |
-| `--copilot` | Remove GitHub Copilot hooks only |
+| `--codex` | Remove Codex hooks only |
 | `--all` | Remove from all CLIs (default) |
 
 ### `gobby mcp-server`

@@ -63,24 +63,17 @@ gobby/                                  # Project root
 │   │       ├── claude.py               # Claude Code installer
 │   │       ├── gemini.py               # Gemini CLI installer
 │   │       ├── codex.py                # Codex CLI installer
-│   │       ├── cursor.py               # Cursor installer
-│   │       ├── windsurf.py             # Windsurf installer
-│   │       ├── copilot.py              # Copilot installer
-│   │       ├── antigravity.py          # Antigravity installer
 │   │       ├── git_hooks.py            # Git hook installer
 │   │       ├── ide_config.py           # IDE configuration
 │   │       ├── mcp_config.py           # MCP configuration
 │   │       ├── neo4j.py                # Neo4j installer
 │   │       └── skill_install.py        # Skill installer
 │   │
-│   ├── adapters/                       # CLI-specific hook adapters (~7 modules)
+│   ├── adapters/                       # CLI-specific hook adapters (~4 modules)
 │   │   ├── base.py                     # BaseAdapter ABC
 │   │   ├── claude_code.py              # Claude Code adapter
 │   │   ├── gemini.py                   # Gemini CLI adapter
-│   │   ├── cursor.py                   # Cursor adapter
-│   │   ├── windsurf.py                 # Windsurf adapter
-│   │   ├── copilot.py                  # Copilot adapter
-│   │   └── codex.py                    # Codex CLI adapter (in claude_code.py)
+│   │   └── codex.py                    # Codex CLI adapter
 │   │
 │   ├── agents/                         # Agent spawning and lifecycle (~20 modules)
 │   │   ├── spawn.py                    # Agent spawner
@@ -242,7 +235,6 @@ gobby/                                  # Project root
 │   │       ├── claude.py               # Claude transcript parser
 │   │       ├── gemini.py               # Gemini transcript parser
 │   │       ├── codex.py                # Codex transcript parser
-│   │       ├── cursor.py               # Cursor transcript parser
 │   │       └── hook_assembler.py       # Hook-based transcript assembly
 │   │
 │   ├── storage/                        # SQLite storage layer (~29 modules)
@@ -458,7 +450,7 @@ gobby/                                  # Project root
 | **Bundled Agent Definitions** | 10 |
 | **Bundled Workflow Definitions** | 8 |
 | **LLM Providers** | 5 (Claude, Gemini, Codex/OpenAI, LiteLLM) |
-| **CLI Adapters** | 6 (Claude Code, Gemini, Codex, Cursor, Windsurf, Copilot) |
+| **CLI Adapters** | 3 (Claude Code, Gemini, Codex) |
 | **Test Coverage Target** | 80% |
 
 ## Module Dependencies

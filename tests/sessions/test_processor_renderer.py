@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -52,7 +52,8 @@ class TestRenderStateTracking:
         assert processor._render_states == {}
 
     def test_unregister_clears_render_state(self, processor: SessionMessageProcessor) -> None:
-        processor.register_session("sess-1", "/tmp/transcript.jsonl")
+        with patch("os.path.exists", return_value=True):
+            processor.register_session("sess-1", "/tmp/transcript.jsonl")
         processor._render_states["sess-1"] = RenderState()
         processor.unregister_session("sess-1")
         assert "sess-1" not in processor._render_states

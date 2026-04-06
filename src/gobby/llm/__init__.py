@@ -13,8 +13,6 @@ from gobby.llm.base import AuthMode, LLMProvider
 from gobby.llm.claude_models import (
     ChatEvent,
     DoneEvent,
-    MCPToolResult,
-    ToolCall,
     ToolResultEvent,
 )
 from gobby.llm.factory import create_llm_service
@@ -26,8 +24,6 @@ __all__ = [
     "DoneEvent",
     "LLMProvider",
     "LLMService",
-    "MCPToolResult",
-    "ToolCall",
     "ToolResultEvent",
     "create_llm_service",
 ]

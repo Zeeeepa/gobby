@@ -162,13 +162,18 @@ def set_project_context_from_session(
         pm = LocalProjectManager(db)
         project = pm.get(session.project_id)
         if project:
+            # Normalize empty/whitespace repo_path to None — system projects
+            # (_global, _personal, _orphaned, _migrated) store "" in the DB.
+            repo_path = project.repo_path
+            if repo_path is not None and not repo_path.strip():
+                repo_path = None
             ctx: dict[str, Any] = {
                 "id": project.id,
                 "name": project.name,
-                "project_path": project.repo_path,
+                "project_path": repo_path,
             }
-            if project.repo_path:
-                project_file = Path(project.repo_path) / ".gobby" / "project.json"
+            if repo_path:
+                project_file = Path(repo_path) / ".gobby" / "project.json"
                 if project_file.exists():
                     try:
                         data = json.loads(project_file.read_text())

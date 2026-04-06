@@ -73,6 +73,9 @@ variables:
   unlocked_tools:
     value: []
     description: Default unlocked_tools to empty list
+  is_subagent:
+    value: false
+    description: "True while a native Claude Code subagent is active (toggled by SUBAGENT_START/STOP hooks)"
   edit_write_pending:
     value: false
     description: "True when an Edit/Write tool call is pending (pre-tool fired, post-tool not yet succeeded)"

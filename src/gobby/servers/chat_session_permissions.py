@@ -417,7 +417,7 @@ class ChatSessionPermissionsMixin:
             plan_dirs = [_resolve(d) for d in plan_dirs]
 
             home = Path.home()
-            for cli in (".claude", ".gemini", ".codex", ".cursor", ".windsurf", ".copilot"):
+            for cli in (".claude", ".gemini", ".codex"):
                 plan_dirs.append(home / cli / "plans")
             # Gemini also uses ~/.gemini/tmp/{hash}/plans/
             gemini_tmp = home / ".gemini" / "tmp"
@@ -474,7 +474,7 @@ class ChatSessionPermissionsMixin:
             '<plan-mode status="active">',
             "You are in PLAN MODE. Your role is to research and design, not execute.",
             "",
-            "ALLOWED: Read, Glob, Grep, read-only Bash (ls, cat, grep, git status/log/diff, find), Write/Edit to .md files under CLI config dirs (.gobby/, .claude/, .gemini/, .codex/, .cursor/, .windsurf/, .copilot/)",
+            "ALLOWED: Read, Glob, Grep, read-only Bash (ls, cat, grep, git status/log/diff, find), Write/Edit to .md files under CLI config dirs (.gobby/, .claude/, .gemini/, .codex/)",
             "BLOCKED: Edit, Write, NotebookEdit, write/destructive Bash (rm, mv, git add/commit/push, redirects)",
             "",
             "Present a structured plan with:",

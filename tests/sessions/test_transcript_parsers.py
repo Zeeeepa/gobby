@@ -12,7 +12,6 @@ from gobby.sessions.transcripts import PARSER_REGISTRY, get_parser
 from gobby.sessions.transcripts.base import ParsedMessage
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 from gobby.sessions.transcripts.codex import CodexTranscriptParser
-from gobby.sessions.transcripts.cursor import CursorTranscriptParser
 from gobby.sessions.transcripts.gemini import GeminiTranscriptParser
 
 pytestmark = pytest.mark.unit
@@ -1577,233 +1576,6 @@ class TestGeminiTranscriptParser:
         assert msgs[1].tool_name == "read_file"
 
 
-class TestCursorTranscriptParser:
-    """Tests for Cursor NDJSON transcript parser."""
-
-    @pytest.fixture
-    def parser(self):
-        return CursorTranscriptParser()
-
-    def test_parse_line_user_message(self, parser) -> None:
-        """Test parsing user message event."""
-        line = json.dumps(
-            {
-                "type": "user",
-                "message": {"role": "user", "content": [{"type": "text", "text": "Hello"}]},
-                "session_id": "abc-123",
-            }
-        )
-        msg = parser.parse_line(line, 0)
-        assert msg is not None
-        assert msg.role == "user"
-        assert msg.content == "Hello"
-        assert msg.content_type == "text"
-        assert msg.index == 0
-
-    def test_parse_line_assistant_message(self, parser) -> None:
-        """Test parsing assistant message event."""
-        line = json.dumps(
-            {
-                "type": "assistant",
-                "message": {
-                    "role": "assistant",
-                    "content": [{"type": "text", "text": "I can help"}],
-                },
-                "session_id": "abc-123",
-            }
-        )
-        msg = parser.parse_line(line, 1)
-        assert msg is not None
-        assert msg.role == "assistant"
-        assert msg.content == "I can help"
-        assert msg.index == 1
-
-    def test_parse_line_tool_call_started(self, parser) -> None:
-        """Test parsing tool_call started event."""
-        line = json.dumps(
-            {
-                "type": "tool_call",
-                "subtype": "started",
-                "call_id": "call-001",
-                "tool_call": {
-                    "readToolCall": {"args": {"path": "test.txt"}},
-                },
-                "session_id": "abc-123",
-            }
-        )
-        msg = parser.parse_line(line, 2)
-        assert msg is not None
-        assert msg.role == "assistant"
-        assert msg.content_type == "tool_use"
-        assert msg.tool_name == "readToolCall"
-        assert msg.tool_input == {"path": "test.txt"}
-        assert msg.tool_use_id == "call-001"
-
-    def test_parse_line_tool_call_completed(self, parser) -> None:
-        """Test parsing tool_call completed event."""
-        line = json.dumps(
-            {
-                "type": "tool_call",
-                "subtype": "completed",
-                "call_id": "call-001",
-                "tool_call": {
-                    "readToolCall": {
-                        "args": {"path": "test.txt"},
-                        "result": {"success": {"content": "file contents"}},
-                    },
-                },
-                "session_id": "abc-123",
-            }
-        )
-        msg = parser.parse_line(line, 3)
-        assert msg is not None
-        assert msg.role == "tool"
-        assert msg.content_type == "tool_result"
-        assert msg.tool_name == "readToolCall"
-        assert msg.tool_result is not None
-        assert msg.tool_result["output"] == "file contents"
-        assert msg.tool_use_id == "call-001"
-
-    def test_parse_line_write_tool_call(self, parser) -> None:
-        """Test parsing writeToolCall event."""
-        line = json.dumps(
-            {
-                "type": "tool_call",
-                "subtype": "started",
-                "call_id": "call-002",
-                "tool_call": {
-                    "writeToolCall": {"args": {"path": "out.txt", "content": "data"}},
-                },
-            }
-        )
-        msg = parser.parse_line(line, 0)
-        assert msg is not None
-        assert msg.tool_name == "writeToolCall"
-        assert msg.tool_input == {"path": "out.txt", "content": "data"}
-
-    def test_parse_line_function_tool_call(self, parser) -> None:
-        """Test parsing generic function tool call."""
-        line = json.dumps(
-            {
-                "type": "tool_call",
-                "subtype": "started",
-                "call_id": "call-003",
-                "tool_call": {
-                    "function": {"name": "custom_tool", "args": {"key": "value"}},
-                },
-            }
-        )
-        msg = parser.parse_line(line, 0)
-        assert msg is not None
-        assert msg.tool_name == "custom_tool"
-        assert msg.tool_input == {"key": "value"}
-
-    def test_parse_line_system_event_skipped(self, parser) -> None:
-        """Test that system init events are skipped."""
-        line = json.dumps(
-            {
-                "type": "system",
-                "subtype": "init",
-                "cwd": "/path",
-                "session_id": "abc-123",
-                "model": "Claude 4 Sonnet",
-            }
-        )
-        msg = parser.parse_line(line, 0)
-        assert msg is None
-
-    def test_parse_line_result_event_skipped(self, parser) -> None:
-        """Test that result summary events are skipped."""
-        line = json.dumps(
-            {
-                "type": "result",
-                "subtype": "success",
-                "duration_ms": 1234,
-                "result": "full text",
-            }
-        )
-        msg = parser.parse_line(line, 0)
-        assert msg is None
-
-    def test_parse_line_invalid_json(self, parser) -> None:
-        """Test handling of invalid JSON."""
-        msg = parser.parse_line("not valid json", 0)
-        assert msg is None
-
-    def test_parse_line_empty(self, parser) -> None:
-        """Test handling of empty lines."""
-        assert parser.parse_line("", 0) is None
-        assert parser.parse_line("   ", 0) is None
-
-    def test_parse_lines_batch(self, parser) -> None:
-        """Test batch parsing with parse_lines."""
-        lines = [
-            json.dumps(
-                {
-                    "type": "user",
-                    "message": {"role": "user", "content": [{"type": "text", "text": "Q1"}]},
-                }
-            ),
-            json.dumps({"type": "system", "subtype": "init"}),  # Skipped
-            json.dumps(
-                {
-                    "type": "assistant",
-                    "message": {"role": "assistant", "content": [{"type": "text", "text": "A1"}]},
-                }
-            ),
-        ]
-        msgs = parser.parse_lines(lines, start_index=5)
-        assert len(msgs) == 2
-        assert msgs[0].index == 5
-        assert msgs[0].role == "user"
-        assert msgs[1].index == 6
-        assert msgs[1].role == "assistant"
-
-    def test_extract_last_messages(self, parser) -> None:
-        """Test extract_last_messages with Cursor events."""
-        turns = [
-            {"type": "user", "message": {"content": [{"type": "text", "text": "1"}]}},
-            {"type": "assistant", "message": {"content": [{"type": "text", "text": "2"}]}},
-            {"type": "user", "message": {"content": [{"type": "text", "text": "3"}]}},
-            {"type": "assistant", "message": {"content": [{"type": "text", "text": "4"}]}},
-        ]
-        msgs = parser.extract_last_messages(turns, num_pairs=1)
-        assert len(msgs) == 2
-        assert msgs[0]["content"] == "3"
-        assert msgs[1]["content"] == "4"
-
-    def test_is_session_boundary(self, parser) -> None:
-        """Cursor has no session boundaries."""
-        assert parser.is_session_boundary({}) is False
-
-    def test_extract_content_blocks_string(self, parser) -> None:
-        """Test _extract_content_blocks with plain string content."""
-        assert parser._extract_content_blocks("hello") == "hello"
-
-    def test_extract_content_blocks_mixed_list(self, parser) -> None:
-        """Test _extract_content_blocks with mixed list."""
-        content = [
-            {"type": "text", "text": "Part 1"},
-            "Part 2",
-            {"type": "image", "url": "img.png"},  # Non-text block ignored
-        ]
-        assert parser._extract_content_blocks(content) == "Part 1\nPart 2"
-
-    def test_tool_call_unknown_structure(self, parser) -> None:
-        """Test tool call with unknown structure falls back to 'unknown'."""
-        line = json.dumps(
-            {
-                "type": "tool_call",
-                "subtype": "started",
-                "call_id": "call-x",
-                "tool_call": {"weirdKey": {"data": 42}},
-            }
-        )
-        msg = parser.parse_line(line, 0)
-        assert msg is not None
-        assert msg.tool_name == "unknown"
-
-
 class TestParserRegistry:
     """Tests for the parser registry and get_parser function."""
 
@@ -1811,24 +1583,14 @@ class TestParserRegistry:
         """Verify each source maps to the correct parser class."""
         assert PARSER_REGISTRY["claude"] is ClaudeTranscriptParser
         assert PARSER_REGISTRY["gemini"] is GeminiTranscriptParser
-        assert PARSER_REGISTRY["antigravity"] is GeminiTranscriptParser
         assert PARSER_REGISTRY["codex"] is CodexTranscriptParser
-        assert PARSER_REGISTRY["cursor"] is CursorTranscriptParser
-
-    def test_windsurf_copilot_not_in_registry(self) -> None:
-        """Windsurf and Copilot should not have registry entries (no transcript support)."""
-        assert "windsurf" not in PARSER_REGISTRY
-        assert "copilot" not in PARSER_REGISTRY
 
     def test_get_parser_returns_correct_instances(self) -> None:
         """get_parser should return instances of the correct parser class."""
         assert isinstance(get_parser("claude"), ClaudeTranscriptParser)
         assert isinstance(get_parser("gemini"), GeminiTranscriptParser)
         assert isinstance(get_parser("codex"), CodexTranscriptParser)
-        assert isinstance(get_parser("cursor"), CursorTranscriptParser)
 
     def test_get_parser_unknown_source_defaults_to_claude(self) -> None:
         """Unknown source should default to ClaudeTranscriptParser."""
         assert isinstance(get_parser("unknown-cli"), ClaudeTranscriptParser)
-        assert isinstance(get_parser("windsurf"), ClaudeTranscriptParser)
-        assert isinstance(get_parser("copilot"), ClaudeTranscriptParser)

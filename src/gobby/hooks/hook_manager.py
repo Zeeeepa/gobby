@@ -426,31 +426,6 @@ class HookManager:
                                         f" ({len(tool_output)}->{len(outline)} chars)"
                                     )
                                     # gcode self-reports savings to HTTP API (gsqz pattern)
-                    else:
-                        from gobby.compression import OutputCompressor
-
-                        # Extract meaningful command hint from call_tool args
-                        # (tool_name is "call_tool" for MCP proxy calls, which
-                        # never matches any compression pipeline)
-                        command_hint = event.data.get("tool_name", "")
-                        if command_hint in ("call_tool", "mcp__gobby__call_tool"):
-                            tool_input = event.data.get("tool_input") or {}
-                            server = tool_input.get("server_name", "")
-                            tool = tool_input.get("tool_name", "")
-                            if server and tool:
-                                command_hint = f"{server}:{tool}"
-                        compressor = OutputCompressor(
-                            max_lines=compression_cfg.get("max_lines") or 100,
-                        )
-                        result = compressor.compress(command_hint, tool_output)
-                        if result.strategy_name not in ("passthrough", "excluded"):
-                            response.modified_output = (
-                                f"[Output compressed by Gobby — {result.strategy_name}, "
-                                f"{result.savings_pct:.0f}% reduction]\n{result.compressed}"
-                            )
-                            self.logger.info(
-                                f"Compressed MCP output: strategy={result.strategy_name} savings={result.savings_pct:.0f}% ({result.original_chars}->{result.compressed_chars} chars)",
-                            )
             except Exception as e:
                 self.logger.warning(f"Output compression failed: {e}")
 

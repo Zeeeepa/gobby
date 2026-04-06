@@ -173,10 +173,6 @@ This is the core refactor — replace all `llm_providers` config access with `Di
 ```python
 ADAPTER_REGISTRY: dict[str, type[BaseAdapter]] = {
     "claude": ClaudeCodeAdapter,
-    "antigravity": ClaudeCodeAdapter,
-    "cursor": CursorAdapter,
-    "windsurf": WindsurfAdapter,
-    "copilot": CopilotAdapter,
     "gemini": GeminiAdapter,
     "codex": CodexNotifyAdapter,
 }

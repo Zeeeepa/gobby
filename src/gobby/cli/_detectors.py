@@ -1,9 +1,7 @@
 """CLI detection helpers for install/uninstall commands."""
 
-import os
 import shutil
-import sys
-from pathlib import Path
+import subprocess
 
 
 def _is_claude_code_installed() -> bool:
@@ -21,53 +19,35 @@ def _is_codex_cli_installed() -> bool:
     return shutil.which("codex") is not None
 
 
-def _is_cursor_installed() -> bool:
-    """Check if Cursor is installed."""
-    # Cursor is an IDE, check for common install locations
-    if sys.platform == "darwin":
-        return Path("/Applications/Cursor.app").exists()
-    elif sys.platform == "win32":
-        local_appdata = os.environ.get("LOCALAPPDATA")
-        if not local_appdata:
-            return False
-        return Path(local_appdata, "Programs", "cursor").exists()
-    else:
-        # Linux - check common locations
-        return (Path.home() / ".local" / "share" / "cursor").exists() or shutil.which(
-            "cursor"
-        ) is not None
+def _is_lmstudio_available() -> bool:
+    """Check if LM Studio server is running via `lms server status`."""
+    if not shutil.which("lms"):
+        return False
+    try:
+        result = subprocess.run(
+            ["lms", "server", "status"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        # lms writes the status to stderr
+        combined = (result.stdout + result.stderr).lower()
+        return result.returncode == 0 and "running" in combined
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return False
 
 
-def _is_windsurf_installed() -> bool:
-    """Check if Windsurf (Codeium) is installed."""
-    # Windsurf is an IDE
-    if sys.platform == "darwin":
-        return Path("/Applications/Windsurf.app").exists()
-    elif sys.platform == "win32":
-        local_appdata = os.environ.get("LOCALAPPDATA")
-        if not local_appdata:
-            return False
-        return Path(local_appdata, "Programs", "windsurf").exists()
-    else:
-        return shutil.which("windsurf") is not None
-
-
-def _is_copilot_cli_installed() -> bool:
-    """Check if GitHub Copilot CLI is installed."""
-    # Check for standalone CLI first
-    if shutil.which("github-copilot-cli") is not None:
-        return True
-    # Check for gh copilot extension (gh alone is not sufficient)
-    if shutil.which("gh") is not None:
-        try:
-            import subprocess
-
-            result = subprocess.run(
-                ["gh", "copilot", "--version"],
-                capture_output=True,
-                timeout=5,
-            )
-            return result.returncode == 0
-        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-            pass
-    return False
+def _is_ollama_available() -> bool:
+    """Check if Ollama is installed and responding."""
+    if not shutil.which("ollama"):
+        return False
+    try:
+        result = subprocess.run(
+            ["ollama", "list"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return False

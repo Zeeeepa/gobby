@@ -334,11 +334,11 @@ class TestLLMProvidersConfig:
         """Test listing enabled providers."""
         config = LLMProvidersConfig(
             claude=LLMProviderConfig(models="claude-haiku-4-5"),
-            gemini=LLMProviderConfig(models="gemini-2.0-flash"),
+            codex=LLMProviderConfig(models="gpt-4o-mini"),
         )
         providers = config.get_enabled_providers()
         assert "claude" in providers
-        assert "gemini" in providers
+        assert "codex" in providers
         assert len(providers) == 2
 
 

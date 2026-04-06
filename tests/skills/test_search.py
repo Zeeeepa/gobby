@@ -296,7 +296,7 @@ class TestSkillSearch:
         """Test creating search with custom parameters."""
         from gobby.search import SearchConfig
 
-        config = SearchConfig(mode="tfidf", tfidf_weight=0.5, embedding_weight=0.5)
+        config = SearchConfig(mode="keyword", keyword_weight=0.5, embedding_weight=0.5)
         search = SkillSearch(
             db=db,
             config=config,
@@ -306,7 +306,7 @@ class TestSkillSearch:
 
         stats = search.get_stats()
         assert stats["refit_threshold"] == 5
-        assert stats["mode"] == "tfidf"
+        assert stats["mode"] == "keyword"
 
 
 class TestSkillSearchIntegration:

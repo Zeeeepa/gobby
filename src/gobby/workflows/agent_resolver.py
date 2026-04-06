@@ -9,16 +9,24 @@ from gobby.workflows.definitions import AgentDefinitionBody
 
 logger = logging.getLogger(__name__)
 
-
-class AgentResolutionError(Exception):
-    """Raised when an agent definition cannot be found or parsed."""
+# Map SessionSource values to canonical provider names
+_SOURCE_TO_PROVIDER: dict[str, str] = {
+    "claude": "claude",
+    "claude_sdk": "claude",
+    "claude_sdk_web_chat": "claude",
+    "gemini": "gemini",
+    "codex": "codex",
+    "codex_web_chat": "codex",
+}
 
 
 def _normalize_provider(cli_source: str) -> str:
-    """Resolve 'inherit' to provider. Only claude_sdk variants and antigravity need mapping."""
-    if cli_source.startswith("claude_sdk") or cli_source == "antigravity":
-        return "claude"
-    return cli_source  # claude, gemini, codex, cursor, windsurf, copilot pass through
+    """Normalize a CLI source identifier to a canonical provider name."""
+    return _SOURCE_TO_PROVIDER.get(cli_source, cli_source)
+
+
+class AgentResolutionError(Exception):
+    """Raised when an agent definition cannot be found or parsed."""
 
 
 def resolve_agent(
@@ -50,7 +58,7 @@ def resolve_agent(
         logger.debug(f"Failed to parse agent definition for {name}: {e}")
         return None
 
-    # Resolve 'inherit' provider
+    # Resolve 'inherit' provider — normalize source to canonical provider name
     if body.provider == "inherit":
         if cli_source:
             body.provider = _normalize_provider(cli_source)

@@ -11,10 +11,6 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from gobby.code_index.indexer import CodeIndexer
 
 logger = logging.getLogger(__name__)
 
@@ -23,16 +19,14 @@ class CodeIndexTrigger:
     """Debounced trigger for post-edit incremental code indexing.
 
     Accepts file change notifications from any thread and coalesces
-    them into batched index calls after a debounce window.
+    them into batched gcode index calls after a debounce window.
     """
 
     def __init__(
         self,
-        indexer: CodeIndexer,
         loop: asyncio.AbstractEventLoop,
         debounce_seconds: float = 2.0,
     ) -> None:
-        self._indexer = indexer
         self._loop = loop
         self._debounce_seconds = debounce_seconds
         # Pending files grouped by project_id

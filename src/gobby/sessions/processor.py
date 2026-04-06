@@ -5,7 +5,7 @@ Handles asynchronous, incremental processing of session transcripts.
 Tracks file offsets and updates the database with new messages.
 
 Supports two transcript formats:
-- JSONL: Incremental line-by-line processing with byte offset tracking (Claude, Codex, Cursor)
+- JSONL: Incremental line-by-line processing with byte offset tracking (Claude, Codex)
 - JSON: Full-file parsing with mtime-based change detection (Gemini native session files)
 """
 
@@ -132,9 +132,11 @@ class SessionMessageProcessor:
             return
 
         if not os.path.exists(transcript_path):
-            logger.warning(f"Transcript file not found: {transcript_path}")
-            # We still register it, hoping it appears later (or we could fail)
-            # For now, let's assume it might be created shortly.
+            logger.debug(f"Transcript missing for session {session_id}, marking processed")
+            if self.session_manager:
+                self.session_manager.update(session_id, transcript_path="missing_transcript")
+                self.session_manager.mark_transcript_processed(session_id)
+            return
 
         self._active_sessions[session_id] = transcript_path
         self._parsers[session_id] = get_parser(source, session_id=session_id)
@@ -157,11 +159,12 @@ class SessionMessageProcessor:
             if session_id in self._parsers:
                 del self._parsers[session_id]
             self._last_mtime.pop(session_id, None)
-            self._render_states.pop(session_id, None)
             self._stats.pop(session_id, None)
             self._byte_offsets.pop(session_id, None)
             self._message_indices.pop(session_id, None)
             logger.debug(f"Unregistered session {session_id}")
+        # Always clean render state (may exist even if session wasn't fully registered)
+        self._render_states.pop(session_id, None)
 
     async def _loop(self) -> None:
         """Main processing loop."""

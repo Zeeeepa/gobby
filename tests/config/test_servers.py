@@ -135,8 +135,6 @@ class TestMCPClientProxyConfigDefaults:
         assert config.tool_timeout == 30
         assert config.tool_timeouts == {}
         assert config.search_mode == "llm"
-        assert config.embedding_provider == "local"
-        assert config.embedding_model == "local/nomic-embed-text-v1.5"
         assert config.min_similarity == 0.3
         assert config.top_k == 10
         assert config.refresh_on_server_add is True
@@ -189,34 +187,14 @@ class TestMCPClientProxyConfigCustomValues:
         config = MCPClientProxyConfig(search_mode="hybrid")
         assert config.search_mode == "hybrid"
 
-    def test_custom_embedding_settings(self) -> None:
-        """Test setting custom embedding provider and model."""
-        from gobby.config.servers import MCPClientProxyConfig
-
-        config = MCPClientProxyConfig(
-            embedding_provider="litellm",
-            embedding_model="voyage-code-2",
-        )
-        assert config.embedding_provider == "litellm"
-        assert config.embedding_model == "voyage-code-2"
-
-    def test_embedding_api_base_default(self) -> None:
-        """Test default embedding_api_base is None."""
+    def test_embedding_fields_removed(self) -> None:
+        """Embedding config consolidated to EmbeddingsConfig — fields removed from proxy."""
         from gobby.config.servers import MCPClientProxyConfig
 
         config = MCPClientProxyConfig()
-        assert config.embedding_api_base is None
-
-    def test_embedding_api_base_custom(self) -> None:
-        """Test setting custom embedding_api_base for local models."""
-        from gobby.config.servers import MCPClientProxyConfig
-
-        config = MCPClientProxyConfig(
-            embedding_api_base="http://localhost:11434/v1",
-            embedding_model="openai/nomic-embed-text",
-        )
-        assert config.embedding_api_base == "http://localhost:11434/v1"
-        assert config.embedding_model == "openai/nomic-embed-text"
+        assert not hasattr(config, "embedding_provider")
+        assert not hasattr(config, "embedding_model")
+        assert not hasattr(config, "embedding_api_base")
 
 
 class TestMCPClientProxyConfigValidation:

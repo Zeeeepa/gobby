@@ -90,7 +90,7 @@ def clean_project_hooks(settings_file: Path) -> list[str]:
     because CLIs merge both levels. This identifies gobby hooks by checking
     if any command string in the hook entry references ``hook_dispatcher.py``,
     which works across all CLI config formats (Claude settings.json, Gemini
-    settings.json, Cursor hooks.json, Windsurf hooks.json).
+    settings.json, Codex hooks.json).
 
     Args:
         settings_file: Path to the project-level JSON config file

@@ -2,7 +2,7 @@
 
 Provides per-token cost lookups with prefix matching for versioned model names.
 
-On daemon startup, costs are populated from LiteLLM's model_cost registry into
+On daemon startup, costs are populated from OpenRouter's model registry into
 the model_costs DB table, then loaded into memory via init().
 """
 
@@ -24,6 +24,7 @@ class ModelCost:
 
     input_cost_per_token: float
     output_cost_per_token: float
+    context_length: int | None = None
 
 
 # Module-level cache loaded by init(). Empty until init() is called.
@@ -36,32 +37,27 @@ _ZERO_COST = ModelCost(0.0, 0.0)
 def init(db: DatabaseProtocol) -> None:
     """Load all model costs from DB into the module-level cache.
 
-    Called once at daemon startup after ModelCostStore.populate_from_litellm().
+    Called once at daemon startup after ModelCostStore.populate().
     If never called (e.g. in tests without DB), lookups return zero cost.
     """
     from gobby.storage.model_costs import ModelCostStore
 
     store = ModelCostStore(db)
     raw = store.get_all()
+
     _costs.clear()
-    _costs.update({model: ModelCost(mc.input, mc.output) for model, mc in raw.items()})
+    _costs.update(
+        {model: ModelCost(mc.input, mc.output, mc.context_length) for model, mc in raw.items()}
+    )
     logger.info(f"Loaded {len(_costs)} model costs into memory")
 
 
-def lookup_cost(model: str) -> ModelCost:
+def _resolve_model(model: str) -> ModelCost | None:
+    """Resolve a model name to its ModelCost entry using longest prefix match.
+
+    Strips any provider prefix, then tries exact match, then longest prefix.
+    Returns None if no match is found.
     """
-    Look up per-token costs for a model using longest prefix match.
-
-    Strips any provider prefix (e.g., "anthropic/claude-opus-4-6" -> "claude-opus-4-6")
-    then finds the longest matching prefix in the cost table.
-
-    Args:
-        model: Model name, optionally with provider prefix.
-
-    Returns:
-        ModelCost with per-token costs. Returns zero costs for unknown models.
-    """
-    # Strip provider prefix (e.g., "anthropic/claude-opus-4-6" -> "claude-opus-4-6")
     if "/" in model:
         model = model.split("/", 1)[1]
 
@@ -79,6 +75,26 @@ def lookup_cost(model: str) -> ModelCost:
 
     if best_match is not None:
         return _costs[best_match]
+
+    return None
+
+
+def lookup_cost(model: str) -> ModelCost:
+    """
+    Look up per-token costs for a model using longest prefix match.
+
+    Strips any provider prefix (e.g., "anthropic/claude-opus-4-6" -> "claude-opus-4-6")
+    then finds the longest matching prefix in the cost table.
+
+    Args:
+        model: Model name, optionally with provider prefix.
+
+    Returns:
+        ModelCost with per-token costs. Returns zero costs for unknown models.
+    """
+    result = _resolve_model(model)
+    if result is not None:
+        return result
 
     logger.debug(f"No cost data for model {model!r} - returning zero cost")
     return _ZERO_COST
@@ -106,3 +122,14 @@ def calculate_cost(
     return (
         costs.input_cost_per_token * prompt_tokens + costs.output_cost_per_token * completion_tokens
     )
+
+
+def lookup_context_window(model: str) -> int | None:
+    """Look up context window size for a model using the same prefix-match logic as lookup_cost.
+
+    Returns None if the model is unknown or has no context_length data.
+    """
+    result = _resolve_model(model)
+    if result is not None:
+        return result.context_length
+    return None

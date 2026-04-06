@@ -1,37 +1,34 @@
-"""LiteLLM-based embedding generation.
+"""Embedding generation via OpenAI-compatible API.
 
-This module provides a unified interface for generating embeddings using
-LiteLLM, which supports multiple providers through a single API:
+Uses the ``openai`` package (already a dependency) which works with any
+OpenAI-compatible endpoint: OpenAI cloud, Ollama, LM Studio, etc.
 
-| Provider   | Model Format                    | Config                          |
-|------------|--------------------------------|--------------------------------|
-| OpenAI     | text-embedding-3-small         | OPENAI_API_KEY                  |
-| Ollama     | openai/nomic-embed-text        | api_base=http://localhost:11434/v1 |
-| Azure      | azure/azure-embedding-model    | api_base, api_key, api_version  |
-| Vertex AI  | vertex_ai/text-embedding-004   | GCP credentials                 |
-| Gemini     | gemini/text-embedding-004      | GEMINI_API_KEY                  |
-| Mistral    | mistral/mistral-embed          | MISTRAL_API_KEY                 |
+| Provider   | Model                          | Config                                    |
+|------------|-------------------------------|-------------------------------------------|
+| Ollama     | nomic-embed-text              | api_base=http://localhost:11434/v1        |
+| LM Studio  | nomic-embed-text              | api_base=http://localhost:1234/v1         |
+| OpenAI     | text-embedding-3-small        | OPENAI_API_KEY                            |
 
 Example usage:
     from gobby.search.embeddings import generate_embeddings, is_embedding_available
 
-    if is_embedding_available("text-embedding-3-small"):
+    if is_embedding_available("nomic-embed-text", api_base="http://localhost:1234/v1"):
         embeddings = await generate_embeddings(
             texts=["hello world", "foo bar"],
-            model="text-embedding-3-small"
+            model="nomic-embed-text",
+            api_base="http://localhost:1234/v1",
         )
 """
 
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import os
 import random
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from gobby.search.models import SearchConfig
+import time
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -40,93 +37,190 @@ _DEFAULT_MAX_RETRIES = 5
 _DEFAULT_BASE_DELAY = 1.0  # seconds
 _DEFAULT_MAX_DELAY = 60.0  # seconds
 
+# ---------------------------------------------------------------------------
+# TTL cache for embedding results
+# ---------------------------------------------------------------------------
+_CACHE_TTL = 60.0  # seconds
+_CACHE_MAX_SIZE = 2048
+
+
+@dataclass(slots=True)
+class _CacheEntry:
+    embedding: list[float]
+    expires_at: float
+
+
+_cache: dict[str, _CacheEntry] = {}
+_cache_lock: asyncio.Lock | None = None
+
+
+def _get_lock() -> asyncio.Lock:
+    """Lazy-init the asyncio lock.
+
+    Safe because asyncio is single-threaded: concurrent coroutines in the
+    same event loop cannot interleave during this synchronous function body,
+    so at most one Lock instance is ever created.
+    """
+    global _cache_lock  # noqa: PLW0603
+    if _cache_lock is None:
+        _cache_lock = asyncio.Lock()
+    return _cache_lock
+
+
+def _cache_key(text: str, model: str, api_base: str | None) -> str:
+    """Stable cache key from text content + model + endpoint."""
+    h = hashlib.sha256(text.encode()).hexdigest()[:16]
+    return f"{h}:{model}:{api_base or 'default'}"
+
+
+def _evict_expired() -> None:
+    """Remove expired entries. Called while holding the lock."""
+    now = time.monotonic()
+    expired = [k for k, v in _cache.items() if v.expires_at <= now]
+    for k in expired:
+        del _cache[k]
+
+
+def _enforce_max_size() -> None:
+    """Evict oldest entries if cache exceeds max size."""
+    if len(_cache) <= _CACHE_MAX_SIZE:
+        return
+    # Sort by expiry (oldest first) and remove excess
+    by_expiry = sorted(_cache.items(), key=lambda kv: kv[1].expires_at)
+    to_remove = len(_cache) - _CACHE_MAX_SIZE
+    for key, _ in by_expiry[:to_remove]:
+        del _cache[key]
+
+
+def clear_cache() -> None:
+    """Clear the embedding cache. Useful for testing."""
+    _cache.clear()
+
 
 async def generate_embeddings(
     texts: list[str],
-    model: str = "local/nomic-embed-text-v1.5",
+    model: str = "nomic-embed-text",
     api_base: str | None = None,
     api_key: str | None = None,
     max_retries: int = _DEFAULT_MAX_RETRIES,
     base_delay: float = _DEFAULT_BASE_DELAY,
     is_query: bool = False,
 ) -> list[list[float]]:
-    """Generate embeddings using LiteLLM with exponential backoff.
+    """Generate embeddings using an OpenAI-compatible API with exponential backoff.
 
-    Supports OpenAI, Ollama, Azure, Gemini, Mistral and other providers
-    through LiteLLM's unified API. Rate limit errors are retried with
-    exponential backoff; non-retryable errors (auth, model not found,
-    context window) fail immediately.
+    Works with any OpenAI-compatible endpoint (OpenAI cloud, Ollama, LM Studio).
+    Rate limit errors are retried with exponential backoff; non-retryable errors
+    (auth, model not found) fail immediately.
+
+    Results are cached per (text, model, api_base) with a 60-second TTL to
+    deduplicate concurrent identical requests.
 
     Args:
         texts: List of texts to embed
-        model: LiteLLM model string (e.g., "text-embedding-3-small",
-               "openai/nomic-embed-text" for Ollama)
-        api_base: Optional API base URL for custom endpoints (e.g., Ollama)
-        api_key: Optional API key (uses environment variable if not set)
+        model: Model name (e.g., "nomic-embed-text", "text-embedding-3-small")
+        api_base: API base URL for OpenAI-compatible endpoint (e.g., "http://localhost:1234/v1" for LM Studio)
+        api_key: Optional API key (uses env var OPENAI_API_KEY if not set)
         max_retries: Maximum retry attempts for rate limit errors (default: 5)
         base_delay: Initial backoff delay in seconds (default: 1.0)
+        is_query: Whether this is a query embedding (unused, kept for compat)
 
     Returns:
         List of embedding vectors (one per input text). Returns an empty
         list if the input texts list is empty.
 
     Raises:
-        RuntimeError: If LiteLLM is not installed or embedding fails
+        RuntimeError: If embedding generation fails
     """
     if not texts:
         return []
 
-    # Route local/ prefix models to the in-process backend
-    if model.startswith("local/"):
-        try:
-            from gobby.search.local_embeddings import generate_embeddings_local
+    lock = _get_lock()
 
-            return await generate_embeddings_local(texts, model=model, is_query=is_query)
-        except (ImportError, RuntimeError) as e:
-            raise RuntimeError(
-                f"Local embeddings unavailable: {e}. Run: uv sync --extra local-embeddings"
-            ) from e
+    # --- Phase 1: Check cache for each text ---
+    async with lock:
+        _evict_expired()
+        results: list[list[float] | None] = []
+        miss_indices: list[int] = []
+        miss_texts: list[str] = []
+        seen_in_batch: dict[str, int] = {}  # key -> first index in results
 
-    try:
-        import litellm
-        from litellm.exceptions import (
-            AuthenticationError,
-            ContextWindowExceededError,
-            NotFoundError,
-            RateLimitError,
+        for i, text in enumerate(texts):
+            key = _cache_key(text, model, api_base)
+            entry = _cache.get(key)
+            if entry is not None:
+                results.append(entry.embedding)
+            elif key in seen_in_batch:
+                # Duplicate within this batch — will be filled from first occurrence
+                results.append(None)
+                miss_indices.append(i)
+            else:
+                results.append(None)
+                miss_indices.append(i)
+                miss_texts.append(text)
+                seen_in_batch[key] = i
+
+    # --- Phase 2: Fetch uncached embeddings ---
+    if miss_texts:
+        fresh = await _fetch_embeddings(
+            texts=miss_texts,
+            model=model,
+            api_base=api_base,
+            api_key=api_key,
+            max_retries=max_retries,
+            base_delay=base_delay,
         )
-    except ImportError as e:
-        raise RuntimeError("litellm package not installed. Run: uv add litellm") from e
 
-    # Build kwargs for LiteLLM
-    kwargs: dict[str, str | int | list[str]] = {
-        "model": model,
-        "input": texts,
-        "num_retries": 0,  # Disable LiteLLM's internal retries; we handle backoff
-    }
+        # --- Phase 3: Store results in cache ---
+        async with lock:
+            now = time.monotonic()
+            expires_at = now + _CACHE_TTL
 
-    if api_key:
-        kwargs["api_key"] = api_key
+            # Map miss_texts back to their embeddings
+            text_to_embedding: dict[str, list[float]] = {}
+            for text, emb in zip(miss_texts, fresh, strict=True):
+                key = _cache_key(text, model, api_base)
+                _cache[key] = _CacheEntry(embedding=emb, expires_at=expires_at)
+                text_to_embedding[text] = emb
 
-    if api_base:
-        kwargs["api_base"] = api_base
+            _enforce_max_size()
+
+        # Fill in the None slots
+        for i in miss_indices:
+            text = texts[i]
+            results[i] = text_to_embedding.get(text)
+
+    # All slots should be filled now
+    return results  # type: ignore[return-value]
+
+
+async def _fetch_embeddings(
+    texts: list[str],
+    model: str,
+    api_base: str | None,
+    api_key: str | None,
+    max_retries: int,
+    base_delay: float,
+) -> list[list[float]]:
+    """Raw API call to generate embeddings (no caching)."""
+    from openai import AsyncOpenAI, AuthenticationError, NotFoundError, RateLimitError
+
+    # Use "unused" as default key for local endpoints (Ollama doesn't need a key)
+    effective_key = api_key or os.environ.get("OPENAI_API_KEY") or "unused"
+    client = AsyncOpenAI(base_url=api_base, api_key=effective_key)
 
     last_error: Exception | None = None
     for attempt in range(max_retries + 1):
         try:
-            response = await litellm.aembedding(**kwargs)
-            embeddings: list[list[float]] = [item["embedding"] for item in response.data]
-            logger.debug(f"Generated {len(embeddings)} embeddings via LiteLLM ({model})")
+            response = await client.embeddings.create(model=model, input=texts)
+            embeddings: list[list[float]] = [item.embedding for item in response.data]
+            logger.debug(f"Generated {len(embeddings)} embeddings ({model})")
             return embeddings
         except AuthenticationError as e:
-            logger.error(f"LiteLLM authentication failed: {e}")
+            logger.error(f"Embedding authentication failed: {e}")
             raise RuntimeError(f"Authentication failed: {e}") from e
         except NotFoundError as e:
-            logger.error(f"LiteLLM model not found: {e}")
+            logger.error(f"Embedding model not found: {e}")
             raise RuntimeError(f"Model not found: {e}") from e
-        except ContextWindowExceededError as e:
-            logger.error(f"LiteLLM context window exceeded: {e}")
-            raise RuntimeError(f"Context window exceeded: {e}") from e
         except RateLimitError as e:
             last_error = e
             if attempt == max_retries:
@@ -137,10 +231,10 @@ async def generate_embeddings(
             )
             await asyncio.sleep(delay)
         except Exception as e:
-            logger.error(f"Failed to generate embeddings with LiteLLM: {e}")
+            logger.error(f"Failed to generate embeddings: {e}")
             raise RuntimeError(f"Embedding generation failed: {e}") from e
 
-    logger.error(f"LiteLLM rate limit exceeded after {max_retries + 1} attempts: {last_error}")
+    logger.error(f"Rate limit exceeded after {max_retries + 1} attempts: {last_error}")
     raise RuntimeError(
         f"Rate limit exceeded after {max_retries + 1} attempts: {last_error}"
     ) from last_error
@@ -148,7 +242,7 @@ async def generate_embeddings(
 
 async def generate_embedding(
     text: str,
-    model: str = "local/nomic-embed-text-v1.5",
+    model: str = "nomic-embed-text",
     api_base: str | None = None,
     api_key: str | None = None,
     max_retries: int = _DEFAULT_MAX_RETRIES,
@@ -161,11 +255,12 @@ async def generate_embedding(
 
     Args:
         text: Text to embed
-        model: LiteLLM model string
+        model: Model name
         api_base: Optional API base URL
         api_key: Optional API key
         max_retries: Maximum retry attempts for rate limit errors
         base_delay: Initial backoff delay in seconds
+        is_query: Whether this is a query embedding
 
     Returns:
         Embedding vector as list of floats
@@ -191,104 +286,27 @@ async def generate_embedding(
 
 
 def is_embedding_available(
-    model: str = "local/nomic-embed-text-v1.5",
+    model: str = "nomic-embed-text",
     api_key: str | None = None,
     api_base: str | None = None,
 ) -> bool:
     """Check if embedding is available for the given model.
 
-    For local models (Ollama), assumes availability if api_base is set.
-    For cloud models, requires an API key.
+    If api_base is set (LM Studio, Ollama, custom endpoints), assumes available.
+    Otherwise, requires an API key.
 
     Args:
-        model: LiteLLM model string
+        model: Model name
         api_key: Optional explicit API key
         api_base: Optional API base URL
 
     Returns:
         True if embeddings can be generated, False otherwise
     """
-    # Local in-process models require llama-cpp-python
-    if model.startswith("local/"):
-        try:
-            import llama_cpp  # noqa: F401
-
-            return True
-        except ImportError:
-            return False
-
-    # Local models with api_base (Ollama, custom endpoints) are assumed available
+    # Local endpoints (Ollama, LM Studio) are assumed available
     if api_base:
         return True
 
-    # Check for Ollama-style models that use local endpoints
-    if model.startswith("ollama/"):
-        # Native Ollama models - assume available locally
-        # In practice, we'll catch connection errors at runtime
-        return True
-
-    # openai/ prefix models require OpenAI API key
-    if model.startswith("openai/"):
-        effective_key = api_key or os.environ.get("OPENAI_API_KEY")
-        return effective_key is not None and len(effective_key) > 0
-
-    # Cloud models need API key
-    effective_key = api_key
-
-    # Check environment variables based on model prefix
-    if not effective_key:
-        if model.startswith("gemini/"):
-            effective_key = os.environ.get("GEMINI_API_KEY")
-        elif model.startswith("mistral/"):
-            effective_key = os.environ.get("MISTRAL_API_KEY")
-        elif model.startswith("azure/"):
-            effective_key = os.environ.get("AZURE_API_KEY")
-        elif model.startswith("vertex_ai/"):
-            # Vertex AI uses GCP credentials, check for project
-            effective_key = os.environ.get("VERTEXAI_PROJECT")
-        else:
-            # Default to OpenAI
-            effective_key = os.environ.get("OPENAI_API_KEY")
-
+    # Cloud models need an API key
+    effective_key = api_key or os.environ.get("OPENAI_API_KEY")
     return effective_key is not None and len(effective_key) > 0
-
-
-def is_embedding_available_for_config(config: SearchConfig) -> bool:
-    """Check if embedding is available for a SearchConfig.
-
-    Convenience wrapper that extracts config values.
-
-    Args:
-        config: SearchConfig to check
-
-    Returns:
-        True if embeddings can be generated, False otherwise
-    """
-    return is_embedding_available(
-        model=config.embedding_model,
-        api_key=config.embedding_api_key,
-        api_base=config.embedding_api_base,
-    )
-
-
-async def generate_embeddings_for_config(
-    texts: list[str],
-    config: SearchConfig,
-) -> list[list[float]]:
-    """Generate embeddings using a SearchConfig.
-
-    Convenience wrapper that extracts config values.
-
-    Args:
-        texts: List of texts to embed
-        config: SearchConfig with model and API settings
-
-    Returns:
-        List of embedding vectors
-    """
-    return await generate_embeddings(
-        texts=texts,
-        model=config.embedding_model,
-        api_base=config.embedding_api_base,
-        api_key=config.embedding_api_key,
-    )

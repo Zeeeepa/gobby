@@ -119,7 +119,7 @@ class ResumeStrategy(Protocol):
 | `ClaudeResumeStrategy` | claude_code, claude_sdk_web_chat, local models (via --model) | SDK native via `resume` param | `ClaudeAgentOptions(resume="session-xyz")` |
 | `CodexResumeStrategy` | codex, codex_web_chat | Thread resume via JSON-RPC | JSON-RPC `thread/resume` |
 | `GeminiResumeStrategy` | gemini, gemini_cli, gemini_web_chat | Native CLI resume via `--resume` flag | `gemini --resume <session-uuid> -p "prompt" --output-format stream-json` |
-| `TranscriptResumeStrategy` | Any without native resume (Cursor, Windsurf, etc.) | Parse JSONL via existing `TranscriptParser` subclasses | Fallback only |
+| `TranscriptResumeStrategy` | Any without native resume | Parse JSONL via existing `TranscriptParser` subclasses | Fallback only |
 
 ### Refactored handler
 
@@ -138,7 +138,7 @@ session = await self._create_chat_session(
 
 ### History context injection (TranscriptResumeStrategy fallback only)
 
-For providers without native resume (Cursor, Windsurf, unknown sources):
+For providers without native resume (unknown sources):
 1. Look up `session.jsonl_path` or archive at `~/.gobby/session_transcripts/`
 2. Select parser based on `session.source` (existing parsers in `src/gobby/sessions/transcripts/`)
 3. Extract last N turns via `extract_last_messages()` or `extract_turns_since_clear()`
@@ -152,7 +152,7 @@ Note: Claude, Codex, and Gemini all have native resume — transcript injection 
 
 8. **`CodexResumeStrategy`** — Wire `CodexChatSession.resume_thread()` into strategy. Handle thread_id resolution from `external_id`.
 
-9. **`GeminiResumeStrategy` + `TranscriptResumeStrategy`** — Gemini uses native CLI resume via `gemini --resume <session-uuid>`. `TranscriptResumeStrategy` is the generic fallback for providers without native resume (Cursor, Windsurf, etc.) — uses existing transcript parsers for history injection.
+9. **`GeminiResumeStrategy` + `TranscriptResumeStrategy`** — Gemini uses native CLI resume via `gemini --resume <session-uuid>`. `TranscriptResumeStrategy` is the generic fallback for providers without native resume — uses existing transcript parsers for history injection.
 
 10. **Refactor `handle_continue_in_chat()`** — Replace 195-line Claude-specific handler with strategy dispatch. ~20 lines of core logic.
 

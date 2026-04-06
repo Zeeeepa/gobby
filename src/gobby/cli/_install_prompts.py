@@ -185,13 +185,7 @@ _CLI_INSTALL_META: dict[str, tuple[str, str, str, str | None]] = {
         ".gemini/settings.json",
         "~/.gemini/settings.json",
     ),
-    "cursor": ("Cursor", "~/.cursor/hooks.json", ".cursor/hooks.json", None),
-    "windsurf": (
-        "Windsurf (Cascade)",
-        "~/.codeium/windsurf/hooks.json",
-        ".windsurf/hooks.json",
-        None,
-    ),
+    "codex": ("Codex", "~/.codex/hooks.json", ".codex/hooks.json", None),
 }
 
 
@@ -202,7 +196,7 @@ def _run_standard_cli_install(
     mode: str,
     results: dict[str, dict[str, Any]],
 ) -> None:
-    """Run install + echo for a standard CLI (claude, gemini, cursor, windsurf)."""
+    """Run install + echo for a standard CLI (claude, gemini, codex)."""
     display_name, global_config, project_subpath, mcp_path = _CLI_INSTALL_META[cli_name]
 
     click.echo("-" * 40)
@@ -217,83 +211,6 @@ def _run_standard_cli_install(
         _echo_install_details(result, mcp_config_path=mcp_path, config_path=config)
     else:
         click.echo(f"Failed: {result['error']}", err=True)
-    click.echo("")
-
-
-def _run_copilot_install(
-    installer: Callable[..., dict[str, Any]],
-    project_path: Path,
-    mode: str,
-    results: dict[str, dict[str, Any]],
-) -> None:
-    """Run install + echo for Copilot CLI (has 'skipped' special case)."""
-    click.echo("-" * 40)
-    click.echo("GitHub Copilot CLI")
-    click.echo("-" * 40)
-
-    result = installer(project_path, mode=mode)
-    results["copilot"] = result
-
-    if result.get("skipped"):
-        click.echo(f"Skipped: {result['skip_reason']}")
-    elif result["success"]:
-        _echo_install_details(result, config_path=str(project_path / ".copilot" / "hooks.json"))
-    else:
-        click.echo(f"Failed: {result['error']}", err=True)
-    click.echo("")
-
-
-def _run_codex_install(
-    installer: Callable[..., dict[str, Any]],
-    project_path: Path,
-    codex_detected: bool,
-    results: dict[str, dict[str, Any]],
-) -> None:
-    """Run install + echo for Codex notify integration."""
-    click.echo("-" * 40)
-    click.echo("Codex")
-    click.echo("-" * 40)
-
-    if not codex_detected:
-        click.echo("Codex CLI not detected in PATH (`codex`).", err=True)
-        click.echo("Install Codex first, then re-run:")
-        click.echo("  npm install -g @openai/codex\n")
-        results["codex"] = {"success": False, "error": "Codex CLI not detected"}
-    else:
-        result = installer(project_path)
-        results["codex"] = result
-
-        if result["success"]:
-            click.echo("Installed Codex notify integration")
-            for file_path in result["files_installed"]:
-                click.echo(f"  - {file_path}")
-            if result.get("config_updated"):
-                click.echo("Updated: ~/.codex/config.toml (set `notify = ...`)")
-            else:
-                click.echo("~/.codex/config.toml already configured")
-
-            for key, label in [
-                ("workflows_installed", "workflows"),
-                ("commands_installed", "commands"),
-            ]:
-                items = result.get(key)
-                if items:
-                    click.echo(f"Installed {len(items)} {label}")
-                    for item in items:
-                        click.echo(f"  - {item}")
-
-            if result.get("plugins_installed"):
-                click.echo(
-                    f"Installed {len(result['plugins_installed'])} plugins to .gobby/plugins/"
-                )
-                for plugin in result["plugins_installed"]:
-                    click.echo(f"  - {plugin}")
-            if result.get("mcp_configured"):
-                click.echo("Configured MCP server: ~/.codex/config.toml")
-            elif result.get("mcp_already_configured"):
-                click.echo("MCP server already configured: ~/.codex/config.toml")
-        else:
-            click.echo(f"Failed: {result['error']}", err=True)
     click.echo("")
 
 
@@ -326,30 +243,6 @@ def _run_git_hooks_install(
     click.echo("")
 
 
-def _run_antigravity_install(
-    installer: Callable[..., dict[str, Any]],
-    project_path: Path,
-    results: dict[str, dict[str, Any]],
-) -> None:
-    """Run install + echo for Antigravity agent."""
-    click.echo("-" * 40)
-    click.echo("Antigravity Agent")
-    click.echo("-" * 40)
-
-    result = installer(project_path)
-    results["antigravity"] = result
-
-    if result["success"]:
-        _echo_install_details(
-            result,
-            mcp_config_path="~/.gemini/antigravity/mcp_config.json",
-            config_path=str(project_path / ".antigravity" / "settings.json"),
-        )
-    else:
-        click.echo(f"Failed: {result['error']}", err=True)
-    click.echo("")
-
-
 def _run_qdrant_install(
     installer: Callable[..., dict[str, Any]],
     results: dict[str, dict[str, Any]],
@@ -372,6 +265,157 @@ def _run_qdrant_install(
     else:
         click.echo(f"Failed: {result['error']}", err=True)
     click.echo("")
+
+
+def _run_embedding_install(
+    installer: Callable[..., dict[str, Any]],
+    results: dict[str, dict[str, Any]],
+    no_interactive: bool = False,
+) -> str:
+    """Interactive embedding provider setup.
+
+    Detects available local providers (LM Studio, Ollama), presents a menu,
+    and runs the installer for the chosen provider. Returns the chosen provider
+    name so the caller can gate Docker service installs on the "none" choice.
+
+    Args:
+        installer: The install_embedding function
+        results: Results dict to accumulate install outcomes
+        no_interactive: If True, auto-select best local provider without prompting
+
+    Returns:
+        The provider name chosen: "lmstudio" | "ollama" | "openai" | "none"
+    """
+    from ._detectors import _is_lmstudio_available, _is_ollama_available
+
+    click.echo("-" * 40)
+    click.echo("Embedding Provider")
+    click.echo("-" * 40)
+
+    lmstudio_ok = _is_lmstudio_available()
+    ollama_ok = _is_ollama_available()
+
+    # Build menu options
+    options: list[tuple[str, str]] = []
+    if lmstudio_ok:
+        options.append(("lmstudio", "LM Studio (localhost:1234) - local, recommended"))
+    if ollama_ok:
+        options.append(("ollama", "Ollama (localhost:11434) - local"))
+    options.append(("openai", "OpenAI (cloud, requires API key)"))
+    options.append(("none", "None (disables semantic search, skips Qdrant/Neo4j)"))
+
+    # Determine default choice: prefer LM Studio > Ollama > OpenAI > none
+    default_idx = 1  # 1-indexed for display
+    if not lmstudio_ok and not ollama_ok:
+        # No local providers; default to "none" to avoid unexpected cloud calls
+        default_idx = len(options)  # points at "none"
+
+    if no_interactive:
+        # Auto-select best available local provider; skip if none
+        if lmstudio_ok:
+            provider = "lmstudio"
+        elif ollama_ok:
+            provider = "ollama"
+        else:
+            click.echo("No local embedding provider detected — skipping (no_interactive mode)")
+            results["embedding"] = {"success": True, "provider": "none", "skipped": True}
+            # Still persist "none" so the daemon disables semantic features cleanly
+            try:
+                installer(provider="none")
+            except Exception as e:
+                logger.warning(f"Failed to persist 'none' embedding config: {e}")
+            return "none"
+        click.echo(f"Auto-selected: {provider}")
+    else:
+        # Interactive menu
+        click.echo("")
+        for i, (_, label) in enumerate(options, start=1):
+            marker = " (default)" if i == default_idx else ""
+            click.echo(f"  [{i}] {label}{marker}")
+        click.echo("")
+
+        try:
+            choice = click.prompt(
+                "Select provider",
+                type=click.IntRange(1, len(options)),
+                default=default_idx,
+                show_default=False,
+            )
+        except (click.Abort, EOFError):
+            click.echo("")
+            click.echo("Skipping embedding setup.")
+            results["embedding"] = {"success": True, "provider": "none", "skipped": True}
+            return "none"
+
+        provider = options[choice - 1][0]
+
+    # Collect OpenAI API key if needed
+    openai_api_key: str | None = None
+    if provider == "openai":
+        # Check if already stored
+        try:
+            from gobby.storage.database import LocalDatabase
+            from gobby.storage.secrets import SecretStore
+
+            with LocalDatabase() as db:
+                secrets = SecretStore(db)
+                if secrets.exists("openai_api_key"):
+                    existing = secrets.get("openai_api_key")
+                    openai_api_key = existing
+                    click.echo("Using existing OpenAI API key from secrets")
+        except Exception as e:
+            logger.warning(f"Failed to read existing openai_api_key: {e}")
+
+        if not openai_api_key:
+            if no_interactive:
+                click.echo("OpenAI API key not set — skipping embedding setup")
+                results["embedding"] = {"success": False, "error": "OpenAI API key not available"}
+                return "none"
+            try:
+                openai_api_key = click.prompt(
+                    "  OpenAI API Key",
+                    default="",
+                    hide_input=True,
+                    show_default=False,
+                )
+            except (click.Abort, EOFError):
+                click.echo("")
+                results["embedding"] = {"success": False, "error": "API key prompt aborted"}
+                return "none"
+            if not openai_api_key.strip():
+                click.echo("No API key provided — skipping")
+                results["embedding"] = {"success": False, "error": "No API key provided"}
+                return "none"
+            openai_api_key = openai_api_key.strip()
+
+    # Run the installer
+    click.echo("")
+    if provider == "lmstudio":
+        click.echo("Setting up LM Studio (may download model on first run)...")
+    elif provider == "ollama":
+        click.echo("Setting up Ollama (may download model on first run)...")
+    elif provider == "openai":
+        click.echo("Configuring OpenAI embeddings...")
+
+    result = installer(provider=provider, openai_api_key=openai_api_key)
+    results["embedding"] = result
+
+    if result["success"]:
+        if result.get("skipped"):
+            click.echo("Embeddings disabled (provider=none)")
+        else:
+            click.echo(f"Embedding provider configured: {result['provider']}")
+            click.echo(f"  Model: {result['model']}")
+            if result.get("api_base"):
+                click.echo(f"  Endpoint: {result['api_base']}")
+            click.echo(f"  Dimensions: {result['dim']}")
+            if result.get("health_check"):
+                click.echo("  Health check: OK")
+    else:
+        click.echo(f"Failed: {result['error']}", err=True)
+    click.echo("")
+
+    return provider
 
 
 def _run_neo4j_install(
@@ -399,55 +443,16 @@ def _run_neo4j_install(
     click.echo("")
 
 
-def _run_local_embeddings_install(
-    results: dict[str, dict[str, Any]],
-) -> None:
-    """Run install + echo for local embeddings (llama-cpp-python + GGUF model)."""
-    from .install_setup import _install_local_embeddings
-
-    click.echo("-" * 40)
-    click.echo("Local Embeddings (nomic-embed-text-v1.5)")
-    click.echo("-" * 40)
-
-    try:
-        result = _install_local_embeddings()
-
-        if result.get("installed"):
-            method = result.get("method", "unknown")
-            click.echo(f"Installed llama-cpp-python via {method}")
-            if result.get("reason"):
-                click.echo(f"  Note: {result['reason']}")
-            result["success"] = True
-        elif result.get("skipped"):
-            click.echo(f"Local embeddings already installed ({result.get('reason', '')})")
-            result["success"] = True
-        else:
-            reason = result.get("reason", "unknown error")
-            click.echo(f"Warning: {reason}")
-            result["success"] = False
-
-        results["local-embeddings"] = result
-    except Exception as e:
-        click.echo(f"Warning: Failed to install local embeddings: {e}")
-        results["local-embeddings"] = {"success": False, "reason": str(e)}
-    click.echo("")
-
-
 def _echo_migration_notice(project_path: Path) -> None:
     """Detect and warn about per-project hooks that can be cleaned up."""
     per_project_hooks = []
     for cli_name, cli_dir in [
         ("claude", ".claude"),
         ("gemini", ".gemini"),
-        ("cursor", ".cursor"),
-        ("windsurf", ".windsurf"),
-        ("copilot", ".copilot"),
+        ("codex", ".codex"),
     ]:
         hooks_dir = project_path / cli_dir / "hooks"
-        hooks_json = project_path / cli_dir / "hooks.json"
-        if (hooks_dir / "hook_dispatcher.py").exists() or (
-            cli_name in ("cursor", "windsurf", "copilot") and hooks_json.exists()
-        ):
+        if (hooks_dir / "hook_dispatcher.py").exists():
             per_project_hooks.append(cli_name)
 
     if per_project_hooks:
@@ -521,9 +526,7 @@ def _echo_uninstall_summary(results: dict[str, dict[str, Any]]) -> bool:
 _CLI_UNINSTALL_META: dict[str, tuple[str, str]] = {
     "claude": ("Claude Code", "hooks from settings"),
     "gemini": ("Gemini CLI", "hooks from settings"),
-    "cursor": ("Cursor", "hooks from hooks.json"),
-    "windsurf": ("Windsurf", "hooks from hooks.json"),
-    "copilot": ("Copilot CLI", "hooks from hooks.json"),
+    "codex": ("Codex", "hooks from settings"),
 }
 
 

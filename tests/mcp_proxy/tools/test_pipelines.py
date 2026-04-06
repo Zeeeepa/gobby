@@ -7,11 +7,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from gobby.utils.project_context import reset_project_context, set_project_context
+from gobby.utils.session_context import session_context_for_test
 from gobby.workflows.definitions import PipelineDefinition, PipelineStep
 from gobby.workflows.loader_cache import DiscoveredWorkflow
-
-from gobby.utils.project_context import set_project_context, reset_project_context
-from gobby.utils.session_context import session_context_for_test
 
 pytestmark = pytest.mark.unit
 

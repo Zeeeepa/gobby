@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import re
-import tempfile
 import threading
 import time
 from dataclasses import dataclass
@@ -99,17 +97,15 @@ class SessionStartMixin(EventHandlersBase):
         """Derive transcript path for CLIs that don't provide one natively.
 
         Args:
-            cli_source: CLI source name (gemini, cursor, etc.)
+            cli_source: CLI source name (gemini, codex, etc.)
             input_data: Hook event input data
             external_id: External session ID
 
         Returns:
             Path to transcript file, or None if not derivable.
         """
-        if cli_source in ("gemini", "antigravity"):
+        if cli_source == "gemini":
             return self._find_gemini_transcript(input_data, external_id)
-        if cli_source == "cursor":
-            return self._find_cursor_transcript(input_data, external_id)
         return None
 
     def _find_gemini_transcript(self, input_data: dict[str, Any], external_id: str) -> str | None:
@@ -146,31 +142,6 @@ class SessionStartMixin(EventHandlersBase):
             return str(all_sessions[0])
 
         self.logger.debug(f"No Gemini session files in {chats_dir}")
-        return None
-
-    def _find_cursor_transcript(self, input_data: dict[str, Any], external_id: str) -> str | None:
-        """Find the Cursor NDJSON capture file.
-
-        For spawned Cursor agents, Gobby writes stdout to a capture file.
-        The path is passed via GOBBY_CURSOR_CAPTURE_PATH env var or
-        stored in the session's transcript_path.
-        """
-        terminal_context = input_data.get("terminal_context")
-        if terminal_context:
-            capture_path = terminal_context.get("cursor_capture_path")
-            if capture_path:
-                self.logger.debug(f"Found Cursor capture path from context: {capture_path}")
-                return str(capture_path)
-
-        # Check for capture file in standard location
-        session_id = input_data.get("session_id") or external_id or ""
-        if not session_id or not re.match(r"^[a-zA-Z0-9._-]+$", session_id):
-            return None
-        std_path = f"{tempfile.gettempdir()}/gobby-cursor-{session_id}.ndjson"
-        if Path(std_path).exists():
-            self.logger.debug(f"Found Cursor capture file: {std_path}")
-            return std_path
-
         return None
 
     def handle_session_start(self, event: HookEvent) -> HookResponse:

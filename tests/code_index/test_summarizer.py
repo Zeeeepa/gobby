@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from gobby.code_index.models import Symbol
-from gobby.code_index.summarizer import SymbolSummarizer, _MAX_SOURCE_CHARS
+from gobby.code_index.summarizer import _MAX_SOURCE_CHARS, SymbolSummarizer
 
 pytestmark = pytest.mark.unit
 

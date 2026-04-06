@@ -222,7 +222,7 @@ class TestSessionPersistence:
 
             # Stop daemon gracefully
             os.kill(process1.pid, signal.SIGTERM)
-            process1.wait(timeout=10)
+            process1.wait(timeout=25)
             time.sleep(2.0)
 
             # Start second daemon

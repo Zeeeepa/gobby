@@ -2135,37 +2135,6 @@ class TestSessionOverridesExtended:
         assert response.decision == "allow"
 
 
-class TestCompressOutputEffect:
-    """Tests for compress_output effect type."""
-
-    @pytest.mark.asyncio
-    async def test_compress_output_sets_metadata(
-        self, db: LocalDatabase, manager: LocalWorkflowDefinitionManager
-    ) -> None:
-        """compress_output effect should set compression metadata in response."""
-        _insert_rule(
-            manager,
-            "compress-rule",
-            RuleDefinitionBody(
-                event=RuleEvent.AFTER_TOOL,
-                effects=[
-                    RuleEffect(type="compress_output", strategy="tail", max_lines=50),
-                ],
-            ),
-        )
-
-        engine = RuleEngine(db)
-        variables: dict[str, Any] = {}
-        event = _make_event(HookEventType.AFTER_TOOL, data={"tool_name": "Bash"})
-        response = await engine.evaluate(event, session_id="sess-1", variables=variables)
-
-        assert response.decision == "allow"
-        compression = response.metadata.get("compression")
-        assert compression is not None
-        assert compression["strategy"] == "tail"
-        assert compression["max_lines"] == 50
-
-
 class _FakeSkill:
     """Minimal skill stub for load_skill tests."""
 

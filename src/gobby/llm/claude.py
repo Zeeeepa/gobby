@@ -9,30 +9,28 @@ Supports two authentication modes:
 import asyncio
 import json
 import logging
+from pathlib import Path
 from typing import Any, Literal, cast
 
 from claude_agent_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
     ResultMessage,
+    SettingSource,
     TextBlock,
-    ToolResultBlock,
     ToolUseBlock,
-    UserMessage,
-    create_sdk_mcp_server,
     query,
 )
 
 from gobby.config.app import DaemonConfig
 from gobby.llm.base import LLMProvider
-from gobby.llm.claude_models import (
-    MCPToolResult,
-    ToolCall,
-)
 
 # Type alias for auth mode
 AuthMode = Literal["subscription", "api_key"]
 
+# Headless settings file — zeroes out all hooks so internal LLM calls
+# don't trigger session registration or title synthesis cascades.
+_HEADLESS_SETTINGS = Path.home() / ".gobby" / "settings" / "headless.json"
 
 logger = logging.getLogger(__name__)
 
@@ -75,23 +73,9 @@ class ClaudeLLMProvider(LLMProvider):
         """
         self.config = config
         self.logger = logger
-        self._litellm: Any = None
 
-        # Determine auth mode from param -> config -> default
         self._auth_mode: AuthMode = "subscription"
-        if auth_mode:
-            self._auth_mode = auth_mode
-        elif config.llm_providers and config.llm_providers.claude:
-            config_auth = config.llm_providers.claude.auth_mode
-            if config_auth in ("subscription", "api_key"):
-                self._auth_mode = cast(AuthMode, config_auth)
-
-        # Set up based on auth mode
-        if self._auth_mode == "subscription":
-            self._claude_cli_path = self._find_cli_path()
-        else:  # api_key
-            self._claude_cli_path = None
-            self._setup_litellm()
+        self._claude_cli_path = self._find_cli_path()
 
     def _find_cli_path(self) -> str | None:
         """Find Claude CLI path. Delegates to claude_cli.find_cli_path()."""
@@ -106,20 +90,6 @@ class ClaudeLLMProvider(LLMProvider):
         cli_path = await verify_cli_path(self._claude_cli_path)
         self._claude_cli_path = cli_path
         return cli_path
-
-    def _setup_litellm(self) -> None:
-        """
-        Initialize LiteLLM for api_key mode.
-
-        LiteLLM reads ANTHROPIC_API_KEY from the environment automatically.
-        """
-        try:
-            import litellm
-
-            self._litellm = litellm
-            self.logger.debug("LiteLLM initialized for Claude api_key mode")
-        except ImportError:
-            self.logger.error("litellm package required for api_key mode")
 
     def _format_summary_context(self, context: dict[str, Any], prompt_template: str | None) -> str:
         """
@@ -282,6 +252,17 @@ class ClaudeLLMProvider(LLMProvider):
             max_retries: Number of attempts (1 = no retry).
             retry_delay: Base delay between retries in seconds.
         """
+        # Suppress hooks for internal LLM calls — prevents session registration
+        # cascade and title synthesis loops. SDK 0.1.56+ merges --settings with
+        # user/project settings, so we also disable those sources.
+        # Note: [""] not [] — empty list is falsy, SDK skips the flag entirely.
+        # [""] produces --setting-sources "" which CLI parses as no sources.
+        # TODO: Remove this workaround when the SDK exposes a flag to disable setting sources.
+        if not options.settings:
+            options.settings = str(_HEADLESS_SETTINGS)
+        if not options.setting_sources:
+            options.setting_sources = cast(list[SettingSource], [""])
+
         stderr_lines: list[str] = []
         options.stderr = lambda line: stderr_lines.append(line)
 
@@ -321,16 +302,12 @@ class ClaudeLLMProvider(LLMProvider):
         """
         Generate session summary using Claude.
 
-        Always tries SDK first (works with any auth_mode if CLI is available),
-        falls back to LiteLLM only if CLI is unavailable.
+        Uses Claude Agent SDK via CLI.
         """
         cli_path = await self._verify_cli_path()
         if cli_path:
             return await self._generate_summary_sdk(context, prompt_template)
-        elif self._litellm:
-            return await self._generate_summary_litellm(context, prompt_template)
-        else:
-            return "Session summary unavailable (no LLM backend configured)"
+        return "Session summary unavailable (Claude CLI not found)"
 
     async def _generate_summary_sdk(
         self, context: dict[str, Any], prompt_template: str | None = None
@@ -375,33 +352,6 @@ class ClaudeLLMProvider(LLMProvider):
         except RuntimeError as e:
             return f"Session summary generation failed: {e}"
 
-    async def _generate_summary_litellm(
-        self, context: dict[str, Any], prompt_template: str | None = None
-    ) -> str:
-        """Generate session summary using LiteLLM (api_key mode)."""
-        if not self._litellm:
-            return "Session summary unavailable (LiteLLM not initialized)"
-
-        prompt = self._format_summary_context(context, prompt_template)
-
-        try:
-            response = await self._litellm.acompletion(
-                model=f"anthropic/{self.config.session_summary.model}",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a session summary generator. Create comprehensive, actionable summaries.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=8000,
-                timeout=120,
-            )
-            return response.choices[0].message.content or ""
-        except Exception as e:
-            self.logger.error(f"Failed to generate summary with LiteLLM: {e}")
-            return f"Session summary generation failed: {e}"
-
     async def generate_text(
         self,
         prompt: str,
@@ -412,15 +362,12 @@ class ClaudeLLMProvider(LLMProvider):
         """
         Generate text using Claude.
 
-        Always tries SDK first, falls back to LiteLLM only if CLI is unavailable.
+        Uses Claude Agent SDK via CLI.
         """
         cli_path = await self._verify_cli_path()
         if cli_path:
             return await self._generate_text_sdk(prompt, system_prompt, model, max_tokens)
-        elif self._litellm:
-            return await self._generate_text_litellm(prompt, system_prompt, model, max_tokens)
-        else:
-            raise RuntimeError("Generation unavailable (no LLM backend configured)")
+        raise RuntimeError("Generation unavailable (Claude CLI not found)")
 
     async def _generate_text_sdk(
         self,
@@ -482,38 +429,48 @@ class ClaudeLLMProvider(LLMProvider):
             result = result[: max_tokens * 4]
         return result
 
-    async def _generate_text_litellm(
+    async def generate_with_tools(
         self,
         prompt: str,
-        system_prompt: str | None = None,
+        system_prompt: str,
+        allowed_tools: list[str],
+        max_turns: int = 3,
         model: str | None = None,
-        max_tokens: int | None = None,
     ) -> str:
-        """Generate text using LiteLLM (api_key mode)."""
-        if not self._litellm:
-            raise RuntimeError("Generation unavailable (LiteLLM not initialized)")
+        """Generate text using Claude with specific built-in tools enabled.
 
-        from gobby.llm.litellm_utils import resolve_model_alias
+        For multi-turn SDK calls that need tool use (e.g. WebFetch, WebSearch)
+        but should remain invisible to the session/hook system.
+        """
+        cli_path = await self._verify_cli_path()
+        if not cli_path:
+            raise RuntimeError("Generation unavailable (Claude CLI not found)")
 
-        model = resolve_model_alias(model or "haiku")
-        litellm_model = f"anthropic/{model}"
+        options = ClaudeAgentOptions(
+            system_prompt=system_prompt,
+            max_turns=max_turns,
+            model=model or "opus",
+            allowed_tools=allowed_tools,
+            mcp_servers={},
+            permission_mode="default",
+            cli_path=cli_path,
+        )
 
-        try:
-            response = await self._litellm.acompletion(
-                model=litellm_model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_prompt or "You are a helpful assistant.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=max_tokens or 8000,
-            )
-            return response.choices[0].message.content or ""
-        except Exception as e:
-            self.logger.error(f"Failed to generate text with LiteLLM: {e}", exc_info=True)
-            raise RuntimeError(f"Failed to generate text with LiteLLM: {e}") from e
+        async def _run_query() -> str:
+            result_text = ""
+            async for message in query(prompt=prompt, options=options):
+                if isinstance(message, AssistantMessage):
+                    for block in message.content:
+                        if isinstance(block, TextBlock):
+                            result_text += block.text
+                elif isinstance(message, ResultMessage) and message.result:
+                    result_text = message.result
+            return result_text
+
+        result: str = await self._execute_sdk_query(
+            "generate_with_tools", _run_query, options, max_retries=1
+        )
+        return result
 
     async def generate_json(
         self,
@@ -522,22 +479,16 @@ class ClaudeLLMProvider(LLMProvider):
         model: str | None = None,
     ) -> dict[str, Any]:
         """
-        Generate structured JSON using Claude.
-
-        In api_key mode, uses LiteLLM with response_format.
-        In subscription mode, uses SDK with prompt-based JSON instruction.
+        Generate structured JSON using Claude Agent SDK with prompt-based JSON instruction.
 
         Raises:
-            RuntimeError: If no LLM backend is available
+            RuntimeError: If CLI is unavailable
             ValueError: If response is empty or not valid JSON
         """
         cli_path = await self._verify_cli_path()
         if cli_path:
             return await self._generate_json_sdk(prompt, system_prompt, model)
-        elif self._litellm:
-            return await self._generate_json_litellm(prompt, system_prompt, model)
-        else:
-            raise RuntimeError("Generation unavailable (no LLM backend configured)")
+        raise RuntimeError("Generation unavailable (Claude CLI not found)")
 
     async def _generate_json_sdk(
         self,
@@ -545,227 +496,42 @@ class ClaudeLLMProvider(LLMProvider):
         system_prompt: str | None = None,
         model: str | None = None,
     ) -> dict[str, Any]:
-        """Generate JSON using Claude Agent SDK (subscription mode)."""
-        # SDK doesn't support response_format, so we rely on prompt instructions
-        json_system = (system_prompt or "You are a helpful assistant.") + (
-            "\n\nIMPORTANT: You MUST respond with valid JSON only. No other text."
-        )
-        text = await self._generate_text_sdk(prompt, json_system, model)
-
-        # Try to extract JSON from the response
-        try:
-            # Strip markdown code fences if present
-            content = text.strip()
-            if content.startswith("```"):
-                first_newline = content.find("\n")
-                last_fence = content.rfind("```")
-                if first_newline != -1 and last_fence > first_newline:
-                    content = content[first_newline + 1 : last_fence].strip()
-                else:
-                    lines = content.split("\n")
-                    content = "\n".join(lines[1:-1]).strip()
-            result: dict[str, Any] = json.loads(content)
-            return result
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Failed to parse LLM response as JSON: {e}") from e
-
-    async def _generate_json_litellm(
-        self,
-        prompt: str,
-        system_prompt: str | None = None,
-        model: str | None = None,
-    ) -> dict[str, Any]:
-        """Generate JSON using LiteLLM (api_key mode)."""
-        if not self._litellm:
-            raise RuntimeError("Generation unavailable (LiteLLM not initialized)")
-
-        from gobby.llm.litellm_utils import resolve_model_alias
-
-        model = resolve_model_alias(model or "haiku")
-        litellm_model = f"anthropic/{model}"
-
-        try:
-            response = await self._litellm.acompletion(
-                model=litellm_model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_prompt
-                        or "You are a helpful assistant. Respond with valid JSON.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=8000,
-                response_format={"type": "json_object"},
-            )
-            content = response.choices[0].message.content
-            if not content:
-                raise ValueError("Empty response from LLM")
-            result: dict[str, Any] = json.loads(content)
-            return result
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Failed to parse LLM response as JSON: {e}") from e
-
-    async def generate_with_mcp_tools(
-        self,
-        prompt: str,
-        allowed_tools: list[str],
-        system_prompt: str | None = None,
-        model: str | None = None,
-        max_turns: int = 10,
-        tool_functions: dict[str, list[Any]] | None = None,
-    ) -> MCPToolResult:
-        """
-        Generate text with access to MCP tools.
-
-        This method enables the agent to call MCP tools during generation,
-        tracking all tool calls made and returning them alongside the final text.
-
-        Note: This method requires subscription mode (Claude Agent SDK).
-        In api_key mode, returns an error message.
-
-        Args:
-            prompt: User prompt to process.
-            allowed_tools: List of allowed MCP tool patterns.
-                Tools should be in format "mcp__{server}__{tool}" or patterns
-                like "mcp__gobby-tasks__*" for all tools from a server.
-            system_prompt: Optional system prompt.
-            model: Optional model override (default: claude-sonnet-4-6).
-            max_turns: Maximum number of agentic turns (default: 10).
-            tool_functions: Optional dict mapping server names to lists of tool
-                functions for in-process MCP servers. Example:
-                {"gobby-tasks": [create_task_func, update_task_func]}
-
-        Returns:
-            MCPToolResult containing final text and list of tool calls made.
-
-        Example:
-            >>> result = await provider.generate_with_mcp_tools(
-            ...     prompt="Create a task called 'Fix bug'",
-            ...     allowed_tools=["mcp__gobby-tasks__create_task"],
-            ...     system_prompt="You are a task manager.",
-            ...     tool_functions={"gobby-tasks": [create_task]}
-            ... )
-            >>> print(result.text)
-            >>> for call in result.tool_calls:
-            ...     print(f"Called {call.tool_name} with {call.arguments}")
-        """
-        # MCP tools require subscription mode (Claude Agent SDK)
-        if self._auth_mode == "api_key":
-            return MCPToolResult(
-                text="MCP tools require subscription mode. "
-                "Set auth_mode: subscription in llm_providers.claude config.",
-                tool_calls=[],
-            )
-
+        """Generate JSON using Claude Agent SDK with output_format constraint."""
         cli_path = await self._verify_cli_path()
         if not cli_path:
-            return MCPToolResult(
-                text="Generation unavailable (Claude CLI not found)",
-                tool_calls=[],
-            )
+            raise RuntimeError("Generation unavailable (Claude CLI not found)")
 
-        # Build mcp_servers config
-        from gobby.servers.chat_session_helpers import _build_gobby_mcp_entry
-
-        mcp_servers_config: dict[str, Any] = {"gobby": _build_gobby_mcp_entry()}
-
-        # Add in-process tool functions if provided
-        if tool_functions:
-            for server_name, tools in tool_functions.items():
-                mcp_servers_config[server_name] = create_sdk_mcp_server(
-                    name=server_name,
-                    tools=tools,
-                )
-
-        # Configure Claude Agent SDK with MCP tools
         options = ClaudeAgentOptions(
-            system_prompt=system_prompt or "You are a helpful assistant with access to MCP tools.",
-            max_turns=max_turns,
+            system_prompt=system_prompt or "You are a helpful assistant.",
+            max_turns=1,
             model=model or "opus",
-            allowed_tools=allowed_tools,
-            permission_mode="bypassPermissions",
+            tools=[],
+            allowed_tools=[],
+            mcp_servers={},
+            permission_mode="default",
             cli_path=cli_path,
-            mcp_servers=mcp_servers_config,
+            output_format={"type": "json_object"},
         )
 
-        # Track tool calls and results
-        tool_calls: list[ToolCall] = []
-        pending_tool_calls: dict[str, ToolCall] = {}  # Map tool_use_id -> ToolCall
-
-        from gobby.llm.sdk_utils import parse_server_name as _parse_server_name
-
-        # Run async query
         async def _run_query() -> str:
             result_text = ""
             async for message in query(prompt=prompt, options=options):
-                if isinstance(message, ResultMessage):
-                    # Final result from the agent
-                    if message.result:
-                        result_text = message.result
-                    self.logger.debug(f"ResultMessage: result={message.result}")
-
-                elif isinstance(message, AssistantMessage):
+                if isinstance(message, AssistantMessage):
                     for block in message.content:
                         if isinstance(block, TextBlock):
-                            # Ensure spacing between text from different
-                            # AssistantMessages (tool calls in between may
-                            # not yield ToolResultBlocks if denied).
-                            text = block.text
-                            if result_text and text:
-                                if not result_text[-1].isspace() and not text[0].isspace():
-                                    result_text += "\n\n"
-                            result_text += text
-                        elif isinstance(block, ToolUseBlock):
-                            # Track tool use
-                            tool_call = ToolCall(
-                                tool_name=block.name,
-                                server_name=_parse_server_name(block.name),
-                                arguments=block.input if isinstance(block.input, dict) else {},
-                            )
-                            tool_calls.append(tool_call)
-                            pending_tool_calls[block.id] = tool_call
-                            self.logger.debug(
-                                f"ToolUseBlock: tool={block.name}, input={block.input}"
-                            )
-
-                elif isinstance(message, UserMessage):
-                    # UserMessage may contain tool results
-                    # UserMessage.content can be str | list[...], check first
-                    if isinstance(message.content, list):
-                        for block in message.content:
-                            if isinstance(block, ToolResultBlock):
-                                # Match result to pending tool call
-                                if block.tool_use_id in pending_tool_calls:
-                                    pending_tool_calls[block.tool_use_id].result = str(
-                                        block.content
-                                    )
-                                self.logger.debug(
-                                    f"ToolResultBlock: id={block.tool_use_id}, content={block.content}"
-                                )
-
+                            result_text += block.text
             return result_text
 
+        text = await self._execute_sdk_query("generate_json", _run_query, options)
+        text = str(text).strip()
+        if not text:
+            raise ValueError("Claude SDK returned empty response for JSON generation")
+
         try:
-            final_text = await self._execute_sdk_query(
-                "generate_with_mcp_tools", _run_query, options
-            )
-            return MCPToolResult(text=final_text, tool_calls=tool_calls)
-        except ExceptionGroup as eg:
-            # Handle Python 3.11+ ExceptionGroup from TaskGroup
-            errors: list[str] = []
-            for exc in eg.exceptions:
-                errors.append(f"{type(exc).__name__}: {exc}")
-                self.logger.error(f"TaskGroup sub-exception: {type(exc).__name__}: {exc}")
-            return MCPToolResult(
-                text=f"Generation failed: {'; '.join(errors)}",
-                tool_calls=tool_calls,
-            )
-        except RuntimeError as e:
-            return MCPToolResult(
-                text=f"Generation failed: {e}",
-                tool_calls=tool_calls,
-            )
+            result: dict[str, Any] = json.loads(text)
+            return result
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed to parse Claude response as JSON: {e}") from e
 
     async def describe_image(
         self,
@@ -775,9 +541,6 @@ class ClaudeLLMProvider(LLMProvider):
         """
         Generate a text description of an image using Claude's vision capabilities.
 
-        In subscription mode, uses Claude Agent SDK.
-        In api_key mode, uses LiteLLM with anthropic/ prefix.
-
         Args:
             image_path: Path to the image file to describe
             context: Optional context to guide the description
@@ -785,10 +548,7 @@ class ClaudeLLMProvider(LLMProvider):
         Returns:
             Text description of the image
         """
-        if self._auth_mode == "subscription":
-            return await self._describe_image_sdk(image_path, context)
-        else:
-            return await self._describe_image_litellm(image_path, context)
+        return await self._describe_image_sdk(image_path, context)
 
     def _prepare_image_data(self, image_path: str) -> tuple[str, str] | str:
         """
@@ -890,54 +650,4 @@ class ClaudeLLMProvider(LLMProvider):
         try:
             return str(await self._execute_sdk_query("describe_image", _run_query, options))
         except RuntimeError as e:
-            return f"Image description failed: {e}"
-
-    async def _describe_image_litellm(
-        self,
-        image_path: str,
-        context: str | None = None,
-    ) -> str:
-        """Describe image using LiteLLM (api_key mode)."""
-        from gobby.llm.litellm_utils import resolve_model_alias
-
-        if not self._litellm:
-            return "Image description unavailable (LiteLLM not initialized)"
-
-        # Prepare image data
-        result = self._prepare_image_data(image_path)
-        if isinstance(result, str):
-            return result
-        image_base64, mime_type = result
-
-        # Build prompt
-        prompt = "Please describe this image in detail, focusing on the key visual elements and any text visible."
-        if context:
-            prompt = f"{context}\n\n{prompt}"
-
-        try:
-            # Route through LiteLLM with anthropic prefix
-            # Use same model as SDK path for consistency
-            response = await self._litellm.acompletion(
-                model=f"anthropic/{resolve_model_alias('haiku')}",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": f"data:{mime_type};base64,{image_base64}"},
-                            },
-                        ],
-                    }
-                ],
-                max_tokens=1024,
-            )
-
-            if not response or not getattr(response, "choices", None):
-                return "No description generated"
-            return response.choices[0].message.content or "No description generated"
-
-        except Exception as e:
-            self.logger.error(f"Failed to describe image with LiteLLM: {e}")
             return f"Image description failed: {e}"

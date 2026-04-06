@@ -1,6 +1,5 @@
 """Tests for the SessionManager service layer."""
 
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest

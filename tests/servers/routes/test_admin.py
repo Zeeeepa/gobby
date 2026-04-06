@@ -271,10 +271,10 @@ class TestModelsEndpoint:
 
     @patch("gobby.servers.routes.admin._config._fallback_models_from_config")
     @patch("gobby.servers.routes.admin._config._discover_models")
-    def test_models_fallback_on_litellm_error(
+    def test_models_fallback_on_discovery_error(
         self, mock_discover, mock_fallback, client, mock_server
     ) -> None:
-        mock_discover.side_effect = ImportError("No module named 'litellm'")
+        mock_discover.side_effect = RuntimeError("Network error")
         mock_fallback.return_value = {"claude": ["haiku"]}
 
         response = client.get("/api/admin/models")
@@ -315,17 +315,32 @@ class TestModelsEndpoint:
 class TestDiscoverModels:
     """Tests for the _discover_models helper function."""
 
-    @patch(
-        "litellm.model_cost",
-        {
-            "haiku": {},
-            "gpt-4.5-preview": {},
-            "o3-mini": {},
-            "gemini-2-flash": {},
-        },
-    )
-    def test_discover_models_groups_by_provider(self) -> None:
+    @patch("gobby.llm.model_registry.fetch_models_sync")
+    def test_discover_models_groups_by_provider(self, mock_fetch) -> None:
+        from gobby.llm.model_registry import ModelInfo
         from gobby.servers.routes.admin._config import _discover_models
+
+        mock_fetch.return_value = [
+            ModelInfo(
+                "anthropic/claude-haiku-4-5",
+                "Anthropic: Claude Haiku 4.5",
+                "claude",
+                200000,
+                64000,
+                0.8e-6,
+                4e-6,
+            ),
+            ModelInfo("openai/gpt-4o", "OpenAI: GPT-4o", "codex", 128000, 16384, 2.5e-6, 10e-6),
+            ModelInfo(
+                "google/gemini-2.5-pro",
+                "Google: Gemini 2.5 Pro",
+                "gemini",
+                1000000,
+                65536,
+                1.25e-6,
+                10e-6,
+            ),
+        ]
 
         result = _discover_models()
 
@@ -334,88 +349,37 @@ class TestDiscoverModels:
         assert "gemini" in result
         assert result["claude"] == [
             {"value": "", "label": "(default)"},
-            {"value": "haiku", "label": "Haiku"},
-        ]
-        assert result["codex"] == [
-            {"value": "", "label": "(default)"},
-            {"value": "gpt-4.5-preview", "label": "GPT 4.5 Preview"},
-            {"value": "o3-mini", "label": "O3 Mini"},
+            {"value": "claude-haiku-4-5", "label": "Anthropic: Claude Haiku 4.5"},
         ]
 
-    @patch(
-        "litellm.model_cost",
-        {
-            "haiku": {},
-            "haiku-20250514": {},
-            "gpt-4.5-preview": {},
-            "gpt-4.5-preview-20250227": {},
-        },
-    )
-    def test_discover_models_excludes_dated_variants(self) -> None:
+    @patch("gobby.llm.model_registry.fetch_models_sync")
+    def test_discover_models_empty_registry(self, mock_fetch) -> None:
         from gobby.servers.routes.admin._config import _discover_models
 
-        result = _discover_models()
-
-        assert any(m["value"] == "haiku" for m in result["claude"])
-        assert not any(m["value"] == "haiku-20250514" for m in result["claude"])
-        assert any(m["value"] == "gpt-4.5-preview" for m in result["codex"])
-        assert not any(m["value"] == "gpt-4.5-preview-20250227" for m in result["codex"])
-
-    @patch(
-        "litellm.model_cost",
-        {
-            "haiku": {},
-            "anthropic/haiku": {},
-            "bedrock.haiku": {},
-        },
-    )
-    def test_discover_models_excludes_scoped_names(self) -> None:
-        from gobby.servers.routes.admin._config import _discover_models
-
-        result = _discover_models()
-
-        assert result["claude"] == [
-            {"value": "", "label": "(default)"},
-            {"value": "haiku", "label": "Haiku"},
-        ]
-
-    @patch(
-        "litellm.model_cost",
-        {
-            "haiku": {},
-            "claude-latest": {},
-        },
-    )
-    def test_discover_models_excludes_latest_aliases(self) -> None:
-        from gobby.servers.routes.admin._config import _discover_models
-
-        result = _discover_models()
-
-        assert any(m["value"] == "haiku" for m in result["claude"])
-        assert not any(m["value"] == "claude-latest" for m in result.get("claude", []))
-
-    @patch("litellm.model_cost", {})
-    def test_discover_models_empty_registry(self) -> None:
-        from gobby.servers.routes.admin._config import _discover_models
-
+        mock_fetch.return_value = []
         result = _discover_models()
         assert result == {}
 
-    @patch(
-        "litellm.model_cost",
-        {
-            "llama-70b": {},
-            "haiku": {},
-        },
-    )
-    def test_discover_models_unknown_prefix_excluded(self) -> None:
+    @patch("gobby.llm.model_registry.fetch_models_sync")
+    def test_discover_models_strips_provider_prefix(self, mock_fetch) -> None:
+        from gobby.llm.model_registry import ModelInfo
         from gobby.servers.routes.admin._config import _discover_models
 
-        result = _discover_models()
+        mock_fetch.return_value = [
+            ModelInfo(
+                "anthropic/claude-sonnet-4-6",
+                "Anthropic: Claude Sonnet 4.6",
+                "claude",
+                200000,
+                64000,
+                3e-6,
+                15e-6,
+            ),
+        ]
 
-        # llama is not in _PROVIDER_PREFIXES
-        assert "llama" not in result
-        assert "claude" in result
+        result = _discover_models()
+        # Value should have provider prefix stripped
+        assert result["claude"][1]["value"] == "claude-sonnet-4-6"
 
 
 class TestFallbackModelsFromConfig:
@@ -427,26 +391,17 @@ class TestFallbackModelsFromConfig:
         server = MagicMock()
         claude_config = MagicMock()
         claude_config.get_models_list.return_value = ["haiku"]
-        gemini_config = MagicMock()
-        gemini_config.get_models_list.return_value = ["gemini-2.0-flash"]
 
         server.services.config.llm_providers.claude = claude_config
         server.services.config.llm_providers.codex = None
-        server.services.config.llm_providers.gemini = gemini_config
-        server.services.config.llm_providers.litellm = None
 
         result = _fallback_models_from_config(server)
 
         assert result["claude"] == [
             {"value": "", "label": "(default)"},
-            {"value": "haiku", "label": "Haiku"},
-        ]
-        assert result["gemini"] == [
-            {"value": "", "label": "(default)"},
-            {"value": "gemini-2.0-flash", "label": "Gemini 2.0 Flash"},
+            {"value": "haiku", "label": "haiku"},
         ]
         assert "codex" not in result
-        assert "litellm" not in result
 
     def test_fallback_no_config(self) -> None:
         from gobby.servers.routes.admin._config import _fallback_models_from_config
@@ -475,8 +430,6 @@ class TestFallbackModelsFromConfig:
 
         server.services.config.llm_providers.claude = claude_config
         server.services.config.llm_providers.codex = None
-        server.services.config.llm_providers.gemini = None
-        server.services.config.llm_providers.litellm = None
 
         result = _fallback_models_from_config(server)
         assert "claude" not in result

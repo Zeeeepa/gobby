@@ -89,9 +89,10 @@ class TestDaemonStop:
         # Send SIGTERM
         os.kill(pid, signal.SIGTERM)
 
-        # Wait for process to stop (up to 10 seconds)
+        # Wait for process to stop — must exceed the daemon's graceful
+        # shutdown timeout (15 s) plus cleanup buffer
         start = time.time()
-        while time.time() - start < 10.0:
+        while time.time() - start < 25.0:
             if not daemon_instance.is_alive():
                 break
             time.sleep(0.2)
@@ -185,7 +186,7 @@ class TestDaemonRestart:
 
             # Stop first daemon
             os.kill(process1.pid, signal.SIGTERM)
-            process1.wait(timeout=10)
+            process1.wait(timeout=25)
 
             # Wait for port to be released
             time.sleep(2.0)
@@ -259,7 +260,7 @@ class TestDaemonRestart:
 
             # Stop and restart
             os.kill(process1.pid, signal.SIGTERM)
-            process1.wait(timeout=10)
+            process1.wait(timeout=25)
             time.sleep(2.0)
 
             with open(log_file, "a") as log_f, open(error_log_file, "a") as err_f:

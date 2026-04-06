@@ -5,11 +5,9 @@ This package contains per-CLI installation logic extracted from the main install
 using the strangler fig pattern for incremental migration.
 """
 
-from .antigravity import install_antigravity
 from .claude import install_claude, uninstall_claude
-from .codex import install_codex_notify, uninstall_codex_notify
-from .copilot import install_copilot, uninstall_copilot
-from .cursor import install_cursor, uninstall_cursor
+from .codex import install_codex, install_codex_notify, uninstall_codex, uninstall_codex_notify
+from .embedding import install_embedding
 from .gemini import install_gemini, uninstall_gemini
 from .git_hooks import install_git_hooks
 from .mcp_config import install_default_mcp_servers
@@ -22,7 +20,6 @@ from .shared import (
     install_global_hooks,
     install_shared_content,
 )
-from .windsurf import install_windsurf, uninstall_windsurf
 
 __all__ = [
     # Shared
@@ -38,21 +35,14 @@ __all__ = [
     "install_gemini",
     "uninstall_gemini",
     # Codex
-    "install_codex_notify",
-    "uninstall_codex_notify",
-    # Cursor
-    "install_cursor",
-    "uninstall_cursor",
-    # Windsurf
-    "install_windsurf",
-    "uninstall_windsurf",
-    # Copilot
-    "install_copilot",
-    "uninstall_copilot",
+    "install_codex",
+    "uninstall_codex",
+    "install_codex_notify",  # backward-compat alias
+    "uninstall_codex_notify",  # backward-compat alias
     # Git Hooks
     "install_git_hooks",
-    # Antigravity
-    "install_antigravity",
+    # Embedding
+    "install_embedding",
     # Neo4j
     "install_neo4j",
     "uninstall_neo4j",

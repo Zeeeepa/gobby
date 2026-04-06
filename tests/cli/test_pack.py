@@ -1,7 +1,6 @@
 """Tests for gobby pack and unpack CLI commands."""
 
 import json
-import os
 import tarfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -9,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from gobby.cli.pack import pack, unpack, _human_size
+from gobby.cli.pack import _human_size, pack, unpack
 
 pytestmark = pytest.mark.unit
 

@@ -55,6 +55,30 @@ async def _init_subsystems(runner: GobbyRunner, rebuild_vector_store: Any) -> No
             )
             runner.memory_manager.clear_graph_clients()
 
+    # Embedding health check: probe endpoint, attempt auto-load, warn if down
+    emb_cfg = runner.config.embeddings
+    if emb_cfg.api_base:
+        from gobby.cli.services import is_embedding_healthy, try_autoload_embedding_model
+
+        healthy = await is_embedding_healthy(
+            model=emb_cfg.model,
+            api_base=emb_cfg.api_base,
+            api_key=emb_cfg.api_key,
+        )
+        if not healthy:
+            # Try to auto-load the model (lms load / ollama pull) and retry
+            if await try_autoload_embedding_model(emb_cfg.model, emb_cfg.api_base):
+                healthy = await is_embedding_healthy(
+                    model=emb_cfg.model,
+                    api_base=emb_cfg.api_base,
+                    api_key=emb_cfg.api_key,
+                )
+            if not healthy:
+                logger.warning(
+                    f"Embedding endpoint unreachable at {emb_cfg.api_base} "
+                    f"(model: {emb_cfg.model}) — semantic search will fall back to FTS5"
+                )
+
     # Run metrics cleanup on startup
     try:
         deleted = runner.metrics_manager.cleanup_old_metrics()
@@ -144,7 +168,7 @@ async def _init_subsystems(runner: GobbyRunner, rebuild_vector_store: Any) -> No
         runner._code_index_shutdown = shutdown_event
         runner._code_index_task = asyncio.create_task(
             code_index_maintenance_loop(
-                runner.code_indexer,
+                context=runner.code_indexer,
                 shutdown_flag=shutdown_event,
                 interval=runner.config.code_index.maintenance_interval_seconds,
                 summarizer=summarizer,
@@ -166,6 +190,7 @@ async def _init_subsystems(runner: GobbyRunner, rebuild_vector_store: Any) -> No
                 vector_store=runner.vector_store,
                 graph=runner.code_indexer.graph,
                 config=runner.config.code_index,
+                embeddings_config=runner.config.embeddings,
                 shutdown_flag=sync_shutdown,
             ),
             name="code-index-sync-worker",
@@ -581,6 +606,23 @@ async def run_daemon(runner: GobbyRunner) -> None:
             from gobby.cli.utils import stop_ui_server
 
             stop_ui_server(quiet=True)
+
+        # Close HookManager (webhook dispatcher httpx client, health monitor)
+        hook_manager = getattr(runner.http_server, "_hook_manager", None)
+        if hook_manager:
+            try:
+                hook_manager.shutdown()
+            except Exception as e:
+                logger.warning(f"HookManager shutdown failed: {e}")
+
+        # Close MemoryManager (Neo4j httpx client)
+        if runner.memory_manager:
+            try:
+                await asyncio.wait_for(runner.memory_manager.close(), timeout=5.0)
+            except TimeoutError:
+                logger.warning("MemoryManager close timed out")
+            except Exception as e:
+                logger.warning(f"MemoryManager close failed: {e}")
 
         # Close VectorStore connection
         if runner.vector_store:
