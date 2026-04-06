@@ -102,18 +102,6 @@ class TestDeriveTranscriptPath:
             result = handler._derive_transcript_path("gemini", {}, "ext-1")
         assert result == "/tmp/g.json"
 
-    def test_antigravity_source(self) -> None:
-        handler = _TestHandler()
-        with patch.object(handler, "_find_gemini_transcript", return_value="/tmp/a.json"):
-            result = handler._derive_transcript_path("antigravity", {}, "ext-1")
-        assert result == "/tmp/a.json"
-
-    def test_cursor_source(self) -> None:
-        handler = _TestHandler()
-        with patch.object(handler, "_find_cursor_transcript", return_value="/tmp/c.ndjson"):
-            result = handler._derive_transcript_path("cursor", {}, "ext-1")
-        assert result == "/tmp/c.ndjson"
-
     def test_unknown_source(self) -> None:
         handler = _TestHandler()
         result = handler._derive_transcript_path("codex", {}, "ext-1")

@@ -2074,16 +2074,6 @@ class TestTranscriptPathDerivation:
         result = event_handlers._derive_transcript_path("gemini", {}, "ext-123")
         assert result is None
 
-    def test_derive_antigravity_dispatches(self, event_handlers: EventHandlers) -> None:
-        """_derive_transcript_path should dispatch to _find_gemini_transcript for antigravity."""
-        result = event_handlers._derive_transcript_path("antigravity", {}, "ext-123")
-        assert result is None
-
-    def test_derive_cursor_dispatches(self, event_handlers: EventHandlers) -> None:
-        """_derive_transcript_path should dispatch to _find_cursor_transcript for cursor."""
-        result = event_handlers._derive_transcript_path("cursor", {}, "ext-123")
-        assert result is None
-
     def test_session_start_derives_gemini_transcript(self, mock_dependencies: dict) -> None:
         """SESSION_START should derive transcript_path for Gemini when not provided natively."""
         handlers = EventHandlers(**mock_dependencies)

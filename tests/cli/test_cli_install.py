@@ -165,21 +165,14 @@ class TestInstallCommand:
         assert "--codex" in result.output
         assert "--hooks" in result.output
         assert "--all" in result.output
-        assert "--antigravity" in result.output
 
     @patch("gobby.cli.install._is_claude_code_installed")
     @patch("gobby.cli.install._is_gemini_cli_installed")
     @patch("gobby.cli.install._is_codex_cli_installed")
-    @patch("gobby.cli.install._is_cursor_installed")
-    @patch("gobby.cli.install._is_windsurf_installed")
-    @patch("gobby.cli.install._is_copilot_cli_installed")
     @patch("gobby.cli.load_config")
     def test_install_no_clis_detected_no_git(
         self,
         mock_load_config: MagicMock,
-        mock_copilot: MagicMock,
-        mock_windsurf: MagicMock,
-        mock_cursor: MagicMock,
         mock_codex: MagicMock,
         mock_gemini: MagicMock,
         mock_claude: MagicMock,
@@ -191,9 +184,6 @@ class TestInstallCommand:
         mock_claude.return_value = False
         mock_gemini.return_value = False
         mock_codex.return_value = False
-        mock_cursor.return_value = False
-        mock_windsurf.return_value = False
-        mock_copilot.return_value = False
 
         with runner.isolated_filesystem(temp_dir=str(temp_dir)):
             result = runner.invoke(cli, ["install"])
@@ -457,46 +447,6 @@ class TestInstallCommand:
         assert result.exit_code == 1
         assert "Not a git repository" in result.output
         assert "Some installations failed" in result.output
-
-    @patch("gobby.cli.install._ensure_daemon_config")
-    @patch("gobby.cli.install.install_antigravity")
-    @patch("gobby.cli.install._is_claude_code_installed")
-    @patch("gobby.cli.install._is_gemini_cli_installed")
-    @patch("gobby.cli.install._is_codex_cli_installed")
-    @patch("gobby.cli.load_config")
-    def test_install_antigravity_flag(
-        self,
-        mock_load_config: MagicMock,
-        mock_codex: MagicMock,
-        mock_gemini: MagicMock,
-        mock_claude: MagicMock,
-        mock_install_antigravity: MagicMock,
-        mock_ensure_config: MagicMock,
-        runner: CliRunner,
-        temp_dir: Path,
-    ) -> None:
-        """Test install with --antigravity flag."""
-        mock_load_config.return_value = MagicMock()
-        mock_codex.return_value = False
-        mock_ensure_config.return_value = {"created": False, "path": "/test/config.yaml"}
-        mock_install_antigravity.return_value = {
-            "success": True,
-            "hooks_installed": [],
-            "workflows_installed": ["workflow1"],
-            "commands_installed": ["cmd1"],
-            "plugins_installed": ["plugin1"],
-            "mcp_configured": True,
-        }
-
-        with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            result = runner.invoke(cli, ["install", "--antigravity"])
-
-        assert result.exit_code == 0
-        assert "Antigravity Agent" in result.output
-        assert "Installed 0 hooks" in result.output
-
-        assert "Installed 1 workflows" in result.output
-        mock_install_antigravity.assert_called_once()
 
     @patch("gobby.cli.install._ensure_daemon_config")
     @patch("gobby.cli.install.install_claude")
@@ -941,9 +891,6 @@ class TestUninstallCommand:
         assert result.exit_code == 0
         assert "(no codex integration found to remove)" in result.output
 
-    @patch("gobby.cli.install.uninstall_windsurf")
-    @patch("gobby.cli.install.uninstall_cursor")
-    @patch("gobby.cli.install.uninstall_copilot")
     @patch("gobby.cli.install.uninstall_codex")
     @patch("gobby.cli.install.uninstall_claude")
     @patch("gobby.cli.install.uninstall_gemini")
@@ -954,9 +901,6 @@ class TestUninstallCommand:
         mock_uninstall_gemini: MagicMock,
         mock_uninstall_claude: MagicMock,
         _mock_uninstall_codex: MagicMock,
-        _mock_uninstall_copilot: MagicMock,
-        _mock_uninstall_cursor: MagicMock,
-        _mock_uninstall_windsurf: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -978,21 +922,6 @@ class TestUninstallCommand:
             "success": True,
             "files_removed": [],
             "config_updated": False,
-        }
-        _mock_uninstall_copilot.return_value = {
-            "success": True,
-            "hooks_removed": [],
-            "files_removed": [],
-        }
-        _mock_uninstall_cursor.return_value = {
-            "success": True,
-            "hooks_removed": [],
-            "files_removed": [],
-        }
-        _mock_uninstall_windsurf.return_value = {
-            "success": True,
-            "hooks_removed": [],
-            "files_removed": [],
         }
 
         fake_home = temp_dir / "home"
@@ -1062,9 +991,6 @@ class TestUninstallCommand:
         assert result.exit_code == 0
         mock_uninstall_claude.assert_called_once()
 
-    @patch("gobby.cli.install.uninstall_windsurf")
-    @patch("gobby.cli.install.uninstall_cursor")
-    @patch("gobby.cli.install.uninstall_copilot")
     @patch("gobby.cli.install.uninstall_codex")
     @patch("gobby.cli.install.uninstall_claude")
     @patch("gobby.cli.install.uninstall_gemini")
@@ -1075,9 +1001,6 @@ class TestUninstallCommand:
         mock_uninstall_gemini: MagicMock,
         mock_uninstall_claude: MagicMock,
         _mock_uninstall_codex: MagicMock,
-        _mock_uninstall_copilot: MagicMock,
-        _mock_uninstall_cursor: MagicMock,
-        _mock_uninstall_windsurf: MagicMock,
         runner: CliRunner,
         temp_dir: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -1099,21 +1022,6 @@ class TestUninstallCommand:
             "success": True,
             "files_removed": [],
             "config_updated": False,
-        }
-        _mock_uninstall_copilot.return_value = {
-            "success": True,
-            "hooks_removed": [],
-            "files_removed": [],
-        }
-        _mock_uninstall_cursor.return_value = {
-            "success": True,
-            "hooks_removed": [],
-            "files_removed": [],
-        }
-        _mock_uninstall_windsurf.return_value = {
-            "success": True,
-            "hooks_removed": [],
-            "files_removed": [],
         }
 
         fake_home = temp_dir / "home"

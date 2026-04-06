@@ -767,28 +767,6 @@ class TestInstallProviderHooks:
             mock_install.assert_called_once_with(tmp_path, mode="project")
             assert "Install failed" in caplog.text
 
-    @pytest.mark.parametrize(
-        "provider,mod_name,func_name",
-        [
-            ("cursor", "cursor", "install_cursor"),
-            ("windsurf", "windsurf", "install_windsurf"),
-            ("copilot", "copilot", "install_copilot"),
-        ],
-    )
-    def test_claude_format_providers_use_project_mode(
-        self, tmp_path, provider, mod_name, func_name
-    ) -> None:
-        """Test cursor/windsurf/copilot install their own hooks with project mode."""
-        import importlib
-
-        mod = importlib.import_module(f"gobby.cli.installers.{mod_name}")
-
-        with patch.object(mod, func_name) as mock_install:
-            mock_install.return_value = {"success": True}
-            result = _install_provider_hooks(provider, tmp_path)
-            assert result is True
-            mock_install.assert_called_once_with(tmp_path, mode="project")
-
     def test_gemini_hooks_success(self, tmp_path) -> None:
         """Test Gemini hooks installation success."""
         from gobby.cli.installers import gemini as gemini_mod
@@ -807,25 +785,6 @@ class TestInstallProviderHooks:
             result = _install_provider_hooks("gemini", tmp_path)
             assert result is False
             assert "Failed" in caplog.text
-
-    def test_antigravity_hooks_success(self, tmp_path) -> None:
-        """Test Antigravity hooks installation success."""
-        from gobby.cli.installers import antigravity as antigravity_mod
-
-        with patch.object(antigravity_mod, "install_antigravity") as mock_install:
-            mock_install.return_value = {"success": True}
-            result = _install_provider_hooks("antigravity", tmp_path)
-            assert result is True
-
-    def test_antigravity_hooks_failure(self, tmp_path, caplog) -> None:
-        """Test Antigravity hooks installation failure."""
-        from gobby.cli.installers import antigravity as antigravity_mod
-
-        with patch.object(antigravity_mod, "install_antigravity") as mock_install:
-            mock_install.return_value = {"success": False, "error": "Install failed"}
-            result = _install_provider_hooks("antigravity", tmp_path)
-            assert result is False
-            assert "Install failed" in caplog.text
 
     def test_hooks_install_exception(self, tmp_path, caplog) -> None:
         """Test hooks installation handles exceptions."""
