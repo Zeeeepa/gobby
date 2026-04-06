@@ -727,6 +727,11 @@ class CodexHooksAdapter(BaseAdapter):
                 result["reason"] = response.reason
             return result
 
+        # Stop: no context injection needed — session ID already known
+        hook_event_name = hook_type or "Unknown"
+        if hook_event_name == "Stop":
+            return result
+
         # System message
         if response.system_message:
             result["systemMessage"] = response.system_message
@@ -801,8 +806,9 @@ class CodexHooksAdapter(BaseAdapter):
                         context_parts.append(f"Gobby Session ID: {session_ref}")
 
         # Build hookSpecificOutput with required hookEventName
-        # PreToolUse and Stop only accept systemMessage — not additionalContext
-        _SYSTEM_MESSAGE_ONLY_EVENTS = {"PreToolUse", "Stop"}
+        # PreToolUse only accepts systemMessage — not additionalContext
+        # (Stop returns early above before reaching this code)
+        _SYSTEM_MESSAGE_ONLY_EVENTS = {"PreToolUse"}
         hook_event_name = hook_type or "Unknown"
         if context_parts:
             combined_context = truncate_additional_context("\n\n".join(context_parts))
