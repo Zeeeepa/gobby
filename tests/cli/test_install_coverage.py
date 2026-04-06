@@ -283,28 +283,6 @@ class TestInstallCommand:
         mock_qdrant.assert_not_called()
         mock_neo4j.assert_not_called()
 
-    @patch("gobby.cli.install.run_daemon_setup")
-    @patch(
-        "gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"}
-    )
-    @patch("gobby.cli.install.get_install_dir", return_value=Path("/fake/install"))
-    @patch("gobby.cli.install.install_antigravity")
-    def test_install_antigravity(
-        self,
-        mock_install: MagicMock,
-        _install_dir: MagicMock,
-        _config: MagicMock,
-        _setup: MagicMock,
-        runner: CliRunner,
-    ) -> None:
-        mock_install.return_value = {
-            "success": True,
-            "hooks_installed": ["hook1"],
-        }
-        result = runner.invoke(install, ["--antigravity"], catch_exceptions=False)
-        assert result.exit_code == 0
-        assert "Antigravity" in result.output
-
     def test_install_all_no_clis_detected(
         self,
         runner: CliRunner,
@@ -343,6 +321,7 @@ class TestInstallCommand:
     ) -> None:
         mock_install.return_value = {
             "success": True,
+            "hooks_installed": [],
             "files_installed": ["/path/to/file"],
             "config_updated": True,
             "workflows_installed": ["wf1"],
@@ -354,23 +333,6 @@ class TestInstallCommand:
         assert result.exit_code == 0
         assert "Codex" in result.output
 
-    @patch("gobby.cli.install.run_daemon_setup")
-    @patch(
-        "gobby.cli.install._ensure_daemon_config", return_value={"created": False, "path": "/fake"}
-    )
-    @patch("gobby.cli.install.get_install_dir", return_value=Path("/fake/install"))
-    @patch("gobby.cli.install._is_codex_cli_installed", return_value=False)
-    def test_install_codex_not_detected(
-        self,
-        _codex: MagicMock,
-        _install_dir: MagicMock,
-        _config: MagicMock,
-        _setup: MagicMock,
-        runner: CliRunner,
-    ) -> None:
-        result = runner.invoke(install, ["--codex"], catch_exceptions=False)
-        assert result.exit_code == 1
-        assert "not detected" in result.output.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -413,6 +375,7 @@ class TestUninstallCommand:
     def test_uninstall_codex(self, mock_uninstall: MagicMock, runner: CliRunner) -> None:
         mock_uninstall.return_value = {
             "success": True,
+            "hooks_removed": ["codex_hook"],
             "files_removed": ["codex_file"],
             "config_updated": True,
         }

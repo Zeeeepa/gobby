@@ -18,7 +18,7 @@ def assembler() -> HookTranscriptAssembler:
 def _make_event(
     event_type: HookEventType,
     data: dict,
-    source: SessionSource = SessionSource.WINDSURF,
+    source: SessionSource = SessionSource.CLAUDE,
 ) -> HookEvent:
     return HookEvent(
         event_type=event_type,

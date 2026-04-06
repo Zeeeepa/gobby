@@ -153,9 +153,7 @@ src/gobby/
 ├── adapters/             # CLI-specific hook adapters
 │   ├── claude_code.py    # Claude Code adapter
 │   ├── gemini.py         # Gemini CLI adapter
-│   ├── cursor.py         # Cursor adapter
-│   ├── windsurf.py       # Windsurf adapter
-│   └── copilot.py        # Copilot adapter
+│   └── codex_impl/       # Codex adapter implementation
 │
 ├── agents/               # Agent spawning and lifecycle
 │   ├── spawn.py          # Agent spawner
